@@ -1,0 +1,6 @@
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+environment = "dev"
+commerce_platform = "commercetools"
+commercetools_project_key = "your-commercetools-project-key"
+commercetools_scope = "view_products:your-commercetools-project-key view_orders:your-commercetools-project-key view_customers:your-commercetools-project-key"

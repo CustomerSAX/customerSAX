@@ -1,0 +1,33 @@
+{
+  "name": "customer-service-accelerator",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "app:ai-assist": "pnpm --filter @csa/ai-assist",
+    "app:bff": "pnpm --filter @csa/bff",
+    "app:commerce": "pnpm --filter @csa/commerce",
+    "app:webapp": "pnpm --filter @csa/webapp",
+    "build": "turbo run build",
+    "clean": "turbo run clean",
+    "cfg:prettier": "pnpm --filter @csa/config-prettier",
+    "cfg:typescript": "pnpm --filter @csa/config-typescript",
+    "dev": "turbo run dev --parallel",
+    "format": "prettier --write --ignore-path=.gitignore .",
+    "infra:gcp": "pnpm --filter @csa/infra-gcp",
+    "lib:ui": "pnpm --filter @csa/ui",
+    "lint": "turbo run lint",
+    "tf:check": "turbo run tf:check",
+    "tf:format": "turbo run tf:format",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.0.11",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.6.0"
+}

@@ -1,45 +1,147 @@
-**Edit a file, create a new file, and clone from Bitbucket in under 2 minutes**
+# Customer Service Accelerator
 
-When you're done, you can delete the content in this README and update the file with details for others getting started with your repository.
+Monorepo scaffold for the CSA architecture on GCP.
 
-*We recommend that you open this README in another tab as you perform the tasks below. You can [watch our video](https://youtu.be/0ocf7u76WSo) for a full demo of all the steps in this tutorial. Open the video in a new tab to avoid leaving Bitbucket.*
+## What Is Included
 
----
+- `apps/webapp`: Next.js + React frontend, intended for Firebase Hosting.
+- `apps/bff`: Node.js GraphQL BFF / Apollo gateway facade.
+- `apps/commerce`: Unified commerce connector GraphQL service, starting with commercetools.
+- `apps/ai-assist`: Node.js AI assist service facade for Cloud Run.
+- `packages/ui`: Shared React UI primitives.
+- `configs/typescript`: Shared TypeScript configuration.
+- `infra/gcp`: Terraform starter for GCP services in the diagram.
 
-## Edit a file
+## Prerequisites
 
-You’ll start by editing this README file to learn how to edit a file in Bitbucket.
+- Node.js 20+
+- pnpm 9+
+- Terraform 1.7+
+- Google Cloud SDK
 
-1. Click **Source** on the left side.
-2. Click the README.md link from the list of files.
-3. Click the **Edit** button.
-4. Delete the following text: *Delete this line to make a change to the README from Bitbucket.*
-5. After making your change, click **Commit** and then **Commit** again in the dialog. The commit page will open and you’ll see the change you just made.
-6. Go back to the **Source** page.
+## Local Development
 
----
+```bash
+pnpm install
+pnpm dev
+```
 
-## Create a file
+Default local URLs:
 
-Next, you’ll add a new file to this repository.
+- Webapp: `http://localhost:3000`
+- BFF GraphQL: `http://localhost:4000/graphql`
+- Commerce GraphQL: `http://localhost:4300/graphql`
+- AI Assist: `http://localhost:8080`
 
-1. Click the **New file** button at the top of the **Source** page.
-2. Give the file a filename of **contributors.txt**.
-3. Enter your name in the empty file space.
-4. Click **Commit** and then **Commit** again in the dialog.
-5. Go back to the **Source** page.
+## Federated BFF
 
-Before you move on, go ahead and explore the repository. You've already seen the **Source** page, but check out the **Commits**, **Branches**, and **Settings** pages.
+The webapp uses Apollo Client and reads `NEXT_PUBLIC_GRAPHQL_URL` to call the BFF.
 
----
+`apps/bff` runs as a local hello-world GraphQL server by default. When `FEDERATED_SERVICES` is set, it starts as an Apollo Federation gateway and introspects the configured subgraphs:
 
-## Clone a repository
+```bash
+FEDERATED_SERVICES='{
+  "commerce": "http://localhost:4300/graphql"
+}'
+```
 
-Use these steps to clone from SourceTree, our client for using the repository command-line free. Cloning allows you to work on your files locally. If you don't yet have SourceTree, [download and install first](https://www.sourcetreeapp.com/). If you prefer to clone from the command line, see [Clone a repository](https://confluence.atlassian.com/x/4whODQ).
+The value is a JSON object where each key is the subgraph name and each value is its GraphQL endpoint.
 
-1. You’ll see the clone button under the **Source** heading. Click that button.
-2. Now click **Check out in SourceTree**. You may need to create a SourceTree account or log in.
-3. When you see the **Clone New** dialog in SourceTree, update the destination path and name if you’d like to and then click **Clone**.
-4. Open the directory you just created to see your repository’s files.
+Use `BFF_COMMERCE_PLATFORM` to select the commerce platform the BFF should request from the commerce subgraph:
 
-Now that you're more familiar with your Bitbucket repository, go ahead and add a new file locally. You can [push your change back to Bitbucket with SourceTree](https://confluence.atlassian.com/x/iqyBMg), or you can [add, commit,](https://confluence.atlassian.com/x/8QhODQ) and [push from the command line](https://confluence.atlassian.com/x/NQ0zDQ).
+```bash
+BFF_COMMERCE_PLATFORM=commercetools
+```
+
+Supported values are `commercetools`, `shopify`, `bigcommerce`, and `sfcc`. The BFF forwards this value to the commerce service as `x-csa-commerce-platform`.
+
+## Commerce Connector
+
+`apps/commerce` exposes one CSA commerce GraphQL schema for the BFF, regardless of the upstream platform. The first adapter is commercetools. Future adapters for Shopify and Salesforce Commerce should return the same domain models:
+
+- `Product`
+- `Cart`
+- `Order`
+- `Customer`
+
+Configure the commerce service with:
+
+- `COMMERCE_PROVIDER=commercetools`
+- `COMMERCETOOLS_PROJECT_KEY`
+- `COMMERCETOOLS_CLIENT_ID`
+- `COMMERCETOOLS_CLIENT_SECRET`
+- `COMMERCETOOLS_SCOPE`
+- `COMMERCETOOLS_AUTH_URL`
+- `COMMERCETOOLS_API_URL`
+
+If commercetools credentials are not configured, the commerce service returns local sample data so the BFF and webapp can still run.
+
+## Workspace Scripts
+
+```bash
+pnpm dev        # run all apps in development mode through Turbo
+pnpm build      # build all apps and packages
+pnpm lint       # run lint checks
+pnpm typecheck  # run TypeScript checks
+```
+
+Workspace shortcuts:
+
+```bash
+pnpm app:webapp
+pnpm app:bff
+pnpm app:commerce
+pnpm app:ai-assist
+pnpm lib:ui
+pnpm cfg:typescript
+pnpm infra:gcp
+```
+
+## Terraform
+
+```bash
+cd infra/gcp
+terraform init
+terraform plan \
+  -var="project_id=YOUR_GCP_PROJECT" \
+  -var="region=us-central1" \
+  -var="environment=dev"
+```
+
+The Terraform is intentionally a starter layer. It enables the core APIs and declares Cloud Run services, Secret Manager secrets, Cloud SQL, Firestore, Cloud Storage, and BigQuery resources that match the diagram.
+
+## Multi-LLM Support
+
+`apps/ai-assist` supports provider selection per request:
+
+```bash
+curl -X POST http://localhost:8080/assist \
+  -H "content-type: application/json" \
+  -d '{"provider":"openai","message":"Write a short ticket summary"}'
+```
+
+Supported provider values:
+
+- `openai`
+- `anthropic` or `claude`
+- `grok` or `xai`
+
+Configure defaults with:
+
+- `AI_COMMERCE_PLATFORM`
+- `DEFAULT_LLM_PROVIDER`
+- `OPENAI_API_KEY`, `OPENAI_MODEL` such as `gpt-5.6-luna`
+- `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` such as `claude-sonnet-4-6`
+- `XAI_API_KEY`, `XAI_MODEL` such as `grok-4.5`
+
+The current implementation uses LangChain chat model integrations behind a small CSA provider router. That gives us a stable application contract while letting LangChain handle provider-specific model clients. LangGraph is still a later step, useful when the assistant becomes a stateful workflow with multi-step orchestration, approvals, resumable runs, retries, and persistent memory.
+
+## Monorepo Shape
+
+This repository follows the same broad layout style as the Phoenix MACH monorepo:
+
+- `apps/*` for deployable services and frontends.
+- `packages/*` for shared source packages.
+- `configs/*` for reusable tool configuration packages.
+- `infra/*` for infrastructure workspaces.
+- `turbo.json` for task orchestration across workspaces.

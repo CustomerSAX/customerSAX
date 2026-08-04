@@ -1,0 +1,35 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!terraform/**"],
+      "outputs": ["dist/**", ".next/**"]
+    },
+    "clean": {
+      "cache": false
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!terraform/**"]
+    },
+    "tf:check": {
+      "cache": false,
+      "inputs": ["terraform/**", "infra/**/*.tf"]
+    },
+    "tf:format": {
+      "cache": false,
+      "inputs": ["terraform/**", "infra/**/*.tf"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!terraform/**"]
+    }
+  }
+}
+
