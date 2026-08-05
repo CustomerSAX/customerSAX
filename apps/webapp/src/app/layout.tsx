@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "@fontsource-variable/inter";
 import { AppProviders } from "./providers";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "CSA Console",
-  description: "Customer Service Accelerator hello world"
+  title: "CSA Admin",
+  description: "Commerce Customer Service Accelerator internal agent portal"
 };
 
 export default function RootLayout({
@@ -15,7 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body suppressHydrationWarning>
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

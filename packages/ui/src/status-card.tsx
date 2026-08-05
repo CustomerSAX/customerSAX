@@ -1,20 +1,10 @@
-import type { CSSProperties } from "react";
+type Tone = "blue" | "green" | "purple" | "slate";
 
-type Tone = "blue" | "green" | "purple";
-
-const tones: Record<Tone, CSSProperties> = {
-  blue: {
-    borderColor: "#b9d4ff",
-    background: "#f4f8ff"
-  },
-  green: {
-    borderColor: "#a8dfc9",
-    background: "#f1fbf6"
-  },
-  purple: {
-    borderColor: "#c8bbff",
-    background: "#f7f4ff"
-  }
+const tones: Record<Tone, string> = {
+  blue: "border-primary-100 bg-primary-50 text-primary-700",
+  green: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  purple: "border-violet-200 bg-violet-50 text-violet-700",
+  slate: "border-csa-border bg-white text-csa-navy"
 };
 
 export function StatusCard({
@@ -27,35 +17,9 @@ export function StatusCard({
   tone?: Tone;
 }) {
   return (
-    <article
-      style={{
-        ...tones[tone],
-        borderRadius: 8,
-        borderStyle: "solid",
-        borderWidth: 1,
-        minHeight: 116,
-        padding: 20
-      }}
-    >
-      <h3
-        style={{
-          color: "#102044",
-          fontSize: "0.92rem",
-          margin: "0 0 12px"
-        }}
-      >
-        {title}
-      </h3>
-      <p
-        style={{
-          color: "#45536f",
-          lineHeight: 1.5,
-          margin: 0
-        }}
-      >
-        {value}
-      </p>
+    <article className={`min-h-[116px] rounded-card border p-5 shadow-card ${tones[tone]}`}>
+      <h3 className="mb-3 text-[13px] font-semibold text-csa-navy">{title}</h3>
+      <p className="m-0 text-[13px] leading-6 text-csa-muted">{value}</p>
     </article>
   );
 }
-
