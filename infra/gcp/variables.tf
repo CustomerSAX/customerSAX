@@ -62,3 +62,9 @@ variable "commerce_platform" {
   type        = string
   default     = "commercetools"
 }
+
+variable "ai_gateway_base_url" {
+  description = "Optional custom Vercel AI Gateway base URL."
+  type        = string
+  default     = ""
+}

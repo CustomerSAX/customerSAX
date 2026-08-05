@@ -1,7 +1,5 @@
-import type { BaseMessage } from "@langchain/core/messages";
-import { ChatAnthropic } from "@langchain/anthropic";
-import { ChatOpenAI } from "@langchain/openai";
-import { ChatXAI } from "@langchain/xai";
+import { createGateway } from "@ai-sdk/gateway";
+import { generateText } from "ai";
 
 export type LlmProvider = "anthropic" | "grok" | "openai";
 
@@ -17,24 +15,31 @@ type CompleteResult = {
 };
 
 type ProviderConfig = {
-  apiKey?: string;
   defaultModel: string;
+  gatewayPrefix: string;
 };
 
 const providers: Record<LlmProvider, ProviderConfig> = {
   anthropic: {
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    defaultModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6"
+    defaultModel: process.env.ANTHROPIC_MODEL ?? "anthropic/claude-sonnet-4-6",
+    gatewayPrefix: "anthropic"
   },
   grok: {
-    apiKey: process.env.XAI_API_KEY,
-    defaultModel: process.env.XAI_MODEL ?? "grok-4.5"
+    defaultModel: process.env.XAI_MODEL ?? "xai/grok-4.5",
+    gatewayPrefix: "xai"
   },
   openai: {
-    apiKey: process.env.OPENAI_API_KEY,
-    defaultModel: process.env.OPENAI_MODEL ?? "gpt-5.6-luna"
+    defaultModel: process.env.OPENAI_MODEL ?? "openai/gpt-5.6-luna",
+    gatewayPrefix: "openai"
   }
 };
+
+const aiGatewayBaseUrl = process.env.AI_GATEWAY_BASE_URL?.trim() || undefined;
+
+const gateway = createGateway({
+  apiKey: process.env.AI_GATEWAY_API_KEY,
+  baseURL: aiGatewayBaseUrl
+});
 
 export function getConfiguredProvider(): LlmProvider {
   return normalizeProvider(process.env.DEFAULT_LLM_PROVIDER) ?? "openai";
@@ -42,8 +47,8 @@ export function getConfiguredProvider(): LlmProvider {
 
 export function listProviders() {
   return Object.entries(providers).map(([provider, config]) => ({
-    configured: Boolean(config.apiKey),
-    defaultModel: config.defaultModel,
+    configured: Boolean(process.env.AI_GATEWAY_API_KEY),
+    defaultModel: toGatewayModelId(config),
     provider
   }));
 }
@@ -51,24 +56,27 @@ export function listProviders() {
 export async function completeWithLlm(request: CompleteRequest): Promise<CompleteResult> {
   const provider = normalizeProvider(request.provider) ?? getConfiguredProvider();
   const config = providers[provider];
+  const modelId = toGatewayModelId(config);
 
-  if (!config.apiKey) {
+  if (!process.env.AI_GATEWAY_API_KEY) {
     return {
-      model: config.defaultModel,
+      model: modelId,
       provider,
-      response: `Hello from CSA AI Assist using ${provider}. Add the ${apiKeyName(provider)} secret to call the live model.`
+      response: `Hello from CSA AI Assist using ${provider}. Add the AI_GATEWAY_API_KEY secret to call ${modelId} through Vercel AI Gateway.`
     };
   }
 
-  if (provider === "anthropic") {
-    return completeWithAnthropic(request.message, config);
-  }
+  const result = await generateText({
+    model: gateway(modelId),
+    prompt: request.message,
+    temperature: 0
+  });
 
-  if (provider === "grok") {
-    return completeWithGrok(request.message, config);
-  }
-
-  return completeWithOpenAi(request.message, config);
+  return {
+    model: modelId,
+    provider,
+    response: result.text
+  };
 }
 
 function normalizeProvider(provider?: string): LlmProvider | undefined {
@@ -91,87 +99,12 @@ function normalizeProvider(provider?: string): LlmProvider | undefined {
   return undefined;
 }
 
-function apiKeyName(provider: LlmProvider) {
-  const names: Record<LlmProvider, string> = {
-    anthropic: "ANTHROPIC_API_KEY",
-    grok: "XAI_API_KEY",
-    openai: "OPENAI_API_KEY"
-  };
+function toGatewayModelId(config: ProviderConfig) {
+  const model = config.defaultModel.trim();
 
-  return names[provider];
-}
-
-async function completeWithOpenAi(
-  message: string,
-  config: ProviderConfig
-): Promise<CompleteResult> {
-  const model = new ChatOpenAI({
-    apiKey: config.apiKey,
-    model: config.defaultModel,
-    temperature: 0
-  });
-  const result = await model.invoke(message);
-
-  return {
-    model: config.defaultModel,
-    provider: "openai",
-    response: messageContentToText(result)
-  };
-}
-
-async function completeWithAnthropic(
-  message: string,
-  config: ProviderConfig
-): Promise<CompleteResult> {
-  const model = new ChatAnthropic({
-    apiKey: config.apiKey,
-    maxTokens: 512,
-    model: config.defaultModel,
-    temperature: 0
-  });
-  const result = await model.invoke(message);
-
-  return {
-    model: config.defaultModel,
-    provider: "anthropic",
-    response: messageContentToText(result)
-  };
-}
-
-async function completeWithGrok(
-  message: string,
-  config: ProviderConfig
-): Promise<CompleteResult> {
-  const model = new ChatXAI({
-    apiKey: config.apiKey,
-    model: config.defaultModel,
-    temperature: 0
-  });
-  const result = await model.invoke(message);
-
-  return {
-    model: config.defaultModel,
-    provider: "grok",
-    response: messageContentToText(result)
-  };
-}
-
-function messageContentToText(message: BaseMessage): string {
-  if (typeof message.content === "string") {
-    return message.content;
+  if (model.includes("/")) {
+    return model;
   }
 
-  return message.content
-    .map((part) => {
-      if (typeof part === "string") {
-        return part;
-      }
-
-      if ("text" in part && typeof part.text === "string") {
-        return part.text;
-      }
-
-      return "";
-    })
-    .join("");
+  return `${config.gatewayPrefix}/${model}`;
 }

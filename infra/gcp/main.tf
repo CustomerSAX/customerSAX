@@ -2,9 +2,7 @@ locals {
   name_prefix = "csa-${var.environment}"
 
   llm_secrets = {
-    anthropic_api_key = "ANTHROPIC_API_KEY"
-    openai_api_key    = "OPENAI_API_KEY"
-    xai_api_key       = "XAI_API_KEY"
+    ai_gateway_api_key = "AI_GATEWAY_API_KEY"
   }
 
   commerce_secrets = {
@@ -229,6 +227,11 @@ resource "google_cloud_run_v2_service" "ai_assist" {
       env {
         name  = "AI_COMMERCE_PLATFORM"
         value = var.commerce_platform
+      }
+
+      env {
+        name  = "AI_GATEWAY_BASE_URL"
+        value = var.ai_gateway_base_url
       }
 
       dynamic "env" {

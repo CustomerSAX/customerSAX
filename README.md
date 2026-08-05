@@ -130,11 +130,13 @@ Configure defaults with:
 
 - `AI_COMMERCE_PLATFORM`
 - `DEFAULT_LLM_PROVIDER`
-- `OPENAI_API_KEY`, `OPENAI_MODEL` such as `gpt-5.6-luna`
-- `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` such as `claude-sonnet-4-6`
-- `XAI_API_KEY`, `XAI_MODEL` such as `grok-4.5`
+- `AI_GATEWAY_API_KEY`
+- `AI_GATEWAY_BASE_URL` when a custom Gateway endpoint is required
+- `OPENAI_MODEL` such as `openai/gpt-5.6-luna`
+- `ANTHROPIC_MODEL` such as `anthropic/claude-sonnet-4-6`
+- `XAI_MODEL` such as `xai/grok-4.5`
 
-The current implementation uses LangChain chat model integrations behind a small CSA provider router. That gives us a stable application contract while letting LangChain handle provider-specific model clients. LangGraph is still a later step, useful when the assistant becomes a stateful workflow with multi-step orchestration, approvals, resumable runs, retries, and persistent memory.
+The current implementation uses Vercel AI SDK with Vercel AI Gateway behind a small CSA provider router. That gives us a stable application contract while the Gateway handles multi-provider model access through one API key. LangGraph is still a later step, useful when the assistant becomes a stateful workflow with multi-step orchestration, approvals, resumable runs, retries, and persistent memory.
 
 ## Monorepo Shape
 
