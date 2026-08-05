@@ -1,0 +1,26 @@
+{
+  "name": "@csa/ai-assist",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^3.0.121",
+    "ai": "^6.0.184",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@csa/config-typescript": "workspace:*",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.11",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}

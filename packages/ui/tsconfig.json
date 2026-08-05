@@ -1,0 +1,8 @@
+{
+  "extends": "@csa/config-typescript/react-lib",
+  "compilerOptions": {
+    "outDir": "dist",
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

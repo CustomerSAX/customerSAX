@@ -1,0 +1,25 @@
+{
+  "name": "@csa/bff",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@apollo/gateway": "^2.10.0",
+    "@apollo/server": "^4.11.0",
+    "graphql": "^16.9.0"
+  },
+  "devDependencies": {
+    "@csa/config-typescript": "workspace:*",
+    "@types/node": "^20.14.11",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}

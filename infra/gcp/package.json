@@ -1,0 +1,10 @@
+{
+  "name": "@csa/infra-gcp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "tf:check": "terraform fmt -check -recursive .",
+    "tf:format": "terraform fmt -recursive ."
+  }
+}
+

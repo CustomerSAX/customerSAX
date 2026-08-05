@@ -1,0 +1,14 @@
+{
+  "name": "@csa/config-typescript",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./next-app": "./next-app.json",
+    "./node": "./node.json",
+    "./react-lib": "./react-lib.json"
+  },
+  "peerDependencies": {
+    "typescript": "^5.5.4"
+  }
+}
+
