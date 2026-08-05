@@ -41,12 +41,16 @@ export function Dashboard() {
         };
 
   return (
-    <main className="shell">
-      <section className="hero">
+    <main className="min-h-screen p-5 text-[#102044] md:p-10">
+      <section className="grid items-center gap-8 rounded-lg border border-[#d8e0f0] bg-white p-6 md:grid-cols-[minmax(0,1fr)_320px] md:p-8">
         <div>
-          <p className="eyebrow">CSA GCP Environment</p>
-          <h1>Customer Service Accelerator</h1>
-          <p className="lede">
+          <p className="mb-3 text-xs font-extrabold uppercase text-[#7657f5]">
+            CSA GCP Environment
+          </p>
+          <h1 className="mb-5 text-5xl font-bold leading-none md:text-7xl">
+            Customer Service Accelerator
+          </h1>
+          <p className="m-0 max-w-3xl text-lg leading-7 text-[#45536f]">
             Hello world for a GCP-ready support console with a Next.js frontend,
             Node.js GraphQL gateway, AI assist service, and Terraform foundation.
           </p>
@@ -58,17 +62,23 @@ export function Dashboard() {
         />
       </section>
 
-      <section className="moduleGrid" aria-label="CSA modules">
+      <section
+        className="my-6 grid grid-cols-[repeat(auto-fit,minmax(132px,1fr))] gap-3"
+        aria-label="CSA modules"
+      >
         {modules.map((module) => (
-          <div className="module" key={module}>
+          <div
+            className="flex min-h-20 items-center justify-center rounded-lg border border-[#d8e0f0] bg-white p-4 text-center font-bold"
+            key={module}
+          >
             {module}
           </div>
         ))}
       </section>
 
-      <section className="services">
-        <h2>Core Service Map</h2>
-        <div className="serviceGrid">
+      <section className="rounded-lg border border-[#d8e0f0] bg-white p-6">
+        <h2 className="mb-4 text-xl font-bold">Core Service Map</h2>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
           {gateway.services.map((service) => (
             <StatusCard
               key={service.name}
@@ -82,4 +92,3 @@ export function Dashboard() {
     </main>
   );
 }
-
