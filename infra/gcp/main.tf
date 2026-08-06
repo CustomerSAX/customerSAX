@@ -253,6 +253,11 @@ resource "google_cloud_run_v2_service" "ai_assist" {
       }
 
       env {
+        name  = "AI_COMMERCE_SERVICE_URL"
+        value = var.ai_commerce_service_url != "" ? var.ai_commerce_service_url : google_cloud_run_v2_service.commerce_commercetools.uri
+      }
+
+      env {
         name  = "AI_GATEWAY_BASE_URL"
         value = var.ai_gateway_base_url
       }

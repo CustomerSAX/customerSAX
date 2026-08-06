@@ -74,3 +74,9 @@ variable "ai_gateway_base_url" {
   type        = string
   default     = ""
 }
+
+variable "ai_commerce_service_url" {
+  description = "Optional commerce GraphQL URL used by the AI Assist service. Defaults to the deployed commercetools adapter."
+  type        = string
+  default     = ""
+}

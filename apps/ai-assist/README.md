@@ -20,3 +20,4 @@ This folder has its own `package.json`, `tsconfig.json`, and `Dockerfile`. It do
 - `ANTHROPIC_MODEL`
 - `XAI_MODEL`
 - `AI_COMMERCE_PLATFORM`
+- `AI_COMMERCE_SERVICE_URL`

@@ -1,6 +1,10 @@
 import { ApolloGateway, IntrospectAndCompose, RemoteGraphQLDataSource } from "@apollo/gateway";
 
 type FederatedServices = Record<string, string>;
+type FederatedService = {
+  name: string;
+  url: string;
+};
 
 export function getCommercePlatform() {
   return process.env.BFF_COMMERCE_PLATFORM ?? "commercetools";
@@ -34,12 +38,44 @@ function parseFederatedServices(value: string | undefined) {
 
   const parsed = JSON.parse(stripTrailingCommas(value)) as FederatedServices;
 
-  return Object.entries(parsed).map(([name, url]) => ({
-    name,
-    url
-  }));
+  return selectCommerceService(
+    Object.entries(parsed).map(([name, url]) => ({
+      name,
+      url
+    }))
+  );
 }
 
 function stripTrailingCommas(value: string) {
   return value.replace(/,\s*([}\]])/g, "$1");
+}
+
+function selectCommerceService(services: FederatedService[]) {
+  const selectedCommerceServiceNames = getCommerceServiceNameCandidates(getCommercePlatform());
+  const commerceServices = services.filter((service) => isCommerceService(service.name));
+  const nonCommerceServices = services.filter((service) => !isCommerceService(service.name));
+
+  if (commerceServices.length === 0) {
+    return services;
+  }
+
+  const selectedCommerceService =
+    commerceServices.find((service) => selectedCommerceServiceNames.includes(service.name)) ??
+    commerceServices.find((service) => service.name === "commerce");
+
+  return selectedCommerceService
+    ? [...nonCommerceServices, selectedCommerceService]
+    : nonCommerceServices;
+}
+
+function isCommerceService(name: string) {
+  return name === "commerce" || name.startsWith("commerce-");
+}
+
+function getCommerceServiceNameCandidates(platform: string) {
+  if (platform === "salesforce" || platform === "sfcc") {
+    return ["commerce-salesforce", "commerce-sfcc"];
+  }
+
+  return [`commerce-${platform}`];
 }

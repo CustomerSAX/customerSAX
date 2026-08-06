@@ -38,15 +38,20 @@ Default local URLs:
 
 The webapp uses Apollo Client and reads `NEXT_PUBLIC_GRAPHQL_URL` to call the BFF.
 
-`apps/bff` runs as a local hello-world GraphQL server by default. When `FEDERATED_SERVICES` is set, it starts as an Apollo Federation gateway and introspects the configured subgraphs:
+`apps/bff` runs as a local hello-world GraphQL server by default. When `FEDERATED_SERVICES` is set, it starts as an Apollo Federation gateway and introspects the configured subgraphs.
+
+Commerce adapters can be listed as separate federated services:
 
 ```bash
 FEDERATED_SERVICES='{
-  "commerce": "http://localhost:4300/graphql"
+  "commerce-commercetools": "http://localhost:4310/graphql",
+  "commerce-shopify": "http://localhost:4320/graphql",
+  "commerce-bigcommerce": "http://localhost:4330/graphql",
+  "commerce-sfcc": "http://localhost:4340/graphql"
 }'
 ```
 
-The value is a JSON object where each key is the subgraph name and each value is its GraphQL endpoint.
+The BFF composes only the selected commerce service so duplicate commerce schemas do not conflict. Other non-commerce services can stay in the same object, Mars-style.
 
 Use `BFF_COMMERCE_PLATFORM` to select the commerce platform the BFF should request from the commerce subgraph:
 
@@ -54,7 +59,7 @@ Use `BFF_COMMERCE_PLATFORM` to select the commerce platform the BFF should reque
 BFF_COMMERCE_PLATFORM=commercetools
 ```
 
-Supported values are `commercetools`, `shopify`, `bigcommerce`, and `sfcc`. The BFF forwards this value to the commerce service as `x-csa-commerce-platform`.
+Supported values are `commercetools`, `shopify`, `bigcommerce`, and `sfcc`. `salesforce` is accepted as an alias for `sfcc`. The BFF forwards this value as `x-csa-commerce-platform`.
 
 ## Commerce Services
 
@@ -65,7 +70,7 @@ Supported values are `commercetools`, `shopify`, `bigcommerce`, and `sfcc`. The 
 - `apps/commerce/commercetools`: commercetools adapter service that calls native commercetools GraphQL APIs and maps responses into the CSA contract.
 - `apps/commerce/shopify`, `apps/commerce/bigcommerce`, `apps/commerce/sfcc`: Separate adapter service placeholders for future implementation.
 
-The BFF only talks to the commerce gateway. The gateway selects the platform adapter using `x-csa-commerce-platform` or `COMMERCE_PROVIDER`, calls that adapter service, and returns the same CSA domain models regardless of the upstream platform:
+The BFF can either federate directly with one selected commerce adapter from `FEDERATED_SERVICES`, or federate with `apps/commerce/gateway` if we want a dedicated commerce routing layer. Either way, the BFF-facing models stay the same:
 
 - `Product`
 - `Cart`
