@@ -1,4 +1,4 @@
-import type { Customer } from "@csa/commerce-contract";
+import type { Customer } from "../../../commerce/types.js";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapCustomer } from "../../mappers.js";
 import type { CtCustomer } from "../../types.js";
@@ -22,4 +22,3 @@ export async function getCustomerById(id: string): Promise<Customer | null> {
 
   return mapCustomer(data.customer);
 }
-

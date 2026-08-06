@@ -1,4 +1,4 @@
-import type { Order } from "@csa/commerce-contract";
+import type { Order } from "../../../commerce/types.js";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapOrder } from "../../mappers.js";
 import type { CtOrder } from "../../types.js";
@@ -43,4 +43,3 @@ export async function getOrderById(id: string): Promise<Order | null> {
 
   return mapOrder(data.order);
 }
-

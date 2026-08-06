@@ -1,6 +1,21 @@
 # commercetools Adapter
 
-This package is a standalone commercetools adapter service. It implements the shared `CommerceProvider` contract from `@csa/commerce-contract`.
+This package is a standalone commercetools adapter service. It owns its GraphQL schema, provider interface, and commercetools mapping code so the folder can be moved into another monorepo with minimal changes.
+
+## GraphQL Layout
+
+The Apollo subgraph follows the Phoenix component style:
+
+- `src/http/graphql/typeDefs.ts`
+- `src/http/graphql/resolvers.ts`
+- `src/http/graphql/product/{index,product.graphql,product.mapper,product.resolvers,product.typeResolvers,product.types}.ts`
+- `src/http/graphql/cart/{index,cart.graphql,cart.mapper,cart.resolvers,cart.typeResolvers,cart.types}.ts`
+- `src/http/graphql/customer/{index,customer.graphql,customer.mapper,customer.resolvers,customer.typeResolvers,customer.types}.ts`
+- `src/http/graphql/order/{index,order.graphql,order.mapper,order.resolvers,order.typeResolvers,order.types}.ts`
+- `src/http/graphql/<domain>/resolvers`
+- `src/http/graphql/healthcheck`
+
+The native commercetools calls remain under `src/commercetools/api`.
 
 ## Copy To Another Codebase
 

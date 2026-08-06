@@ -1,4 +1,4 @@
-import type { Product } from "@csa/commerce-contract";
+import type { Product } from "../../../commerce/types.js";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapProduct } from "../../mappers.js";
 import type { CtProduct } from "../../types.js";
@@ -62,4 +62,3 @@ function paging(args: { limit?: number; offset?: number }) {
 function isDefined<TValue>(value: TValue | null): value is TValue {
   return value !== null;
 }
-

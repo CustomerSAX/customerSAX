@@ -1,4 +1,4 @@
-import type { Product } from "@csa/commerce-contract";
+import type { Product } from "../../../commerce/types.js";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapProduct } from "../../mappers.js";
 import type { CtProduct } from "../../types.js";
@@ -46,4 +46,3 @@ export async function getProductByIdOrKey(args: {
 
   return mapProduct(data.product);
 }
-

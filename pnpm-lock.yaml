@@ -101,12 +101,12 @@ importers:
       '@apollo/subgraph':
         specifier: ^2.10.0
         version: 2.14.3(graphql@16.14.2)
-      '@csa/commerce-contract':
-        specifier: workspace:*
-        version: link:../contract
       graphql:
         specifier: ^16.9.0
         version: 16.14.2
+      graphql-tag:
+        specifier: ^2.12.7
+        version: 2.12.7(graphql@16.14.2)
     devDependencies:
       '@csa/config-typescript':
         specifier: workspace:*
