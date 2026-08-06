@@ -1,0 +1,30 @@
+{
+  "name": "@csa/commerce-bigcommerce",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "prebuild": "pnpm --filter @csa/commerce-contract build",
+    "predev": "pnpm --filter @csa/commerce-contract build",
+    "prelint": "pnpm --filter @csa/commerce-contract build",
+    "pretypecheck": "pnpm --filter @csa/commerce-contract build",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@apollo/server": "^4.11.0",
+    "@apollo/subgraph": "^2.10.0",
+    "@csa/commerce-contract": "workspace:*",
+    "graphql": "^16.9.0"
+  },
+  "devDependencies": {
+    "@csa/config-typescript": "workspace:*",
+    "@types/node": "^20.14.11",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}

@@ -8,9 +8,14 @@ output "ai_assist_url" {
   value       = google_cloud_run_v2_service.ai_assist.uri
 }
 
-output "commerce_url" {
-  description = "Commerce Cloud Run URL."
-  value       = google_cloud_run_v2_service.commerce.uri
+output "commerce_gateway_url" {
+  description = "Commerce Gateway Cloud Run URL."
+  value       = google_cloud_run_v2_service.commerce_gateway.uri
+}
+
+output "commerce_commercetools_url" {
+  description = "commercetools adapter Cloud Run URL."
+  value       = google_cloud_run_v2_service.commerce_commercetools.uri
 }
 
 output "documents_bucket" {

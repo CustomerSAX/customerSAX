@@ -6,7 +6,7 @@ Monorepo scaffold for the CSA architecture on GCP.
 
 - `apps/webapp`: Next.js + React frontend, intended for Firebase Hosting.
 - `apps/bff`: Node.js GraphQL BFF / Apollo gateway facade.
-- `apps/commerce`: Unified commerce connector GraphQL service, starting with commercetools.
+- `apps/commerce`: Commerce service group with a gateway, shared contract, and platform adapters.
 - `apps/ai-assist`: Node.js AI assist service facade for Cloud Run.
 - `packages/ui`: Shared React UI primitives.
 - `configs/typescript`: Shared TypeScript configuration.
@@ -30,7 +30,8 @@ Default local URLs:
 
 - Webapp: `http://localhost:3000`
 - BFF GraphQL: `http://localhost:4000/graphql`
-- Commerce GraphQL: `http://localhost:4300/graphql`
+- Commerce Gateway GraphQL: `http://localhost:4300/graphql`
+- commercetools Adapter GraphQL: `http://localhost:4310/graphql`
 - AI Assist: `http://localhost:8080`
 
 ## Federated BFF
@@ -55,18 +56,34 @@ BFF_COMMERCE_PLATFORM=commercetools
 
 Supported values are `commercetools`, `shopify`, `bigcommerce`, and `sfcc`. The BFF forwards this value to the commerce service as `x-csa-commerce-platform`.
 
-## Commerce Connector
+## Commerce Services
 
-`apps/commerce` exposes one CSA commerce GraphQL schema for the BFF, regardless of the upstream platform. The first adapter is commercetools. Future adapters for Shopify and Salesforce Commerce should return the same domain models:
+`apps/commerce` is now a service group:
+
+- `apps/commerce/contract`: Shared CSA commerce GraphQL schema and TypeScript domain types.
+- `apps/commerce/gateway`: Federated commerce gateway consumed by the BFF.
+- `apps/commerce/commercetools`: commercetools adapter service that calls native commercetools GraphQL APIs and maps responses into the CSA contract.
+- `apps/commerce/shopify`, `apps/commerce/bigcommerce`, `apps/commerce/sfcc`: Separate adapter service placeholders for future implementation.
+
+The BFF only talks to the commerce gateway. The gateway selects the platform adapter using `x-csa-commerce-platform` or `COMMERCE_PROVIDER`, calls that adapter service, and returns the same CSA domain models regardless of the upstream platform:
 
 - `Product`
 - `Cart`
 - `Order`
 - `Customer`
 
-Configure the commerce service with:
+Configure local routing with:
 
 - `COMMERCE_PROVIDER=commercetools`
+- `COMMERCE_GATEWAY_PORT=4300`
+- `COMMERCE_COMMERCETOOLS_URL=http://localhost:4310/graphql`
+- `COMMERCE_SHOPIFY_URL=http://localhost:4320/graphql`
+- `COMMERCE_BIGCOMMERCE_URL=http://localhost:4330/graphql`
+- `COMMERCE_SFCC_URL=http://localhost:4340/graphql`
+
+Configure the commercetools adapter with:
+
+- `COMMERCETOOLS_PORT=4310`
 - `COMMERCETOOLS_PROJECT_KEY`
 - `COMMERCETOOLS_CLIENT_ID`
 - `COMMERCETOOLS_CLIENT_SECRET`
@@ -74,7 +91,7 @@ Configure the commerce service with:
 - `COMMERCETOOLS_AUTH_URL`
 - `COMMERCETOOLS_API_URL`
 
-If commercetools credentials are not configured, the commerce service returns local sample data so the BFF and webapp can still run.
+If the gateway has no URL for a selected adapter, it returns local sample data so the BFF and webapp can still run. If the commercetools adapter is running without credentials, that adapter also falls back to local sample data.
 
 ## Workspace Scripts
 
@@ -90,7 +107,11 @@ Workspace shortcuts:
 ```bash
 pnpm app:webapp
 pnpm app:bff
-pnpm app:commerce
+pnpm app:commerce              # commerce gateway
+pnpm app:commerce-commercetools
+pnpm app:commerce-shopify
+pnpm app:commerce-bigcommerce
+pnpm app:commerce-sfcc
 pnpm app:ai-assist
 pnpm lib:ui
 pnpm cfg:typescript
