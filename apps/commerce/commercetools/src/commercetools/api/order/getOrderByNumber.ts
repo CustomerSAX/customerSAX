@@ -2,36 +2,12 @@ import type { Order } from "../../../commerce/types.js";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapOrder } from "../../mappers.js";
 import type { CtOrder } from "../../types.js";
+import { orderFields } from "./orderFields.js";
 
 const query = `#graphql
   query OrderByNumber($orderNumber: String!) {
     order(orderNumber: $orderNumber) {
-      id
-      orderNumber
-      customerId
-      orderState
-      createdAt
-      totalPrice {
-        centAmount
-        currencyCode
-        fractionDigits
-      }
-      lineItems {
-        id
-        productId
-        variant {
-          sku
-        }
-        nameAllLocales {
-          value
-        }
-        quantity
-        totalPrice {
-          centAmount
-          currencyCode
-          fractionDigits
-        }
-      }
+      ${orderFields}
     }
   }
 `;

@@ -32,7 +32,8 @@ export function mapCart(cart: CtCart | null | undefined): Cart | null {
     id: cart.id,
     key: cart.key,
     lineItems: (cart.lineItems ?? []).map(mapLineItem),
-    totalPrice: mapMoney(cart.totalPrice)
+    totalPrice: mapMoney(cart.totalPrice),
+    version: cart.version
   };
 }
 

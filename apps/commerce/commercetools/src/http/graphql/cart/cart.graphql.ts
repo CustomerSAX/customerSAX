@@ -3,6 +3,7 @@ import { gql } from "graphql-tag";
 export const typeDefs = gql`
   type Cart @key(fields: "id") {
     id: ID!
+    version: Int!
     key: String
     customerId: String
     currencyCode: String!

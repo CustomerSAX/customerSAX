@@ -2,39 +2,13 @@ import type { Product } from "../../../commerce/types.js";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapProduct } from "../../mappers.js";
 import type { CtProduct } from "../../types.js";
+import { productFields } from "./productFields.js";
 
 const query = `#graphql
   query Products($limit: Int!, $offset: Int!) {
     products(limit: $limit, offset: $offset) {
       results {
-        id
-        key
-        masterData {
-          current {
-            nameAllLocales {
-              value
-            }
-            descriptionAllLocales {
-              value
-            }
-            slugAllLocales {
-              value
-            }
-            masterVariant {
-              sku
-              images {
-                url
-              }
-              prices {
-                value {
-                  centAmount
-                  currencyCode
-                  fractionDigits
-                }
-              }
-            }
-          }
-        }
+        ${productFields}
       }
     }
   }

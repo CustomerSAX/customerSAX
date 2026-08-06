@@ -2,16 +2,13 @@ import type { Customer } from "../../../commerce/types.js";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapCustomer } from "../../mappers.js";
 import type { CtCustomer } from "../../types.js";
+import { customerFields } from "./customerFields.js";
 
 const query = `#graphql
   query Customers($limit: Int!, $offset: Int!) {
     customers(limit: $limit, offset: $offset) {
       results {
-        id
-        customerNumber
-        email
-        firstName
-        lastName
+        ${customerFields}
       }
     }
   }

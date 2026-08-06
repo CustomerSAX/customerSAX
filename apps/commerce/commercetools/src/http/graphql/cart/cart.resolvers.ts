@@ -47,7 +47,7 @@ export const resolvers = {
       `#graphql
         mutation CreateB2bCart($draft: CartDraft!) {
           createCart(draft: $draft) {
-            id key customerId totalPrice { centAmount currencyCode fractionDigits }
+            id version key customerId totalPrice { centAmount currencyCode fractionDigits }
             lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
           }
         }
@@ -100,7 +100,7 @@ async function queryCarts(where: string | undefined, args: PagingArgs) {
         carts(limit: $limit, offset: $offset, sort: $sort, where: $where) {
           total
           results {
-            id key customerId totalPrice { centAmount currencyCode fractionDigits }
+            id version key customerId totalPrice { centAmount currencyCode fractionDigits }
             lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
           }
         }
@@ -150,7 +150,7 @@ async function updateCart(id: string, actions: unknown[]) {
     `#graphql
       mutation UpdateCart($id: String!, $version: Long!, $actions: [CartUpdateAction!]!) {
         updateCart(id: $id, version: $version, actions: $actions) {
-          id key customerId totalPrice { centAmount currencyCode fractionDigits }
+          id version key customerId totalPrice { centAmount currencyCode fractionDigits }
           lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
         }
       }

@@ -40,6 +40,7 @@ export type CtCart = {
   key?: string;
   lineItems?: CtLineItem[];
   totalPrice: CtMoney;
+  version: number;
 };
 
 export type CtOrder = {
@@ -59,4 +60,3 @@ export type CtCustomer = {
   id: string;
   lastName?: string;
 };
-

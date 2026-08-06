@@ -1,48 +1,18 @@
 import type { Product } from "../../../commerce/types.js";
-import { commercetoolsGraphql } from "../../client.js";
-import { mapProduct } from "../../mappers.js";
-import type { CtProduct } from "../../types.js";
-
-const query = `#graphql
-  query ProductByIdOrKey($id: String, $key: String) {
-    product(id: $id, key: $key) {
-      id
-      key
-      masterData {
-        current {
-          nameAllLocales {
-            value
-          }
-          descriptionAllLocales {
-            value
-          }
-          slugAllLocales {
-            value
-          }
-          masterVariant {
-            sku
-            images {
-              url
-            }
-            prices {
-              value {
-                centAmount
-                currencyCode
-                fractionDigits
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
+import { getProductById } from "./getProductById.js";
+import { getProductByKey } from "./getProductByKey.js";
 
 export async function getProductByIdOrKey(args: {
   id?: string;
   key?: string;
 }): Promise<Product | null> {
-  const data = await commercetoolsGraphql<{ product: CtProduct | null }>(query, args);
+  if (args.id) {
+    return getProductById(args.id);
+  }
 
-  return mapProduct(data.product);
+  if (args.key) {
+    return getProductByKey(args.key);
+  }
+
+  return null;
 }

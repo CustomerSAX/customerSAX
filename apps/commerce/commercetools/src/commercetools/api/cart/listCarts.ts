@@ -2,35 +2,13 @@ import type { Cart } from "../../../commerce/types.js";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapCart } from "../../mappers.js";
 import type { CtCart } from "../../types.js";
+import { cartFields } from "./cartFields.js";
 
 const query = `#graphql
   query Carts($limit: Int!, $offset: Int!) {
     carts(limit: $limit, offset: $offset) {
       results {
-        id
-        key
-        customerId
-        totalPrice {
-          centAmount
-          currencyCode
-          fractionDigits
-        }
-        lineItems {
-          id
-          productId
-          variant {
-            sku
-          }
-          nameAllLocales {
-            value
-          }
-          quantity
-          totalPrice {
-            centAmount
-            currencyCode
-            fractionDigits
-          }
-        }
+        ${cartFields}
       }
     }
   }

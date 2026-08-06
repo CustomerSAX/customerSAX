@@ -31,6 +31,7 @@ export type Cart = {
   key?: string;
   lineItems: CommerceLineItem[];
   totalPrice: Money;
+  version: number;
 };
 
 export type Order = {
