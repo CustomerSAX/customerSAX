@@ -31,6 +31,7 @@ export type Cart = {
   key?: string;
   lineItems: CommerceLineItem[];
   totalPrice: Money;
+  version: number;
 };
 
 export type Order = {
@@ -62,4 +63,3 @@ export type CommerceProvider = {
   listProducts(args: { limit?: number; offset?: number }): Promise<Product[]>;
   name: string;
 };
-

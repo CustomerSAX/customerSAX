@@ -1,4 +1,4 @@
-import type { Cart } from "../../../commerce/types.js";
+import type { Cart } from "@csa/commerce-contract";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapCart } from "../../mappers.js";
 import type { CtCart } from "../../types.js";

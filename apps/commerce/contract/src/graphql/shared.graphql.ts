@@ -1,6 +1,6 @@
 import { gql } from "graphql-tag";
 
-export const typeDefs = gql`
+export const sharedTypeDefs = gql`
   scalar Json
 
   type Money {

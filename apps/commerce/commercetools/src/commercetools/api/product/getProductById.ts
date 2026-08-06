@@ -1,4 +1,4 @@
-import type { Product } from "../../../commerce/types.js";
+import type { Product } from "@csa/commerce-contract";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapProduct } from "../../mappers.js";
 import type { CtProduct } from "../../types.js";

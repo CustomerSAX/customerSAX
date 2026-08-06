@@ -1,6 +1,6 @@
 import { gql } from "graphql-tag";
 
-export const typeDefs = gql`
+export const customerTypeDefs = gql`
   type Customer @key(fields: "id") {
     id: ID!
     customerNumber: String

@@ -1,4 +1,4 @@
-import type { CommerceProvider } from "../commerce/types.js";
+import type { CommerceProvider } from "@csa/commerce-contract";
 import {
   getCartByIdOrKey,
   getCustomerByEmail,

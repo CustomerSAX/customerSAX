@@ -1,4 +1,4 @@
-import type { Cart } from "../../../commerce/types.js";
+import type { Cart } from "@csa/commerce-contract";
 import { getCartById } from "./getCartById.js";
 import { getCartByKey } from "./getCartByKey.js";
 

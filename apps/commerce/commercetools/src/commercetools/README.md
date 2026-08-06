@@ -1,6 +1,6 @@
 # commercetools Adapter
 
-This package is a standalone commercetools adapter service. It owns its GraphQL schema, provider interface, and commercetools mapping code so the folder can be moved into another monorepo with minimal changes.
+This package is a standalone commercetools adapter service. It imports the generic commerce GraphQL contract from `@csa/commerce-contract` and owns the commercetools-specific resolvers, API calls, and mappers.
 
 ## GraphQL Layout
 

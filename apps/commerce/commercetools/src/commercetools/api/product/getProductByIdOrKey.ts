@@ -1,4 +1,4 @@
-import type { Product } from "../../../commerce/types.js";
+import type { Product } from "@csa/commerce-contract";
 import { getProductById } from "./getProductById.js";
 import { getProductByKey } from "./getProductByKey.js";
 

@@ -1,4 +1,4 @@
-import type { Order } from "../../../commerce/types.js";
+import type { Order } from "@csa/commerce-contract";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapOrder } from "../../mappers.js";
 import type { CtOrder } from "../../types.js";

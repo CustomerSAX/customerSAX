@@ -1,6 +1,6 @@
 import { gql } from "graphql-tag";
 
-export const typeDefs = gql`
+export const orderTypeDefs = gql`
   type Order @key(fields: "id") {
     id: ID!
     orderNumber: String

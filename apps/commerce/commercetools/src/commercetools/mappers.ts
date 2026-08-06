@@ -1,4 +1,4 @@
-import type { Cart, CommerceLineItem, Customer, Money, Order, Product } from "../commerce/types.js";
+import type { Cart, CommerceLineItem, Customer, Money, Order, Product } from "@csa/commerce-contract";
 import type { CtCart, CtCustomer, CtLineItem, CtMoney, CtOrder, CtProduct } from "./types.js";
 
 export function mapProduct(product: CtProduct | null | undefined): Product | null {
