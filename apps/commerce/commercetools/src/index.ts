@@ -1,6 +1,7 @@
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
 import { buildSubgraphSchema } from "@apollo/subgraph";
+import "./load-env.js";
 import { resolvers, typeDefs } from "./schema.js";
 
 const port = Number(process.env.COMMERCETOOLS_PORT ?? process.env.PORT ?? 4310);
@@ -15,4 +16,3 @@ const { url } = await startStandaloneServer(server, {
 });
 
 console.log(`CSA commercetools adapter ready at ${url}`);
-

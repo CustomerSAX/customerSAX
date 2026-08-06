@@ -14,8 +14,11 @@ export function buildGateway(): ApolloGateway | undefined {
   const services = parseFederatedServices(process.env.FEDERATED_SERVICES);
 
   if (services.length === 0) {
+    console.warn("BFF running with local fallback schema. FEDERATED_SERVICES is not configured.");
     return undefined;
   }
+
+  console.log(`BFF composing federated services: ${services.map((service) => service.name).join(", ")}`);
 
   return new ApolloGateway({
     buildService: ({ url }) =>
