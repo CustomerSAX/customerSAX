@@ -27,12 +27,6 @@ variable "ai_assist_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
-variable "commerce_image" {
-  description = "Container image for the Commerce Gateway Cloud Run service."
-  type        = string
-  default     = "us-docker.pkg.dev/cloudrun/container/hello"
-}
-
 variable "commerce_commercetools_image" {
   description = "Container image for the commercetools adapter Cloud Run service."
   type        = string

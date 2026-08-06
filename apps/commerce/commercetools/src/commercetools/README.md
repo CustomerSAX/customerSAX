@@ -1,8 +1,6 @@
 # commercetools Adapter
 
-This package is a standalone commercetools adapter service.
-
-It runs behind `apps/commerce/gateway` and implements the shared `CommerceProvider` contract from `@csa/commerce-contract`.
+This package is a standalone commercetools adapter service. It implements the shared `CommerceProvider` contract from `@csa/commerce-contract`.
 
 ## Copy To Another Codebase
 

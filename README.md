@@ -6,7 +6,7 @@ Monorepo scaffold for the CSA architecture on GCP.
 
 - `apps/webapp`: Next.js + React frontend, intended for Firebase Hosting.
 - `apps/bff`: Node.js GraphQL BFF / Apollo gateway facade.
-- `apps/commerce`: Commerce service group with a gateway, shared contract, and platform adapters.
+- `apps/commerce`: Commerce service group with a shared contract and platform adapters.
 - `apps/ai-assist`: Node.js AI assist service facade for Cloud Run.
 - `packages/ui`: Shared React UI primitives.
 - `configs/typescript`: Shared TypeScript configuration.
@@ -26,11 +26,17 @@ pnpm install
 pnpm dev
 ```
 
+App-specific env examples live with each app:
+
+- `apps/webapp/.env.example`
+- `apps/bff/.env.example`
+- `apps/ai-assist/.env.example`
+- `apps/commerce/commercetools/.env.example`
+
 Default local URLs:
 
 - Webapp: `http://localhost:3000`
 - BFF GraphQL: `http://localhost:4000/graphql`
-- Commerce Gateway GraphQL: `http://localhost:4300/graphql`
 - commercetools Adapter GraphQL: `http://localhost:4310/graphql`
 - AI Assist: `http://localhost:8080`
 
@@ -66,37 +72,17 @@ Supported values are `commercetools`, `shopify`, `bigcommerce`, and `sfcc`. `sal
 `apps/commerce` is now a service group:
 
 - `apps/commerce/contract`: Shared CSA commerce GraphQL schema and TypeScript domain types.
-- `apps/commerce/gateway`: Federated commerce gateway consumed by the BFF.
 - `apps/commerce/commercetools`: commercetools adapter service that calls native commercetools GraphQL APIs and maps responses into the CSA contract.
 - `apps/commerce/shopify`, `apps/commerce/bigcommerce`, `apps/commerce/sfcc`: Separate adapter service placeholders for future implementation.
 
-The BFF can either federate directly with one selected commerce adapter from `FEDERATED_SERVICES`, or federate with `apps/commerce/gateway` if we want a dedicated commerce routing layer. Either way, the BFF-facing models stay the same:
+The BFF federates directly with one selected commerce adapter from `FEDERATED_SERVICES`. The BFF-facing models stay the same:
 
 - `Product`
 - `Cart`
 - `Order`
 - `Customer`
 
-Configure local routing with:
-
-- `COMMERCE_PROVIDER=commercetools`
-- `COMMERCE_GATEWAY_PORT=4300`
-- `COMMERCE_COMMERCETOOLS_URL=http://localhost:4310/graphql`
-- `COMMERCE_SHOPIFY_URL=http://localhost:4320/graphql`
-- `COMMERCE_BIGCOMMERCE_URL=http://localhost:4330/graphql`
-- `COMMERCE_SFCC_URL=http://localhost:4340/graphql`
-
-Configure the commercetools adapter with:
-
-- `COMMERCETOOLS_PORT=4310`
-- `COMMERCETOOLS_PROJECT_KEY`
-- `COMMERCETOOLS_CLIENT_ID`
-- `COMMERCETOOLS_CLIENT_SECRET`
-- `COMMERCETOOLS_SCOPE`
-- `COMMERCETOOLS_AUTH_URL`
-- `COMMERCETOOLS_API_URL`
-
-If the gateway has no URL for a selected adapter, it returns local sample data so the BFF and webapp can still run. If the commercetools adapter is running without credentials, that adapter also falls back to local sample data.
+Configure the commercetools adapter from `apps/commerce/commercetools/.env.example`. If the commercetools adapter is running without credentials, that adapter falls back to local sample data.
 
 ## Workspace Scripts
 
@@ -112,7 +98,6 @@ Workspace shortcuts:
 ```bash
 pnpm app:webapp
 pnpm app:bff
-pnpm app:commerce              # commerce gateway
 pnpm app:commerce-commercetools
 pnpm app:commerce-shopify
 pnpm app:commerce-bigcommerce

@@ -14,3 +14,5 @@ This folder has its own `package.json`, `tsconfig.json`, Tailwind config, PostCS
 ## Required Env
 
 - `NEXT_PUBLIC_GRAPHQL_URL`
+
+See `.env.example` in this folder.

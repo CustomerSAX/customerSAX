@@ -21,3 +21,5 @@ This folder has its own `package.json`, `tsconfig.json`, and `Dockerfile`. It do
 - `XAI_MODEL`
 - `AI_COMMERCE_PLATFORM`
 - `AI_COMMERCE_SERVICE_URL`
+
+See `.env.example` in this folder.

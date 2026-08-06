@@ -140,35 +140,7 @@ resource "google_cloud_run_v2_service" "bff" {
 
       env {
         name  = "FEDERATED_SERVICES"
-        value = jsonencode({ commerce = google_cloud_run_v2_service.commerce_gateway.uri })
-      }
-    }
-  }
-
-  depends_on = [google_project_service.required]
-}
-
-resource "google_cloud_run_v2_service" "commerce_gateway" {
-  name     = "${local.name_prefix}-commerce-gateway"
-  location = var.region
-
-  template {
-    containers {
-      image = var.commerce_image
-
-      env {
-        name  = "COMMERCE_GATEWAY_PORT"
-        value = "8080"
-      }
-
-      env {
-        name  = "COMMERCE_PROVIDER"
-        value = var.commerce_platform
-      }
-
-      env {
-        name  = "COMMERCE_COMMERCETOOLS_URL"
-        value = google_cloud_run_v2_service.commerce_commercetools.uri
+        value = jsonencode({ "commerce-commercetools" = google_cloud_run_v2_service.commerce_commercetools.uri })
       }
     }
   }

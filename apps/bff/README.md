@@ -17,6 +17,8 @@ This folder has its own `package.json`, `tsconfig.json`, and `Dockerfile`. It do
 - `BFF_COMMERCE_PLATFORM`
 - `FEDERATED_SERVICES`
 
+See `.env.example` in this folder.
+
 Commerce services can be listed independently:
 
 ```bash
