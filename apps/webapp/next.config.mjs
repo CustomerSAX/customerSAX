@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
-  transpilePackages: ["@csa/ui"]
+  output: "standalone"
 };
 
 export default nextConfig;
-

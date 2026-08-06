@@ -27,8 +27,8 @@ variable "ai_assist_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
-variable "commerce_image" {
-  description = "Container image for the Commerce Cloud Run service."
+variable "commerce_commercetools_image" {
+  description = "Container image for the commercetools adapter Cloud Run service."
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
@@ -65,6 +65,12 @@ variable "commerce_platform" {
 
 variable "ai_gateway_base_url" {
   description = "Optional custom Vercel AI Gateway base URL."
+  type        = string
+  default     = ""
+}
+
+variable "ai_commerce_service_url" {
+  description = "Optional commerce GraphQL URL used by the AI Assist service. Defaults to the deployed commercetools adapter."
   type        = string
   default     = ""
 }

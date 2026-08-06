@@ -1,5 +1,6 @@
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
+import "./server/load-env.js";
 import { buildGateway } from "./server/federation.js";
 import { localSchema } from "./server/local-schema.js";
 

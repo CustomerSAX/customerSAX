@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "@apollo/client";
-import { StatusCard } from "@csa/ui";
 import { Sparkles } from "lucide-react";
 import { AppShell } from "../../components/shell/AppShell";
+import { StatusCard } from "../../components/StatusCard";
 import { GATEWAY_STATUS_QUERY } from "../../graphql/queries";
 import { PageHeader } from "../workspace/PageHeader";
 

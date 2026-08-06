@@ -5,7 +5,11 @@
   "scripts": {
     "app:ai-assist": "pnpm --filter @csa/ai-assist",
     "app:bff": "pnpm --filter @csa/bff",
-    "app:commerce": "pnpm --filter @csa/commerce",
+    "app:commerce-bigcommerce": "pnpm --filter @csa/commerce-bigcommerce",
+    "app:commerce-commercetools": "pnpm --filter @csa/commerce-commercetools",
+    "app:commerce-contract": "pnpm --filter @csa/commerce-contract",
+    "app:commerce-sfcc": "pnpm --filter @csa/commerce-sfcc",
+    "app:commerce-shopify": "pnpm --filter @csa/commerce-shopify",
     "app:webapp": "pnpm --filter @csa/webapp",
     "build": "turbo run build",
     "clean": "turbo run clean",
