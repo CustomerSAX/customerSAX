@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Card, CardContent, CardHeader, CardTitle, Icon } from "@csa/ui";
-import type { ActionApprovalArgs } from "../types.js";
+import type { ActionApprovalArgs } from "../types";
 
 const INTENT_ICON: Record<string, string> = {
   cancel_order: "x-circle",

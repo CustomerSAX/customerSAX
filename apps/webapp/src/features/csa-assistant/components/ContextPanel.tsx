@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Badge, Card, CardContent, CardHeader, CardTitle, Icon } from "@csa/ui";
 import type { UIMessage } from "ai";
-import type { CaseBriefingArgs, UpdateUiStateArgs } from "../types.js";
+import type { CaseBriefingArgs, UpdateUiStateArgs } from "../types";
 
 interface ContextPanelProps {
   messages: UIMessage[];

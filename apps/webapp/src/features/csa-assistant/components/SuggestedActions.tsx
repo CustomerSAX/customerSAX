@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@csa/ui";
-import type { SuggestedActionsArgs } from "../types.js";
+import type { SuggestedActionsArgs } from "../types";
 
 interface SuggestedActionsProps {
   args: SuggestedActionsArgs;

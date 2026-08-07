@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { ConversationSession, SessionContext } from "./types.js";
-import { useCsaChat } from "./hooks/use-csa-chat.js";
-import { ConversationList } from "./components/ConversationList.js";
-import { ChatStream } from "./components/ChatStream.js";
-import { ContextPanel } from "./components/ContextPanel.js";
+import type { ConversationSession, SessionContext } from "./types";
+import { useCsaChat } from "./hooks/use-csa-chat";
+import { ConversationList } from "./components/ConversationList";
+import { ChatStream } from "./components/ChatStream";
+import { ContextPanel } from "./components/ContextPanel";
 
 // Default session context — in production this comes from auth + routing
 const DEFAULT_CONTEXT: SessionContext = {

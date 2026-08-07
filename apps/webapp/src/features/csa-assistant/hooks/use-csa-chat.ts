@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useCallback, useMemo, useState } from "react";
 import type { UIMessage } from "ai";
-import type { SessionContext } from "../types.js";
+import type { SessionContext } from "../types";
 
 const AI_ASSIST_URL =
   process.env.NEXT_PUBLIC_AI_ASSIST_URL ?? "http://localhost:8080";

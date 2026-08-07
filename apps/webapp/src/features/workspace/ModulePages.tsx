@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CsaAssistant } from "../csa-assistant/index.js";
+import { CsaAssistant } from "../csa-assistant/index";
 import {
   Table,
   TableHeader,

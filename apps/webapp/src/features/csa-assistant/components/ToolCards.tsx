@@ -9,7 +9,7 @@ import type {
   OrderSummaryArgs,
   ProductCardArgs,
   RenderRefundActionArgs
-} from "../types.js";
+} from "../types";
 
 // ─── Sentiment badge ──────────────────────────────────────────────────────────
 

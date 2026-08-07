@@ -13,7 +13,7 @@ import type {
   ProductCardArgs,
   RenderRefundActionArgs,
   SuggestedActionsArgs
-} from "../types.js";
+} from "../types";
 import {
   CartSummaryCard,
   CaseBriefingCard,
@@ -22,10 +22,10 @@ import {
   OrderSummaryCard,
   ProductCard,
   RenderRefundCard
-} from "./ToolCards.js";
-import { ActionApproval } from "./ActionApproval.js";
-import { SuggestedActions } from "./SuggestedActions.js";
-import type { CsaChat } from "../hooks/use-csa-chat.js";
+} from "./ToolCards";
+import { ActionApproval } from "./ActionApproval";
+import { SuggestedActions } from "./SuggestedActions";
+import type { CsaChat } from "../hooks/use-csa-chat";
 
 interface ChatStreamProps {
   chat: CsaChat;

@@ -1,7 +1,7 @@
 "use client";
 
 import { Avatar, Badge, Button, Card, CardContent, CardHeader, CardTitle, Icon } from "@csa/ui";
-import type { ConversationSession } from "../types.js";
+import type { ConversationSession } from "../types";
 
 interface ConversationListProps {
   sessions: ConversationSession[];
