@@ -9,7 +9,7 @@ export async function commercetoolsGraphql<TData>(
   query: string,
   variables: Record<string, unknown> = {}
 ) {
-  const apiUrl = requiredEnv("COMMERCETOOLS_API_URL");
+  const apiUrl = trimTrailingSlash(requiredEnv("COMMERCETOOLS_API_URL"));
   const projectKey = requiredEnv("COMMERCETOOLS_PROJECT_KEY");
   const token = await getCommercetoolsToken();
 
@@ -52,3 +52,6 @@ function requiredEnv(name: string) {
   return value;
 }
 
+function trimTrailingSlash(value: string) {
+  return value.trim().replace(/\/+$/, "");
+}

@@ -11,5 +11,6 @@ export type {
   Customer,
   Money,
   Order,
+  Page,
   Product
 } from "./types.js";

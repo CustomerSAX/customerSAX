@@ -24,12 +24,12 @@ const productFields = `#graphql
 
 export const resolvers = {
   product: (_parent: unknown, args: { id?: string; key?: string }) => getProductByIdOrKey(args),
-  products: (_parent: unknown, args: PagingArgs) => listProducts(args),
-  productPage: async (_parent: unknown, args: PagingArgs) => {
-    const items = await listProducts(args);
+  products: async (_parent: unknown, args: PagingArgs) => {
+    const productPage = await listProducts(args);
 
-    return page(items, undefined, args.offset ?? 0);
+    return productPage.results;
   },
+  productPage: (_parent: unknown, args: PagingArgs) => listProducts(args),
   productBySlug: async (_parent: unknown, args: { locale?: string; slug: string }) => {
     const locale = normalizeLocale(args.locale);
     const where = `masterData(current(slug(${locale}="${escapeWhere(args.slug)}")))`;
