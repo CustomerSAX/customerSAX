@@ -7,12 +7,12 @@ import type { CartSearchArgs } from "./cart.types.js";
 
 export const resolvers = {
   cart: (_parent: unknown, args: { id?: string; key?: string }) => getCartByIdOrKey(args),
-  carts: (_parent: unknown, args: PagingArgs) => listCarts(args),
-  cartPage: async (_parent: unknown, args: PagingArgs) => {
-    const items = await listCarts(args);
+  carts: async (_parent: unknown, args: PagingArgs) => {
+    const cartPage = await listCarts(args);
 
-    return page(items, undefined, args.offset ?? 0);
+    return cartPage.results;
   },
+  cartPage: (_parent: unknown, args: PagingArgs) => listCarts(args),
   searchCarts: async (_parent: unknown, args: CartSearchArgs) => queryCarts(cartSearchWhere(args), args),
   b2bCarts: async (
     _parent: unknown,

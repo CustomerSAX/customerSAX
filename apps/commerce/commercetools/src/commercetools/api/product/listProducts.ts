@@ -1,4 +1,4 @@
-import type { Product } from "@csa/commerce-contract";
+import type { Page, Product } from "@csa/commerce-contract";
 import { commercetoolsGraphql } from "../../client.js";
 import { mapProduct } from "../../mappers.js";
 import type { CtProduct } from "../../types.js";
@@ -7,6 +7,9 @@ import { productFields } from "./productFields.js";
 const query = `#graphql
   query Products($limit: Int!, $offset: Int!) {
     products(limit: $limit, offset: $offset) {
+      total
+      count
+      offset
       results {
         ${productFields}
       }
@@ -17,13 +20,22 @@ const query = `#graphql
 export async function listProducts(args: {
   limit?: number;
   offset?: number;
-}): Promise<Product[]> {
-  const data = await commercetoolsGraphql<{ products: { results: CtProduct[] } }>(
+}): Promise<Page<Product>> {
+  const data = await commercetoolsGraphql<{
+    products: { count?: number; offset?: number; results: CtProduct[]; total?: number };
+  }>(
     query,
     paging(args)
   );
 
-  return data.products.results.map(mapProduct).filter(isDefined);
+  const results = data.products.results.map(mapProduct).filter(isDefined);
+
+  return {
+    count: data.products.count ?? results.length,
+    offset: data.products.offset ?? args.offset ?? 0,
+    results,
+    total: data.products.total ?? results.length
+  };
 }
 
 function paging(args: { limit?: number; offset?: number }) {

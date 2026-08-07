@@ -13,10 +13,9 @@ export async function getCommercetoolsToken() {
 
   const clientId = requiredEnv("COMMERCETOOLS_CLIENT_ID");
   const clientSecret = requiredEnv("COMMERCETOOLS_CLIENT_SECRET");
-  const authUrl = requiredEnv("COMMERCETOOLS_AUTH_URL");
-  const scope =
-    process.env.COMMERCETOOLS_SCOPE ??
-    `manage_project:${requiredEnv("COMMERCETOOLS_PROJECT_KEY")}`;
+  const authUrl = trimTrailingSlash(requiredEnv("COMMERCETOOLS_AUTH_URL"));
+  const projectKey = requiredEnv("COMMERCETOOLS_PROJECT_KEY");
+  const scope = process.env.COMMERCETOOLS_SCOPE?.trim() || `manage_project:${projectKey}`;
 
   const response = await fetch(`${authUrl}/oauth/token`, {
     body: new URLSearchParams({
@@ -31,7 +30,7 @@ export async function getCommercetoolsToken() {
   });
 
   if (!response.ok) {
-    throw new Error(`commercetools auth failed with ${response.status}`);
+    throw new Error(`commercetools auth failed with ${response.status}: ${await safeErrorMessage(response)}`);
   }
 
   const payload = (await response.json()) as TokenResponse;
@@ -54,3 +53,22 @@ function requiredEnv(name: string) {
   return value;
 }
 
+function trimTrailingSlash(value: string) {
+  return value.trim().replace(/\/+$/, "");
+}
+
+async function safeErrorMessage(response: Response) {
+  const body = await response.text().catch(() => "");
+
+  if (!body) {
+    return response.statusText || "empty response";
+  }
+
+  try {
+    const parsed = JSON.parse(body) as { error?: string; error_description?: string; message?: string };
+
+    return parsed.error_description ?? parsed.message ?? parsed.error ?? "request rejected";
+  } catch {
+    return body.slice(0, 300);
+  }
+}

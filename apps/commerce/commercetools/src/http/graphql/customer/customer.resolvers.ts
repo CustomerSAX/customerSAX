@@ -16,7 +16,11 @@ const customerFields = `#graphql
 export const resolvers = {
   customer: (_parent: unknown, args: { email?: string; id?: string }) =>
     args.email ? getCustomerByEmail(args.email) : args.id ? getCustomerById(args.id) : null,
-  customers: (_parent: unknown, args: PagingArgs) => listCustomers(args),
+  customers: async (_parent: unknown, args: PagingArgs) => {
+    const customerPage = await listCustomers(args);
+
+    return customerPage.results;
+  },
   customerPage: async (_parent: unknown, args: CustomerSearchArgs) => queryCustomers(customerListWhere(args), args),
   searchCustomers: async (_parent: unknown, args: CustomerSearchArgs) => queryCustomers(customerSearchWhere(args), args),
   customersByEmails: async (_parent: unknown, args: { emails: string[] }) => {

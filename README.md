@@ -7,6 +7,7 @@ Monorepo scaffold for the CSA architecture on GCP.
 - `apps/webapp`: Next.js + React frontend, intended for Firebase Hosting.
 - `apps/bff`: Node.js GraphQL BFF / Apollo gateway facade.
 - `apps/commerce`: Commerce service group with a shared contract and platform adapters.
+- `apps/ticketing`: MongoDB-backed ticketing subgraph.
 - `apps/ai-assist`: Node.js AI assist service facade for Cloud Run.
 - `packages/ui`: Shared React UI primitives.
 - `configs/typescript`: Shared TypeScript configuration.
@@ -32,12 +33,14 @@ App-specific env examples live with each app:
 - `apps/bff/.env.example`
 - `apps/ai-assist/.env.example`
 - `apps/commerce/commercetools/.env.example`
+- `apps/ticketing/.env.example`
 
 Default local URLs:
 
 - Webapp: `http://localhost:3000`
 - BFF GraphQL: `http://localhost:4000/graphql`
 - commercetools Adapter GraphQL: `http://localhost:4310/graphql`
+- Ticketing GraphQL: `http://localhost:4350/graphql`
 - AI Assist: `http://localhost:8080`
 
 ## Federated BFF
@@ -53,7 +56,8 @@ FEDERATED_SERVICES='{
   "commerce-commercetools": "http://localhost:4310/graphql",
   "commerce-shopify": "http://localhost:4320/graphql",
   "commerce-bigcommerce": "http://localhost:4330/graphql",
-  "commerce-sfcc": "http://localhost:4340/graphql"
+  "commerce-sfcc": "http://localhost:4340/graphql",
+  "ticketing": "http://localhost:4350/graphql"
 }'
 ```
 
@@ -66,6 +70,26 @@ BFF_COMMERCE_PLATFORM=commercetools
 ```
 
 Supported values are `commercetools`, `shopify`, `bigcommerce`, and `sfcc`. `salesforce` is accepted as an alias for `sfcc`. The BFF forwards this value as `x-csa-commerce-platform`.
+
+## Ticketing Service
+
+`apps/ticketing` is a standalone MongoDB-backed Apollo subgraph. The webapp calls ticket queries through the BFF gateway:
+
+```text
+webapp -> BFF GraphQL -> ticketing subgraph -> MongoDB
+```
+
+Configure it from `apps/ticketing/.env.example`:
+
+```env
+TICKETING_PORT=4350
+MONGO_URI=
+MONGO_DB_NAME=csa
+MONGO_TICKETS_COLLECTION=Tickets
+TICKETING_PROJECT_KEY=default
+```
+
+Every ticket read/write is scoped by `projectKey`. Locally, `TICKETING_PROJECT_KEY` provides the default scope; later the BFF can forward tenant/project context from auth.
 
 ## Commerce Services
 
@@ -102,6 +126,7 @@ pnpm app:commerce-commercetools
 pnpm app:commerce-shopify
 pnpm app:commerce-bigcommerce
 pnpm app:commerce-sfcc
+pnpm app:ticketing
 pnpm app:ai-assist
 pnpm lib:ui
 pnpm cfg:typescript

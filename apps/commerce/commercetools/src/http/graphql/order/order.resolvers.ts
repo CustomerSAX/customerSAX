@@ -18,7 +18,11 @@ const orderFields = `#graphql
 export const resolvers = {
   order: (_parent: unknown, args: { id?: string; orderNumber?: string }) =>
     args.orderNumber ? getOrderByNumber(args.orderNumber) : args.id ? getOrderById(args.id) : null,
-  orders: (_parent: unknown, args: PagingArgs) => listOrders(args),
+  orders: async (_parent: unknown, args: PagingArgs) => {
+    const orderPage = await listOrders(args);
+
+    return orderPage.results;
+  },
   orderPage: async (_parent: unknown, args: OrderSearchArgs) => queryOrders(orderListWhere(args), args),
   b2bOrders: async (_parent: unknown, args: OrderSearchArgs) =>
     queryOrders(
