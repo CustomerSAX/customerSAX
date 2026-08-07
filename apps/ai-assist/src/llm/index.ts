@@ -1,110 +1,70 @@
-import { createGateway } from "@ai-sdk/gateway";
+import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
+import type { LanguageModel } from "ai";
 
-export type LlmProvider = "anthropic" | "grok" | "openai";
+export type LlmProvider = "openai" | "anthropic";
 
-type CompleteRequest = {
-  message: string;
-  provider?: string;
-};
-
-type CompleteResult = {
-  model: string;
-  provider: LlmProvider;
-  response: string;
-};
-
-type ProviderConfig = {
-  defaultModel: string;
-  gatewayPrefix: string;
-};
-
-const providers: Record<LlmProvider, ProviderConfig> = {
-  anthropic: {
-    defaultModel: process.env.ANTHROPIC_MODEL ?? "anthropic/claude-sonnet-4-6",
-    gatewayPrefix: "anthropic"
-  },
-  grok: {
-    defaultModel: process.env.XAI_MODEL ?? "xai/grok-4.5",
-    gatewayPrefix: "xai"
-  },
-  openai: {
-    defaultModel: process.env.OPENAI_MODEL ?? "openai/gpt-5.6-luna",
-    gatewayPrefix: "openai"
-  }
-};
-
-const aiGatewayBaseUrl = process.env.AI_GATEWAY_BASE_URL?.trim() || undefined;
-
-const gateway = createGateway({
-  apiKey: process.env.AI_GATEWAY_API_KEY,
-  baseURL: aiGatewayBaseUrl
+const openai = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 export function getConfiguredProvider(): LlmProvider {
-  return normalizeProvider(process.env.DEFAULT_LLM_PROVIDER) ?? "openai";
+  const p = process.env.DEFAULT_LLM_PROVIDER?.toLowerCase();
+  if (p === "anthropic" || p === "claude") return "anthropic";
+  return "openai";
+}
+
+export function getLanguageModel(provider?: string): LanguageModel {
+  const resolved: LlmProvider =
+    provider === "anthropic" || provider === "claude" ? "anthropic" : "openai";
+
+  if (resolved === "openai") {
+    const model = (process.env.OPENAI_MODEL ?? "gpt-4o").replace(/^openai\//, "");
+    return openai(model);
+  }
+
+  // Anthropic path — dynamic import so it doesn't crash when not installed
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createAnthropic } = require("@ai-sdk/anthropic");
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
+    const anthropicClient = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const model = (process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6").replace(/^anthropic\//, "");
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
+    return anthropicClient(model) as LanguageModel;
+  } catch {
+    console.warn("[llm] @ai-sdk/anthropic not available, falling back to OpenAI");
+    const model = (process.env.OPENAI_MODEL ?? "gpt-4o").replace(/^openai\//, "");
+    return openai(model);
+  }
 }
 
 export function listProviders() {
-  return Object.entries(providers).map(([provider, config]) => ({
-    configured: Boolean(process.env.AI_GATEWAY_API_KEY),
-    defaultModel: toGatewayModelId(config),
-    provider
-  }));
+  return [
+    {
+      provider: "openai",
+      defaultModel: process.env.OPENAI_MODEL ?? "gpt-4o",
+      configured: Boolean(process.env.OPENAI_API_KEY)
+    },
+    {
+      provider: "anthropic",
+      defaultModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+      configured: Boolean(process.env.ANTHROPIC_API_KEY)
+    }
+  ];
 }
 
-export async function completeWithLlm(request: CompleteRequest): Promise<CompleteResult> {
-  const provider = normalizeProvider(request.provider) ?? getConfiguredProvider();
-  const config = providers[provider];
-  const modelId = toGatewayModelId(config);
-
-  if (!process.env.AI_GATEWAY_API_KEY) {
-    return {
-      model: modelId,
-      provider,
-      response: `Hello from CSA AI Assist using ${provider}. Add the AI_GATEWAY_API_KEY secret to call ${modelId} through Vercel AI Gateway.`
-    };
-  }
-
+// Legacy helper used by /assist route
+export async function completeWithLlm({ message, provider }: { message: string; provider?: string }) {
+  const model = getLanguageModel(provider);
   const result = await generateText({
-    model: gateway(modelId),
-    prompt: request.message,
+    model,
+    prompt: message,
     temperature: 0
   });
-
   return {
-    model: modelId,
-    provider,
+    model: String(model),
+    provider: getConfiguredProvider(),
     response: result.text
   };
-}
-
-function normalizeProvider(provider?: string): LlmProvider | undefined {
-  if (provider === "anthropic" || provider === "claude") {
-    return "anthropic";
-  }
-
-  if (provider === "grok" || provider === "xai") {
-    return "grok";
-  }
-
-  if (provider === "openai") {
-    return "openai";
-  }
-
-  if (provider) {
-    throw new Error(`Unsupported LLM provider: ${provider}`);
-  }
-
-  return undefined;
-}
-
-function toGatewayModelId(config: ProviderConfig) {
-  const model = config.defaultModel.trim();
-
-  if (model.includes("/")) {
-    return model;
-  }
-
-  return `${config.gatewayPrefix}/${model}`;
 }

@@ -14,6 +14,8 @@
     "@apollo/client": "^3.11.8",
     "@csa/ui": "workspace:*",
     "@fontsource-variable/inter": "^5.1.0",
+    "@ai-sdk/react": "^3.0.246",
+    "ai": "^6.0.184",
     "graphql": "^16.9.0",
     "lucide-react": "^0.468.0",
     "next": "^14.2.5",
