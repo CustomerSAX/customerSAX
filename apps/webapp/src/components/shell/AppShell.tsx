@@ -1,188 +1,150 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import {
-  BarChart3,
-  Bell,
-  BookOpen,
-  ChevronDown,
-  Database,
-  Headphones,
-  LayoutDashboard,
-  Lock,
-  Package,
-  Search,
-  ShieldCheck,
-  ShoppingBag,
-  ShoppingCart,
-  Sparkles,
-  TicketCheck,
-  Users,
-  type LucideIcon
-} from "lucide-react";
+  Sidebar,
+  SidebarGroup,
+  SidebarItem,
+  TopBar,
+  SearchBar,
+  Avatar,
+  Badge,
+  Dropdown,
+  Icon,
+  Button
+} from "@csa/ui";
 
-const navGroups: Array<{
-  label: string;
-  items: Array<{ href: string; label: string; icon: LucideIcon; badge?: string }>;
-}> = [
+const sidebarGroups: SidebarGroup[] = [
   {
-    label: "Operations",
+    id: "operations",
+    title: "Operations",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/tickets", label: "Tickets", icon: TicketCheck, badge: "12" },
-      { href: "/customers", label: "Customers", icon: Users }
+      { id: "dashboard", href: "/dashboard", label: "Dashboard", icon: "layout-dashboard" },
+      { id: "tickets", href: "/tickets", label: "Tickets", icon: "ticket-check", badge: "12" },
+      { id: "customers", href: "/customers", label: "Customers", icon: "users" }
     ]
   },
   {
-    label: "Commerce",
+    id: "commerce",
+    title: "Commerce",
     items: [
-      { href: "/orders", label: "Orders", icon: ShoppingBag },
-      { href: "/cart", label: "Cart", icon: ShoppingCart },
-      { href: "/products", label: "Products", icon: Package }
+      { id: "orders", href: "/orders", label: "Orders", icon: "shopping-bag" },
+      { id: "cart", href: "/cart", label: "Cart", icon: "shopping-cart" },
+      { id: "products", href: "/products", label: "Products", icon: "package" }
     ]
   },
   {
-    label: "Intelligence",
+    id: "intelligence",
+    title: "Intelligence",
     items: [
-      { href: "/reports", label: "Reports", icon: BarChart3 },
-      { href: "/knowledgebase", label: "Knowledge Base", icon: BookOpen },
-      { href: "/csa-assistant", label: "CSA Assistant", icon: Sparkles }
+      { id: "reports", href: "/reports", label: "Reports", icon: "bar-chart-3" },
+      { id: "knowledgebase", href: "/knowledgebase", label: "Knowledge Base", icon: "book-open" },
+      { id: "csa-assistant", href: "/csa-assistant", label: "CSA Assistant", icon: "sparkles" }
     ]
   },
   {
-    label: "Administration",
-    items: [{ href: "/admin/audit-log", label: "Audit Log", icon: Lock }]
+    id: "administration",
+    title: "Administration",
+    items: [{ id: "audit-log", href: "/admin/audit-log", label: "Audit Log", icon: "lock" }]
   }
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  // Find active item ID
+  let activeItemId = "dashboard";
+  for (const group of sidebarGroups) {
+    for (const item of group.items) {
+      if (
+        item.href &&
+        (pathname === item.href ||
+          (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`)) ||
+          (item.href === "/dashboard" && pathname === "/"))
+      ) {
+        activeItemId = item.id;
+      }
+    }
+  }
+
+  const handleSelectItem = (item: SidebarItem) => {
+    if (item.href) {
+      router.push(item.href);
+    }
+  };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-csa-bg font-sans text-csa-navy">
-      <aside
-        aria-label="Main navigation"
-        className="csa-sidebar-surface flex h-screen w-[260px] min-w-[260px] flex-col overflow-hidden border-r border-white/10 text-blue-50"
-      >
-        <div className="px-4 pb-5 pt-5">
-          <div className="flex items-center gap-3 rounded-panel border border-white/10 bg-white/10 p-3.5">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#F97316] text-white shadow-[0_16px_24px_-18px_rgba(249,115,22,0.60)]">
-              <Headphones size={18} strokeWidth={2.2} />
+    <div className="flex h-screen overflow-hidden bg-m-surface-bg font-sans text-m-text">
+      {/* Meridian Sidebar */}
+      <Sidebar
+        brand={
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-m-lg bg-m-primary text-white font-bold shadow-m-xs">
+              <Icon name="headphones" size="sm" />
             </div>
-            <div className="min-w-0">
-              <div className="truncate text-[13px] font-semibold leading-tight text-slate-100">
-                CSA Operations
-              </div>
-              <div className="mt-0.5 truncate text-[11px] font-semibold leading-tight text-[#CFE0EE]/55">
-                Customer 360 workspace
-              </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-white tracking-tight leading-none">CSA Platform</span>
+              <span className="text-[10px] text-m-sidebar-text mt-0.5">Meridian System</span>
             </div>
           </div>
-        </div>
+        }
+        groups={sidebarGroups}
+        activeItemId={activeItemId}
+        onSelectItem={handleSelectItem}
+        footer={
+          <div className="flex items-center gap-2 text-xs text-m-sidebar-text">
+            <Icon name="shield-check" size="xs" className="text-m-primary" />
+            <span>GCP Enterprise v1.0</span>
+          </div>
+        }
+      />
 
-        <div className="flex-1 overflow-y-auto px-3.5 pb-5">
-          {navGroups.map((group) => (
-            <div className="mb-6" key={group.label}>
-              <div className="mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#CFE0EE]/50">
-                {group.label}
-              </div>
-              <div className="space-y-1.5">
-                {group.items.map((item) => {
-                  const isActive =
-                    pathname === item.href ||
-                    (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`)) ||
-                    (item.href === "/dashboard" && pathname === "/");
-                  const Icon = item.icon;
-
-                  return (
-                    <Link
-                      aria-current={isActive ? "page" : undefined}
-                      className={[
-                        "group relative flex h-10 w-full items-center gap-3 rounded-md px-3 text-[13px] font-medium transition-all duration-150 ease-enterprise",
-                        isActive
-                          ? "bg-[rgba(249,115,22,0.16)] text-white shadow-[inset_3px_0_0_#F97316]"
-                          : "text-[#CFE0EE]/75 hover:bg-white/10 hover:text-white"
-                      ].join(" ")}
-                      href={item.href}
-                      key={item.href}
-                    >
-                      <span
-                        className={[
-                          "grid h-7 w-7 shrink-0 place-items-center rounded-md transition-all duration-150",
-                          isActive ? "text-white" : "text-[#CFE0EE]/55 group-hover:text-white"
-                        ].join(" ")}
-                      >
-                        <Icon size={16} strokeWidth={2.1} />
-                      </span>
-                      <span className="min-w-0 truncate">{item.label}</span>
-                      {item.badge ? (
-                        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F97316] px-1.5 text-[10px] font-bold text-white shadow-sm">
-                          {item.badge}
-                        </span>
-                      ) : null}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
-
+      {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="relative z-50 flex h-[68px] shrink-0 items-center justify-between gap-5 border-b border-csa-border bg-[var(--topbar-bg)] px-6 backdrop-blur-xl">
-          <div className="flex min-w-0 flex-1 items-center gap-5">
-            <div className="flex h-10 items-center gap-2 rounded-control border border-csa-border bg-white px-3 text-[13px] font-medium text-csa-navy shadow-sm">
-              <Database size={15} className="text-csa-muted" />
-              <span className="max-w-[260px] truncate">CSA GCP Environment</span>
-              <ChevronDown size={15} className="text-csa-muted" />
+        {/* Meridian TopBar */}
+        <TopBar
+          brandOrBreadcrumbs={
+            <div className="flex items-center gap-3">
+              <Badge variant="primary" appearance="subtle" size="md" leftIcon={<Icon name="database" size="xs" />}>
+                GCP Environment
+              </Badge>
             </div>
+          }
+          searchSlot={
+            <SearchBar
+              placeholder="Search tickets, customers, orders..."
+              shortcutHint="⌘K"
+            />
+          }
+          actions={
+            <Button variant="ghost" size="sm" iconOnly leftIcon={<Icon name="bell" size="sm" />} aria-label="Notifications" />
+          }
+          userSlot={
+            <Dropdown
+              trigger={
+                <div className="flex items-center gap-2 cursor-pointer select-none">
+                  <Avatar name="Sarah Agent" status="online" size="sm" />
+                  <div className="hidden flex-col sm:flex">
+                    <span className="text-xs font-semibold text-m-text leading-none">agent@csa.local</span>
+                    <span className="text-[10px] text-m-text-muted mt-0.5">CSA Administrator</span>
+                  </div>
+                  <Icon name="chevron-down" size="xs" className="text-m-text-muted" />
+                </div>
+              }
+              items={[
+                { id: "profile", label: "My Profile", icon: "user" },
+                { id: "settings", label: "Org Settings", icon: "settings" },
+                "divider",
+                { id: "logout", label: "Sign out", icon: "log-out", danger: true }
+              ]}
+            />
+          }
+        />
 
-            <button
-              type="button"
-              aria-label="Open global search"
-              className="csa-input-shell hidden h-10 max-w-[480px] flex-1 cursor-text px-3.5 xl:flex"
-            >
-              <Search size={16} className="shrink-0 text-csa-muted" />
-              <span className="min-w-0 flex-1 text-left text-[13px] font-normal text-slate-400">
-                Search customers, orders, tickets...
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-md border border-csa-border bg-csa-surface-2 px-1.5 py-1 text-[10px] font-medium text-csa-muted">
-                Ctrl K
-              </span>
-            </button>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-3">
-            <button
-              type="button"
-              aria-label="Notifications"
-              className="grid h-10 w-10 place-items-center rounded-full border border-csa-border bg-white text-csa-muted shadow-sm transition hover:border-csa-border-strong hover:text-csa-navy"
-            >
-              <Bell size={16} />
-            </button>
-            <div className="hidden min-w-0 flex-col items-end lg:flex">
-              <span className="max-w-[220px] truncate text-[12px] font-medium leading-tight text-csa-navy">
-                agent@csa.local
-              </span>
-              <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-primary-100 bg-primary-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] text-primary-700">
-                <ShieldCheck size={10} />
-                Admin
-              </span>
-            </div>
-            <button
-              type="button"
-              aria-label="Account menu"
-              className="grid h-10 w-10 place-items-center rounded-full border border-slate-900 bg-csa-navy text-[12px] font-semibold tracking-wide text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-card"
-            >
-              SA
-            </button>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-auto bg-csa-bg px-[clamp(24px,3vw,44px)] py-[clamp(24px,2.6vw,38px)]">
+        {/* Dynamic Page Content */}
+        <main className="flex-1 overflow-auto bg-m-surface-bg p-6">
           {children}
         </main>
       </div>

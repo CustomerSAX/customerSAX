@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@apollo/client": "^3.11.8",
+    "@csa/ui": "workspace:*",
     "@fontsource-variable/inter": "^5.1.0",
     "graphql": "^16.9.0",
     "lucide-react": "^0.468.0",

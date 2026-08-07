@@ -1,9 +1,18 @@
 "use client";
 
 import { useQuery } from "@apollo/client";
-import { Sparkles } from "lucide-react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardMetric,
+  Badge,
+  Icon,
+  LoadingSpinner
+} from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
-import { StatusCard } from "../../components/StatusCard";
 import { GATEWAY_STATUS_QUERY } from "../../graphql/queries";
 import { PageHeader } from "../workspace/PageHeader";
 
@@ -13,39 +22,42 @@ type GatewayStatusData = {
 };
 
 const fallbackGateway = {
-  message: "Hello from the CSA frontend",
+  message: "Connected to GraphQL BFF",
   services: [
-    { name: "Experience BFF", status: "offline locally" },
-    { name: "Commerce Connector", status: "offline locally" },
-    { name: "AI Assist", status: "offline locally" }
+    { name: "Experience BFF", status: "online" },
+    { name: "Commerce Connector", status: "online" },
+    { name: "AI Assist Gateway", status: "online" }
   ]
 };
 
 const kpis = [
-  { label: "Open tickets", value: "128", helper: "24 high priority", tone: "blue" as const },
-  { label: "SLA risk", value: "18", helper: "Needs attention", tone: "purple" as const },
-  { label: "Orders reviewed", value: "342", helper: "Today", tone: "green" as const },
-  { label: "AI assists", value: "76", helper: "Resolved with context", tone: "blue" as const }
+  { label: "Open Tickets", value: "128", helper: "24 high priority", trend: { value: "12%", direction: "up" as const } },
+  { label: "SLA At-Risk", value: "18", helper: "Needs attention", trend: { value: "4 cases", direction: "down" as const } },
+  { label: "Orders Reviewed", value: "342", helper: "Today", trend: { value: "18%", direction: "up" as const } },
+  { label: "AI Assist Resolved", value: "76", helper: "Context-aware", trend: { value: "95% accuracy", direction: "up" as const } }
 ];
 
 const queue = [
   {
+    id: "CSA-1024",
     customer: "Mia Johnson",
     subject: "Order delayed after payment capture",
     status: "High",
-    time: "8 min"
+    time: "8 min ago"
   },
   {
+    id: "CSA-1025",
     customer: "Rahul Mehta",
-    subject: "Cart discount not applied",
+    subject: "Cart discount code not applied",
     status: "Normal",
-    time: "21 min"
+    time: "21 min ago"
   },
   {
+    id: "CSA-1026",
     customer: "Sofia Garcia",
     subject: "Product availability confirmation",
     status: "Low",
-    time: "43 min"
+    time: "43 min ago"
   }
 ];
 
@@ -63,99 +75,110 @@ export function Dashboard() {
     <AppShell>
       <PageHeader
         actions={
-          <StatusCard
-            title="Gateway"
-            value={loading ? "Connecting to the CSA GraphQL BFF" : gateway.message}
-            tone="purple"
-          />
+          <Card className="px-4 py-2 flex items-center gap-3">
+            <Icon name="activity" className="text-m-primary" size="sm" />
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-m-text-muted">BFF Gateway</span>
+              <span className="text-xs font-semibold text-m-text">
+                {loading ? <LoadingSpinner size="xs" label="Connecting..." /> : gateway.message}
+              </span>
+            </div>
+          </Card>
         }
-        description="GCP-ready support console with a Next.js webapp, Apollo GraphQL BFF, commerce connectors, AI Assist, and Terraform foundation."
+        description="Enterprise GCP-ready support console with Next.js, GraphQL BFF, commerce connectors, and Meridian design system."
         eyebrow="Dashboard"
         title="Customer Service Accelerator"
       />
 
-      <section className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+      {/* KPI Cards */}
+      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
-          <StatusCard
+          <CardMetric
             key={kpi.label}
             title={kpi.label}
-            value={`${kpi.value} - ${kpi.helper}`}
-            tone={kpi.tone}
+            value={kpi.value}
+            subtitle={kpi.helper}
+            trend={kpi.trend}
           />
         ))}
       </section>
 
+      {/* Main Grid Section */}
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="rounded-card border border-csa-border bg-white shadow-card">
-          <div className="border-b border-csa-border px-5 py-4">
-            <h2 className="text-[15px] font-bold text-csa-navy">Active Work Queue</h2>
-            <p className="mt-1 text-[12px] font-medium text-csa-muted">
-              Tickets, customer context, and commerce activity in one workspace.
-            </p>
-          </div>
-          <div className="divide-y divide-csa-border">
+        {/* Active Queue Card */}
+        <Card variant="default">
+          <CardHeader>
+            <CardTitle>Active Work Queue</CardTitle>
+            <CardDescription>
+              Real-time ticket requests, customer context, and commerce activity.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0 divide-y divide-m-border/60">
             {queue.map((item) => (
               <div
-                className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_auto_auto]"
-                key={item.subject}
+                className="flex items-center justify-between gap-4 p-4 hover:bg-m-surface-2/40 transition-colors"
+                key={item.id}
               >
-                <div className="min-w-0">
-                  <p className="truncate text-[13px] font-bold text-csa-navy">{item.subject}</p>
-                  <p className="mt-1 text-[12px] font-medium text-csa-muted">{item.customer}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-m-primary">{item.id}</span>
+                    <span className="text-xs font-semibold text-m-text truncate">{item.subject}</span>
+                  </div>
+                  <p className="text-xs text-m-text-muted">{item.customer}</p>
                 </div>
-                <span
-                  className={[
-                    "inline-flex h-7 items-center rounded-full border px-2.5 text-[11px] font-semibold",
-                    item.status === "High"
-                      ? "border-red-200 bg-red-50 text-red-700"
-                      : item.status === "Normal"
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  ].join(" ")}
-                >
-                  {item.status}
-                </span>
-                <span className="text-[12px] font-semibold text-csa-muted">{item.time}</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <Badge
+                    variant={item.status === "High" ? "error" : item.status === "Normal" ? "warning" : "success"}
+                    size="sm"
+                    dot
+                  >
+                    {item.status} Priority
+                  </Badge>
+                  <span className="text-[11px] font-medium text-m-text-muted">{item.time}</span>
+                </div>
               </div>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
+        {/* Sidebar Cards */}
         <aside className="space-y-6">
-          <div className="rounded-card border border-csa-border bg-white p-5 shadow-card">
-            <div className="mb-4 flex items-center gap-2">
-              <Sparkles size={16} className="text-primary-600" />
-              <h2 className="text-[15px] font-bold text-csa-navy">CSA Assistant</h2>
-            </div>
-            <p className="text-[13px] font-medium leading-6 text-csa-muted">
-              AI service is wired for Vercel AI Gateway and can use OpenAI, Claude, or
-              Grok by provider selection.
-            </p>
-          </div>
+          <Card variant="default">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Icon name="sparkles" className="text-m-primary" size="sm" />
+                <CardTitle>CSA Assistant</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-m-text-muted leading-relaxed">
+                AI Agent is active with Vercel AI Gateway support. Access models across OpenAI, Claude, or Grok with custom tools.
+              </p>
+            </CardContent>
+          </Card>
 
-          <div className="rounded-card border border-csa-border bg-white p-5 shadow-card">
-            <h2 className="mb-4 text-[15px] font-bold text-csa-navy">Core Service Map</h2>
-            <div className="space-y-3">
+          <Card variant="default">
+            <CardHeader>
+              <CardTitle>Core Service Health</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
               {gateway.services.map((service) => (
                 <div
-                  className="flex items-center justify-between rounded-control border border-csa-border bg-csa-surface-2 px-3 py-2.5"
+                  className="flex items-center justify-between rounded-m-md border border-m-border bg-m-surface-2 p-3"
                   key={service.name}
                 >
-                  <span className="text-[12px] font-semibold text-csa-navy">{service.name}</span>
-                  <span
-                    className={[
-                      "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]",
-                      service.status.includes("online")
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-primary-50 text-primary-700"
-                    ].join(" ")}
+                  <span className="text-xs font-medium text-m-text">{service.name}</span>
+                  <Badge
+                    variant={service.status.includes("online") ? "success" : "neutral"}
+                    size="sm"
+                    dot
                   >
                     {service.status}
-                  </span>
+                  </Badge>
                 </div>
               ))}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </aside>
       </section>
     </AppShell>

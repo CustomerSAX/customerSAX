@@ -1,171 +1,172 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  ChevronDown,
-  Download,
-  MessageSquare,
-  Plus,
-  RefreshCcw,
-  Search,
-  Send,
-  SlidersHorizontal
-} from "lucide-react";
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TablePagination,
+  Toolbar as MeridianToolbar,
+  Badge,
+  Button,
+  SearchBar,
+  Select,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardMetric,
+  Tabs,
+  Accordion,
+  Avatar,
+  Icon,
+  Input
+} from "@csa/ui";
 import { PageHeader } from "./PageHeader";
 
-const tickets = [
+const ticketsData = [
   ["CSA-1024", "Mia Johnson", "Phone", "Open", "High", "Delivery", "Order delayed after payment capture", "A. Kumar"],
   ["CSA-1025", "Rahul Mehta", "Email", "In progress", "Normal", "Cart", "Discount code not applied", "S. Patel"],
   ["CSA-1026", "Sofia Garcia", "Chat", "Waiting", "Low", "Product", "Availability confirmation", "Queue"]
 ];
 
-const customers = [
+const customersData = [
   ["cst-1001", "Mia", "Johnson", "Northwind Retail", "mia@example.com", "Gold", "2026-08-01"],
   ["cst-1002", "Rahul", "Mehta", "Acme Supply", "rahul@example.com", "B2B buyer", "2026-07-29"],
   ["cst-1003", "Sofia", "Garcia", "Individual", "sofia@example.com", "Retail", "2026-07-25"]
 ];
 
-const orders = [
+const ordersData = [
   ["ORD-54019", "Mia Johnson", "mia@example.com", "$342.20", "4", "Processing", "Pending", "2026-08-05"],
   ["ORD-54020", "Rahul Mehta", "rahul@example.com", "$89.00", "2", "Shipped", "Paid", "2026-08-05"],
   ["ORD-54021", "Sofia Garcia", "sofia@example.com", "$1,240.00", "6", "Payment review", "Review", "2026-08-04"]
 ];
 
-const carts = [
+const cartsData = [
   ["CRT-881", "--", "Mia Johnson", "$184.20", "4", "Active", "2026-08-05", "2026-08-05"],
   ["CRT-882", "--", "Rahul Mehta", "$89.00", "2", "Merged", "2026-08-04", "2026-08-05"],
   ["CRT-883", "--", "Sofia Garcia", "$1,240.00", "6", "Quote requested", "2026-08-03", "2026-08-04"]
 ];
 
-const products = [
+const productsData = [
   ["Warehouse Trolley", "Industrial equipment", "warehouse-trolley", "WT-100", "$249.00", "In stock", "Published"],
   ["Safety Gloves", "PPE", "safety-gloves", "SG-240", "$12.50", "In stock", "Published"],
   ["Packing Tape", "Packaging", "packing-tape", "PT-500", "$6.20", "Low stock", "Published"]
 ];
 
-const auditEvents = [
+const auditEventsData = [
   ["Ticket created", "agent@csa.local", "Tickets", "CSA-1024", "8 min ago"],
   ["Order lookup", "agent@csa.local", "Orders", "ORD-54019", "18 min ago"],
   ["AI summary generated", "ai-assist", "CSA Assistant", "session-76", "26 min ago"]
 ];
 
-function Toolbar({
-  action,
+function ModuleToolbar({
+  actionLabel,
   options,
-  placeholder = "Search"
+  searchPlaceholder = "Search..."
 }: {
-  action?: string;
+  actionLabel?: string;
   options: string[];
-  placeholder?: string;
+  searchPlaceholder?: string;
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-card border border-csa-border bg-white p-3 shadow-card">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <div className="flex h-10 min-w-[190px] items-center justify-between rounded-control border border-csa-border bg-white px-3 text-[13px] font-semibold text-csa-navy">
-          {options[0]}
-          <ChevronDown size={14} className="text-csa-muted" />
-        </div>
-        <div className="flex h-10 min-w-[280px] flex-1 items-center gap-2 rounded-control border border-csa-border bg-white px-3">
-          <Search size={15} className="text-csa-muted" />
-          <span className="text-[13px] text-slate-400">{placeholder}</span>
-        </div>
-      </div>
-      <button
-        type="button"
-        className="inline-flex h-10 items-center gap-2 rounded-control border border-csa-border bg-white px-3 text-[13px] font-semibold text-csa-navy shadow-sm"
-      >
-        <SlidersHorizontal size={15} />
-        Filters
-      </button>
-      <button
-        type="button"
-        className="inline-flex h-10 items-center gap-2 rounded-control border border-csa-border bg-white px-3 text-[13px] font-semibold text-csa-navy shadow-sm"
-      >
-        <RefreshCcw size={15} />
-        Refresh
-      </button>
-      {action ? (
-        <button
-          type="button"
-          className="inline-flex h-10 items-center gap-2 rounded-control bg-primary-600 px-4 text-[13px] font-semibold text-white shadow-card transition hover:bg-primary-700"
-        >
-          <Plus size={15} />
-          {action}
-        </button>
-      ) : null}
-    </div>
+    <MeridianToolbar
+      left={
+        <>
+          <Select
+            size="md"
+            options={options.map((opt) => ({ value: opt.toLowerCase().replace(/\s+/g, "-"), label: opt }))}
+            className="w-44"
+          />
+          <SearchBar placeholder={searchPlaceholder} className="w-64" />
+        </>
+      }
+      right={
+        <>
+          <Button variant="secondary" size="md" leftIcon={<Icon name="sliders-horizontal" size="xs" />}>
+            Filters
+          </Button>
+          <Button variant="secondary" size="md" leftIcon={<Icon name="refresh-cw" size="xs" />}>
+            Refresh
+          </Button>
+          {actionLabel && (
+            <Button variant="primary" size="md" leftIcon={<Icon name="plus" size="xs" />}>
+              {actionLabel}
+            </Button>
+          )}
+        </>
+      }
+      className="mb-5"
+    />
   );
 }
 
-function StatusChip({ value }: { value: string }) {
+function StatusBadge({ value }: { value: string }) {
   const lowered = value.toLowerCase();
-  const tone = lowered.includes("high") || lowered.includes("review")
-    ? "border-red-200 bg-red-50 text-red-700"
-    : lowered.includes("normal") || lowered.includes("pending") || lowered.includes("waiting")
-      ? "border-amber-200 bg-amber-50 text-amber-700"
-      : "border-emerald-200 bg-emerald-50 text-emerald-700";
+  const variant =
+    lowered.includes("high") || lowered.includes("review") || lowered.includes("error")
+      ? "error"
+      : lowered.includes("normal") || lowered.includes("pending") || lowered.includes("waiting") || lowered.includes("low stock")
+      ? "warning"
+      : "success";
 
   return (
-    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>
+    <Badge variant={variant} appearance="subtle" size="sm" dot>
       {value}
-    </span>
+    </Badge>
   );
 }
 
-function DataPanel({
+function ModuleDataTable({
   columns,
   rows,
-  title
+  routePrefix
 }: {
   columns: string[];
   rows: string[][];
-  title: string;
+  routePrefix?: string;
 }) {
-  return (
-    <section className="rounded-card border border-csa-border bg-white shadow-card">
-      <div className="border-b border-csa-border px-5 py-4">
-        <h2 className="text-[15px] font-bold text-csa-navy">{title}</h2>
-      </div>
-      <div className="overflow-auto">
-        <div
-          className="grid min-w-[980px] border-b border-csa-border bg-csa-surface-2 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-csa-muted"
-          style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(130px, 1fr))` }}
-        >
-          {columns.map((column) => (
-            <span key={column}>{column}</span>
-          ))}
-        </div>
-        <div className="divide-y divide-csa-border">
-          {rows.map((row) => (
-            <div
-              className="grid min-w-[980px] px-5 py-4 text-[13px] font-medium text-csa-navy"
-              key={row.join("-")}
-              style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(130px, 1fr))` }}
-            >
-              {row.map((cell, index) => (
-                <span className={index === 0 ? "font-bold" : "text-csa-muted"} key={`${cell}-${index}`}>
-                  {index >= 3 && index <= 5 ? <StatusChip value={cell} /> : cell}
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
+  const [page, setPage] = useState(1);
+  const router = useRouter();
 
-function MetricGrid({ metrics }: { metrics: Array<[string, string, string]> }) {
+  const handleRowClick = (id: string) => {
+    if (routePrefix) {
+      router.push(`${routePrefix}/${id}`);
+    }
+  };
+
   return (
-    <section className="mb-5 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
-      {metrics.map(([label, value, helper]) => (
-        <article className="rounded-card border border-csa-border bg-white p-5 shadow-card" key={label}>
-          <p className="text-[12px] font-semibold uppercase tracking-[0.04em] text-csa-muted">{label}</p>
-          <p className="mt-3 text-[28px] font-bold leading-none text-csa-navy">{value}</p>
-          <p className="mt-2 text-[12px] font-medium text-csa-muted">{helper}</p>
-        </article>
-      ))}
-    </section>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {columns.map((col) => (
+            <TableHead key={col}>{col}</TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row, idx) => (
+          <TableRow key={idx} clickable onClick={() => handleRowClick(row[0])}>
+            {row.map((cell, cIdx) => (
+              <TableCell key={cIdx} className={cIdx === 0 ? "font-bold text-m-primary" : ""}>
+                {cIdx >= 3 && cIdx <= 5 ? <StatusBadge value={cell} /> : cell}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+      <TablePagination
+        page={page}
+        totalPages={1}
+        totalItems={rows.length}
+        pageSize={10}
+        onPageChange={setPage}
+      />
+    </Table>
   );
 }
 
@@ -173,34 +174,66 @@ export function TicketsPageView() {
   return (
     <>
       <PageHeader
-        description="Manage cases with ticket number, source, status, priority, category, subject, and assignee controls."
-        eyebrow="Ticket operations"
+        description="Manage cases with ticket identifier, source, status, priority, category, subject, and assignee controls."
+        eyebrow="Ticket Operations"
         title="Tickets"
       />
-      <Toolbar action="Create ticket" options={["Ticket Number", "Customer Email", "Subject"]} placeholder="Search tickets" />
-      <DataPanel
+      <ModuleToolbar
+        actionLabel="Create Ticket"
+        options={["All Fields", "Ticket Number", "Customer Email", "Subject"]}
+        searchPlaceholder="Search tickets..."
+      />
+      <ModuleDataTable
         columns={["Ticket Number", "Customer", "Source", "Status", "Priority", "Category", "Subject", "Assignee"]}
-        rows={tickets}
-        title="Ticket List"
+        rows={ticketsData}
+        routePrefix="/tickets"
       />
     </>
   );
 }
 
 export function CustomersPageView() {
+  const router = useRouter();
   return (
     <>
       <PageHeader
         description="Search customer profiles by identifiers, names, company, email, group, and activity dates."
-        eyebrow="Customer operations"
+        eyebrow="Customer Operations"
         title="Customers"
       />
-      <Toolbar action="Create customer" options={["All fields", "Email", "First name", "Last name", "Company"]} placeholder="Search customers" />
-      <DataPanel
-        columns={["Customer Id", "First Name", "Last Name", "Company", "Email", "Customer Group", "Date Created"]}
-        rows={customers}
-        title="Customer List"
+      <ModuleToolbar
+        actionLabel="Create Customer"
+        options={["All Fields", "Email", "First Name", "Last Name", "Company"]}
+        searchPlaceholder="Search customers..."
       />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {["Customer ID", "First Name", "Last Name", "Company", "Email", "Group", "Date Created"].map((col) => (
+              <TableHead key={col}>{col}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {customersData.map((row, idx) => (
+            <TableRow key={idx} clickable onClick={() => router.push(`/customers/${row[0]}`)}>
+              <TableCell className="font-bold text-m-primary">{row[0]}</TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Avatar name={`${row[1]} ${row[2]}`} size="xs" />
+                  <span>{row[1]}</span>
+                </div>
+              </TableCell>
+              <TableCell>{row[2]}</TableCell>
+              <TableCell>{row[3]}</TableCell>
+              <TableCell>{row[4]}</TableCell>
+              <TableCell><Badge variant="primary" size="sm">{row[5]}</Badge></TableCell>
+              <TableCell>{row[6]}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+        <TablePagination page={1} totalPages={1} totalItems={customersData.length} onPageChange={() => {}} />
+      </Table>
     </>
   );
 }
@@ -210,14 +243,14 @@ export function OrdersPageView() {
     <>
       <PageHeader
         description="Review order number, customer, totals, item counts, order state, payment state, and created dates."
-        eyebrow="Order operations"
+        eyebrow="Order Operations"
         title="Orders"
       />
-      <Toolbar options={["All fields", "Customer email", "Order number", "SKU", "Order status"]} placeholder="Search orders" />
-      <DataPanel
+      <ModuleToolbar options={["All Fields", "Customer Email", "Order Number", "SKU", "Order Status"]} searchPlaceholder="Search orders..." />
+      <ModuleDataTable
         columns={["Order Number", "Customer", "Customer Email", "Order Total", "Items", "Order Status", "Payment Status", "Created"]}
-        rows={orders}
-        title="Orders"
+        rows={ordersData}
+        routePrefix="/orders"
       />
     </>
   );
@@ -228,145 +261,196 @@ export function CartPageView() {
     <>
       <PageHeader
         description="Review active carts, cart ownership, item counts, totals, and checkout readiness."
-        eyebrow="Cart operations"
+        eyebrow="Cart Operations"
         title="Carts"
       />
-      <Toolbar options={["Cart ID", "Customer email"]} placeholder="Search carts" />
-      <DataPanel
+      <ModuleToolbar options={["Cart ID", "Customer Email"]} searchPlaceholder="Search carts..." />
+      <ModuleDataTable
         columns={["Cart ID", "Order Number", "Customer", "Cart Total", "Items", "Cart Status", "Created", "Modified"]}
-        rows={carts}
-        title="Carts"
+        rows={cartsData}
+        routePrefix="/cart"
       />
     </>
   );
 }
 
 export function ProductsPageView() {
+  const router = useRouter();
   return (
     <>
       <PageHeader
         description="Search catalog projections with product type, key, SKU, price, availability, and publication status."
-        eyebrow="Product search"
+        eyebrow="Product Search"
         title="Products"
       />
-      <Toolbar options={["Product name", "Product key", "SKU", "Product type"]} placeholder="Search products" />
-      <DataPanel
-        columns={["Product name", "Product type", "Product key", "SKU", "Price", "Availability", "Status"]}
-        rows={products}
-        title="Product List"
-      />
+      <ModuleToolbar options={["Product Name", "Product Key", "SKU", "Product Type"]} searchPlaceholder="Search products..." />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {["Product Name", "Product Type", "Product Key", "SKU", "Price", "Availability", "Status"].map((col) => (
+              <TableHead key={col}>{col}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {productsData.map((row, idx) => (
+            <TableRow key={idx} clickable onClick={() => router.push(`/products/${row[2]}`)}>
+              <TableCell className="font-bold text-m-primary">{row[0]}</TableCell>
+              <TableCell>{row[1]}</TableCell>
+              <TableCell><span className="font-mono text-xs">{row[2]}</span></TableCell>
+              <TableCell><span className="font-mono text-xs">{row[3]}</span></TableCell>
+              <TableCell className="font-semibold">{row[4]}</TableCell>
+              <TableCell><Badge variant="success" size="sm" dot>{row[5]}</Badge></TableCell>
+              <TableCell><Badge variant="primary" size="sm">{row[6]}</Badge></TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+        <TablePagination page={1} totalPages={1} totalItems={productsData.length} onPageChange={() => {}} />
+      </Table>
     </>
   );
 }
 
 export function ReportsPageView() {
-  const metrics: Array<[string, string, string]> = [
-    ["Sessions", "214", "Selected period"],
-    ["Messages", "1.8k", "AI and agent activity"],
-    ["Tokens", "842k", "Gateway usage"],
-    ["Cost", "$42.18", "Estimated"]
-  ];
-
   return (
     <>
       <PageHeader
         actions={
-          <button className="inline-flex h-10 items-center gap-2 rounded-control bg-primary-600 px-4 text-[13px] font-semibold text-white shadow-card" type="button">
-            <Download size={15} />
-            Export
-          </button>
+          <Button variant="primary" size="md" leftIcon={<Icon name="download" size="xs" />}>
+            Export Report
+          </Button>
         }
         description="Export operational reports for tickets, orders, carts, customers, products, SLA, and AI usage."
-        eyebrow="Analytics"
+        eyebrow="Analytics & Insights"
         title="Reports"
       />
-      <div className="mb-5 flex flex-wrap gap-3 rounded-card border border-csa-border bg-white p-3 shadow-card">
-        {["Tickets", "Orders", "Carts", "Customer", "Product", "SLA"].map((type) => (
-          <button className="h-9 rounded-control border border-csa-border bg-white px-3 text-[12px] font-semibold text-csa-navy" key={type} type="button">
-            {type}
-          </button>
-        ))}
-      </div>
-      <MetricGrid metrics={metrics} />
-      <section className="grid gap-5 lg:grid-cols-2">
-        <div className="rounded-card border border-csa-border bg-white p-5 shadow-card">
-          <h2 className="text-[15px] font-bold text-csa-navy">Daily Usage</h2>
-          <div className="mt-6 flex h-28 items-end gap-2">
-            {[42, 64, 48, 88, 72, 96, 58, 112, 84, 76, 104, 68].map((height, index) => (
-              <div className="flex flex-1 flex-col items-center gap-2" key={height + index}>
-                <div className="w-full rounded-t bg-primary-600" style={{ height }} />
-                <span className="text-[10px] font-medium text-csa-muted">{index + 1}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <DataPanel
-          columns={["Agent", "Messages", "Tokens", "Cost"]}
-          rows={[
-            ["agent@csa.local", "420", "128k", "$12.20"],
-            ["ops@csa.local", "312", "88k", "$8.40"],
-            ["admin@csa.local", "206", "61k", "$5.10"]
-          ]}
-          title="Top Agents"
-        />
+
+      <Tabs defaultValue="tickets" variant="pill" className="mb-6">
+        <Tabs.List>
+          <Tabs.Trigger value="tickets">Tickets</Tabs.Trigger>
+          <Tabs.Trigger value="orders">Orders</Tabs.Trigger>
+          <Tabs.Trigger value="carts">Carts</Tabs.Trigger>
+          <Tabs.Trigger value="customer">Customer</Tabs.Trigger>
+          <Tabs.Trigger value="product">Product</Tabs.Trigger>
+          <Tabs.Trigger value="sla">SLA</Tabs.Trigger>
+        </Tabs.List>
+      </Tabs>
+
+      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CardMetric title="Sessions" value="214" subtitle="Selected period" trend={{ value: "8%", direction: "up" }} />
+        <CardMetric title="Messages" value="1.8k" subtitle="AI and agent activity" trend={{ value: "14%", direction: "up" }} />
+        <CardMetric title="Tokens" value="842k" subtitle="Gateway usage" />
+        <CardMetric title="Cost" value="$42.18" subtitle="Estimated" trend={{ value: "3%", direction: "down" }} />
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <Card variant="default">
+          <CardHeader>
+            <CardTitle>Daily Activity Bar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex h-32 items-end gap-2 pt-4">
+              {[42, 64, 48, 88, 72, 96, 58, 112, 84, 76, 104, 68].map((height, index) => (
+                <div className="flex flex-1 flex-col items-center gap-2" key={index}>
+                  <div className="w-full rounded-t-m-sm bg-m-primary transition-all hover:bg-m-primary-600" style={{ height }} />
+                  <span className="text-[10px] text-m-text-muted">{index + 1}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card variant="default">
+          <CardHeader>
+            <CardTitle>Top Performing Agents</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Agent</TableHead>
+                  <TableHead>Messages</TableHead>
+                  <TableHead>Tokens</TableHead>
+                  <TableHead>Cost</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[
+                  ["agent@csa.local", "420", "128k", "$12.20"],
+                  ["ops@csa.local", "312", "88k", "$8.40"],
+                  ["admin@csa.local", "206", "61k", "$5.10"]
+                ].map((row, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-semibold">{row[0]}</TableCell>
+                    <TableCell>{row[1]}</TableCell>
+                    <TableCell>{row[2]}</TableCell>
+                    <TableCell>{row[3]}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </section>
     </>
   );
 }
 
 export function KnowledgeBasePageView() {
-  const [tab, setTab] = useState<"FAQ" | "Troubleshoot">("FAQ");
-  const items =
-    tab === "FAQ"
-      ? [
-          ["What services do you offer?", "Multi-channel support, intelligent routing, analytics, automation, and omnichannel communication."],
-          ["What payment methods are supported?", "Credit cards, debit cards, and configured alternative payment methods."],
-          ["Can agents handle multiple tickets?", "Yes. The workspace supports parallel ticket handling with priority queues."]
-        ]
-      : [
-          ["Customer not able to login", "Check URL, verify credentials, then trigger password reset."],
-          ["How to add a discount code", "Open cart, add discount code, apply, and verify recalculated totals."],
-          ["Payment failures", "Check gateway response, retry payment, or escalate to payment review."]
-        ];
-
   return (
     <>
       <PageHeader
-        description="Agent-facing FAQ and troubleshooting content with tabbed article groups."
-        eyebrow="Knowledge"
-        title="Knowledgebase"
+        description="Agent-facing FAQ and troubleshooting repository with categorized article tabs."
+        eyebrow="Knowledge Base"
+        title="Knowledge Base"
       />
-      <div className="rounded-card border border-csa-border bg-white p-5 shadow-card">
-        <div className="mb-5 flex border-b border-csa-border">
-          {(["FAQ", "Troubleshoot"] as const).map((item) => (
-            <button
-              className={[
-                "mb-[-1px] px-6 py-3 text-[13px] font-semibold",
-                tab === item
-                  ? "border-b-2 border-primary-600 text-primary-700"
-                  : "border-b-2 border-transparent text-csa-muted"
-              ].join(" ")}
-              key={item}
-              onClick={() => setTab(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        <div className="max-w-4xl space-y-3">
-          {items.map(([question, answer]) => (
-            <details className="rounded-control border border-csa-border bg-white open:bg-primary-50" key={question}>
-              <summary className="cursor-pointer px-5 py-4 text-[13px] font-semibold text-csa-navy">
-                {question}
-              </summary>
-              <p className="border-t border-csa-border px-5 py-4 text-[13px] font-medium leading-6 text-csa-muted">
-                {answer}
-              </p>
-            </details>
-          ))}
-        </div>
-      </div>
+
+      <Tabs defaultValue="faq" variant="underline" className="mb-6">
+        <Tabs.List>
+          <Tabs.Trigger value="faq" icon={<Icon name="help-circle" size="xs" />}>Frequently Asked Questions</Tabs.Trigger>
+          <Tabs.Trigger value="troubleshoot" icon={<Icon name="wrench" size="xs" />}>Troubleshooting Guides</Tabs.Trigger>
+        </Tabs.List>
+
+        <Tabs.Content value="faq">
+          <Accordion type="single" defaultValue="item-1">
+            <Accordion.Item value="item-1">
+              <Accordion.Trigger>What omnichannel services are supported?</Accordion.Trigger>
+              <Accordion.Content>
+                Multi-channel support ticketing, intelligent agent routing, analytics, order management context, and automated AI assistance.
+              </Accordion.Content>
+            </Accordion.Item>
+            <Accordion.Item value="item-2">
+              <Accordion.Trigger>What payment methods are supported?</Accordion.Trigger>
+              <Accordion.Content>
+                Credit cards, debit cards, PayPal, Klarna, B2B purchase orders, and custom gateway integrations.
+              </Accordion.Content>
+            </Accordion.Item>
+            <Accordion.Item value="item-3">
+              <Accordion.Trigger>Can agents manage multiple customer sessions in parallel?</Accordion.Trigger>
+              <Accordion.Content>
+                Yes. The Meridian workspace supports concurrent ticket handling with priority queues and instant customer 360 views.
+              </Accordion.Content>
+            </Accordion.Item>
+          </Accordion>
+        </Tabs.Content>
+
+        <Tabs.Content value="troubleshoot">
+          <Accordion type="single" defaultValue="item-1">
+            <Accordion.Item value="item-1">
+              <Accordion.Trigger>Customer login failure resolution</Accordion.Trigger>
+              <Accordion.Content>
+                Verify client domain, check identity provider state, then trigger password reset or clear active session token.
+              </Accordion.Content>
+            </Accordion.Item>
+            <Accordion.Item value="item-2">
+              <Accordion.Trigger>Discount code not applying to cart</Accordion.Trigger>
+              <Accordion.Content>
+                Inspect cart line items, verify promotion minimum spend requirements, and re-apply discount via cart connector API.
+              </Accordion.Content>
+            </Accordion.Item>
+          </Accordion>
+        </Tabs.Content>
+      </Tabs>
     </>
   );
 }
@@ -375,56 +459,68 @@ export function CsaAssistantPageView() {
   return (
     <>
       <PageHeader
-        description="Three-pane assistant workspace for conversations, live chat, tool calls, and customer context."
-        eyebrow="AI workspace"
+        description="Three-pane AI assistant workspace for conversations, live tools, and customer context."
+        eyebrow="AI Assistant"
         title="CSA Assistant"
       />
-      <section className="grid h-[calc(100vh-180px)] min-h-[620px] gap-5 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
-        <aside className="rounded-card border border-csa-border bg-white shadow-card">
-          <div className="border-b border-csa-border px-4 py-3">
-            <h2 className="text-[13px] font-bold text-csa-navy">Active conversations</h2>
-          </div>
-          {["Mia Johnson", "Rahul Mehta", "Sofia Garcia"].map((name, index) => (
-            <button className="flex w-full items-start gap-3 border-b border-csa-border px-4 py-3 text-left" key={name} type="button">
-              <MessageSquare size={15} className="mt-0.5 text-primary-600" />
-              <span>
-                <span className="block text-[13px] font-semibold text-csa-navy">{name}</span>
-                <span className="text-[12px] font-medium text-csa-muted">{index === 0 ? "Delayed order" : "Customer context"}</span>
-              </span>
-            </button>
-          ))}
-        </aside>
-        <div className="flex min-w-0 flex-col rounded-card border border-csa-border bg-white shadow-card">
-          <div className="border-b border-csa-border px-5 py-4">
-            <h2 className="text-[15px] font-bold text-csa-navy">Agent conversation</h2>
-          </div>
-          <div className="flex-1 space-y-4 overflow-auto p-5">
-            <div className="max-w-[70%] rounded-card bg-csa-surface-2 p-4 text-[13px] font-medium text-csa-navy">
-              Customer says their order has not moved since payment.
-            </div>
-            <div className="ml-auto max-w-[76%] rounded-card bg-primary-600 p-4 text-[13px] font-medium text-white">
-              I found the order, payment is captured, and fulfillment is waiting for inventory allocation.
-            </div>
-          </div>
-          <div className="border-t border-csa-border p-4">
-            <div className="flex items-center gap-3 rounded-control border border-csa-border bg-white px-3 py-2">
-              <span className="flex-1 text-[13px] text-slate-400">Ask CSA Assistant...</span>
-              <button className="grid h-8 w-8 place-items-center rounded-full bg-primary-600 text-white" type="button">
-                <Send size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
-        <aside className="rounded-card border border-csa-border bg-white p-5 shadow-card">
-          <h2 className="text-[15px] font-bold text-csa-navy">Context</h2>
-          <div className="mt-4 space-y-3">
-            {["Customer profile", "Open tickets", "Recent orders", "Cart state", "Knowledge matches"].map((item) => (
-              <div className="rounded-control border border-csa-border bg-csa-surface-2 px-3 py-2.5 text-[12px] font-semibold text-csa-navy" key={item}>
-                {item}
+
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_minmax(0,1fr)_320px] min-h-[580px]">
+        {/* Active Conversations Panel */}
+        <Card variant="default">
+          <CardHeader className="p-4 border-b border-m-border">
+            <CardTitle className="text-xs">Active Conversations</CardTitle>
+          </CardHeader>
+          <CardContent className="p-2 space-y-1">
+            {["Mia Johnson", "Rahul Mehta", "Sofia Garcia"].map((name, idx) => (
+              <div
+                key={name}
+                className={`flex items-center gap-3 p-2.5 rounded-m-md cursor-pointer transition-colors ${
+                  idx === 0 ? "bg-m-primary-50 text-m-primary font-semibold" : "hover:bg-m-surface-2 text-m-text"
+                }`}
+              >
+                <Icon name="message-square" size="xs" className={idx === 0 ? "text-m-primary" : "text-m-text-muted"} />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs truncate">{name}</span>
+                  <span className="text-[10px] text-m-text-muted">{idx === 0 ? "Delayed order" : "Support session"}</span>
+                </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        {/* Conversation Stream */}
+        <Card variant="default" className="flex flex-col">
+          <CardHeader className="p-4 border-b border-m-border">
+            <CardTitle className="text-xs">Agent Workspace Stream</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 p-4 space-y-3 overflow-y-auto">
+            <div className="max-w-[75%] rounded-m-lg bg-m-surface-2 p-3 text-xs text-m-text">
+              Customer says their order has not shipped after payment capture.
+            </div>
+            <div className="ml-auto max-w-[75%] rounded-m-lg bg-m-primary text-white p-3 text-xs">
+              I checked order ORD-54019 in Commerce Tools. Payment captured; awaiting inventory allocation in Warehouse #2.
+            </div>
+          </CardContent>
+          <div className="p-3 border-t border-m-border flex items-center gap-2">
+            <Input placeholder="Ask CSA Assistant or type command..." size="md" className="flex-1" />
+            <Button variant="primary" size="md" iconOnly leftIcon={<Icon name="send" size="xs" />} aria-label="Send" />
           </div>
-        </aside>
+        </Card>
+
+        {/* Customer Context Side Panel */}
+        <Card variant="default">
+          <CardHeader className="p-4 border-b border-m-border">
+            <CardTitle className="text-xs">Context Cards</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 space-y-2.5">
+            {["Customer Profile", "Open Tickets (1)", "Recent Orders (ORD-54019)", "Active Cart State", "Knowledge Matches"].map((item) => (
+              <div key={item} className="flex items-center justify-between p-2.5 rounded-m-md border border-m-border bg-m-surface-2 text-xs font-medium text-m-text">
+                <span>{item}</span>
+                <Icon name="chevron-right" size="xs" className="text-m-text-muted" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </section>
     </>
   );
@@ -434,15 +530,14 @@ export function AuditLogPageView() {
   return (
     <>
       <PageHeader
-        description="Review agent actions, AI tool activity, commerce operations, and security-sensitive changes."
+        description="Review security audit trail, agent actions, AI assistant tool calls, and platform configuration changes."
         eyebrow="Administration"
         title="Audit Log"
       />
-      <Toolbar action="Export audit" options={["All modules", "Tickets", "Orders", "CSA Assistant"]} placeholder="Search audit events" />
-      <DataPanel
+      <ModuleToolbar actionLabel="Export Audit" options={["All Modules", "Tickets", "Orders", "CSA Assistant"]} searchPlaceholder="Search audit log..." />
+      <ModuleDataTable
         columns={["Action", "Actor", "Module", "Entity", "Time"]}
-        rows={auditEvents}
-        title="Audit Events"
+        rows={auditEventsData}
       />
     </>
   );

@@ -1,10 +1,11 @@
 import { AppShell } from "../../components/shell/AppShell";
-import { CustomersPageView } from "../../features/workspace/ModulePages";
+import { CustomerListView } from "../../features/customers/components/CustomerListView";
 
 export default function CustomersPage() {
   return (
     <AppShell>
-      <CustomersPageView />
+      <CustomerListView />
     </AppShell>
   );
 }
+
