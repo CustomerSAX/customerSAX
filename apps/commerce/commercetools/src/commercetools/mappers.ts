@@ -59,11 +59,18 @@ export function mapCustomer(customer: CtCustomer | null | undefined): Customer |
   }
 
   return {
+    companyName: customer.companyName,
     customerNumber: customer.customerNumber,
+    customerGroup: customer.customerGroup,
+    createdAt: customer.createdAt,
     email: customer.email,
+    externalId: customer.externalId,
     firstName: customer.firstName,
     id: customer.id,
-    lastName: customer.lastName
+    key: customer.key,
+    lastModifiedAt: customer.lastModifiedAt,
+    lastName: customer.lastName,
+    version: customer.version
   };
 }
 

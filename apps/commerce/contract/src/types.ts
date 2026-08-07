@@ -15,6 +15,13 @@ export type Product = {
   slug?: string;
 };
 
+export type Page<TItem> = {
+  count: number;
+  offset: number;
+  results: TItem[];
+  total: number;
+};
+
 export type CommerceLineItem = {
   id: string;
   name: string;
@@ -46,10 +53,21 @@ export type Order = {
 
 export type Customer = {
   customerNumber?: string;
-  email: string;
+  externalId?: string;
+  key?: string;
+  email?: string;
   firstName?: string;
   id: string;
   lastName?: string;
+  companyName?: string;
+  customerGroup?: {
+    id: string;
+    key?: string;
+    name?: string;
+  };
+  version?: number;
+  createdAt?: string;
+  lastModifiedAt?: string;
 };
 
 export type CommerceProvider = {
@@ -57,9 +75,9 @@ export type CommerceProvider = {
   getCustomer(args: { email?: string; id?: string }): Promise<Customer | null>;
   getOrder(args: { id?: string; orderNumber?: string }): Promise<Order | null>;
   getProduct(args: { id?: string; key?: string }): Promise<Product | null>;
-  listCarts(args: { limit?: number; offset?: number }): Promise<Cart[]>;
-  listCustomers(args: { limit?: number; offset?: number }): Promise<Customer[]>;
-  listOrders(args: { limit?: number; offset?: number }): Promise<Order[]>;
-  listProducts(args: { limit?: number; offset?: number }): Promise<Product[]>;
+  listCarts(args: { limit?: number; offset?: number }): Promise<Page<Cart>>;
+  listCustomers(args: { limit?: number; offset?: number }): Promise<Page<Customer>>;
+  listOrders(args: { limit?: number; offset?: number }): Promise<Page<Order>>;
+  listProducts(args: { limit?: number; offset?: number }): Promise<Page<Product>>;
   name: string;
 };

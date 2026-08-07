@@ -9,4 +9,3 @@ export const GATEWAY_STATUS_QUERY = gql`
     }
   }
 `;
-

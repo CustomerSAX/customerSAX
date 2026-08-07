@@ -10,6 +10,7 @@
     "app:commerce-contract": "pnpm --filter @csa/commerce-contract",
     "app:commerce-sfcc": "pnpm --filter @csa/commerce-sfcc",
     "app:commerce-shopify": "pnpm --filter @csa/commerce-shopify",
+    "app:ticketing": "pnpm --filter @csa/ticketing",
     "app:webapp": "pnpm --filter @csa/webapp",
     "build": "turbo run build",
     "clean": "turbo run clean",
