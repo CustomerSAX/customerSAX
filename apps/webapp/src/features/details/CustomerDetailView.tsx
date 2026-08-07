@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -71,7 +71,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "summary";
 
-  const { customers, groups, getCustomerById, updateCustomerProfile } = useCustomerStore();
+  const { customers, groups, getCustomerById, updateCustomerProfile, loading, error } = useCustomerStore();
 
   const customer = getCustomerById(id) || customers[0];
 
@@ -86,6 +86,17 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const [profileCompany, setProfileCompany] = useState(customer?.companyName || "");
   const [profileGroup, setProfileGroup] = useState(customer?.customerGroup?.id || "grp-vip");
   const [profileSavedMsg, setProfileSavedMsg] = useState("");
+
+  useEffect(() => {
+    if (!customer) return;
+
+    setProfileFirstName(customer.firstName || "");
+    setProfileLastName(customer.lastName || "");
+    setProfileEmail(customer.email || "");
+    setProfilePhone(customer.phone || "");
+    setProfileCompany(customer.companyName || "");
+    setProfileGroup(customer.customerGroup?.id || "grp-vip");
+  }, [customer]);
 
   // Addresses State
   const [addresses, setAddresses] = useState<CustomerAddress[]>(
@@ -311,6 +322,8 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   // Handlers
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!customer) return;
+
     const selGroup = groups.find((g) => g.id === profileGroup);
     updateCustomerProfile(customer.id, {
       firstName: profileFirstName,
@@ -580,6 +593,20 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           }
         />
       </div>
+
+      {(loading || error) && (
+        <Panel
+          className={`p-3 rounded-lg border text-xs font-semibold ${
+            error
+              ? "border-m-danger/30 bg-m-danger-surface text-m-danger"
+              : "border-m-border bg-m-bg-surface text-m-text-muted"
+          }`}
+        >
+          {error
+            ? "Unable to load this customer from the BFF. Showing available local customer state."
+            : "Loading customer data from the BFF..."}
+        </Panel>
+      )}
 
       {/* Overview Metric Row */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-4">

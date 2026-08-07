@@ -54,9 +54,20 @@ export type CtOrder = {
 };
 
 export type CtCustomer = {
+  companyName?: string;
   customerNumber?: string;
+  customerGroup?: {
+    id: string;
+    key?: string;
+    name?: string;
+  };
+  createdAt?: string;
   email: string;
+  externalId?: string;
   firstName?: string;
   id: string;
+  key?: string;
+  lastModifiedAt?: string;
   lastName?: string;
+  version?: number;
 };

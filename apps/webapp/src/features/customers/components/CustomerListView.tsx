@@ -54,7 +54,7 @@ const INITIAL_FILTERS: CustomerListFilters = {
 
 export function CustomerListView() {
   const router = useRouter();
-  const { customers, groups } = useCustomerStore();
+  const { customers, groups, loading, error, refetch } = useCustomerStore();
 
   const [filters, setFilters] = useState<CustomerListFilters>(INITIAL_FILTERS);
   const [draftFilters, setDraftFilters] = useState<CustomerListFilters>(INITIAL_FILTERS);
@@ -63,7 +63,7 @@ export function CustomerListView() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const groupSelectOptions = useMemo(() => {
     return [
@@ -84,10 +84,14 @@ export function CustomerListView() {
     );
   }, [filters]);
 
-  const handleRefresh = useCallback(() => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 400);
-  }, []);
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refetch]);
 
   const handleSort = (column: keyof Customer) => {
     if (sortColumn === column) {
@@ -172,6 +176,7 @@ export function CustomerListView() {
   }, [sortedCustomers, currentPage, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(sortedCustomers.length / pageSize));
+  const isLoading = loading || isRefreshing;
 
   const applyAdvancedFilters = () => {
     setFilters(draftFilters);
@@ -216,7 +221,7 @@ export function CustomerListView() {
               leftIcon={<Icon name="refresh-cw" size="xs" />}
               onClick={handleRefresh}
             >
-              Refresh
+              {isLoading ? "Refreshing" : "Refresh"}
             </Button>
           </div>
         }
@@ -396,6 +401,12 @@ export function CustomerListView() {
         )}
       </Card>
 
+      {error && (
+        <Panel className="p-4 rounded-lg border border-m-danger/30 bg-m-danger-surface text-sm text-m-danger">
+          Unable to load customers from the BFF. Check that the BFF is running and federated with the commerce service.
+        </Panel>
+      )}
+
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -479,7 +490,7 @@ export function CustomerListView() {
                     )}
                   </TableCell>
                   <TableCell className="text-xs text-m-text-muted">
-                    {new Date(cust.createdAt).toLocaleDateString()}
+                    {cust.createdAt ? new Date(cust.createdAt).toLocaleDateString() : "--"}
                   </TableCell>
                 </TableRow>
               ))}

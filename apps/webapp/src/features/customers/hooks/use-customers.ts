@@ -1,134 +1,30 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useQuery } from "@apollo/client";
+import { useState, useCallback, useMemo } from "react";
+import { CUSTOMERS_PAGE_QUERY } from "../api/queries";
 import type {
   Customer,
   CustomerGroup,
 } from "../types/customer-types";
+
+type CustomerPageResult = Omit<Customer, "createdAt" | "email"> & {
+  createdAt?: string | null;
+  email?: string | null;
+  lastModifiedAt?: string | null;
+};
+
+type CustomersPageData = {
+  customerPage: {
+    results: CustomerPageResult[];
+  };
+};
 
 const INITIAL_GROUPS: CustomerGroup[] = [
   { id: "grp-retail", key: "retail", name: "Retail Buyers" },
   { id: "grp-wholesale", key: "wholesale", name: "Wholesale Accounts" },
   { id: "grp-vip", key: "vip", name: "VIP Gold Tier" },
   { id: "grp-b2b", key: "b2b", name: "B2B Enterprise" },
-];
-
-const INITIAL_CUSTOMERS: Customer[] = [
-  {
-    id: "cust-101",
-    customerNumber: "CN-90412",
-    externalId: "EXT-88219",
-    key: "mia-johnson",
-    firstName: "Mia",
-    lastName: "Johnson",
-    companyName: "Northwind Retail",
-    email: "mia.johnson@example.com",
-    phone: "+1 (555) 234-5678",
-    customerGroup: { id: "grp-vip", name: "VIP Gold Tier", key: "vip" },
-    segment: "VIP Gold",
-    version: 4,
-    createdAt: "2026-01-15T09:30:00Z",
-    lastModifiedAt: "2026-08-05T14:22:00Z",
-    addresses: [
-      {
-        id: "addr-1",
-        streetName: "Evergreen Terrace",
-        streetNumber: "742",
-        city: "Springfield",
-        state: "OR",
-        postalCode: "97477",
-        country: "US",
-        email: "mia.johnson@example.com",
-        phone: "+1 (555) 234-5678",
-        isShipping: true,
-        isBilling: true,
-        isDefaultShipping: true,
-        isDefaultBilling: true,
-      },
-      {
-        id: "addr-2",
-        streetName: "Commercial Pkwy",
-        streetNumber: "1200",
-        city: "Eugene",
-        state: "OR",
-        postalCode: "97401",
-        country: "US",
-        email: "shipping@northwind.com",
-        phone: "+1 (555) 998-1122",
-        isShipping: true,
-        isBilling: false,
-        isDefaultShipping: false,
-        isDefaultBilling: false,
-      },
-    ],
-  },
-  {
-    id: "cust-102",
-    customerNumber: "CN-90413",
-    externalId: "EXT-88220",
-    key: "alex-chen",
-    firstName: "Alex",
-    lastName: "Chen",
-    companyName: "Apex Digital Solutions",
-    email: "alex.chen@apexdigital.com",
-    phone: "+1 (555) 876-5432",
-    customerGroup: { id: "grp-wholesale", name: "Wholesale Accounts", key: "wholesale" },
-    segment: "Wholesale",
-    version: 2,
-    createdAt: "2026-02-20T11:15:00Z",
-    lastModifiedAt: "2026-07-29T16:05:00Z",
-    addresses: [
-      {
-        id: "addr-3",
-        streetName: "Market Street",
-        streetNumber: "500",
-        city: "San Francisco",
-        state: "CA",
-        postalCode: "94105",
-        country: "US",
-        email: "alex.chen@apexdigital.com",
-        phone: "+1 (555) 876-5432",
-        isShipping: true,
-        isBilling: true,
-        isDefaultShipping: true,
-        isDefaultBilling: true,
-      },
-    ],
-  },
-  {
-    id: "cust-103",
-    customerNumber: "CN-90414",
-    externalId: "EXT-88221",
-    key: "sarah-williams",
-    firstName: "Sarah",
-    lastName: "Williams",
-    companyName: "Williams Consulting",
-    email: "sarah@williamsconsulting.io",
-    phone: "+1 (555) 345-6789",
-    customerGroup: { id: "grp-retail", name: "Retail Buyers", key: "retail" },
-    segment: "Retail",
-    version: 1,
-    createdAt: "2026-03-10T08:45:00Z",
-    lastModifiedAt: "2026-06-12T10:18:00Z",
-    addresses: [],
-  },
-  {
-    id: "cust-104",
-    customerNumber: "CN-90415",
-    externalId: "EXT-88222",
-    key: "david-miller",
-    firstName: "David",
-    lastName: "Miller",
-    companyName: "Miller Logistics",
-    email: "d.miller@millerlogistics.com",
-    phone: "+1 (555) 654-3210",
-    customerGroup: { id: "grp-b2b", name: "B2B Enterprise", key: "b2b" },
-    segment: "Enterprise",
-    version: 5,
-    createdAt: "2026-04-05T14:00:00Z",
-    lastModifiedAt: "2026-08-01T17:30:00Z",
-    addresses: [],
-  },
 ];
 
 export const INITIAL_CARTS = {
@@ -310,8 +206,52 @@ export const INITIAL_PROMOTION_USAGE = {
 };
 
 export function useCustomerStore() {
-  const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
-  const [groups] = useState<CustomerGroup[]>(INITIAL_GROUPS);
+  const { data, error, loading, refetch } = useQuery<CustomersPageData>(CUSTOMERS_PAGE_QUERY, {
+    fetchPolicy: "cache-and-network",
+    variables: {
+      limit: 100,
+      offset: 0,
+      sortKey: "createdAt",
+      sortOrder: "desc",
+    },
+  });
+  const [localCustomers, setLocalCustomers] = useState<Customer[]>([]);
+  const [customerOverrides, setCustomerOverrides] = useState<Record<string, Partial<Customer>>>({});
+
+  const serverCustomers = useMemo<Customer[]>(() => {
+    return (data?.customerPage.results ?? []).map((customer) => ({
+      ...customer,
+      email: customer.email ?? "",
+      createdAt: customer.createdAt ?? "",
+      lastModifiedAt: customer.lastModifiedAt ?? undefined,
+    }));
+  }, [data?.customerPage.results]);
+
+  const customers = useMemo(() => {
+    return [
+      ...localCustomers,
+      ...serverCustomers.map((customer) => ({
+        ...customer,
+        ...(customerOverrides[customer.id] ?? {}),
+      })),
+    ];
+  }, [customerOverrides, localCustomers, serverCustomers]);
+
+  const groups = useMemo<CustomerGroup[]>(() => {
+    const grouped = new Map<string, CustomerGroup>();
+
+    for (const customer of customers) {
+      if (customer.customerGroup?.id) {
+        grouped.set(customer.customerGroup.id, {
+          id: customer.customerGroup.id,
+          key: customer.customerGroup.key,
+          name: customer.customerGroup.name ?? customer.customerGroup.key ?? customer.customerGroup.id,
+        });
+      }
+    }
+
+    return grouped.size > 0 ? Array.from(grouped.values()) : INITIAL_GROUPS;
+  }, [customers]);
 
   const getCustomerById = useCallback(
     (id: string) => customers.find((c) => c.id === id || c.key === id),
@@ -325,21 +265,33 @@ export function useCustomerStore() {
       id,
       createdAt: new Date().toISOString(),
     };
-    setCustomers((prev) => [newCustomer, ...prev]);
+    setLocalCustomers((prev) => [newCustomer, ...prev]);
     return newCustomer;
   }, []);
 
   const updateCustomerProfile = useCallback((id: string, updates: Partial<Customer>) => {
-    setCustomers((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updates, lastModifiedAt: new Date().toISOString() } : c))
+    const timestampedUpdates = { ...updates, lastModifiedAt: new Date().toISOString() };
+
+    setLocalCustomers((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...timestampedUpdates } : c))
     );
+    setCustomerOverrides((prev) => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] ?? {}),
+        ...timestampedUpdates,
+      },
+    }));
   }, []);
 
   return {
     customers,
+    error,
     groups,
     getCustomerById,
     addCustomer,
+    loading,
+    refetch,
     updateCustomerProfile,
   };
 }

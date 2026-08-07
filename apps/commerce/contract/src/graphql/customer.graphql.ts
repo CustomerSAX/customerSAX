@@ -4,9 +4,22 @@ export const customerTypeDefs = gql`
   type Customer @key(fields: "id") {
     id: ID!
     customerNumber: String
-    email: String!
+    externalId: String
+    key: String
+    email: String
     firstName: String
     lastName: String
+    companyName: String
+    customerGroup: CustomerGroup
+    version: Int
+    createdAt: String
+    lastModifiedAt: String
+  }
+
+  type CustomerGroup {
+    id: ID!
+    key: String
+    name: String
   }
 
   type CustomerPage {

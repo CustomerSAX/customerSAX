@@ -13,7 +13,7 @@ import {
   LoadingSpinner
 } from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
-import { GATEWAY_STATUS_QUERY } from "../../graphql/queries";
+import { GATEWAY_STATUS_QUERY } from "./api/queries";
 import { PageHeader } from "../workspace/PageHeader";
 
 type GatewayStatusData = {

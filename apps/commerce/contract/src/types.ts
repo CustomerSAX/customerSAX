@@ -53,10 +53,21 @@ export type Order = {
 
 export type Customer = {
   customerNumber?: string;
-  email: string;
+  externalId?: string;
+  key?: string;
+  email?: string;
   firstName?: string;
   id: string;
   lastName?: string;
+  companyName?: string;
+  customerGroup?: {
+    id: string;
+    key?: string;
+    name?: string;
+  };
+  version?: number;
+  createdAt?: string;
+  lastModifiedAt?: string;
 };
 
 export type CommerceProvider = {
