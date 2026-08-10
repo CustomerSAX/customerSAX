@@ -1,10 +1,11 @@
 import { AppShell } from "../../components/shell/AppShell";
-import { TicketsPageView } from "../../features/workspace/ModulePages";
+import { TicketListView } from "../../features/tickets/components/TicketListView";
 
 export default function TicketsPage() {
   return (
     <AppShell>
-      <TicketsPageView />
+      <TicketListView />
     </AppShell>
   );
 }
+
