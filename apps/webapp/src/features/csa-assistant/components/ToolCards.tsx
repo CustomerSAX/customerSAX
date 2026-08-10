@@ -261,10 +261,14 @@ export function DraftEmailCard({ args }: { args: DraftEmailArgs }) {
 
 export function RenderRefundCard({
   args,
-  onConfirm
+  onConfirm,
+  onDecline,
+  isPending
 }: {
   args: RenderRefundActionArgs;
   onConfirm: () => void;
+  onDecline: () => void;
+  isPending?: boolean;
 }) {
   return (
     <Card variant="default" className="my-2 max-w-md border-l-4 border-l-m-warning">
@@ -287,15 +291,33 @@ export function RenderRefundCard({
             </div>
           ))}
         </div>
-        <Button
-          variant="danger"
-          size="sm"
-          className="w-full mt-2"
-          onClick={onConfirm}
-          leftIcon={<Icon name="check" size="xs" />}
-        >
-          Confirm Return
-        </Button>
+        {/* Matches ActionApproval's approve/decline pattern used everywhere
+            else in the chat — this card was the one place a rep had no way
+            to back out of an in-flight approval, and its lone red button
+            read as a destructive/dangerous action rather than a normal
+            confirm step. */}
+        <div className="flex gap-2 mt-2">
+          <Button
+            variant="primary"
+            size="sm"
+            className="flex-1"
+            onClick={onConfirm}
+            disabled={isPending}
+            leftIcon={<Icon name="check" size="xs" />}
+          >
+            Confirm Return
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1"
+            onClick={onDecline}
+            disabled={isPending}
+            leftIcon={<Icon name="x" size="xs" />}
+          >
+            Decline
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

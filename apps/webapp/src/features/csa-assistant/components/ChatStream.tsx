@@ -122,6 +122,8 @@ function ToolCallCard({
         <RenderRefundCard
           args={args as RenderRefundActionArgs}
           onConfirm={() => onRefundConfirm(args as RenderRefundActionArgs)}
+          onDecline={onDecline}
+          isPending={isLoading}
         />
       );
     default:
@@ -255,7 +257,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
     isLoading,
     error,
     approveAction,
-    sendSuggestion
+    sendSuggestion,
+    stop
   } = chat;
   const rightPanelOpen    = useConversationStore((s) => s.rightPanelOpen);
   const setRightPanelOpen  = useConversationStore((s) => s.setRightPanelOpen);
@@ -731,15 +734,35 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             className="flex-1"
             disabled={isLoading}
           />
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            iconOnly
-            leftIcon={<Icon name="send" size="xs" />}
-            aria-label="Send"
-            disabled={isLoading || !input.trim()}
-          />
+          {isLoading ? (
+            // While the model is generating, the send button becomes a stop
+            // control — previously there was no way to interrupt a reply
+            // once it started, even a wrong or runaway one.
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              iconOnly
+              leftIcon={
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+              }
+              aria-label="Stop generating"
+              title="Stop generating"
+              onClick={() => stop()}
+            />
+          ) : (
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              iconOnly
+              leftIcon={<Icon name="send" size="xs" />}
+              aria-label="Send"
+              disabled={!input.trim()}
+            />
+          )}
         </form>
       </div>
     </div>

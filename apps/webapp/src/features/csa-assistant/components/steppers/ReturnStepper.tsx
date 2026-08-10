@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { ReturnWorkflowSnapshot } from '../../store/conversation-store';
+import { useConversationStore, type ReturnWorkflowSnapshot } from '../../store/conversation-store';
 import { RESOLUTION_REASONS } from './stepper-shared/resolution-reasons';
 import {
   CustomerResultList,
@@ -154,6 +154,15 @@ export function ReturnStepper({
     setLocalDraft(() => ({ ...EMPTY_LOCAL_RETURN_DRAFT }));
     setSelectedCustomer(null);
     setCustomerSearch('');
+    // The workflow snapshot's `completed` field is never cleared by the scrape
+    // effect itself (it deliberately carries forward once set, so the "done"
+    // screen doesn't flicker away mid-stream) — without clearing it here, the
+    // auto-advance effect above sees `workflow.completed` still truthy the
+    // instant this resets to 'order' and immediately flips back to 'done',
+    // making this button look like it does nothing. Same pattern the
+    // "Start Return"/"Process Refund" quick actions already use.
+    useConversationStore.getState().setReturnWorkflow(null);
+    lastAdvancedOrderId.current = undefined;
     setStep('order');
   };
 
