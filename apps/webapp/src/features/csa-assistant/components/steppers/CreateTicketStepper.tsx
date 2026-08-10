@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import type { TicketWorkflowSnapshot } from '../../store/conversation-store';
+import { useConversationStore, type TicketWorkflowSnapshot } from '../../store/conversation-store';
 import {
   CustomerResultList,
   StepperHeader,
@@ -238,8 +238,16 @@ export function CreateTicketStepper({
   // Resets the local draft and returns to step 1 — mirrors CreateOrderStepper's
   // startNew. Purely local; nothing to tell the assistant since a fresh draft
   // has no server-side counterpart to reset.
+  //
+  // workflow.createdTicket is deliberately never cleared by the scrape effect
+  // (same as returnWorkflow.completed) — without clearing it here, the
+  // auto-advance effect above sees it's still truthy the instant this resets
+  // to 'customer' and immediately flips back to 'done', making this button
+  // look like it does nothing (same bug fixed for ReturnStepper's "Start
+  // another return").
   const startNew = () => {
     setLocalDraft(() => ({ ...EMPTY_LOCAL_TICKET_DRAFT }));
+    useConversationStore.getState().setTicketWorkflow(null);
     setStep('customer');
   };
 
@@ -318,13 +326,19 @@ export function CreateTicketStepper({
                   <div style={{ color: '#6b7280', fontSize: '12.5px' }}>Loading eligible orders...</div>
                 ) : orders.length > 0 ? (
                   orders.map(o => {
-                    const price = o.totalPrice?.centAmount != null ? o.totalPrice.centAmount / 100 : 0;
+                    // /api/orders already returns a pre-formatted totalPrice
+                    // string (e.g. "$9000.00") and a `status` field, not a
+                    // raw {centAmount} Money object or `orderState` — reading
+                    // those always rendered "$0.00 ·" with nothing after the
+                    // dot for every real order (same bug already fixed in
+                    // ReturnStepper's order list).
+                    const price = o.totalPrice || '$0.00';
                     const orderNo = o.orderNumber || o.id;
                     return (
                       <div key={o.id} className="opt-card" onClick={() => setLocalDraft((prev) => ({ ...prev, orderNumber: orderNo }))}>
                         <div className="opt-main">
                           <div className="opt-name">{orderNo}</div>
-                          <div className="opt-sub">${price.toFixed(2)} · {o.orderState}</div>
+                          <div className="opt-sub">{price} · {o.status}</div>
                         </div>
                         <div className="opt-chevron">&rsaquo;</div>
                       </div>
