@@ -1,10 +1,10 @@
 import { AppShell } from "../../../components/shell/AppShell";
-import { AuditLogPageView } from "../../../features/workspace/ModulePages";
+import { AuditLogView } from "../../../features/audit-log/components/AuditLogView";
 
 export default function AuditLogPage() {
   return (
     <AppShell>
-      <AuditLogPageView />
+      <AuditLogView />
     </AppShell>
   );
 }
