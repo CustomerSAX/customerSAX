@@ -45,9 +45,14 @@ export function mapOrder(order: CtOrder | null | undefined): Order | null {
   return {
     createdAt: order.createdAt,
     customerId: order.customerId,
+    customerEmail: order.customerEmail,
     id: order.id,
+    lastModifiedAt: order.lastModifiedAt,
     lineItems: (order.lineItems ?? []).map(mapLineItem),
     orderNumber: order.orderNumber,
+    orderState: order.orderState,
+    paymentState: order.paymentState,
+    shipmentState: order.shipmentState,
     state: order.orderState,
     totalPrice: mapMoney(order.totalPrice)
   };
