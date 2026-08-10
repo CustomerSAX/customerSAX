@@ -10,4 +10,3 @@ export const apolloClient = new ApolloClient({
     uri: graphqlUrl
   })
 });
-
