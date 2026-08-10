@@ -108,6 +108,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const userDisplayName = currentUser.name || currentUser.email;
   const userSubtitle = useMemo(() => roleLabel(currentUser.role), [currentUser.role]);
 
+  // Superadmin console link — only shown to platform-level superadmin
+  // accounts, since /superadmin is a separate isolated shell (see
+  // app/superadmin/layout.tsx), not a regular agent page.
+  const groups = useMemo(() => {
+    if (currentUser.role !== "superadmin") return sidebarGroups;
+    return sidebarGroups.map((group) =>
+      group.id === "administration"
+        ? { ...group, items: [...group.items, { id: "superadmin", href: "/superadmin", label: "Superadmin", icon: "shield-check" }] }
+        : group
+    );
+  }, [currentUser.role]);
+
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     router.replace("/login");
@@ -116,7 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // Find active item ID
   let activeItemId = "dashboard";
-  for (const group of sidebarGroups) {
+  for (const group of groups) {
     for (const item of group.items) {
       if (
         item.href &&
@@ -150,7 +162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         }
-        groups={sidebarGroups}
+        groups={groups}
         activeItemId={activeItemId}
         onSelectItem={handleSelectItem}
         footer={

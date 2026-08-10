@@ -4,7 +4,7 @@ const nextConfig = {
   // On Windows it requires Developer Mode (symlink permissions).
   // Set NEXT_STANDALONE=1 in CI / Docker builds to enable it locally.
   output: process.env.NEXT_STANDALONE === "1" ? "standalone" : undefined,
-  transpilePackages: ["@csa/ui"]
+  transpilePackages: ["@csa/ui", "@csa/mongodb"]
 };
 
 export default nextConfig;
