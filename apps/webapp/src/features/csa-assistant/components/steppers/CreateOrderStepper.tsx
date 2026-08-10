@@ -338,7 +338,7 @@ export function CreateOrderStepper({
                 </div>
               ) : searchedProducts.length === 0 ? (
                 <div style={{ padding: '16px', color: '#6b7280', textAlign: 'center', gridColumn: '1 / -1', fontSize: '13px' }}>
-                  No products found matching "{productSearch}".
+                  No products found matching &quot;{productSearch}&quot;.
                 </div>
               ) : (
                 searchedProducts.map(p => {
@@ -446,7 +446,7 @@ export function CreateOrderStepper({
               </div>
             </div>
             <div className="options-sub" style={{ marginTop: '8px' }}>
-              This won't change the order total automatically — let the customer know directly, and it'll be saved to the ticket for the record.
+              This won&apos;t change the order total automatically — let the customer know directly, and it&apos;ll be saved to the ticket for the record.
             </div>
           </>
         )}
