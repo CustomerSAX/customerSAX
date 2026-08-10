@@ -5,6 +5,7 @@ import { getProductByIdOrKey, listProducts } from "../../../commercetools/api/in
 import { escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
 import type { ProductSearchArgs } from "./product.types.js";
 
+// Minimal fields for the basic Product contract type (quickSearch, product resolver).
 const productFields = `#graphql
   id
   key
@@ -17,6 +18,82 @@ const productFields = `#graphql
         sku
         images { url }
         prices { value { centAmount currencyCode fractionDigits } }
+      }
+    }
+  }
+`;
+
+// Rich fields for the Product Directory list — includes all 12 manageable columns.
+// Returned as Json! so the contract type doesn't need to change.
+const richProductListFields = `#graphql
+  id
+  key
+  createdAt
+  lastModifiedAt
+  productType { name }
+  masterData {
+    hasStagedChanges
+    current {
+      nameAllLocales { locale value }
+      descriptionAllLocales { locale value }
+      slugAllLocales { locale value }
+      categories {
+        id
+        nameAllLocales { locale value }
+        ancestors { id nameAllLocales { locale value } }
+      }
+      masterVariant {
+        id
+        sku
+        key
+        images { url }
+        prices { value { centAmount currencyCode fractionDigits } }
+        availability {
+          noChannel { isOnStock availableQuantity }
+          channels { results { availability { isOnStock availableQuantity } } }
+        }
+      }
+      allVariants {
+        id
+        sku
+        key
+        images { url }
+        prices { value { centAmount currencyCode fractionDigits } }
+        availability {
+          noChannel { isOnStock availableQuantity }
+          channels { results { availability { isOnStock availableQuantity } } }
+        }
+      }
+    }
+  }
+`;
+
+// Full detail fields for the Product Detail page — includes priceMode, taxCategory,
+// categories with full ancestor chain, and all variant inventory data.
+const richProductDetailFields = `#graphql
+  id
+  key
+  priceMode
+  taxCategory { name }
+  masterData {
+    current {
+      nameAllLocales { locale value }
+      descriptionAllLocales { locale value }
+      categories {
+        id
+        nameAllLocales { locale value }
+        ancestors { id nameAllLocales { locale value } }
+      }
+      allVariants {
+        id
+        sku
+        key
+        images { url }
+        prices { value { centAmount currencyCode fractionDigits } }
+        availability {
+          noChannel { isOnStock availableQuantity }
+          channels { results { availability { isOnStock availableQuantity } } }
+        }
       }
     }
   }
@@ -46,23 +123,24 @@ export const resolvers = {
 
     return mapProduct(data.products.results[0]);
   },
+  // productSearch uses richProductListFields so it returns all 12 column data as Json!
   productSearch: async (_parent: unknown, args: ProductSearchArgs) => {
     const { limit, offset } = paging(args);
     const text = args.text?.trim();
 
     if (!text) {
-      return productsPage(undefined, limit, offset, sort(args, "createdAt"));
+      return productsRichPage(undefined, limit, offset, sort(args, "createdAt"));
     }
 
     const locale = normalizeLocale(args.locale);
     const exactWhere = productExactWhere(args.field, escapeWhere(text));
-    const exact = await productsPage(exactWhere, limit, offset, sort(args, "createdAt"));
+    const exact = await productsRichPage(exactWhere, limit, offset, sort(args, "createdAt"));
 
     if (exact.total > 0) {
       return exact;
     }
 
-    return productTextScan(text, locale, limit, offset);
+    return productRichTextScan(text, locale, limit, offset);
   },
   quickSearchProducts: async (_parent: unknown, args: { limit?: number; q: string }) => {
     const text = args.q.trim();
@@ -72,6 +150,7 @@ export const resolvers = {
     }
 
     const limit = Math.min(Math.max(args.limit ?? 10, 1), 25);
+    // quickSearch still uses the thin Product shape for the AI assistant
     const exact = await productsPage(productExactWhere(undefined, escapeWhere(text)), limit, 0, undefined);
 
     if (exact.results.length > 0) {
@@ -101,7 +180,21 @@ export const resolvers = {
         }
       `,
       { where: `sku="${escapeWhere(args.sku)}"` }
-    )
+    ),
+  // productDetail returns a rich Json! blob for the Product Detail page.
+  productDetail: async (_parent: unknown, args: { id: string }) => {
+    const data = await commercetoolsGraphql<{ product: Record<string, unknown> | null }>(
+      `#graphql
+        query ProductDetail($id: String!) {
+          product(id: $id) {
+            ${richProductDetailFields}
+          }
+        }
+      `,
+      { id: args.id }
+    );
+    return data.product ?? null;
+  }
 };
 
 // commercetools Query Predicates do not support substring matching on
@@ -127,6 +220,7 @@ function productExactWhere(field: string | undefined, value: string) {
   }
 }
 
+// Thin Product type helpers (for quickSearchProducts which uses the contract Product shape).
 async function productsPage(
   where: string | undefined,
   limit: number,
@@ -166,6 +260,70 @@ async function productTextScan(text: string, locale: string, limit: number, offs
   const results = matched.slice(offset, offset + limit).map(mapProduct).filter(Boolean);
 
   return page(results, matched.length, offset);
+}
+
+// Rich helpers for productSearch — return the full raw CT node (not the thin Product contract).
+async function productsRichPage(
+  where: string | undefined,
+  limit: number,
+  offset: number,
+  sortArg: string[] | undefined
+) {
+  const data = await commercetoolsGraphql<{ products: { results: Record<string, unknown>[]; total?: number } }>(
+    `#graphql
+      query ProductsRichPage($limit: Int!, $offset: Int!, $sort: [String!], $where: String) {
+        products(limit: $limit, offset: $offset, sort: $sort, where: $where) {
+          total
+          results { ${richProductListFields} }
+        }
+      }
+    `,
+    { limit, offset, sort: sortArg, where }
+  );
+
+  return {
+    count: data.products.results.length,
+    offset,
+    results: data.products.results,
+    total: data.products.total ?? data.products.results.length
+  };
+}
+
+async function productRichTextScan(text: string, locale: string, limit: number, offset: number) {
+  const needle = text.toLowerCase();
+  const data = await commercetoolsGraphql<{ products: { results: Record<string, unknown>[] } }>(
+    `#graphql
+      query ProductsRichScan($limit: Int!) {
+        products(limit: $limit) {
+          results { ${richProductListFields} }
+        }
+      }
+    `,
+    { limit: 500 }
+  );
+
+  const matched = data.products.results.filter((p) => richProductMatchesText(p, locale, needle));
+  const results = matched.slice(offset, offset + limit);
+
+  return {
+    count: results.length,
+    offset,
+    results,
+    total: matched.length
+  };
+}
+
+function richProductMatchesText(product: Record<string, unknown>, _locale: string, needle: string) {
+  const masterData = product.masterData as { current?: { nameAllLocales?: Array<{ value: string }>; descriptionAllLocales?: Array<{ value: string }> } } | undefined;
+  const current = masterData?.current;
+  const localizedValues = (values: Array<{ value: string }> | undefined) =>
+    (values ?? []).map((entry) => entry.value);
+  const candidates: (string | undefined)[] = [
+    product.key as string | undefined,
+    ...localizedValues(current?.nameAllLocales),
+    ...localizedValues(current?.descriptionAllLocales)
+  ];
+  return candidates.filter((v): v is string => Boolean(v)).some((v) => v.toLowerCase().includes(needle));
 }
 
 function productMatchesText(product: CtProduct, _locale: string, needle: string) {

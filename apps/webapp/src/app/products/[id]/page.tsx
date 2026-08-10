@@ -1,10 +1,18 @@
 import { AppShell } from "../../../components/shell/AppShell";
-import { ProductDetailView } from "../../../features/details/ProductDetailView";
+import { ProductDetailView } from "../../../features/products/components/ProductDetailView";
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
+interface ProductDetailPageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default async function ProductDetailPage({
+  params,
+}: ProductDetailPageProps) {
+  const { id } = await params;
+
   return (
     <AppShell>
-      <ProductDetailView id={params.id} />
+      <ProductDetailView id={id} />
     </AppShell>
   );
 }

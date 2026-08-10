@@ -57,6 +57,9 @@ const productsData = [
   ["Safety Gloves", "PPE", "safety-gloves", "SG-240", "$12.50", "In stock", "Published"],
   ["Packing Tape", "Packaging", "packing-tape", "PT-500", "$6.20", "Low stock", "Published"]
 ];
+// Note: productsData is kept for reference only; ProductsPageView now delegates to
+// the full-parity ProductListView (features/products/components/ProductListView.tsx).
+void productsData;
 
 const auditEventsData = [
   ["Ticket created", "agent@csa.local", "Tickets", "CSA-1024", "8 min ago"],
@@ -274,42 +277,7 @@ export function CartPageView() {
   );
 }
 
-export function ProductsPageView() {
-  const router = useRouter();
-  return (
-    <>
-      <PageHeader
-        description="Search catalog projections with product type, key, SKU, price, availability, and publication status."
-        eyebrow="Product Search"
-        title="Products"
-      />
-      <ModuleToolbar options={["Product Name", "Product Key", "SKU", "Product Type"]} searchPlaceholder="Search products..." />
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {["Product Name", "Product Type", "Product Key", "SKU", "Price", "Availability", "Status"].map((col) => (
-              <TableHead key={col}>{col}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {productsData.map((row, idx) => (
-            <TableRow key={idx} clickable onClick={() => router.push(`/products/${row[2]}`)}>
-              <TableCell className="font-bold text-m-primary">{row[0]}</TableCell>
-              <TableCell>{row[1]}</TableCell>
-              <TableCell><span className="font-mono text-xs">{row[2]}</span></TableCell>
-              <TableCell><span className="font-mono text-xs">{row[3]}</span></TableCell>
-              <TableCell className="font-semibold">{row[4]}</TableCell>
-              <TableCell><Badge variant="success" size="sm" dot>{row[5]}</Badge></TableCell>
-              <TableCell><Badge variant="primary" size="sm">{row[6]}</Badge></TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-        <TablePagination page={1} totalPages={1} totalItems={productsData.length} onPageChange={() => {}} />
-      </Table>
-    </>
-  );
-}
+export { ProductListView as ProductsPageView } from "../products/components/ProductListView";
 
 export function ReportsPageView() {
   return (
