@@ -1,10 +1,14 @@
+import { Suspense } from "react";
 import { AppShell } from "../../components/shell/AppShell";
-import { CartPageView } from "../../features/workspace/ModulePages";
+import { CartListView } from "../../features/cart/components/CartListView";
+import { Skeleton } from "@csa/ui";
 
 export default function CartPage() {
   return (
     <AppShell>
-      <CartPageView />
+      <Suspense fallback={<Skeleton height={400} className="w-full" />}>
+        <CartListView />
+      </Suspense>
     </AppShell>
   );
 }
