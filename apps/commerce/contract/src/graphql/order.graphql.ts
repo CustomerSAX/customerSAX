@@ -5,9 +5,14 @@ export const orderTypeDefs = gql`
     id: ID!
     orderNumber: String
     customerId: String
+    customerEmail: String
     state: String
+    orderState: String
+    shipmentState: String
+    paymentState: String
     createdAt: String
-    totalPrice: Money!
+    lastModifiedAt: String
+    totalPrice: Money
     lineItems: [OrderLineItem!]!
   }
 

@@ -44,11 +44,16 @@ export type Cart = {
 export type Order = {
   createdAt?: string;
   customerId?: string;
+  customerEmail?: string;
   id: string;
   lineItems: CommerceLineItem[];
+  lastModifiedAt?: string;
   orderNumber?: string;
+  orderState?: string;
+  paymentState?: string;
+  shipmentState?: string;
   state?: string;
-  totalPrice: Money;
+  totalPrice?: Money;
 };
 
 export type Customer = {

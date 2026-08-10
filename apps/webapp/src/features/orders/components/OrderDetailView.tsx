@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
@@ -24,9 +24,11 @@ import {
   TableHead,
   TableCell,
   Drawer,
+  Panel,
 } from "@csa/ui";
 import { useOrderStore, MOCK_SHIPPING_METHODS, MOCK_CATALOG_PRODUCTS, MOCK_AVAILABLE_DISCOUNTS } from "../hooks/use-orders";
 import type {
+  Order,
   OrderState,
   ShipmentState,
   PaymentState,
@@ -38,6 +40,52 @@ import type {
 
 interface OrderDetailViewProps {
   id: string;
+}
+
+function createEmptyOrder(id: string): Order {
+  return {
+    billingAddress: {
+      streetName: "--",
+      city: "--",
+      state: "--",
+      postalCode: "--",
+      country: "--",
+    },
+    comments: [],
+    createdAt: "",
+    customerEmail: "",
+    customerName: "--",
+    discountCodes: [],
+    discountTotal: 0,
+    grandTotal: 0,
+    id,
+    lastModifiedAt: "",
+    lineItems: [],
+    netTotal: 0,
+    orderNumber: id,
+    orderState: "Open",
+    paymentState: "Pending",
+    payments: [],
+    returnInfo: [],
+    shipmentState: "Pending",
+    shippingAddress: {
+      streetName: "--",
+      city: "--",
+      state: "--",
+      postalCode: "--",
+      country: "--",
+    },
+    shippingInfo: {
+      shippingMethodName: "--",
+      price: 0,
+      taxRate: "--",
+      carrier: "--",
+      parcels: [],
+    },
+    shippingTotal: 0,
+    store: "--",
+    taxTotal: 0,
+  };
 }
 
 const ORDER_STATE_OPTIONS = [
@@ -92,6 +140,8 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
 
   const {
     orders,
+    loading,
+    error,
     getOrderById,
     updateOrderStates,
     updateLineItemQuantity,
@@ -109,7 +159,8 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     addOrderComment,
   } = useOrderStore();
 
-  const order = getOrderById(id) || orders[0];
+  const fallbackOrder = useMemo(() => createEmptyOrder(id), [id]);
+  const order = getOrderById(id) || orders[0] || fallbackOrder;
 
   const B2C_TABS = ["General", "Shipping & Delivery", "Returns", "Payments", "Comments"] as const;
   const B2B_TABS = ["General", "Custom Attributes", "Shipping & Delivery", "Returns", "Payments"] as const;
@@ -166,6 +217,30 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     country: order?.shippingAddress.country || "US",
   });
   const [addressFeedback, setAddressFeedback] = useState("");
+
+  useEffect(() => {
+    setOrderState(order.orderState);
+    setShipmentState(order.shipmentState);
+    setPaymentState(order.paymentState);
+    setAltEmail(order.customerEmail || "");
+    setGiftMessageInput(order.giftMessage || "");
+    setSelectedShippingMethodId(order.shippingInfo.shippingMethodId || MOCK_SHIPPING_METHODS[0].id);
+    setAddressForm({
+      streetNumber: order.shippingAddress.streetNumber || "",
+      streetName: order.shippingAddress.streetName || "",
+      building: order.shippingAddress.building || "",
+      city: order.shippingAddress.city || "",
+      state: order.shippingAddress.state || "",
+      postalCode: order.shippingAddress.postalCode || "",
+      country: order.shippingAddress.country || "US",
+    });
+    setStagedLineQuantities(
+      order.lineItems.reduce<Record<string, number>>((acc, lineItem) => {
+        acc[lineItem.id] = lineItem.quantity;
+        return acc;
+      }, {})
+    );
+  }, [order]);
 
   // Returns Side Drawer State
   const [isReturnDrawerOpen, setIsReturnDrawerOpen] = useState(false);
@@ -418,7 +493,9 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
 
         <PageHeader
           title={order?.orderNumber ? `Order #${order.orderNumber}` : "Order Detail"}
-          subtitle={`Inspect order fulfillment, payment state, line items, and shipping progress. Created ${new Date(order.createdAt).toLocaleString()}`}
+          subtitle={`Inspect order fulfillment, payment state, line items, and shipping progress. Created ${
+            order.createdAt ? new Date(order.createdAt).toLocaleString() : "--"
+          }`}
           badge={renderOrderStateBadge(order.orderState)}
           actions={
             <div className="flex items-center gap-2">
@@ -439,6 +516,20 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           }
         />
       </div>
+
+      {(loading || error) && (
+        <Panel
+          className={`p-3 rounded-lg border text-xs font-semibold ${
+            error
+              ? "border-m-danger/30 bg-m-danger-surface text-m-danger"
+              : "border-m-border bg-m-bg-surface text-m-text-muted"
+          }`}
+        >
+          {error
+            ? "Unable to load this order from the BFF. Showing available local order state."
+            : "Loading order data from the BFF..."}
+        </Panel>
+      )}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)} variant="underline">
