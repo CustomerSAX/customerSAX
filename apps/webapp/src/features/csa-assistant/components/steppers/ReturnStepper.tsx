@@ -308,7 +308,7 @@ export function ReturnStepper({
 
         {step === 'reason' && (
           <>
-            <div className="section-label">This order's items (all will be returned)</div>
+            <div className="section-label">This order&apos;s items (all will be returned)</div>
             {lineItems.length === 0 ? (
               <div className="opt-empty-state">Loading order items…</div>
             ) : (

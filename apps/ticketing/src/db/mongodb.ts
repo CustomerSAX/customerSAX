@@ -4,7 +4,8 @@ let clientPromise: Promise<MongoClient> | undefined;
 
 export async function getTicketsCollection() {
   const client = await getMongoClient();
-  const db = client.db(process.env.MONGO_DB_NAME?.trim() || "csa");
+  const dbName = process.env.MONGO_DB_NAME?.trim() || process.env.MONGO_TICKETS_DB?.trim() || "csa";
+  const db = client.db(dbName);
   const collectionName = process.env.MONGO_TICKETS_COLLECTION?.trim() || "Tickets";
 
   return db.collection(collectionName);
