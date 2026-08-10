@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * never fetched at all before this route existed).
  */
 
-const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
+const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4001/graphql';
 
 async function bffQuery<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
   try {

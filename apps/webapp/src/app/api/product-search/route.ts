@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
+const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4001/graphql';
 
 type BffResult = { ok: true; results: any[] } | { ok: false; reason: string };
 

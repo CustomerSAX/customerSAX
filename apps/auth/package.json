@@ -1,5 +1,5 @@
 {
-  "name": "@csa/ticketing",
+  "name": "@csa/auth",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,12 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@apollo/server": "^4.11.0",
-    "@apollo/subgraph": "^2.10.0",
     "@csa/mongodb": "workspace:*",
-    "graphql": "^16.9.0",
-    "graphql-tag": "^2.12.7",
-    "mongodb": "^7.1.1"
+    "bcryptjs": "^3.0.3"
   },
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",

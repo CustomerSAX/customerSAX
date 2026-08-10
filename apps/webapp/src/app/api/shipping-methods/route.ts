@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
+const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4001/graphql';
 
 // No mock data here. The stepper sends whatever `id` this route returns
 // straight back to the AI as the hidden-action's shippingMethodId — the old
