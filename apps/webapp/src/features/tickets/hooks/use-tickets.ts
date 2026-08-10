@@ -1,312 +1,82 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import type {
-  Ticket,
-  TicketStatus,
-  TicketCategoryKey,
-  WorklogComment,
-} from "../types/ticket-types";
+import { useMutation, useQuery } from "@apollo/client";
+import { useCallback, useMemo } from "react";
+import { ADD_WORKLOG, CREATE_TICKET, TICKETS_QUERY, UPDATE_TICKET } from "../api/queries";
+import type { Ticket, TicketCategoryKey, TicketPriority, TicketStatus, WorklogComment } from "../types/ticket-types";
 
 export const TICKET_CATEGORIES: Record<TicketCategoryKey, string> = {
-  order_inquiry: "Order Inquiry",
-  payment_methods: "Payment Methods",
-  returns_refunds: "Returns & Refunds",
-  general_inquiry: "General Inquiry",
-  technical_support: "Technical Support",
-  account_management: "Account Management",
+  order_inquiry: "Order Inquiry", payment_methods: "Payment Methods", returns_refunds: "Returns & Refunds",
+  general_inquiry: "General Inquiry", technical_support: "Technical Support", account_management: "Account Management",
 };
-
 export const TICKET_WORKFLOW: Record<TicketStatus, TicketStatus[]> = {
-  Open: ["Open", "In Progress", "Closed"],
-  "In Progress": ["In Progress", "Pending", "Resolved", "Closed"],
-  Pending: ["Pending", "In Progress", "Resolved", "Closed"],
-  Resolved: ["Resolved", "In Progress", "Closed"],
-  Closed: ["Closed", "Open"],
+  Open: ["Open", "In Progress", "Closed"], "In Progress": ["In Progress", "Pending", "Resolved", "Closed"],
+  Pending: ["Pending", "In Progress", "Resolved", "Closed"], Resolved: ["Resolved", "In Progress", "Closed"], Closed: ["Closed", "Open"],
 };
 
-export const INITIAL_TICKETS: Ticket[] = [
-  {
-    id: "TCK-4019",
-    ticketNumber: "TCK-4019",
-    email: "mia.johnson@example.com",
-    customerId: "cust-101",
-    contactType: "Email",
-    category: "order_inquiry",
-    orderNumber: "ORD-54019",
-    priority: "High",
-    status: "In Progress",
-    assignedTo: "John Agent (john.agent@csa.com)",
-    createdBy: "mia.johnson@example.com",
-    subject: "Inquiry regarding shipment delay for ORD-54019",
-    message: "Hello, could you please confirm when ORD-54019 will be shipped? I selected expedited delivery at checkout.",
-    solution: "Contacted warehouse manager. Package was packed and assigned tracking #TRK-90081. Scheduled for carrier pickup by 4:00 PM.",
-    timeSpentOnTicket: "45 mins",
-    createdAt: "2026-08-06T11:20:00Z",
-    lastModifiedAt: "2026-08-06T11:45:00Z",
-    comments: [
-      {
-        id: "wl-1",
-        comment: "Called warehouse logistics to check carrier dispatch schedule.",
-        createdAt: "2026-08-06T11:30:00Z",
-        status: "Completed",
-        author: "John Agent",
-      },
-      {
-        id: "wl-2",
-        comment: "Sent email notification with tracking number to customer.",
-        createdAt: "2026-08-06T11:45:00Z",
-        status: "Completed",
-        author: "John Agent",
-      },
-    ],
-    attachments: [
-      {
-        name: "ORD-54019_Invoice.pdf",
-        url: "https://example.com/attachments/ORD-54019_Invoice.pdf",
-        size: "142 KB",
-      },
-    ],
-    history: [
-      {
-        id: "hist-1",
-        ticketNumber: "TCK-4019",
-        operationDate: "2026-08-06T11:20:00Z",
-        reason: "order_inquiry",
-        solution: "--",
-        status: "Open",
-        priority: "High",
-        assignedTo: "Unassigned",
-        worklog: "Ticket submitted by customer via Email.",
-        timeSpent: "--",
-      },
-      {
-        id: "hist-2",
-        ticketNumber: "TCK-4019",
-        operationDate: "2026-08-06T11:30:00Z",
-        reason: "order_inquiry",
-        solution: "Contacted warehouse manager",
-        status: "In Progress",
-        priority: "High",
-        assignedTo: "John Agent (john.agent@csa.com)",
-        worklog: "Called warehouse logistics to check carrier dispatch schedule.",
-        timeSpent: "10 mins",
-      },
-    ],
-  },
-  {
-    id: "TCK-4020",
-    ticketNumber: "TCK-4020",
-    email: "alex.chen@apexdigital.com",
-    customerId: "cust-102",
-    contactType: "Phone",
-    category: "payment_methods",
-    orderNumber: "ORD-53982",
-    priority: "Medium",
-    status: "Resolved",
-    assignedTo: "Sarah Jenkins (sarah.jenkins@csa.com)",
-    createdBy: "alex.chen@apexdigital.com",
-    subject: "Payment authorization retry for credit card ending 4242",
-    message: "Customer called stating payment was flagged by bank. Bank confirmed fraud release.",
-    solution: "Re-triggered payment gateway charge attempt successfully. Invoice paid in full.",
-    timeSpentOnTicket: "20 mins",
-    createdAt: "2026-08-04T14:10:00Z",
-    lastModifiedAt: "2026-08-04T14:30:00Z",
-    resolutionDate: "2026-08-04T14:30:00Z",
-    comments: [
-      {
-        id: "wl-3",
-        comment: "Manual payment capture executed via Stripe gateway.",
-        createdAt: "2026-08-04T14:25:00Z",
-        status: "Completed",
-        author: "Sarah Jenkins",
-      },
-    ],
-    attachments: [],
-    history: [
-      {
-        id: "hist-3",
-        ticketNumber: "TCK-4020",
-        operationDate: "2026-08-04T14:10:00Z",
-        reason: "payment_methods",
-        solution: "--",
-        status: "Open",
-        priority: "Medium",
-        assignedTo: "Sarah Jenkins",
-        worklog: "Customer phone call received.",
-        timeSpent: "--",
-      },
-      {
-        id: "hist-4",
-        ticketNumber: "TCK-4020",
-        operationDate: "2026-08-04T14:30:00Z",
-        reason: "payment_methods",
-        solution: "Re-triggered payment gateway charge attempt successfully.",
-        status: "Resolved",
-        priority: "Medium",
-        assignedTo: "Sarah Jenkins",
-        worklog: "Payment processed successfully.",
-        timeSpent: "20 mins",
-      },
-    ],
-  },
-  {
-    id: "TCK-4021",
-    ticketNumber: "TCK-4021",
-    email: "sarah@williamsconsulting.io",
-    customerId: "cust-103",
-    contactType: "Web",
-    category: "returns_refunds",
-    orderNumber: "ORD-53410",
-    priority: "Low",
-    status: "Closed",
-    assignedTo: "Support Desk",
-    createdBy: "sarah@williamsconsulting.io",
-    subject: "Return label request for size exchange",
-    message: "Requesting return shipping label for item returned under RMA-9012.",
-    solution: "Generated prepaid FedEx return label and emailed to customer.",
-    timeSpentOnTicket: "15 mins",
-    createdAt: "2026-07-28T09:00:00Z",
-    lastModifiedAt: "2026-07-29T10:15:00Z",
-    resolutionDate: "2026-07-29T10:15:00Z",
-    comments: [],
-    attachments: [],
-    history: [],
-  },
-  {
-    id: "TCK-4022",
-    ticketNumber: "TCK-4022",
-    email: "d.miller@millerlogistics.com",
-    customerId: "cust-104",
-    contactType: "Chat",
-    category: "technical_support",
-    priority: "Urgent",
-    status: "Open",
-    assignedTo: "Tech Support Team",
-    createdBy: "d.miller@millerlogistics.com",
-    subject: "API Integration authentication failure on webhook endpoint",
-    message: "Customer reported HTTP 401 Unauthorized error when receiving order update webhooks.",
-    solution: "",
-    timeSpentOnTicket: "30 mins",
-    createdAt: "2026-08-07T08:00:00Z",
-    lastModifiedAt: "2026-08-07T08:30:00Z",
-    comments: [
-      {
-        id: "wl-4",
-        comment: "Investigating OAuth token expiration setting on webhook payload encoder.",
-        createdAt: "2026-08-07T08:25:00Z",
-        status: "In Progress",
-        author: "Tech Agent",
-      },
-    ],
-    attachments: [],
-    history: [],
-  },
-];
+type ServerTicket = Record<string, any>;
+type NewTicket = Omit<Ticket, "id" | "ticketNumber" | "createdAt" | "comments" | "history"> & { comments?: WorklogComment[] };
 
 export function useTicketStore() {
-  const [tickets, setTickets] = useState<Ticket[]>(INITIAL_TICKETS);
+  const { data, loading, error, refetch } = useQuery(TICKETS_QUERY, { fetchPolicy: "cache-and-network", variables: { limit: 100, offset: 0 } });
+  const [createMutation] = useMutation(CREATE_TICKET);
+  const [updateMutation] = useMutation(UPDATE_TICKET);
+  const [worklogMutation] = useMutation(ADD_WORKLOG);
+  const tickets = useMemo<Ticket[]>(() => (data?.ticketPage.results ?? []).map(mapTicket), [data]);
+  const getTicketById = useCallback((id: string) => tickets.find((ticket) => ticket.id === id || ticket.ticketNumber === id), [tickets]);
 
-  const getTicketById = useCallback(
-    (id: string) => tickets.find((t) => t.id === id || t.ticketNumber === id),
-    [tickets]
-  );
+  const addTicket = useCallback(async (input: NewTicket) => {
+    const result = await createMutation({ variables: { draft: {
+      customerEmail: input.email, customerId: input.customerId, contactType: input.contactType,
+      category: input.category, orderNumber: input.orderNumber, priority: input.priority,
+      status: input.status, assignee: input.assignedTo, createdBy: input.createdBy,
+      subject: input.subject, message: input.message, solution: input.solution,
+      timeSpentOnTicket: input.timeSpentOnTicket, attachments: input.attachments, comments: input.comments ?? [], source: input.contactType,
+    } } });
+    await refetch();
+    return mapTicket(result.data.createTicket);
+  }, [createMutation, refetch]);
 
-  const addTicket = useCallback(
-    (newTicketData: Omit<Ticket, "id" | "ticketNumber" | "createdAt" | "comments" | "history">) => {
-      const num = Math.floor(4023 + Math.random() * 1000);
-      const id = `TCK-${num}`;
-      const newTicket: Ticket = {
-        ...newTicketData,
-        id,
-        ticketNumber: id,
-        createdAt: new Date().toISOString(),
-        comments: [],
-        history: [
-          {
-            id: `hist-${Date.now()}`,
-            ticketNumber: id,
-            operationDate: new Date().toISOString(),
-            reason: newTicketData.category,
-            solution: "",
-            status: newTicketData.status,
-            priority: newTicketData.priority,
-            assignedTo: newTicketData.assignedTo,
-            worklog: `Ticket created by ${newTicketData.createdBy}`,
-            timeSpent: "--",
-          },
-        ],
-      };
-      setTickets((prev) => [newTicket, ...prev]);
-      return newTicket;
-    },
-    []
-  );
+  const updateTicket = useCallback(async (id: string, updates: Partial<Ticket>) => {
+    const patch: Record<string, unknown> = {};
+    if (updates.email !== undefined) patch.customerEmail = updates.email;
+    if (updates.customerId !== undefined) patch.customerId = updates.customerId;
+    if (updates.contactType !== undefined) patch.contactType = updates.contactType;
+    if (updates.category !== undefined) patch.category = updates.category;
+    if (updates.orderNumber !== undefined) patch.orderNumber = updates.orderNumber;
+    if (updates.priority !== undefined) patch.priority = updates.priority;
+    if (updates.status !== undefined) patch.status = updates.status;
+    if (updates.assignedTo !== undefined) patch.assignee = updates.assignedTo;
+    if (updates.subject !== undefined) patch.subject = updates.subject;
+    if (updates.message !== undefined) patch.message = updates.message;
+    if (updates.solution !== undefined) patch.solution = updates.solution;
+    if (updates.timeSpentOnTicket !== undefined) patch.timeSpentOnTicket = updates.timeSpentOnTicket;
+    if (updates.attachments !== undefined) patch.attachments = updates.attachments;
+    await updateMutation({ variables: { id, patch } });
+    await refetch();
+  }, [refetch, updateMutation]);
 
-  const updateTicket = useCallback((id: string, updates: Partial<Ticket>) => {
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== id && t.ticketNumber !== id) return t;
+  const addWorklog = useCallback(async (ticketId: string, commentText: string, author = "Support Agent") => {
+    await worklogMutation({ variables: { id: ticketId, comment: { id: `wl-${Date.now()}`, comment: commentText, createdAt: new Date().toISOString(), status: "Completed", author } } });
+    await refetch();
+  }, [refetch, worklogMutation]);
 
-        const updated: Ticket = {
-          ...t,
-          ...updates,
-          lastModifiedAt: new Date().toISOString(),
-        };
+  return { tickets, getTicketById, addTicket, updateTicket, addWorklog, loading, error, refetch };
+}
 
-        // Track history entry if status or assignee changed
-        if (updates.status || updates.assignedTo || updates.solution) {
-          const newHist: Ticket = {
-            ...updated,
-            history: [
-              ...updated.history,
-              {
-                id: `hist-${Date.now()}`,
-                ticketNumber: updated.ticketNumber,
-                operationDate: new Date().toISOString(),
-                reason: updated.category,
-                solution: updates.solution || updated.solution || "",
-                status: updated.status,
-                priority: updated.priority,
-                assignedTo: updated.assignedTo,
-                worklog: "Ticket details updated.",
-                timeSpent: updated.timeSpentOnTicket || "10 mins",
-              },
-            ],
-          };
-          return newHist;
-        }
-
-        return updated;
-      })
-    );
-  }, []);
-
-  const addWorklog = useCallback((ticketId: string, commentText: string, author = "Support Agent") => {
-    const newWorklog: WorklogComment = {
-      id: `wl-${Date.now()}`,
-      comment: commentText,
-      createdAt: new Date().toISOString(),
-      status: "Completed",
-      author,
-    };
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== ticketId && t.ticketNumber !== ticketId) return t;
-        return {
-          ...t,
-          comments: [...t.comments, newWorklog],
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
-
+function mapTicket(ticket: ServerTicket): Ticket {
   return {
-    tickets,
-    getTicketById,
-    addTicket,
-    updateTicket,
-    addWorklog,
+    id: String(ticket.id), ticketNumber: String(ticket.ticketNumber), email: ticket.customerEmail ?? "",
+    customerId: ticket.customerId ?? undefined, contactType: normalizeContact(ticket.contactType ?? ticket.source),
+    category: (ticket.category ?? "general_inquiry") as TicketCategoryKey, orderNumber: ticket.orderNumber ?? undefined,
+    priority: normalizePriority(ticket.priority), status: normalizeStatus(ticket.status), assignedTo: ticket.assignee ?? "Support Desk",
+    createdBy: ticket.createdBy ?? "Unknown", subject: ticket.subject ?? "", message: ticket.message ?? "",
+    solution: ticket.solution ?? undefined, timeSpentOnTicket: ticket.timeSpentOnTicket ?? undefined,
+    createdAt: ticket.createdAt ?? new Date(0).toISOString(), lastModifiedAt: ticket.lastModifiedAt ?? undefined,
+    resolutionDate: ticket.resolutionDate ?? undefined, comments: ticket.comments ?? [], attachments: ticket.attachments ?? [],
+    history: (ticket.history ?? []).map((entry: ServerTicket) => ({ ...entry, status: normalizeStatus(entry.status), priority: normalizePriority(entry.priority) })),
   };
 }
+function normalizeStatus(value: string): TicketStatus { const key = String(value ?? "open").toLowerCase().replace(/[_-]/g, " "); return ({ open: "Open", "in progress": "In Progress", waiting: "Pending", pending: "Pending", resolved: "Resolved", closed: "Closed" } as Record<string, TicketStatus>)[key] ?? "Open"; }
+function normalizePriority(value: string): TicketPriority { const key = String(value ?? "medium").toLowerCase(); return ({ low: "Low", normal: "Medium", medium: "Medium", high: "High", urgent: "Urgent" } as Record<string, TicketPriority>)[key] ?? "Medium"; }
+function normalizeContact(value: string) { const normalized = String(value ?? "Email"); return (["Email", "Phone", "Chat", "Web", "Social"].find((item) => item.toLowerCase() === normalized.toLowerCase()) ?? "Email") as Ticket["contactType"]; }

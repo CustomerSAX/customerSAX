@@ -21,7 +21,7 @@ const sidebarGroups: SidebarGroup[] = [
     title: "Operations",
     items: [
       { id: "dashboard", href: "/dashboard", label: "Dashboard", icon: "layout-dashboard" },
-      { id: "tickets", href: "/tickets", label: "Tickets", icon: "ticket-check", badge: "12" },
+      { id: "tickets", href: "/tickets", label: "Tickets", icon: "ticket-check" },
       { id: "customers", href: "/customers", label: "Customers", icon: "users" }
     ]
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -54,9 +54,9 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
 
-  const { tickets, getTicketById, updateTicket, addWorklog } = useTicketStore();
+  const { getTicketById, updateTicket, addWorklog, loading, error } = useTicketStore();
 
-  const ticket = getTicketById(id) || tickets[0];
+  const ticket = getTicketById(id);
 
   const [activeTab, setActiveTab] = useState<"General" | "History">("General");
 
@@ -69,6 +69,14 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
   const [expandedWorklogIds, setExpandedWorklogIds] = useState<Record<string, boolean>>({});
 
+  useEffect(() => {
+    if (!ticket) return;
+    setAssignedTo(ticket.assignedTo);
+    setStatus(ticket.status);
+    setPriority(ticket.priority);
+    setSolution(ticket.solution || "");
+  }, [ticket?.id]);
+
   // Audit Search State
   const [auditSearchText, setAuditSearchText] = useState("");
 
@@ -78,9 +86,10 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
     return allowed.map((s) => ({ value: s, label: s }));
   }, [status]);
 
-  const handleSaveChanges = (e: React.FormEvent) => {
+  const handleSaveChanges = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateTicket(ticket.id, {
+    if (!ticket) return;
+    await updateTicket(ticket.id, {
       assignedTo,
       status,
       priority,
@@ -90,9 +99,10 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
     setTimeout(() => setSaveSuccessMsg(""), 3000);
   };
 
-  const handleAddWorklog = () => {
+  const handleAddWorklog = async () => {
     if (!worklogInput.trim()) return;
-    addWorklog(ticket.id, worklogInput.trim(), "John Agent");
+    if (!ticket) return;
+    await addWorklog(ticket.id, worklogInput.trim(), "John Agent");
     setWorklogInput("");
   };
 
@@ -148,6 +158,10 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
         return <Badge variant="neutral" size="sm">{p}</Badge>;
     }
   };
+
+  if (loading && !ticket) return <div className="p-8 text-sm text-m-text-muted">Loading ticket...</div>;
+  if (error) return <div className="p-8 text-sm text-m-error">Unable to load ticket: {error.message}</div>;
+  if (!ticket) return <div className="p-8 text-sm text-m-text-muted">Ticket not found.</div>;
 
   return (
     <div className="space-y-6">
