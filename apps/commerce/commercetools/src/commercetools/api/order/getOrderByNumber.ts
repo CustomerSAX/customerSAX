@@ -1,5 +1,5 @@
 import type { Order } from "@csa/commerce-contract";
-import { commercetoolsGraphql } from "../../client.js";
+import { commercetoolsGraphql, commercetoolsLookup } from "../../client.js";
 import { mapOrder } from "../../mappers.js";
 import type { CtOrder } from "../../types.js";
 import { orderFields } from "./orderFields.js";
@@ -13,9 +13,11 @@ const query = `#graphql
 `;
 
 export async function getOrderByNumber(orderNumber: string): Promise<Order | null> {
-  const data = await commercetoolsGraphql<{ order: CtOrder | null }>(query, {
-    orderNumber
-  });
+  return commercetoolsLookup(async () => {
+    const data = await commercetoolsGraphql<{ order: CtOrder | null }>(query, {
+      orderNumber
+    });
 
-  return mapOrder(data.order);
+    return mapOrder(data.order);
+  }, `getOrderByNumber(${orderNumber})`);
 }

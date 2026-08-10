@@ -8,9 +8,11 @@ import type { CustomerSearchArgs } from "./customer.types.js";
 const customerFields = `#graphql
   id
   customerNumber
+  externalId
   email
   firstName
   lastName
+  companyName
 `;
 
 export const resolvers = {
@@ -22,7 +24,7 @@ export const resolvers = {
     return customerPage.results;
   },
   customerPage: async (_parent: unknown, args: CustomerSearchArgs) => queryCustomers(customerListWhere(args), args),
-  searchCustomers: async (_parent: unknown, args: CustomerSearchArgs) => queryCustomers(customerSearchWhere(args), args),
+  searchCustomers: async (_parent: unknown, args: CustomerSearchArgs) => searchCustomers(args),
   customersByEmails: async (_parent: unknown, args: { emails: string[] }) => {
     if (!args.emails.length) {
       return [];
@@ -42,7 +44,7 @@ export const resolvers = {
 
     return data.customers.results.map(mapCustomer).filter(Boolean);
   },
-  b2bCustomers: async (_parent: unknown, args: CustomerSearchArgs) => queryCustomers(customerSearchWhere(args), args),
+  b2bCustomers: async (_parent: unknown, args: CustomerSearchArgs) => searchCustomers(args),
   customerAddresses: async (_parent: unknown, args: { id: string }) =>
     commercetoolsGraphql(
       `#graphql
@@ -148,6 +150,55 @@ export const resolvers = {
         : { setDefaultShippingAddress: { addressId: args.addressId } }
     ])
 };
+
+// commercetools Query Predicates only support exact, case-sensitive matches
+// on Customer fields — there is no substring or case-insensitive operator
+// (see docs.commercetools.com/api/predicates/query). A CSA agent typing
+// "shivam" into a search box would get zero results even though a customer
+// named "Shivam Soni" exists, because the generated `where` clause is
+// `firstName="shivam"` which never matches `firstName="Shivam"`. Try the
+// exact-match fast path first (cheap, and correct for exact ids/emails),
+// then fall back to an in-memory case-insensitive substring scan over a
+// bounded candidate page so partial/differently-cased queries still work.
+async function searchCustomers(args: CustomerSearchArgs) {
+  const text = args.text?.trim();
+
+  if (!text) {
+    return queryCustomers(customerListWhere(args), args);
+  }
+
+  const exact = await queryCustomers(customerSearchWhere(args), args);
+  if (exact.results.length > 0) {
+    return exact;
+  }
+
+  return textScanCustomers(text, args);
+}
+
+async function textScanCustomers(text: string, args: CustomerSearchArgs) {
+  const { limit, offset } = paging(args);
+  const needle = text.toLowerCase();
+  const data = await commercetoolsGraphql<{ customers: { results: CtCustomer[] } }>(
+    `#graphql
+      query CustomersScan($limit: Int!, $where: String) {
+        customers(limit: $limit, where: $where) {
+          results { ${customerFields} }
+        }
+      }
+    `,
+    { limit: 500, where: customerListWhere(args) }
+  );
+
+  const matched = data.customers.results.filter((customer) =>
+    [customer.email, customer.firstName, customer.lastName, customer.companyName, customer.customerNumber, customer.externalId]
+      .filter((value): value is string => Boolean(value))
+      .some((value) => value.toLowerCase().includes(needle))
+  );
+
+  const results = matched.slice(offset, offset + limit).map(mapCustomer).filter(Boolean);
+
+  return page(results, matched.length, offset);
+}
 
 async function queryCustomers(where: string | undefined, args: PagingArgs) {
   const { limit, offset } = paging(args);

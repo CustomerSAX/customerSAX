@@ -144,7 +144,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         />
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 overflow-auto bg-m-surface-bg p-6">
+        <main className={`flex-1 bg-m-surface-bg flex flex-col ${pathname === '/csa-assistant' ? 'overflow-hidden' : 'overflow-auto p-6'}`}>
           {children}
         </main>
       </div>

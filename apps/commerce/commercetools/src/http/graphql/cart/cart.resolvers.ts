@@ -41,7 +41,7 @@ export const resolvers = {
   },
   createB2bCart: async (
     _parent: unknown,
-    args: { businessUnitKey?: string; currency: string; customerId?: string }
+    args: { businessUnitKey?: string; currency: string; customerId?: string; customerEmail?: string }
   ) => {
     const data = await commercetoolsGraphql<{ createCart: CtCart | null }>(
       `#graphql
@@ -56,7 +56,13 @@ export const resolvers = {
         draft: {
           businessUnit: args.businessUnitKey ? { key: args.businessUnitKey } : undefined,
           currency: args.currency,
-          customerId: args.customerId
+          customerId: args.customerId,
+          // Without this, orders placed from this cart show a blank
+          // customer email in Merchant Center even though the cart is
+          // correctly linked to a real customerId — commercetools does not
+          // auto-derive customerEmail from the customer link, it has to be
+          // set explicitly on the draft.
+          customerEmail: args.customerEmail
         }
       }
     );
@@ -65,14 +71,30 @@ export const resolvers = {
   },
   placeOrderFromCart: async (_parent: unknown, args: { id: string }) => {
     const cart = await getCartVersion(args.id);
+    const orderNumber = await generateUniqueOrderNumber();
 
     return commercetoolsGraphql(
       `#graphql
         mutation CreateOrderFromCart($draft: OrderCartCommand!) {
-          createOrderFromCart(draft: $draft) { id orderNumber orderState }
+          createOrderFromCart(draft: $draft) { id orderNumber orderState paymentState shipmentState }
         }
       `,
-      { draft: { id: args.id, version: cart.version } }
+      {
+        draft: {
+          id: args.id,
+          version: cart.version,
+          // This project has no order-number generator configured — CT
+          // leaves orderNumber null unless the caller supplies one, which
+          // showed up in Merchant Center as a blank Order Number field.
+          // Same story for paymentState/shipmentState: with no real
+          // payment/shipping integration behind this demo, "Pending" is the
+          // honest state (order placed, not yet paid or shipped) rather than
+          // leaving them unset ("--" in Merchant Center) or claiming Paid/Shipped.
+          orderNumber,
+          paymentState: "Pending",
+          shipmentState: "Pending"
+        }
+      }
     );
   },
   addCartLineItem: async (_parent: unknown, args: { id: string; quantity: number; sku: string }) =>
@@ -89,7 +111,27 @@ export const resolvers = {
         args.shippingAddress ? { setShippingAddress: { address: args.shippingAddress } } : undefined,
         args.billingAddress ? { setBillingAddress: { address: args.billingAddress } } : undefined
       ].filter(Boolean)
-    )
+    ),
+  shippingMethods: async (_parent: unknown, args: { limit?: number }) => {
+    const data = await commercetoolsGraphql<Record<string, unknown>>(
+      `#graphql
+        query ShippingMethods($limit: Int!) {
+          shippingMethods(limit: $limit) { results { id key name } }
+        }
+      `,
+      { limit: args.limit ?? 20 }
+    );
+
+    // Defensive: commercetools' real shippingMethods field shape (plain
+    // array vs. { results } pagination wrapper) — accept either so this
+    // never returns null for a non-nullable field.
+    const raw = data.shippingMethods as unknown;
+    if (Array.isArray(raw)) return raw;
+    const wrapped = raw as { results?: unknown } | null | undefined;
+    return Array.isArray(wrapped?.results) ? wrapped.results : [];
+  },
+  setCartShippingMethod: async (_parent: unknown, args: { id: string; shippingMethodId: string }) =>
+    updateCart(args.id, [{ setShippingMethod: { shippingMethod: { id: args.shippingMethodId } } }])
 };
 
 async function queryCarts(where: string | undefined, args: PagingArgs) {
@@ -142,6 +184,30 @@ async function getCartVersion(id: string) {
   }
 
   return data.cart;
+}
+
+/**
+ * Generates an order number in this project's existing "ORD-RC-XXXXXX" seed
+ * format and confirms it isn't already taken (commercetools enforces
+ * uniqueness and rejects a collision outright, so a random 6-digit number
+ * verified up front is far cheaper than handling a failed order placement).
+ */
+async function generateUniqueOrderNumber(): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = `ORD-RC-${Math.floor(100000 + Math.random() * 900000)}`;
+    const data = await commercetoolsGraphql<{ orders: { total?: number } }>(
+      `#graphql
+        query OrderNumberTaken($where: String!) { orders(where: $where, limit: 1) { total } }
+      `,
+      { where: `orderNumber="${candidate}"` }
+    );
+    if (!data.orders.total) {
+      return candidate;
+    }
+  }
+  // Extremely unlikely fallback — timestamp-suffixed, still within the
+  // project's format, essentially guaranteed unique.
+  return `ORD-RC-${Date.now().toString().slice(-6)}`;
 }
 
 async function updateCart(id: string, actions: unknown[]) {

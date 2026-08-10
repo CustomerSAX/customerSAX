@@ -49,21 +49,20 @@ export const resolvers = {
   productSearch: async (_parent: unknown, args: ProductSearchArgs) => {
     const { limit, offset } = paging(args);
     const text = args.text?.trim();
-    const where = text ? productSearchWhere(args.field, text, normalizeLocale(args.locale)) : undefined;
-    const data = await commercetoolsGraphql<{ products: { results: CtProduct[]; total?: number } }>(
-      `#graphql
-        query ProductSearch($limit: Int!, $offset: Int!, $sort: [String!], $where: String) {
-          products(limit: $limit, offset: $offset, sort: $sort, where: $where) {
-            total
-            results { ${productFields} }
-          }
-        }
-      `,
-      { limit, offset, sort: sort(args, "createdAt"), where }
-    );
-    const results = data.products.results.map(mapProduct).filter(Boolean);
 
-    return page(results, data.products.total, offset);
+    if (!text) {
+      return productsPage(undefined, limit, offset, sort(args, "createdAt"));
+    }
+
+    const locale = normalizeLocale(args.locale);
+    const exactWhere = productExactWhere(args.field, escapeWhere(text));
+    const exact = await productsPage(exactWhere, limit, offset, sort(args, "createdAt"));
+
+    if (exact.total > 0) {
+      return exact;
+    }
+
+    return productTextScan(text, locale, limit, offset);
   },
   quickSearchProducts: async (_parent: unknown, args: { limit?: number; q: string }) => {
     const text = args.q.trim();
@@ -72,21 +71,14 @@ export const resolvers = {
       return [];
     }
 
-    const data = await commercetoolsGraphql<{ products: { results: CtProduct[] } }>(
-      `#graphql
-        query QuickSearchProducts($where: String!, $limit: Int!) {
-          products(where: $where, limit: $limit) {
-            results { ${productFields} }
-          }
-        }
-      `,
-      {
-        limit: Math.min(Math.max(args.limit ?? 10, 1), 25),
-        where: productSearchWhere("allFields", text, "en")
-      }
-    );
+    const limit = Math.min(Math.max(args.limit ?? 10, 1), 25);
+    const exact = await productsPage(productExactWhere(undefined, escapeWhere(text)), limit, 0, undefined);
 
-    return data.products.results.map(mapProduct).filter(Boolean);
+    if (exact.results.length > 0) {
+      return exact.results;
+    }
+
+    return (await productTextScan(text, "en", limit, 0)).results;
   },
   standalonePrices: (_parent: unknown, args: { sku: string }) =>
     commercetoolsGraphql(
@@ -112,26 +104,83 @@ export const resolvers = {
     )
 };
 
-function productSearchWhere(field: string | undefined, text: string, locale: string) {
-  const value = escapeWhere(text);
-
+// commercetools Query Predicates do not support substring matching on
+// LocalizedString fields — `name(en contains "value")` is not valid syntax
+// (`contains` only takes `all (...)`/`any (...)` value lists, for Set-typed
+// fields) and commercetools rejects it with a "Malformed parameter: where"
+// 400 error. That means every text search that used to build this clause
+// (the default/"name"/"description" branches) failed outright for *any*
+// input — this is what made quickSearchProducts (the AI assistant's
+// search_products tool) and productSearch 100% non-functional for text
+// queries. Only key/sku support exact `where` matching; use that as a fast
+// path, then fall back to an in-memory case-insensitive substring scan for
+// everything else (there's no server-side substring op available short of
+// commercetools' separate Product Search API).
+function productExactWhere(field: string | undefined, value: string) {
   switch (field) {
     case "key":
       return `key="${value}"`;
     case "variants.sku":
       return `masterData(current(masterVariant(sku="${value}") or variants(sku="${value}")))`;
-    case "description":
-      return `masterData(current(description(${locale} contains "${value}")))`;
-    case "name":
-      return `masterData(current(name(${locale} contains "${value}")))`;
     default:
-      return [
-        `key="${value}"`,
-        `masterData(current(name(${locale} contains "${value}")))`,
-        `masterData(current(description(${locale} contains "${value}")))`,
-        `masterData(current(masterVariant(sku="${value}") or variants(sku="${value}")))`
-      ].join(" or ");
+      return `key="${value}" or masterData(current(masterVariant(sku="${value}") or variants(sku="${value}")))`;
   }
+}
+
+async function productsPage(
+  where: string | undefined,
+  limit: number,
+  offset: number,
+  sortArg: string[] | undefined
+) {
+  const data = await commercetoolsGraphql<{ products: { results: CtProduct[]; total?: number } }>(
+    `#graphql
+      query ProductsPage($limit: Int!, $offset: Int!, $sort: [String!], $where: String) {
+        products(limit: $limit, offset: $offset, sort: $sort, where: $where) {
+          total
+          results { ${productFields} }
+        }
+      }
+    `,
+    { limit, offset, sort: sortArg, where }
+  );
+  const results = data.products.results.map(mapProduct).filter(Boolean);
+
+  return page(results, data.products.total, offset);
+}
+
+async function productTextScan(text: string, locale: string, limit: number, offset: number) {
+  const needle = text.toLowerCase();
+  const data = await commercetoolsGraphql<{ products: { results: CtProduct[] } }>(
+    `#graphql
+      query ProductsScan($limit: Int!) {
+        products(limit: $limit) {
+          results { ${productFields} }
+        }
+      }
+    `,
+    { limit: 500 }
+  );
+
+  const matched = data.products.results.filter((product) => productMatchesText(product, locale, needle));
+  const results = matched.slice(offset, offset + limit).map(mapProduct).filter(Boolean);
+
+  return page(results, matched.length, offset);
+}
+
+function productMatchesText(product: CtProduct, _locale: string, needle: string) {
+  const current = product.masterData?.current;
+  const sku = current?.masterVariant?.sku;
+  const localizedValues = (values: Array<{ value: string }> | undefined) => (values ?? []).map((entry) => entry.value);
+
+  const candidates = [
+    product.key,
+    sku,
+    ...localizedValues(current?.nameAllLocales),
+    ...localizedValues(current?.descriptionAllLocales)
+  ];
+
+  return candidates.filter((value): value is string => Boolean(value)).some((value) => value.toLowerCase().includes(needle));
 }
 
 function normalizeLocale(locale: string | undefined) {

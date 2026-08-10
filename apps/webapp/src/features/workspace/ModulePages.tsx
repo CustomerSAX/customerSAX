@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CsaAssistant } from "../csa-assistant/index";
 import {
   Table,
   TableHeader,
@@ -23,8 +24,7 @@ import {
   Tabs,
   Accordion,
   Avatar,
-  Icon,
-  Input
+  Icon
 } from "@csa/ui";
 import { PageHeader } from "./PageHeader";
 
@@ -457,72 +457,7 @@ export function KnowledgeBasePageView() {
 
 export function CsaAssistantPageView() {
   return (
-    <>
-      <PageHeader
-        description="Three-pane AI assistant workspace for conversations, live tools, and customer context."
-        eyebrow="AI Assistant"
-        title="CSA Assistant"
-      />
-
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_minmax(0,1fr)_320px] min-h-[580px]">
-        {/* Active Conversations Panel */}
-        <Card variant="default">
-          <CardHeader className="p-4 border-b border-m-border">
-            <CardTitle className="text-xs">Active Conversations</CardTitle>
-          </CardHeader>
-          <CardContent className="p-2 space-y-1">
-            {["Mia Johnson", "Rahul Mehta", "Sofia Garcia"].map((name, idx) => (
-              <div
-                key={name}
-                className={`flex items-center gap-3 p-2.5 rounded-m-md cursor-pointer transition-colors ${
-                  idx === 0 ? "bg-m-primary-50 text-m-primary font-semibold" : "hover:bg-m-surface-2 text-m-text"
-                }`}
-              >
-                <Icon name="message-square" size="xs" className={idx === 0 ? "text-m-primary" : "text-m-text-muted"} />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs truncate">{name}</span>
-                  <span className="text-[10px] text-m-text-muted">{idx === 0 ? "Delayed order" : "Support session"}</span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Conversation Stream */}
-        <Card variant="default" className="flex flex-col">
-          <CardHeader className="p-4 border-b border-m-border">
-            <CardTitle className="text-xs">Agent Workspace Stream</CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 p-4 space-y-3 overflow-y-auto">
-            <div className="max-w-[75%] rounded-m-lg bg-m-surface-2 p-3 text-xs text-m-text">
-              Customer says their order has not shipped after payment capture.
-            </div>
-            <div className="ml-auto max-w-[75%] rounded-m-lg bg-m-primary text-white p-3 text-xs">
-              I checked order ORD-54019 in Commerce Tools. Payment captured; awaiting inventory allocation in Warehouse #2.
-            </div>
-          </CardContent>
-          <div className="p-3 border-t border-m-border flex items-center gap-2">
-            <Input placeholder="Ask CSA Assistant or type command..." size="md" className="flex-1" />
-            <Button variant="primary" size="md" iconOnly leftIcon={<Icon name="send" size="xs" />} aria-label="Send" />
-          </div>
-        </Card>
-
-        {/* Customer Context Side Panel */}
-        <Card variant="default">
-          <CardHeader className="p-4 border-b border-m-border">
-            <CardTitle className="text-xs">Context Cards</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 space-y-2.5">
-            {["Customer Profile", "Open Tickets (1)", "Recent Orders (ORD-54019)", "Active Cart State", "Knowledge Matches"].map((item) => (
-              <div key={item} className="flex items-center justify-between p-2.5 rounded-m-md border border-m-border bg-m-surface-2 text-xs font-medium text-m-text">
-                <span>{item}</span>
-                <Icon name="chevron-right" size="xs" className="text-m-text-muted" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </section>
-    </>
+    <CsaAssistant />
   );
 }
 

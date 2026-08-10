@@ -27,6 +27,12 @@ export const cartTypeDefs = gql`
     offset: Int!
   }
 
+  type ShippingMethod {
+    id: ID!
+    key: String
+    name: String
+  }
+
   extend type Query {
     cart(id: ID, key: String): Cart
     carts(limit: Int = 20, offset: Int = 0): [Cart!]!
@@ -34,13 +40,15 @@ export const cartTypeDefs = gql`
     searchCarts(option: String = "all", text: String!, limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): CartPage!
     b2bCarts(limit: Int = 20, offset: Int = 0, businessUnitKey: String, customerId: ID, sortKey: String, sortOrder: String): CartPage!
     activeCartCount(customerId: ID!): Int!
+    shippingMethods(limit: Int = 20): [ShippingMethod!]!
   }
 
   extend type Mutation {
-    createB2bCart(currency: String!, businessUnitKey: String, customerId: ID): Cart
+    createB2bCart(currency: String!, businessUnitKey: String, customerId: ID, customerEmail: String): Cart
     placeOrderFromCart(id: ID!): Json!
     addCartLineItem(id: ID!, sku: String!, quantity: Int!): Cart
     removeCartLineItem(id: ID!, lineItemId: ID!): Cart
     updateCartAddresses(id: ID!, shippingAddress: Json, billingAddress: Json): Cart
+    setCartShippingMethod(id: ID!, shippingMethodId: ID!): Cart
   }
 `;

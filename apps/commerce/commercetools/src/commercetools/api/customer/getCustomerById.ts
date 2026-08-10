@@ -1,5 +1,5 @@
 import type { Customer } from "@csa/commerce-contract";
-import { commercetoolsGraphql } from "../../client.js";
+import { commercetoolsGraphql, commercetoolsLookup } from "../../client.js";
 import { mapCustomer } from "../../mappers.js";
 import type { CtCustomer } from "../../types.js";
 import { customerFields } from "./customerFields.js";
@@ -13,9 +13,11 @@ const query = `#graphql
 `;
 
 export async function getCustomerById(id: string): Promise<Customer | null> {
-  const data = await commercetoolsGraphql<{ customer: CtCustomer | null }>(query, {
-    id
-  });
+  return commercetoolsLookup(async () => {
+    const data = await commercetoolsGraphql<{ customer: CtCustomer | null }>(query, {
+      id
+    });
 
-  return mapCustomer(data.customer);
+    return mapCustomer(data.customer);
+  }, `getCustomerById(${id})`);
 }
