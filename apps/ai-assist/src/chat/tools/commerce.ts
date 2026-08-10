@@ -14,6 +14,7 @@ import { bffQuery, formatMoney } from "../../commerce/graphql-client.js";
 const MONEY_FRAGMENT = `centAmount currencyCode fractionDigits`;
 const ORDER_FIELDS = `
   id orderNumber customerId state createdAt
+  shipmentState paymentState
   totalPrice { ${MONEY_FRAGMENT} }
   lineItems { id productId sku name quantity totalPrice { ${MONEY_FRAGMENT} } }
 `;
@@ -631,6 +632,8 @@ type CtOrderForReturn = {
   orderNumber?: string | null;
   state: string;
   createdAt: string;
+  shipmentState?: string | null;
+  paymentState?: string | null;
   totalPrice?: { centAmount?: number; currencyCode?: string; fractionDigits?: number } | null;
   lineItems?: Array<{
     id: string;
@@ -640,6 +643,11 @@ type CtOrderForReturn = {
     totalPrice?: { centAmount?: number; currencyCode?: string; fractionDigits?: number } | null;
   }>;
 };
+
+// commercetools' real ShipmentState enum. Only these two mean physical goods
+// actually left the warehouse — everything else (Pending/Ready/Backorder/
+// Delayed) means nothing has shipped yet, so there is nothing to return.
+const SHIPPED_STATES = new Set(["Shipped", "Partial"]);
 
 function formatOrderForReturn(order: CtOrderForReturn) {
   return {
@@ -658,9 +666,12 @@ function formatOrderForReturn(order: CtOrderForReturn) {
 
 export const checkReturnEligibilityTool = tool({
   description:
-    "Check whether an order is eligible for return based on its state and age. Returns the full order " +
-    "(with real lineItemIds) embedded in the result's `order` field, so start_return can be prepared " +
-    "without a separate get_order call — and so the Return stepper panel has something to render.",
+    "Check whether an order is eligible for return based on its real order/payment/shipment state and age " +
+    "(all pulled live from commercetools — never assume eligibility). An order can only be returned once it has " +
+    "actually been paid for and actually shipped; a Pending/unpaid or Pending/unshipped order has nothing to " +
+    "return yet. Returns the full order (with real lineItemIds) embedded in the result's `order` field, so " +
+    "start_return can be prepared without a separate get_order call — and so the Return stepper panel has " +
+    "something to render.",
   inputSchema: z.object({
     orderId: z.string().describe("Order ID to check")
   }),
@@ -680,6 +691,8 @@ export const checkReturnEligibilityTool = tool({
       const daysSince = Math.floor((Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
       const returnWindowDays = 30;
       const formattedOrder = formatOrderForReturn(order);
+      const paymentState = order.paymentState ?? null;
+      const shipmentState = order.shipmentState ?? null;
 
       const nonReturnableStates = ["Cancelled", "ReturnReceived"];
       if (nonReturnableStates.includes(order.state)) {
@@ -690,12 +703,43 @@ export const checkReturnEligibilityTool = tool({
         };
       }
 
+      // Nothing has shipped yet — there is no physical item for the customer
+      // to send back. This is the real, dynamic commercetools shipmentState,
+      // not an assumption based on order.state alone.
+      if (!shipmentState || !SHIPPED_STATES.has(shipmentState)) {
+        return {
+          eligible: false,
+          reason: shipmentState
+            ? `Order shipment status is "${shipmentState}" — nothing has shipped yet, so there's nothing to return.`
+            : "Order has no shipment status on record — nothing has shipped yet, so there's nothing to return.",
+          shipmentState,
+          paymentState,
+          order: formattedOrder
+        };
+      }
+
+      // Payment must have actually cleared. An order that's unpaid, still
+      // owes a balance, or failed payment can't be refunded via a return.
+      if (paymentState !== "Paid") {
+        return {
+          eligible: false,
+          reason: paymentState
+            ? `Order payment status is "${paymentState}" — a return requires the order to be fully paid first.`
+            : "Order has no payment status on record — a return requires the order to be fully paid first.",
+          shipmentState,
+          paymentState,
+          order: formattedOrder
+        };
+      }
+
       if (daysSince > returnWindowDays) {
         return {
           eligible: false,
           reason: `Order is ${daysSince} days old. Return window is ${returnWindowDays} days.`,
           daysSince,
           returnWindowDays,
+          shipmentState,
+          paymentState,
           order: formattedOrder
         };
       }
@@ -706,6 +750,8 @@ export const checkReturnEligibilityTool = tool({
         returnWindowDays,
         daysRemaining: returnWindowDays - daysSince,
         orderState: order.state,
+        shipmentState,
+        paymentState,
         order: formattedOrder
       };
     } catch (err) {
