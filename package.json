@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "app:ai-assist": "pnpm --filter @csa/ai-assist",
+    "app:auth": "pnpm --filter @csa/auth",
     "app:bff": "pnpm --filter @csa/bff",
     "app:commerce-bigcommerce": "pnpm --filter @csa/commerce-bigcommerce",
     "app:commerce-commercetools": "pnpm --filter @csa/commerce-commercetools",

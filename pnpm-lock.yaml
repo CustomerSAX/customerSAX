@@ -55,6 +55,28 @@ importers:
         specifier: ^5.5.4
         version: 5.9.3
 
+  apps/auth:
+    dependencies:
+      '@csa/mongodb':
+        specifier: workspace:*
+        version: link:../../packages/mongodb
+      bcryptjs:
+        specifier: ^3.0.3
+        version: 3.0.3
+    devDependencies:
+      '@csa/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@types/node':
+        specifier: ^20.14.11
+        version: 20.19.43
+      tsx:
+        specifier: ^4.16.2
+        version: 4.23.5
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
   apps/bff:
     dependencies:
       '@apollo/gateway':
@@ -216,6 +238,9 @@ importers:
       '@apollo/subgraph':
         specifier: ^2.10.0
         version: 2.14.3(graphql@16.14.2)
+      '@csa/mongodb':
+        specifier: workspace:*
+        version: link:../../packages/mongodb
       graphql:
         specifier: ^16.9.0
         version: 16.14.2
@@ -331,6 +356,22 @@ importers:
         version: 5.9.3
 
   infra/gcp: {}
+
+  packages/mongodb:
+    dependencies:
+      mongodb:
+        specifier: ^7.1.1
+        version: 7.5.0(socks@2.8.9)
+    devDependencies:
+      '@csa/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@types/node':
+        specifier: ^20.14.11
+        version: 20.19.43
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
 
   packages/ui:
     dependencies:
@@ -1539,6 +1580,10 @@ packages:
   baseline-browser-mapping@2.11.12:
     resolution: {integrity: sha512-r7WnVImvVCeFpf2DOXfy41aPWzeNg3H/A2X4dKmy1QL0MSyyk/e7z8ihJ3N6Nn2PsdhkVlqnEfnUE4a05P2aTA==}
     engines: {node: '>=6.0.0'}
+    hasBin: true
+
+  bcryptjs@3.0.3:
+    resolution: {integrity: sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g==}
     hasBin: true
 
   bignumber.js@9.3.1:
@@ -4900,6 +4945,8 @@ snapshots:
   balanced-match@4.0.4: {}
 
   baseline-browser-mapping@2.11.12: {}
+
+  bcryptjs@3.0.3: {}
 
   bignumber.js@9.3.1: {}
 

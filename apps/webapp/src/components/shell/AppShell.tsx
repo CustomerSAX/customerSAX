@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Sidebar,
@@ -21,7 +22,7 @@ const sidebarGroups: SidebarGroup[] = [
     title: "Operations",
     items: [
       { id: "dashboard", href: "/dashboard", label: "Dashboard", icon: "layout-dashboard" },
-      { id: "tickets", href: "/tickets", label: "Tickets", icon: "ticket-check", badge: "12" },
+      { id: "tickets", href: "/tickets", label: "Tickets", icon: "ticket-check" },
       { id: "customers", href: "/customers", label: "Customers", icon: "users" }
     ]
   },
@@ -50,9 +51,68 @@ const sidebarGroups: SidebarGroup[] = [
   }
 ];
 
+type CurrentUser = {
+  email: string;
+  id: string;
+  name: string;
+  role: "agent" | "admin" | "superadmin";
+  tenantId: string;
+};
+
+const fallbackUser: CurrentUser = {
+  email: "agent@csa.local",
+  id: "local-agent",
+  name: "CSA Agent",
+  role: "admin",
+  tenantId: "default"
+};
+
+function roleLabel(role: CurrentUser["role"]) {
+  const labels: Record<CurrentUser["role"], string> = {
+    agent: "CSA Agent",
+    admin: "CSA Administrator",
+    superadmin: "CSA Super Administrator"
+  };
+
+  return labels[role];
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(fallbackUser);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCurrentUser() {
+      const response = await fetch("/api/auth/me", { cache: "no-store" }).catch(() => null);
+
+      if (!response?.ok) {
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      if (!cancelled && payload?.user?.email) {
+        setCurrentUser({ ...fallbackUser, ...payload.user });
+      }
+    }
+
+    loadCurrentUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const userDisplayName = currentUser.name || currentUser.email;
+  const userSubtitle = useMemo(() => roleLabel(currentUser.role), [currentUser.role]);
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    router.replace("/login");
+    router.refresh();
+  };
 
   // Find active item ID
   let activeItemId = "dashboard";
@@ -125,10 +185,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Dropdown
               trigger={
                 <div className="flex items-center gap-2 cursor-pointer select-none">
-                  <Avatar name="Sarah Agent" status="online" size="sm" />
+                  <Avatar name={userDisplayName} status="online" size="sm" />
                   <div className="hidden flex-col sm:flex">
-                    <span className="text-xs font-semibold text-m-text leading-none">agent@csa.local</span>
-                    <span className="text-[10px] text-m-text-muted mt-0.5">CSA Administrator</span>
+                    <span className="text-xs font-semibold text-m-text leading-none">{currentUser.email}</span>
+                    <span className="text-[10px] text-m-text-muted mt-0.5">{userSubtitle}</span>
                   </div>
                   <Icon name="chevron-down" size="xs" className="text-m-text-muted" />
                 </div>
@@ -137,7 +197,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 { id: "profile", label: "My Profile", icon: "user" },
                 { id: "settings", label: "Org Settings", icon: "settings" },
                 "divider",
-                { id: "logout", label: "Sign out", icon: "log-out", danger: true }
+                { id: "logout", label: "Sign out", icon: "log-out", danger: true, onClick: handleLogout }
               ]}
             />
           }

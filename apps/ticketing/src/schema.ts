@@ -1,6 +1,6 @@
 import { gql } from "graphql-tag";
-import { createTicket, getTicket, listTickets, updateTicket } from "./tickets/repository.js";
-import type { TicketDraft, TicketListArgs, TicketUpdate } from "./tickets/types.js";
+import { addWorklog, createTicket, getTicket, listTickets, updateTicket } from "./tickets/repository.js";
+import type { TicketDraft, TicketListArgs, TicketUpdate, WorklogComment } from "./tickets/types.js";
 
 export const typeDefs = gql`
   type Ticket @key(fields: "id") {
@@ -17,7 +17,24 @@ export const typeDefs = gql`
     assignee: String
     createdAt: String
     lastModifiedAt: String
+    customerId: String
+    contactType: String
+    orderNumber: String
+    createdBy: String
+    message: String
+    solution: String
+    timeSpentOnTicket: String
+    resolutionDate: String
+    comments: [WorklogComment!]!
+    attachments: [TicketAttachment!]!
+    history: [TicketHistoryEntry!]!
   }
+
+  type WorklogComment { id: ID!, comment: String!, createdAt: String!, status: String!, author: String }
+  type TicketAttachment { name: String!, url: String!, size: String }
+  type TicketHistoryEntry { id: ID!, ticketNumber: String!, operationDate: String!, reason: String!, solution: String, status: String!, priority: String!, assignedTo: String!, worklog: String, timeSpent: String }
+  input WorklogCommentInput { id: ID!, comment: String!, createdAt: String!, status: String!, author: String }
+  input TicketAttachmentInput { name: String!, url: String!, size: String }
 
   type TicketPage {
     results: [Ticket!]!
@@ -36,6 +53,15 @@ export const typeDefs = gql`
     category: String
     subject: String!
     assignee: String
+    customerId: String
+    contactType: String
+    orderNumber: String
+    createdBy: String
+    message: String
+    solution: String
+    timeSpentOnTicket: String
+    comments: [WorklogCommentInput!]
+    attachments: [TicketAttachmentInput!]
   }
 
   input TicketUpdateInput {
@@ -48,6 +74,14 @@ export const typeDefs = gql`
     category: String
     subject: String
     assignee: String
+    customerId: String
+    contactType: String
+    orderNumber: String
+    message: String
+    solution: String
+    timeSpentOnTicket: String
+    comments: [WorklogCommentInput!]
+    attachments: [TicketAttachmentInput!]
   }
 
   extend type Query {
@@ -71,6 +105,7 @@ export const typeDefs = gql`
   extend type Mutation {
     createTicket(draft: TicketDraftInput!): Ticket!
     updateTicket(id: ID!, patch: TicketUpdateInput!): Ticket
+    addTicketWorklog(id: ID!, comment: WorklogCommentInput!, projectKey: String): Ticket
   }
 `;
 
@@ -79,7 +114,8 @@ export const resolvers = {
     createTicket: (_parent: unknown, args: { draft: TicketDraft }) =>
       createTicket(args.draft),
     updateTicket: (_parent: unknown, args: { id: string; patch: TicketUpdate & { projectKey?: string | null } }) =>
-      updateTicket(args.id, args.patch)
+      updateTicket(args.id, args.patch),
+    addTicketWorklog: (_parent: unknown, args: { id: string; comment: WorklogComment; projectKey?: string | null }) => addWorklog(args.id, args.comment, args.projectKey)
   },
   Query: {
     ticket: (_parent: unknown, args: { id: string; projectKey?: string | null }) =>

@@ -103,6 +103,15 @@ export function TicketCreateView() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const clearError = (field: string) => {
+    setErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
   const showOrderField = ORDER_LINKED_CATEGORIES.includes(category);
 
   // Eligible Orders mock calculation
@@ -162,7 +171,7 @@ export function TicketCreateView() {
     setAttachmentUrlInput("");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
@@ -186,7 +195,8 @@ export function TicketCreateView() {
 
     setIsSubmitting(true);
 
-    const created = addTicket({
+    try {
+    const created = await addTicket({
       email,
       customerId: matchedCustomer?.id || customerIdContext || undefined,
       contactType,
@@ -199,18 +209,15 @@ export function TicketCreateView() {
       subject,
       message,
       attachments,
+      comments: worklogs,
     });
-
-    // Add worklogs if any
-    worklogs.forEach((w) => {
-      created.comments.push(w);
-    });
-
-    setTimeout(() => {
+    setIsSubmitting(false);
+    const returnRoute = customerIdContext ? `/customers/${customerIdContext}?tab=tickets` : `/tickets/${created.id}`;
+    router.push(returnRoute);
+    } catch (error) {
       setIsSubmitting(false);
-      const returnRoute = customerIdContext ? `/customers/${customerIdContext}?tab=tickets` : `/tickets/${created.id}`;
-      router.push(returnRoute);
-    }, 400);
+      setErrors({ submit: error instanceof Error ? error.message : "Unable to create ticket" });
+    }
   };
 
   return (
@@ -231,6 +238,7 @@ export function TicketCreateView() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {errors.submit && <div className="p-3 rounded-md bg-m-error-surface text-m-error text-xs font-semibold">{errors.submit}</div>}
         {/* Customer Search & Verification */}
         <Card variant="default">
           <CardHeader>
@@ -247,6 +255,7 @@ export function TicketCreateView() {
                     onChange={(e) => {
                       setEmail(e.target.value);
                       setCustomerFound(false);
+                      clearError("email");
                     }}
                     placeholder="e.g. mia.johnson@example.com"
                   />
@@ -306,7 +315,12 @@ export function TicketCreateView() {
                 <Label required>Ticket Category</Label>
                 <Select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as any)}
+                  onChange={(e) => {
+                    setCategory(e.target.value as any);
+                    if (!ORDER_LINKED_CATEGORIES.includes(e.target.value as TicketCategoryKey)) {
+                      clearError("orderNumber");
+                    }
+                  }}
                   options={CATEGORY_OPTIONS}
                 />
               </FormField>
@@ -317,7 +331,10 @@ export function TicketCreateView() {
                 <Label required>Associated Order</Label>
                 <Select
                   value={orderNumber}
-                  onChange={(e) => setOrderNumber(e.target.value)}
+                  onChange={(e) => {
+                    setOrderNumber(e.target.value);
+                    clearError("orderNumber");
+                  }}
                   options={[{ value: "", label: "-- Select Customer Order --" }, ...eligibleOrders]}
                 />
               </FormField>
@@ -347,7 +364,10 @@ export function TicketCreateView() {
               <Label required>Subject</Label>
               <Input
                 value={subject}
-                onChange={(e) => setSubject(e.target.value)}
+                onChange={(e) => {
+                  setSubject(e.target.value);
+                  clearError("subject");
+                }}
                 placeholder="Brief summary of customer inquiry or issue..."
               />
             </FormField>
@@ -358,7 +378,10 @@ export function TicketCreateView() {
                 className="w-full p-3 border border-m-border rounded-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
                 rows={4}
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  clearError("message");
+                }}
                 placeholder="Detailed description of customer complaint or inquiry..."
               />
             </FormField>

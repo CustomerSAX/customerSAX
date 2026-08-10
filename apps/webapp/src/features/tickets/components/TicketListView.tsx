@@ -50,7 +50,7 @@ const PRIORITY_FILTER_OPTIONS = [
 
 export function TicketListView() {
   const router = useRouter();
-  const { tickets } = useTicketStore();
+  const { tickets, loading, error, refetch } = useTicketStore();
 
   const [searchOption, setSearchOption] = useState<"ticketNumber" | "email" | "subject" | "allFields">("ticketNumber");
   const [searchText, setSearchText] = useState("");
@@ -61,12 +61,9 @@ export function TicketListView() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
-  const [isLoading, setIsLoading] = useState(false);
-
   const handleRefresh = useCallback(() => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 300);
-  }, []);
+    void refetch();
+  }, [refetch]);
 
   const handleSort = (column: keyof Ticket) => {
     if (sortColumn === column) {
@@ -242,12 +239,16 @@ export function TicketListView() {
       </Card>
 
       {/* Tickets Table */}
-      {isLoading ? (
+      {loading && tickets.length === 0 ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} height={40} className="w-full rounded-md" />
           ))}
         </div>
+      ) : error ? (
+        <Card variant="default" className="p-8">
+          <EmptyState title="Unable to load tickets" description={error.message} action={<Button variant="primary" size="sm" onClick={handleRefresh}>Retry</Button>} />
+        </Card>
       ) : sortedTickets.length === 0 ? (
         <Card variant="default" className="p-8">
           <EmptyState

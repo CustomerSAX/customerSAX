@@ -122,6 +122,8 @@ function ToolCallCard({
         <RenderRefundCard
           args={args as RenderRefundActionArgs}
           onConfirm={() => onRefundConfirm(args as RenderRefundActionArgs)}
+          onDecline={onDecline}
+          isPending={isLoading}
         />
       );
     default:
@@ -255,7 +257,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
     isLoading,
     error,
     approveAction,
-    sendSuggestion
+    sendSuggestion,
+    stop
   } = chat;
   const rightPanelOpen    = useConversationStore((s) => s.rightPanelOpen);
   const setRightPanelOpen  = useConversationStore((s) => s.setRightPanelOpen);
@@ -292,6 +295,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
     // only, no id). Without this, CreateOrderStepper's Step 1→2 auto-advance
     // (`workflow?.customer?.id`) can never fire and the stepper looks stuck.
     let newCustomerId: string | undefined;
+    let newCustomerEmail: string | undefined;
     let orderCustomerName: string | undefined;
     let orderCartValue: any = undefined;
     let orderPendingApproval: any = undefined;
@@ -362,6 +366,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             if (!orderCustomerName) {
               orderCustomerName = [first.firstName, first.lastName].filter(Boolean).join(' ') || first.email || undefined;
             }
+            if (first.email) newCustomerEmail = String(first.email);
           }
         }
 
@@ -476,6 +481,44 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         pendingApproval: returnPendingApproval ?? null,
         completed: returnCompleted ?? store.returnWorkflow?.completed ?? null,
       });
+    }
+
+    // Right-panel Customer card — previously only populated when a customer
+    // was picked from the sidebar list (ConversationList's handleSelectCustomer
+    // calls setContextHydrated there). A customer identified purely through
+    // free-form chat (find_customer / update_ui_state's customerId) never
+    // reached this field, so the panel kept saying "No customer identified
+    // yet." even once the chat had already found and displayed them. Only
+    // fires once per newly-identified id — re-running this effect on every
+    // message doesn't re-fetch for a customer already in the panel.
+    if (newCustomerId && newCustomerId !== store.customer?.id) {
+      const interimName = orderCustomerName || newCustomerEmail || 'Customer';
+      store.setContextHydrated("Customer", {
+        id: newCustomerId,
+        name: interimName,
+        email: newCustomerEmail,
+        status: "Active",
+      });
+
+      fetch(`/api/context/resolve?customerId=${encodeURIComponent(newCustomerId)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const resolved = data?.customer;
+          if (!resolved) return;
+          // Guard against a stale response landing after the rep has moved
+          // on to a different customer in the meantime.
+          if (useConversationStore.getState().customer?.id !== newCustomerId) return;
+          store.setContextHydrated("Customer", {
+            id: resolved.id ?? newCustomerId,
+            name: resolved.name || interimName,
+            email: resolved.email || newCustomerEmail,
+            status: resolved.tier || "Active",
+            createdAt: resolved.createdAt ?? undefined,
+            orderCount: resolved.orderCount ?? undefined,
+            lifetimeValue: resolved.lifetimeValue ?? undefined,
+          });
+        })
+        .catch((e) => console.error('Failed to resolve customer context:', e));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, isLoading]);
@@ -645,6 +688,11 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                   ? `${acCustomer} is the customer currently in focus — confirm whether this order is for them or someone else before proceeding, then help me find products, add them, and place it.`
                   : 'Ask who the order is for, confirm their details, then help me find products, add them, and place it.',
                 icon: 'shopping-cart' as const,
+                // Each action gets its own accent — same idea as ActionApproval's
+                // per-intent border color — so the quick-actions row reads at a
+                // glance instead of six identical gray pills.
+                iconClass: 'text-indigo-600',
+                hoverClass: 'hover:border-indigo-300 hover:bg-indigo-50',
                 onClick: (steer: string) => {
                   setActiveStepper("order");
                   useConversationStore.getState().setOrderWorkflow(null);
@@ -659,6 +707,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                     ? `${acCustomer} is the customer in focus — ask whether I want their orders or a different customer's, then look it up.`
                     : 'Ask me for the order number, email, or customer name, then look it up and show me the details.',
                 icon: 'search' as const,
+                iconClass: 'text-blue-600',
+                hoverClass: 'hover:border-blue-300 hover:bg-blue-50',
                 onClick: (steer: string) => sendSuggestion(steer)
               },
               {
@@ -667,6 +717,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                   ? `${acCustomer} is the customer currently in focus — ask whether I mean that customer or a different one, then look them up.`
                   : "Ask me for the customer's name, email, or other details, then search for them and show me the details.",
                 icon: 'users' as const,
+                iconClass: 'text-violet-600',
+                hoverClass: 'hover:border-violet-300 hover:bg-violet-50',
                 onClick: (steer: string) => sendSuggestion(steer)
               },
               {
@@ -677,6 +729,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                     ? `${acCustomer} is in focus — ask which order first, then begin the return.`
                     : 'Ask me for the order number first, then begin the return process for the item(s) being returned.',
                 icon: 'rotate-ccw' as const,
+                iconClass: 'text-orange-600',
+                hoverClass: 'hover:border-orange-300 hover:bg-orange-50',
                 onClick: (steer: string) => {
                   setActiveStepper("return");
                   useConversationStore.getState().setReturnWorkflow(null);
@@ -691,6 +745,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                     ? `${acCustomer} is in focus — ask which of their orders, then check eligibility and walk me through it.`
                     : 'Ask me for the order number (or customer email) first, then check refund eligibility and walk me through it.',
                 icon: 'dollar-sign' as const,
+                iconClass: 'text-teal-600',
+                hoverClass: 'hover:border-teal-300 hover:bg-teal-50',
                 onClick: (steer: string) => {
                   setActiveStepper("return");
                   useConversationStore.getState().setReturnWorkflow(null);
@@ -703,6 +759,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                   ? `${acCustomer}${acOrderRef ? ` (order ${acOrderRef})` : ''} is in focus — confirm this is what to escalate, then create a support ticket and hand it off.`
                   : 'Create a support ticket capturing the customer and their issue, then hand it off. Ask me for anything you need to file it.',
                 icon: 'ticket' as const,
+                iconClass: 'text-rose-600',
+                hoverClass: 'hover:border-rose-300 hover:bg-rose-50',
                 onClick: (steer: string) => {
                   setActiveStepper("ticket");
                   useConversationStore.getState().setTicketWorkflow(null);
@@ -713,9 +771,9 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               <button
                 key={action.title}
                 onClick={() => action.onClick(action.steer)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-m-md bg-m-surface text-m-text-muted hover:bg-m-primary/10 hover:text-m-primary border border-m-border transition-colors whitespace-nowrap text-xs shadow-sm"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white text-m-text border border-m-border transition-colors whitespace-nowrap text-xs font-medium shadow-sm hover:shadow-md ${action.hoverClass}`}
               >
-                <Icon name={action.icon as any} size="xs" />
+                <Icon name={action.icon as any} size="xs" className={action.iconClass} />
                 {action.title}
               </button>
             ))}
@@ -731,15 +789,35 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             className="flex-1"
             disabled={isLoading}
           />
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            iconOnly
-            leftIcon={<Icon name="send" size="xs" />}
-            aria-label="Send"
-            disabled={isLoading || !input.trim()}
-          />
+          {isLoading ? (
+            // While the model is generating, the send button becomes a stop
+            // control — previously there was no way to interrupt a reply
+            // once it started, even a wrong or runaway one.
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              iconOnly
+              leftIcon={
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+              }
+              aria-label="Stop generating"
+              title="Stop generating"
+              onClick={() => stop()}
+            />
+          ) : (
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              iconOnly
+              leftIcon={<Icon name="send" size="xs" />}
+              aria-label="Send"
+              disabled={!input.trim()}
+            />
+          )}
         </form>
       </div>
     </div>

@@ -13,3 +13,13 @@ infra/gcp/.terraform.lock.hcl
 infra/gcp/terraform.tfstate
 infra/gcp/terraform.tfstate.*
 
+# Ephemeral agent worktrees — auto-created/cleaned by the Agent tool, never meant to be committed
+.claude/worktrees/
+
+# Local Claude Code overrides — personal, never committed (see CLAUDE.md)
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Graphify's generated knowledge-graph output — regenerable, keep the repo diff-clean
+graphify-out/
+
