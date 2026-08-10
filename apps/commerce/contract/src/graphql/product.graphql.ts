@@ -34,8 +34,10 @@ export const productTypeDefs = gql`
       sortKey: String
       sortOrder: String
     ): Json!
+    productDetail(id: ID!): Json
     productBySlug(slug: String!, locale: String = "en"): Product
     quickSearchProducts(q: String!, limit: Int = 10): [Product!]!
     standalonePrices(sku: String!): Json!
   }
 `;
+
