@@ -46,10 +46,14 @@ export type CtCart = {
 export type CtOrder = {
   createdAt?: string;
   customerId?: string;
+  customerEmail?: string;
   id: string;
+  lastModifiedAt?: string;
   lineItems?: CtLineItem[];
   orderNumber?: string;
   orderState?: string;
+  paymentState?: string;
+  shipmentState?: string;
   totalPrice: CtMoney;
 };
 

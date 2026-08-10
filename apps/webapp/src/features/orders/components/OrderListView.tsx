@@ -20,6 +20,7 @@ import {
   Badge,
   Skeleton,
   EmptyState,
+  Panel,
 } from "@csa/ui";
 import { useOrderStore } from "../hooks/use-orders";
 import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
@@ -57,7 +58,7 @@ export function OrderListView() {
   const pathname = usePathname();
   const isB2b = pathname?.startsWith("/b2b");
 
-  const { orders, duplicateOrder } = useOrderStore();
+  const { orders, duplicateOrder, loading, error, refetch } = useOrderStore();
 
   const [searchOption, setSearchOption] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
@@ -68,12 +69,16 @@ export function OrderListView() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleRefresh = useCallback(() => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 300);
-  }, []);
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refetch]);
 
   const handleSort = (column: keyof Order) => {
     if (sortColumn === column) {
@@ -157,6 +162,7 @@ export function OrderListView() {
   }, [sortedOrders, currentPage, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(sortedOrders.length / pageSize));
+  const isLoading = loading || isRefreshing;
 
   const renderOrderStateBadge = (state: OrderState) => {
     switch (state) {
@@ -232,7 +238,7 @@ export function OrderListView() {
               leftIcon={<Icon name="refresh-cw" size="xs" />}
               onClick={handleRefresh}
             >
-              Refresh
+              {isLoading ? "Refreshing" : "Refresh"}
             </Button>
           </div>
         }
@@ -293,6 +299,12 @@ export function OrderListView() {
           </div>
         </div>
       </Card>
+
+      {error && (
+        <Panel className="p-4 rounded-lg border border-m-danger/30 bg-m-danger-surface text-sm text-m-danger">
+          Unable to load orders from the BFF. Check that the BFF is running and federated with the commerce service.
+        </Panel>
+      )}
 
       {/* Orders Table */}
       {isLoading ? (
@@ -390,14 +402,18 @@ export function OrderListView() {
                       <TableCell>{renderShipmentBadge(o.shipmentState)}</TableCell>
                       <TableCell>{renderPaymentBadge(o.paymentState)}</TableCell>
                       <TableCell className="text-xs text-m-text-muted">
-                        {new Date(o.createdAt).toLocaleString(undefined, {
-                          month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
-                        })}
+                        {o.createdAt
+                          ? new Date(o.createdAt).toLocaleString(undefined, {
+                              month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
+                            })
+                          : "--"}
                       </TableCell>
                       <TableCell className="text-xs text-m-text-muted">
-                        {new Date(o.lastModifiedAt).toLocaleString(undefined, {
-                          month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
-                        })}
+                        {o.lastModifiedAt
+                          ? new Date(o.lastModifiedAt).toLocaleString(undefined, {
+                              month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
+                            })
+                          : "--"}
                       </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <Button

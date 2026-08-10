@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useQuery } from "@apollo/client";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { ORDERS_PAGE_QUERY } from "../api/queries";
 import type {
   Order,
   OrderState,
@@ -15,6 +17,150 @@ import type {
   AppliedDiscountRow,
   IneffectiveDiscountRow,
 } from "../types/order-types";
+
+type CommerceMoney = {
+  centAmount: number;
+  currencyCode: string;
+  fractionDigits: number;
+};
+
+type CommerceOrderLineItem = {
+  id: string;
+  name?: string | null;
+  productId?: string | null;
+  quantity?: number | null;
+  sku?: string | null;
+  totalPrice?: CommerceMoney | null;
+};
+
+type CommerceOrder = {
+  createdAt?: string | null;
+  customerEmail?: string | null;
+  customerId?: string | null;
+  id: string;
+  lastModifiedAt?: string | null;
+  lineItems?: CommerceOrderLineItem[] | null;
+  orderNumber?: string | null;
+  orderState?: string | null;
+  paymentState?: string | null;
+  shipmentState?: string | null;
+  state?: string | null;
+  totalPrice?: CommerceMoney | null;
+};
+
+type OrdersPageData = {
+  orderPage: {
+    results: CommerceOrder[];
+  };
+};
+
+function moneyToNumber(money?: CommerceMoney | null) {
+  if (!money) return 0;
+  return money.centAmount / 10 ** money.fractionDigits;
+}
+
+function toOrderState(state?: string | null): OrderState {
+  if (state === "Open" || state === "Confirmed" || state === "Complete" || state === "Cancelled") {
+    return state;
+  }
+
+  return "Open";
+}
+
+function toShipmentState(state?: string | null): ShipmentState {
+  if (
+    state === "Shipped" ||
+    state === "Ready" ||
+    state === "Pending" ||
+    state === "Delayed" ||
+    state === "Partial" ||
+    state === "Backorder"
+  ) {
+    return state;
+  }
+
+  return "Pending";
+}
+
+function toPaymentState(state?: string | null): PaymentState {
+  if (
+    state === "Paid" ||
+    state === "Pending" ||
+    state === "BalanceDue" ||
+    state === "Failed" ||
+    state === "CreditOwed"
+  ) {
+    return state;
+  }
+
+  return "Pending";
+}
+
+function normalizeOrder(order: CommerceOrder): Order {
+  const lineItems = (order.lineItems ?? []).map((item) => {
+    const total = moneyToNumber(item.totalPrice);
+    const quantity = item.quantity ?? 0;
+    const unitPrice = quantity > 0 ? total / quantity : total;
+
+    return {
+      id: item.id,
+      productId: item.productId ?? "",
+      name: item.name ?? item.sku ?? item.id,
+      sku: item.sku ?? "",
+      unitPrice,
+      quantity,
+      subtotal: total,
+      tax: 0,
+      totalGross: total,
+    };
+  });
+  const grandTotal = moneyToNumber(order.totalPrice);
+
+  return {
+    billingAddress: {
+      streetName: "--",
+      city: "--",
+      state: "--",
+      postalCode: "--",
+      country: "--",
+    },
+    comments: [],
+    createdAt: order.createdAt ?? "",
+    customerEmail: order.customerEmail ?? "",
+    customerId: order.customerId ?? undefined,
+    customerName: order.customerEmail ?? order.customerId ?? "--",
+    discountCodes: [],
+    discountTotal: 0,
+    grandTotal,
+    id: order.id,
+    lastModifiedAt: order.lastModifiedAt ?? order.createdAt ?? "",
+    lineItems,
+    netTotal: grandTotal,
+    orderNumber: order.orderNumber ?? order.id,
+    orderState: toOrderState(order.orderState ?? order.state),
+    paymentState: toPaymentState(order.paymentState),
+    payments: [],
+    returnInfo: [],
+    shipmentState: toShipmentState(order.shipmentState),
+    shippingAddress: {
+      streetName: "--",
+      city: "--",
+      state: "--",
+      postalCode: "--",
+      country: "--",
+    },
+    shippingInfo: {
+      shippingMethodName: "--",
+      price: 0,
+      taxRate: "--",
+      carrier: "--",
+      parcels: [],
+    },
+    shippingTotal: 0,
+    store: "--",
+    taxTotal: 0,
+  };
+}
 
 export const MOCK_AVAILABLE_DISCOUNTS = [
   { code: "SUMMER15", name: "Summer Sale 15% Off", value: "15% off cart subtotal", minAmount: 100 },
@@ -488,7 +634,28 @@ export const INITIAL_ORDERS: Order[] = [
 ];
 
 export function useOrderStore() {
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
+  const { data, error, loading, refetch } = useQuery<OrdersPageData>(ORDERS_PAGE_QUERY, {
+    fetchPolicy: "cache-and-network",
+    variables: {
+      limit: 100,
+      offset: 0,
+      sortKey: "createdAt",
+      sortOrder: "desc",
+    },
+  });
+  const [orders, setOrders] = useState<Order[]>(() =>
+    process.env.NEXT_PUBLIC_USE_MOCK_ORDERS === "true" ? INITIAL_ORDERS : []
+  );
+
+  const serverOrders = useMemo(() => {
+    return (data?.orderPage.results ?? []).map(normalizeOrder);
+  }, [data?.orderPage.results]);
+
+  useEffect(() => {
+    if (serverOrders.length > 0) {
+      setOrders(serverOrders);
+    }
+  }, [serverOrders]);
 
   const getOrderById = useCallback(
     (id: string) => orders.find((o) => o.id === id || o.orderNumber === id),
@@ -861,7 +1028,10 @@ export function useOrderStore() {
 
   return {
     orders,
+    error,
     getOrderById,
+    loading,
+    refetch,
     updateOrderStates,
     updateLineItemQuantity,
     addLineItemToOrder,
