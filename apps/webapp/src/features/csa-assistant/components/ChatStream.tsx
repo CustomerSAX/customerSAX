@@ -648,6 +648,11 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                   ? `${acCustomer} is the customer currently in focus — confirm whether this order is for them or someone else before proceeding, then help me find products, add them, and place it.`
                   : 'Ask who the order is for, confirm their details, then help me find products, add them, and place it.',
                 icon: 'shopping-cart' as const,
+                // Each action gets its own accent — same idea as ActionApproval's
+                // per-intent border color — so the quick-actions row reads at a
+                // glance instead of six identical gray pills.
+                iconClass: 'text-indigo-600',
+                hoverClass: 'hover:border-indigo-300 hover:bg-indigo-50',
                 onClick: (steer: string) => {
                   setActiveStepper("order");
                   useConversationStore.getState().setOrderWorkflow(null);
@@ -662,6 +667,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                     ? `${acCustomer} is the customer in focus — ask whether I want their orders or a different customer's, then look it up.`
                     : 'Ask me for the order number, email, or customer name, then look it up and show me the details.',
                 icon: 'search' as const,
+                iconClass: 'text-blue-600',
+                hoverClass: 'hover:border-blue-300 hover:bg-blue-50',
                 onClick: (steer: string) => sendSuggestion(steer)
               },
               {
@@ -670,6 +677,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                   ? `${acCustomer} is the customer currently in focus — ask whether I mean that customer or a different one, then look them up.`
                   : "Ask me for the customer's name, email, or other details, then search for them and show me the details.",
                 icon: 'users' as const,
+                iconClass: 'text-violet-600',
+                hoverClass: 'hover:border-violet-300 hover:bg-violet-50',
                 onClick: (steer: string) => sendSuggestion(steer)
               },
               {
@@ -680,6 +689,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                     ? `${acCustomer} is in focus — ask which order first, then begin the return.`
                     : 'Ask me for the order number first, then begin the return process for the item(s) being returned.',
                 icon: 'rotate-ccw' as const,
+                iconClass: 'text-orange-600',
+                hoverClass: 'hover:border-orange-300 hover:bg-orange-50',
                 onClick: (steer: string) => {
                   setActiveStepper("return");
                   useConversationStore.getState().setReturnWorkflow(null);
@@ -694,6 +705,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                     ? `${acCustomer} is in focus — ask which of their orders, then check eligibility and walk me through it.`
                     : 'Ask me for the order number (or customer email) first, then check refund eligibility and walk me through it.',
                 icon: 'dollar-sign' as const,
+                iconClass: 'text-teal-600',
+                hoverClass: 'hover:border-teal-300 hover:bg-teal-50',
                 onClick: (steer: string) => {
                   setActiveStepper("return");
                   useConversationStore.getState().setReturnWorkflow(null);
@@ -706,6 +719,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                   ? `${acCustomer}${acOrderRef ? ` (order ${acOrderRef})` : ''} is in focus — confirm this is what to escalate, then create a support ticket and hand it off.`
                   : 'Create a support ticket capturing the customer and their issue, then hand it off. Ask me for anything you need to file it.',
                 icon: 'ticket' as const,
+                iconClass: 'text-rose-600',
+                hoverClass: 'hover:border-rose-300 hover:bg-rose-50',
                 onClick: (steer: string) => {
                   setActiveStepper("ticket");
                   useConversationStore.getState().setTicketWorkflow(null);
@@ -716,9 +731,9 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               <button
                 key={action.title}
                 onClick={() => action.onClick(action.steer)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-m-md bg-m-surface text-m-text-muted hover:bg-m-primary/10 hover:text-m-primary border border-m-border transition-colors whitespace-nowrap text-xs shadow-sm"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white text-m-text border border-m-border transition-colors whitespace-nowrap text-xs font-medium shadow-sm hover:shadow-md ${action.hoverClass}`}
               >
-                <Icon name={action.icon as any} size="xs" />
+                <Icon name={action.icon as any} size="xs" className={action.iconClass} />
                 {action.title}
               </button>
             ))}
