@@ -457,14 +457,7 @@ export function KnowledgeBasePageView() {
 
 export function CsaAssistantPageView() {
   return (
-    <>
-      <PageHeader
-        description="Three-pane AI assistant workspace for conversations, live tools, and customer context."
-        eyebrow="AI Assistant"
-        title="CSA Assistant"
-      />
-      <CsaAssistant />
-    </>
+    <CsaAssistant />
   );
 }
 

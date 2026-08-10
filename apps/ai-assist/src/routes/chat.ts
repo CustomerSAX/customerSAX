@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { Readable } from "stream";
-import { streamText, stepCountIs } from "ai";
-import type { ModelMessage } from "ai";
+import { streamText, stepCountIs, convertToModelMessages } from "ai";
+import type { UIMessage } from "ai";
 import { getLanguageModel } from "../llm/index.js";
-import { buildSystemPrompt } from "../chat/system-prompt.js";
+import { buildSystemPrompt, contextStorage } from "../chat/system-prompt.js";
 import { buildChatTools } from "../chat/tools/index.js";
 import type { SystemPromptContext } from "../chat/system-prompt.js";
 
@@ -59,16 +59,21 @@ chatRouter.post("/chat", async (request, response, next) => {
     const model = getLanguageModel(provider);
     const chatTools = buildChatTools();
 
-    const result = streamText({
-      model,
-      system: systemPrompt,
-      messages: messages as ModelMessage[],
-      tools: chatTools,
-      stopWhen: stepCountIs(8),
-      temperature: 0.3,
-      onError: (event) => {
-        console.error("[chat] streamText error:", event.error);
-      }
+    // Convert UIMessage[] (from @ai-sdk/react client) → ModelMessage[] (for ai@7 streamText)
+    const modelMessages = await convertToModelMessages(messages as UIMessage[]);
+
+    const result = await contextStorage.run(sessionCtx, () => {
+      return streamText({
+        model,
+        system: systemPrompt,
+        messages: modelMessages,
+        tools: chatTools,
+        stopWhen: stepCountIs(8),
+        temperature: 0.3,
+        onError: (event) => {
+          console.error("[chat] streamText error:", event.error);
+        }
+      });
     });
 
     // Bridge Fetch API Response → Express response

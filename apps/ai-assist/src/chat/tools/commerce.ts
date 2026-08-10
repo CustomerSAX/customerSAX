@@ -7,7 +7,7 @@
 
 import { tool } from "ai";
 import { z } from "zod";
-import { bffQuery } from "../../commerce/graphql-client.js";
+import { bffQuery, formatMoney } from "../../commerce/graphql-client.js";
 
 // ─── Fragments shared across tools ───────────────────────────────────────────
 
@@ -42,17 +42,20 @@ export const findCustomerTool = tool({
   execute: async ({ email, customerId, name }) => {
     try {
       if (customerId || email) {
-        const data = await bffQuery<{ customer: unknown }>(
+        const data = await bffQuery<{ customer: Record<string, unknown> | null }>(
           `query FindCustomer($id: ID, $email: String) {
             customer(id: $id, email: $email) { ${CUSTOMER_FIELDS} }
           }`,
           { id: customerId, email }
         );
-        return data.customer ?? { error: "Customer not found" };
+        if (data.customer) {
+          return { total: 1, customers: [data.customer] };
+        }
+        return { total: 0, customers: [] };
       }
 
       if (name) {
-        const data = await bffQuery<{ searchCustomers: { results: unknown[] } }>(
+        const data = await bffQuery<{ searchCustomers: { results: Record<string, unknown>[] } }>(
           `query SearchCustomers($text: String, $limit: Int) {
             searchCustomers(text: $text, limit: $limit) {
               results { ${CUSTOMER_FIELDS} }
@@ -60,12 +63,19 @@ export const findCustomerTool = tool({
           }`,
           { text: name, limit: 10 }
         );
-        return data.searchCustomers?.results ?? [];
+        const results = data.searchCustomers?.results ?? [];
+        return { total: results.length, customers: results };
       }
 
-      return { error: "Provide email, customerId, or name to search" };
+      return { total: 0, customers: [] };
     } catch (err) {
-      return { error: String(err) };
+      // IMPORTANT: this must stay distinguishable from "genuinely zero
+      // matches" above. Collapsing a real backend failure into the same
+      // { total: 0, customers: [] } shape used to make the assistant tell
+      // reps "I couldn't find that customer" when the actual problem was
+      // the commerce backend being unreachable — a false negative, not a
+      // real answer. See the GLOBAL RULE for how `error` should be handled.
+      return { error: String(err), total: 0, customers: [] };
     }
   }
 });
@@ -113,17 +123,20 @@ export const getOrderTool = tool({
   execute: async ({ orderId, orderNumber, customerId, customerEmail, limit }) => {
     try {
       if (orderId || orderNumber) {
-        const data = await bffQuery<{ order: unknown }>(
+        const data = await bffQuery<{ order: Record<string, unknown> | null }>(
           `query GetOrder($id: ID, $orderNumber: String) {
             order(id: $id, orderNumber: $orderNumber) { ${ORDER_FIELDS} }
           }`,
           { id: orderId, orderNumber }
         );
-        return data.order ?? { error: "Order not found" };
+        if (data.order) {
+          return { order: data.order, orders: [data.order], total: 1 };
+        }
+        return { order: null, orders: [], total: 0 };
       }
 
       if (customerId || customerEmail) {
-        const data = await bffQuery<{ orderPage: { results: unknown[]; total: number } }>(
+        const data = await bffQuery<{ orderPage: { results: Record<string, unknown>[]; total: number } }>(
           `query CustomerOrders($customerId: ID, $customerEmail: String, $limit: Int) {
             orderPage(customerId: $customerId, customerEmail: $customerEmail, limit: $limit, sortKey: "createdAt", sortOrder: "desc") {
               results { ${ORDER_FIELDS} }
@@ -132,12 +145,15 @@ export const getOrderTool = tool({
           }`,
           { customerId, customerEmail, limit }
         );
-        return data.orderPage;
+        const results = data.orderPage?.results ?? [];
+        return { order: results[0] ?? null, orders: results, total: data.orderPage?.total ?? results.length };
       }
 
-      return { error: "Provide orderId, orderNumber, customerId, or customerEmail" };
+      return { order: null, orders: [], total: 0 };
     } catch (err) {
-      return { error: String(err) };
+      // Same reasoning as find_customer above — keep backend failures
+      // distinguishable from a genuine "no such order" result.
+      return { error: String(err), order: null, orders: [], total: 0 };
     }
   }
 });
@@ -292,25 +308,64 @@ export const listProductsTool = tool({
 
 export const createCartTool = tool({
   description:
-    "Create a new cart for a customer. Executes immediately — no approval needed. For B2B, pass businessUnitKey.",
+    "Create a new cart for a customer. Executes immediately — no approval needed. " +
+    "For a normal (non-B2B) order, pass customerId AND customerEmail (from the find_customer result " +
+    "that resolved this customer) and omit businessUnitKey entirely — skipping customerEmail is how " +
+    "orders end up placed with no customer email on record in commercetools. " +
+    "Only pass businessUnitKey if one was explicitly confirmed for THIS customer this turn " +
+    "(e.g. from find_b2b_customer) — never reuse a business unit key seen earlier in the " +
+    "conversation for a different customer, and never invent one: an incorrect key fails " +
+    "with a 'business-unit ... was not found' error and blocks the whole cart from being created.",
   inputSchema: z.object({
     currency: z.string().default("USD").describe("ISO currency code (e.g. USD, EUR)"),
     customerId: z.string().optional().describe("Customer ID to attach the cart to"),
-    businessUnitKey: z.string().optional().describe("B2B business unit key")
+    customerEmail: z.string().optional().describe("Customer's email — always pass this alongside customerId when known"),
+    businessUnitKey: z
+      .string()
+      .optional()
+      .describe("B2B business unit key — omit for a normal order; never guess or reuse one from a different customer")
   }),
-  execute: async ({ currency, customerId, businessUnitKey }) => {
+  execute: async ({ currency, customerId, customerEmail, businessUnitKey }) => {
     try {
       const data = await bffQuery<{ createB2bCart: unknown }>(
-        `mutation CreateCart($currency: String!, $customerId: ID, $businessUnitKey: String) {
-          createB2bCart(currency: $currency, customerId: $customerId, businessUnitKey: $businessUnitKey) {
+        `mutation CreateCart($currency: String!, $customerId: ID, $customerEmail: String, $businessUnitKey: String) {
+          createB2bCart(currency: $currency, customerId: $customerId, customerEmail: $customerEmail, businessUnitKey: $businessUnitKey) {
             ${CART_FIELDS}
           }
         }`,
-        { currency, customerId, businessUnitKey }
+        { currency, customerId, customerEmail, businessUnitKey }
       );
       return data.createB2bCart ?? { error: "Cart creation failed" };
     } catch (err) {
-      return { error: String(err) };
+      const message = String(err);
+      // The federated BFF gateway only introspects subgraph schemas once at
+      // startup (no polling) — if it hasn't been restarted since customerEmail
+      // was added to createB2bCart, EVERY call here fails with "Unknown
+      // argument customerEmail", even when the variable is undefined, because
+      // the argument name itself is baked into the query text, not just the
+      // variables. Retrying with a query that omits the argument entirely
+      // keeps cart creation working regardless of gateway restart timing —
+      // the email just won't be recorded on the cart until it is restarted.
+      // Loose match on purpose: the raw HTTP response body embedded in this
+      // message has its quotes backslash-escaped as literal JSON text (not
+      // parsed), so "customerEmail" isn't reliably adjacent to a plain `"` —
+      // matching on the words alone avoids that escaping mismatch entirely.
+      if (/unknown argument/i.test(message) && /customerEmail/i.test(message)) {
+        try {
+          const fallback = await bffQuery<{ createB2bCart: unknown }>(
+            `mutation CreateCartNoEmail($currency: String!, $customerId: ID, $businessUnitKey: String) {
+              createB2bCart(currency: $currency, customerId: $customerId, businessUnitKey: $businessUnitKey) {
+                ${CART_FIELDS}
+              }
+            }`,
+            { currency, customerId, businessUnitKey }
+          );
+          return fallback.createB2bCart ?? { error: "Cart creation failed" };
+        } catch (fallbackErr) {
+          return { error: String(fallbackErr) };
+        }
+      }
+      return { error: message };
     }
   }
 });
@@ -333,6 +388,57 @@ export const addToCartTool = tool({
         { id: cartId, sku, quantity }
       );
       return data.addCartLineItem ?? { error: "Failed to add item" };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
+// ─── update_cart_address ────────────────────────────────────────────────────
+
+const cartAddressInput = z.object({
+  name: z.string().describe("Full name — will be split into firstName/lastName"),
+  street: z.string(),
+  city: z.string(),
+  postalCode: z.string().describe("Postal/ZIP code"),
+  country: z.string().describe("ISO 3166-1 alpha-2 country code, e.g. US")
+});
+
+function toCtAddress(addr: z.infer<typeof cartAddressInput>) {
+  const [firstName, ...rest] = addr.name.trim().split(/\s+/);
+  return {
+    city: addr.city,
+    country: addr.country,
+    firstName: firstName || undefined,
+    lastName: rest.join(" ") || undefined,
+    postalCode: addr.postalCode,
+    streetName: addr.street
+  };
+}
+
+export const updateCartAddressTool = tool({
+  description:
+    "Set the billing and/or shipping address on a cart. Executes immediately — no approval needed " +
+    "(a draft cart operation, not a commitment write). commercetools requires a shipping address on " +
+    "the cart before an order can be placed from it, so this must run before place_order.",
+  inputSchema: z.object({
+    cartId: z.string().describe("Cart ID"),
+    billing: cartAddressInput.optional().describe("Billing address — omit to leave unchanged"),
+    shipping: cartAddressInput
+      .optional()
+      .describe("Shipping address — omit to reuse the billing address (sameAsBilling)")
+  }),
+  execute: async ({ cartId, billing, shipping }) => {
+    try {
+      const billingAddress = billing ? toCtAddress(billing) : undefined;
+      const shippingAddress = shipping ? toCtAddress(shipping) : billingAddress;
+      const data = await bffQuery<{ updateCartAddresses: unknown }>(
+        `mutation UpdateCartAddress($id: ID!, $shippingAddress: Json, $billingAddress: Json) {
+          updateCartAddresses(id: $id, shippingAddress: $shippingAddress, billingAddress: $billingAddress) { ${CART_FIELDS} }
+        }`,
+        { billingAddress, id: cartId, shippingAddress }
+      );
+      return data.updateCartAddresses ?? { error: "Failed to set address" };
     } catch (err) {
       return { error: String(err) };
     }
@@ -394,9 +500,14 @@ export const cancelOrderTool = tool({
   }),
   execute: async ({ orderId, reason }) => {
     try {
-      const actions: Array<Record<string, unknown>> = [{ action: "changeOrderState", state: "Cancelled" }];
+      // commercetools' real GraphQL API models update actions as
+      // { actionName: { ...params } } — a named field per action, NOT the
+      // REST API's { action: "actionName", ...params } shape. Using the
+      // REST shape here fails validation outright ("Field 'action' is not
+      // defined in the input type 'OrderUpdateAction'").
+      const actions: Array<Record<string, unknown>> = [{ changeOrderState: { orderState: "Cancelled" } }];
       if (reason) {
-        actions.push({ action: "setCustomField", name: "cancellationReason", value: reason });
+        actions.push({ setCustomField: { name: "cancellationReason", value: reason } });
       }
       const data = await bffQuery<{ updateOrder: unknown }>(
         `mutation CancelOrder($id: ID!, $actions: Json!) { updateOrder(id: $id, actions: $actions) }`,
@@ -427,24 +538,25 @@ export const startReturnTool = tool({
   }),
   execute: async ({ orderId, reason, comment, lineItems }) => {
     try {
-      const returnInfo = {
-        items: lineItems.map((li) => ({
-          type: "LineItemReturnItem",
-          lineItemId: li.lineItemId,
-          quantity: li.quantity,
-          shipmentState: "Returned",
-          paymentState: "Initial"
-        })),
-        returnDate: new Date().toISOString(),
-        returnTrackingId: `CSA-RETURN-${Date.now()}`
-      };
-
+      const returnTrackingId = `CSA-RETURN-${Date.now()}`;
+      // Real commercetools ReturnItemDraftType has no `type` or
+      // `paymentState` field (only lineItemId/customLineItemId, quantity,
+      // shipmentState, comment) — those extra fields, and the wrapping
+      // `{action: "addReturnInfo", returnInfo: {...}}` REST-style shape,
+      // both fail GraphQL validation. See cancel_order's comment above for
+      // why the action must be `{addReturnInfo: {...}}` directly.
+      const returnComment = `${reason}${comment ? ` — ${comment}` : ""}`;
       const actions = [
         {
-          action: "addReturnInfo",
-          returnInfo: {
-            ...returnInfo,
-            reason: `${reason}${comment ? ` — ${comment}` : ""}`
+          addReturnInfo: {
+            items: lineItems.map((li) => ({
+              comment: returnComment,
+              lineItemId: li.lineItemId,
+              quantity: li.quantity,
+              shipmentState: "Returned"
+            })),
+            returnDate: new Date().toISOString(),
+            returnTrackingId
           }
         }
       ];
@@ -453,7 +565,7 @@ export const startReturnTool = tool({
         `mutation StartReturn($id: ID!, $actions: Json!) { updateOrder(id: $id, actions: $actions) }`,
         { id: orderId, actions }
       );
-      return { success: true, returnTrackingId: returnInfo.returnTrackingId, result: data.updateOrder };
+      return { success: true, returnTrackingId, result: data.updateOrder };
     } catch (err) {
       return { error: String(err) };
     }
@@ -462,16 +574,49 @@ export const startReturnTool = tool({
 
 // ─── check_return_eligibility ─────────────────────────────────────────────────
 
+type CtOrderForReturn = {
+  id: string;
+  orderNumber?: string | null;
+  state: string;
+  createdAt: string;
+  totalPrice?: { centAmount?: number; currencyCode?: string; fractionDigits?: number } | null;
+  lineItems?: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    sku?: string | null;
+    totalPrice?: { centAmount?: number; currencyCode?: string; fractionDigits?: number } | null;
+  }>;
+};
+
+function formatOrderForReturn(order: CtOrderForReturn) {
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber ?? undefined,
+    totalPrice: formatMoney(order.totalPrice),
+    lineItems: (order.lineItems ?? []).map((li) => ({
+      lineItemId: li.id,
+      name: li.name,
+      quantity: li.quantity,
+      sku: li.sku ?? undefined,
+      price: formatMoney(li.totalPrice)
+    }))
+  };
+}
+
 export const checkReturnEligibilityTool = tool({
-  description: "Check whether an order is eligible for return based on its state and age.",
+  description:
+    "Check whether an order is eligible for return based on its state and age. Returns the full order " +
+    "(with real lineItemIds) embedded in the result's `order` field, so start_return can be prepared " +
+    "without a separate get_order call — and so the Return stepper panel has something to render.",
   inputSchema: z.object({
     orderId: z.string().describe("Order ID to check")
   }),
   execute: async ({ orderId }) => {
     try {
-      const data = await bffQuery<{ order: { id: string; state: string; createdAt: string } | null }>(
+      const data = await bffQuery<{ order: CtOrderForReturn | null }>(
         `query OrderForReturn($id: ID) {
-          order(id: $id) { id state createdAt orderNumber }
+          order(id: $id) { ${ORDER_FIELDS} }
         }`,
         { id: orderId }
       );
@@ -482,10 +627,15 @@ export const checkReturnEligibilityTool = tool({
       const orderDate = new Date(order.createdAt);
       const daysSince = Math.floor((Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
       const returnWindowDays = 30;
+      const formattedOrder = formatOrderForReturn(order);
 
       const nonReturnableStates = ["Cancelled", "ReturnReceived"];
       if (nonReturnableStates.includes(order.state)) {
-        return { eligible: false, reason: `Order is in state "${order.state}" — not eligible for return` };
+        return {
+          eligible: false,
+          reason: `Order is in state "${order.state}" — not eligible for return`,
+          order: formattedOrder
+        };
       }
 
       if (daysSince > returnWindowDays) {
@@ -493,7 +643,8 @@ export const checkReturnEligibilityTool = tool({
           eligible: false,
           reason: `Order is ${daysSince} days old. Return window is ${returnWindowDays} days.`,
           daysSince,
-          returnWindowDays
+          returnWindowDays,
+          order: formattedOrder
         };
       }
 
@@ -502,7 +653,8 @@ export const checkReturnEligibilityTool = tool({
         daysSince,
         returnWindowDays,
         daysRemaining: returnWindowDays - daysSince,
-        orderState: order.state
+        orderState: order.state,
+        order: formattedOrder
       };
     } catch (err) {
       return { error: String(err) };
@@ -514,10 +666,15 @@ export const checkReturnEligibilityTool = tool({
 
 export const updateOrderTool = tool({
   description:
-    "Apply a generic action to an order (e.g. add note, change state, set tracking). ALWAYS require action_approval for state changes.",
+    "Apply a generic action to an order (e.g. add note, change state, set tracking). ALWAYS require action_approval for state changes. " +
+    "commercetools' real GraphQL API models each action as { actionName: { ...params } } — e.g. " +
+    '{ "changeOrderState": { "orderState": "Cancelled" } } or { "setOrderNumber": { "orderNumber": "..." } }. ' +
+    'Do NOT use the REST-style { "action": "actionName", ...params } shape — it fails GraphQL validation outright.',
   inputSchema: z.object({
     orderId: z.string().describe("Order ID"),
-    actions: z.array(z.record(z.unknown())).describe("Array of CT order actions to apply")
+    actions: z.array(z.record(z.unknown())).describe(
+      'Array of commercetools order update actions, each shaped { actionName: { ...params } } — NOT { action: "actionName", ...params }'
+    )
   }),
   execute: async ({ orderId, actions }) => {
     try {
@@ -565,6 +722,7 @@ export function buildCommerceTools() {
     create_cart: createCartTool,
     add_to_cart: addToCartTool,
     remove_from_cart: removeFromCartTool,
+    update_cart_address: updateCartAddressTool,
     place_order: placeOrderTool,
     cancel_order: cancelOrderTool,
     start_return: startReturnTool,

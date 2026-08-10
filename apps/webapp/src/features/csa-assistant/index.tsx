@@ -1,107 +1,137 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import type { ConversationSession, SessionContext } from "./types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { SessionContext } from "./types";
 import { useCsaChat } from "./hooks/use-csa-chat";
+import { useConversationStore } from "./store/conversation-store";
 import { ConversationList } from "./components/ConversationList";
 import { ChatStream } from "./components/ChatStream";
 import { ContextPanel } from "./components/ContextPanel";
 
-// Default session context — in production this comes from auth + routing
-const DEFAULT_CONTEXT: SessionContext = {
-  userEmail: "agent@csa.local",
-  userRole: "Support Agent",
-  projectKey: process.env.NEXT_PUBLIC_CT_PROJECT_KEY ?? "rc_b2b_shop_july_2023",
-  businessType: "b2c",
-  pageContext: null
-};
-
-// Seed sessions for the left pane (real sessions come from a backend store)
-const SEED_SESSIONS: ConversationSession[] = [
-  {
-    id: "session-1",
-    customerName: "Mia Johnson",
-    customerEmail: "mia@example.com",
-    topic: "Delayed order inquiry",
-    startedAt: new Date(Date.now() - 8 * 60 * 1000),
-    isActive: true,
-    messageCount: 4
-  },
-  {
-    id: "session-2",
-    customerName: "Rahul Mehta",
-    customerEmail: "rahul@example.com",
-    topic: "Discount code not applied",
-    startedAt: new Date(Date.now() - 25 * 60 * 1000),
-    isActive: false,
-    messageCount: 2
-  },
-  {
-    id: "session-3",
-    customerName: "Sofia Garcia",
-    customerEmail: "sofia@example.com",
-    topic: "Product availability",
-    startedAt: new Date(Date.now() - 60 * 60 * 1000),
-    isActive: false,
-    messageCount: 1
-  }
-];
-
-let sessionCounter = SEED_SESSIONS.length + 1;
-
 export function CsaAssistant() {
-  const [sessions, setSessions] = useState<ConversationSession[]>(SEED_SESSIONS);
-  const [activeSessionId, setActiveSessionId] = useState<string>("session-1");
-  const [sessionContext] = useState<SessionContext>(DEFAULT_CONTEXT);
+  // ConversationStore bindings
+  const activeTicketId   = useConversationStore((s) => s.activeTicketId);
+  const customer         = useConversationStore((s) => s.customer);
+  const storeRightOpen   = useConversationStore((s) => s.rightPanelOpen);
+  const activeStepper    = useConversationStore((s) => s.activeStepper);
+  const newConversationNonce = useConversationStore((s) => s.newConversationNonce);
+
+  // Dynamic session context with active pageContext
+  const sessionContext: SessionContext = {
+    userEmail: "agent@csa.local",
+    userRole: "Support Agent",
+    projectKey: process.env.NEXT_PUBLIC_CT_PROJECT_KEY ?? "rc_b2b_shop_july_2023",
+    businessType: "b2c",
+    pageContext: activeTicketId
+      ? { type: "ticket", id: activeTicketId }
+      : customer?.id
+      ? { type: "customer", id: customer.id }
+      : null,
+  };
 
   const chat = useCsaChat(sessionContext);
+  const [rightPanelOpen, setRightPanelOpenLocal] = useState(false);
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId);
+  // Sync right panel open state from the store — force open when a stepper is active
+  useEffect(() => { setRightPanelOpenLocal(storeRightOpen || !!activeStepper); }, [storeRightOpen, activeStepper]);
 
-  const handleNewSession = useCallback(() => {
-    const id = `session-${sessionCounter++}`;
-    const newSession: ConversationSession = {
-      id,
-      customerName: "New Session",
-      customerEmail: undefined,
-      topic: "Starting…",
-      startedAt: new Date(),
-      isActive: true,
-      messageCount: 0
-    };
-    setSessions((prev) => [newSession, ...prev]);
-    setActiveSessionId(id);
-    // Clear the chat
+  // ── Pending briefing: auto-send when user selects a ticket ────────────────
+  const prevTicketId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeTicketId || activeTicketId === prevTicketId.current) return;
+    prevTicketId.current = activeTicketId;
+
+    // Clear the chat for the new ticket
     chat.setMessages([]);
-  }, [chat]);
 
-  const handleSelectSession = useCallback(
-    (id: string) => {
-      setActiveSessionId(id);
-      // In production, load the session's messages from the backend here
-      chat.setMessages([]);
-    },
+    // Auto-send the pending briefing (queued by ConversationList)
+    const pending = (window as unknown as Record<string, unknown>).__csaPendingBriefing as
+      | { ticketId: string; contextLines: string }
+      | null
+      | undefined;
+
+    if (pending && pending.ticketId === activeTicketId) {
+      // Deliberately NOT asking for "a case briefing" in words here — the
+      // system prompt's ticket pageContext block already mandates rendering
+      // case_briefing_card plus a short greeting on this first response.
+      // Asking for a briefing here too doubled the instruction and produced
+      // the same details twice: once as a bulleted prose dump, once as the
+      // card.
+      const prompt = [
+        `I just opened this ticket. Here is the context:`,
+        pending.contextLines,
+      ].join("\n");
+
+      // Small delay so the messages array clears first
+      setTimeout(() => {
+        chat.sendSuggestion(prompt);
+        const clearFn = (window as unknown as Record<string, unknown>).__csaClearBriefing;
+        if (typeof clearFn === "function") (clearFn as () => void)();
+      }, 100);
+    }
+  }, [activeTicketId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── "New Conversation" clicked ────────────────────────────────────────────
+  // activeTicketId alone can't drive this: clicking "New Conversation" sets it
+  // to null, but the effect above only clears messages when activeTicketId
+  // becomes truthy (switching TO a ticket) — its guard skips the null case
+  // entirely. Without this, the panel (customer, AI Analysis) reset correctly
+  // but the old chat transcript stayed on screen. newConversationNonce is
+  // bumped on every click regardless of what activeTicketId was/is, so this
+  // always fires.
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    chat.setMessages([]);
+    prevTicketId.current = null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newConversationNonce]);
+
+  // ── Send suggestion from right panel ─────────────────────────────────────
+  const handleSendMessage = useCallback(
+    (text: string) => { chat.sendSuggestion(text); },
     [chat]
   );
 
+  const sessionCustomerName = customer?.name;
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)_300px] h-[calc(100vh-10rem)] min-h-[540px]">
-      {/* Left pane — conversation list */}
-      <ConversationList
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        onSelectSession={handleSelectSession}
-        onNewSession={handleNewSession}
-      />
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: rightPanelOpen
+          ? "300px minmax(0,1fr) 450px"
+          : "300px minmax(0,1fr)",
+        gap: 0,
+        height: "100%",
+        minHeight: 540,
+        overflow: "hidden",
+        transition: "grid-template-columns 0.2s ease",
+      }}
+    >
+      {/* Left pane — conversation list (self-contained, reads its own data) */}
+      <div style={{ borderRight: "1px solid #e5e7eb", overflow: "hidden" }}>
+        <ConversationList />
+      </div>
 
       {/* Center pane — streaming chat */}
       <ChatStream
         chat={chat}
-        sessionCustomerName={activeSession?.customerName}
+        sessionCustomerName={sessionCustomerName}
       />
 
-      {/* Right pane — intelligence / context */}
-      <ContextPanel messages={chat.messages} />
+      {/* Right pane — context + AI analysis (only when a ticket is selected) */}
+      {rightPanelOpen && (
+        <div style={{ borderLeft: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <ContextPanel
+            onSendMessage={handleSendMessage}
+            isLoading={chat.isLoading}
+          />
+        </div>
+      )}
     </div>
   );
 }

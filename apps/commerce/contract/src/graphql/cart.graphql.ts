@@ -37,7 +37,7 @@ export const cartTypeDefs = gql`
   }
 
   extend type Mutation {
-    createB2bCart(currency: String!, businessUnitKey: String, customerId: ID): Cart
+    createB2bCart(currency: String!, businessUnitKey: String, customerId: ID, customerEmail: String): Cart
     placeOrderFromCart(id: ID!): Json!
     addCartLineItem(id: ID!, sku: String!, quantity: Int!): Cart
     removeCartLineItem(id: ID!, lineItemId: ID!): Cart
