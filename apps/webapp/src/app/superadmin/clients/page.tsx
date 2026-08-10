@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   PageShell,
   PageHeader,
   Card,
-  CardMetric,
   Table,
   TableHeader,
   TableBody,
@@ -15,10 +14,8 @@ import {
   TableCell,
   Badge,
   Button,
-  Input,
   Icon,
   EmptyState,
-  Modal,
   LoadingSpinner
 } from "@csa/ui";
 import type { CsaClientPublic } from "@/lib/mongo-clients";
@@ -28,16 +25,17 @@ type ClientRow = CsaClientPublic & { projectCount?: number; userCount?: number }
 /**
  * Superadmin client-organisation list — the entry point for the whole
  * superadmin console. Real MongoDB-backed data via /api/superadmin/clients,
- * no mock rows.
+ * no mock rows. Visually mirrors ct-csa-standalone's
+ * app/superadmin/clients/page.tsx (same Meridian design tokens).
  */
 export default function SuperadminClientsPage() {
   const router = useRouter();
   const [clients, setClients] = useState<ClientRow[]>([]);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const fetchClients = async () => {
     setIsLoading(true);
@@ -58,8 +56,7 @@ export default function SuperadminClientsPage() {
     void fetchClients();
   }, []);
 
-  async function handleToggleStatus(c: ClientRow, e: MouseEvent) {
-    e.stopPropagation();
+  async function handleToggleStatus(c: ClientRow) {
     const nextStatus = c.status === "active" ? "blocked" : "active";
     setTogglingId(c.id);
     try {
@@ -89,92 +86,146 @@ export default function SuperadminClientsPage() {
 
   return (
     <PageShell maxWidth="lg">
+      <div className="text-[11px] font-bold uppercase tracking-wider text-m-primary">Super Admin Portal</div>
       <PageHeader
-        title="Client Organizations"
-        subtitle="Tenants using the CSA platform."
+        title="Client Organisations"
+        subtitle="Manage client accounts, commerce project connections, and administrative access."
         actions={
           <Button variant="primary" leftIcon={<Icon name="plus" size="xs" />} onClick={() => setIsAddOpen(true)}>
-            Add Client
+            New Client
           </Button>
         }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <CardMetric title="Total Clients" value={clients.length} />
-        <CardMetric title="Active" value={activeCount} />
-        <CardMetric title="Blocked" value={blockedCount} />
-      </div>
-
-      <div className="max-w-sm">
-        <Input
-          placeholder="Search by name, slug, or email…"
-          leftIcon={<Icon name="search" size="xs" />}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+        <MetricCard title="Total Organisations" value={isLoading ? "…" : clients.length} icon="building-2" />
+        <MetricCard
+          title="Active Tenants"
+          value={isLoading ? "…" : activeCount}
+          icon="check-circle-2"
+          tone="success"
         />
+        <MetricCard title="Blocked Tenants" value={isLoading ? "…" : blockedCount} icon="ban" tone="error" />
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-16">
-          <LoadingSpinner />
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-m-border/60 p-5">
+          <div>
+            <div className="text-sm font-bold text-m-text">All Client Organisations</div>
+            <p className="mt-0.5 text-xs text-m-text-muted">
+              {filtered.length} client organisation{filtered.length === 1 ? "" : "s"} configured
+            </p>
+          </div>
+          <div className="relative w-64">
+            <Icon
+              name="search"
+              size="xs"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-m-text-muted"
+            />
+            <input
+              type="search"
+              placeholder="Search by name, slug or email…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-m-md border border-m-border bg-m-surface py-1.5 pl-8 pr-3 text-xs text-m-text outline-none focus:border-m-primary"
+            />
+          </div>
         </div>
-      ) : error ? (
-        <EmptyState icon="alert-triangle" title="Couldn't load clients" description={error} />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon="building-2"
-          title={clients.length === 0 ? "No client organizations yet" : "No matches"}
-          description={
-            clients.length === 0
-              ? "Add the first client organization to get started."
-              : "Try a different search term."
-          }
-        />
-      ) : (
-        <Card className="overflow-x-auto">
-          <Table>
+
+        {isLoading ? (
+          <div className="flex justify-center py-16">
+            <LoadingSpinner />
+          </div>
+        ) : error ? (
+          <div className="p-5">
+            <EmptyState icon="alert-triangle" title="Couldn't load clients" description={error} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-5">
+            <EmptyState
+              icon="building-2"
+              title="No clients found"
+              description={
+                clients.length === 0
+                  ? "No client organisations have been added yet."
+                  : "No client organisations match your search criteria."
+              }
+              action={
+                search ? (
+                  <Button variant="secondary" size="sm" onClick={() => setSearch("")}>
+                    Clear Search
+                  </Button>
+                ) : (
+                  <Button variant="primary" size="sm" onClick={() => setIsAddOpen(true)}>
+                    Add First Client
+                  </Button>
+                )
+              }
+            />
+          </div>
+        ) : (
+          <Table className="border-0 shadow-none rounded-none">
             <TableHeader>
               <TableRow>
-                <TableHead>Organization</TableHead>
+                <TableHead>Organisation</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Contact Email</TableHead>
-                <TableHead>Projects</TableHead>
-                <TableHead>Users</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
+                <TableHead>Projects</TableHead>
+                <TableHead>Admins</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((c) => (
                 <TableRow key={c.id} clickable onClick={() => router.push(`/superadmin/clients/${c.id}`)}>
-                  <TableCell className="font-semibold text-m-text">{c.name}</TableCell>
-                  <TableCell className="font-mono text-m-text-muted">{c.slug}</TableCell>
-                  <TableCell>{c.contactEmail}</TableCell>
-                  <TableCell className="text-m-text-muted">{c.projectCount ?? "—"}</TableCell>
-                  <TableCell className="text-m-text-muted">{c.userCount ?? "—"}</TableCell>
+                  <TableCell className="font-bold text-m-primary hover:underline">{c.name}</TableCell>
+                  <TableCell className="font-mono text-[11px] font-semibold text-m-text-muted">{c.slug}</TableCell>
+                  <TableCell className="font-medium">{c.contactEmail}</TableCell>
                   <TableCell>
-                    <Badge variant={c.status === "active" ? "success" : "error"} appearance="subtle" size="sm">
-                      {c.status === "active" ? "Active" : "Blocked"}
+                    <Badge
+                      variant={c.status === "active" ? "success" : "error"}
+                      appearance="subtle"
+                      size="sm"
+                      dot
+                      className="uppercase tracking-wider"
+                    >
+                      {c.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-m-text-muted">{new Date(c.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => void handleToggleStatus(c, e)}
-                      disabled={togglingId === c.id}
-                    >
-                      {togglingId === c.id ? "…" : c.status === "active" ? "Block" : "Unblock"}
-                    </Button>
+                    <div className="flex items-center gap-1.5 font-semibold text-m-text">
+                      <Icon name="briefcase" size="xs" className="text-m-text-muted" />
+                      {c.projectCount ?? 0}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5 font-semibold text-m-text">
+                      <Icon name="users" size="xs" className="text-m-text-muted" />
+                      {c.userCount ?? 0}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="secondary" size="sm" onClick={() => router.push(`/superadmin/clients/${c.id}`)}>
+                        Manage
+                      </Button>
+                      <Button
+                        variant={c.status === "active" ? "danger" : "secondary"}
+                        size="sm"
+                        disabled={togglingId === c.id}
+                        onClick={() => void handleToggleStatus(c)}
+                      >
+                        {togglingId === c.id ? "…" : c.status === "active" ? "Block" : "Unblock"}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        </Card>
-      )}
+        )}
+      </Card>
 
       <AddClientModal
         isOpen={isAddOpen}
@@ -188,6 +239,42 @@ export default function SuperadminClientsPage() {
   );
 }
 
+/**
+ * Small local metric card matching ct-csa-standalone's MMetricCard
+ * (icon chip with a per-metric tint) — @csa/ui's CardMetric always tints
+ * its icon primary-blue, so this wraps Card directly instead.
+ */
+function MetricCard({
+  title,
+  value,
+  icon,
+  tone = "primary"
+}: {
+  title: string;
+  value: ReactNode;
+  icon: string;
+  tone?: "primary" | "success" | "error";
+}) {
+  const toneClasses =
+    tone === "success"
+      ? "bg-m-success-light text-m-success"
+      : tone === "error"
+        ? "bg-m-error-light text-m-error"
+        : "bg-m-primary-50 text-m-primary";
+
+  return (
+    <Card className="p-5">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-xs font-medium uppercase tracking-wider text-m-text-muted">{title}</span>
+        <span className={`rounded-m-md p-2 ${toneClasses}`}>
+          <Icon name={icon} size="sm" />
+        </span>
+      </div>
+      <span className="text-2xl font-bold tracking-tight text-m-text">{value}</span>
+    </Card>
+  );
+}
+
 function slugify(name: string): string {
   return name
     .trim()
@@ -196,6 +283,11 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/**
+ * Custom fixed-overlay modal (not the shared Modal primitive) — matches
+ * ct-csa-standalone's own AddClientModal exactly: icon header, larger
+ * rounded corners, border-top footer.
+ */
 function AddClientModal({
   isOpen,
   onClose,
@@ -206,6 +298,7 @@ function AddClientModal({
   onCreated: () => void;
 }) {
   const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -213,10 +306,16 @@ function AddClientModal({
   useEffect(() => {
     if (!isOpen) {
       setName("");
+      setSlug("");
       setContactEmail("");
       setError(null);
     }
   }, [isOpen]);
+
+  function handleNameChange(value: string) {
+    setName(value);
+    setSlug(slugify(value));
+  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -228,7 +327,7 @@ function AddClientModal({
       const res = await fetch("/api/superadmin/clients", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), contactEmail: contactEmail.trim() })
+        body: JSON.stringify({ name: name.trim(), contactEmail: contactEmail.trim(), slug: slug.trim() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to create client");
@@ -240,49 +339,87 @@ function AddClientModal({
     }
   }
 
+  if (!isOpen) return null;
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="sm">
-      <form onSubmit={handleSubmit}>
-        <Modal.Header title="Add Client Organization" onClose={onClose} />
-        <Modal.Body>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-m-text-2">Organization name</label>
-            <Input
-              placeholder="Acme Corporation"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/60 p-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-lg rounded-m-2xl border border-m-border bg-m-surface p-7 sm:p-8 shadow-m-modal">
+        <div className="mb-6 flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-m-lg bg-m-primary/10 text-m-primary">
+            <Icon name="building-2" size="md" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold leading-tight text-m-text">New Client Organisation</h2>
+            <p className="mt-1 text-xs leading-relaxed text-m-text-muted">
+              Create a new client tenant organisation. You can connect commerce projects and invite admin users after
+              creation.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold text-m-text">
+              Organisation Name <span className="text-m-error">*</span>
+            </label>
+            <input
+              type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={isSubmitting}
-              autoFocus
+              onChange={(e) => handleNameChange(e.target.value)}
               required
+              autoFocus
+              placeholder="e.g. Acme Corporation"
+              className="h-10 w-full rounded-m-md border border-m-border bg-m-surface px-3.5 text-xs font-medium text-m-text outline-none transition-colors focus:border-m-primary focus:ring-1 focus:ring-m-primary placeholder:text-m-text-subtle"
             />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-m-text-2">Contact email</label>
-            <Input
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-m-text">
+                Slug <span className="text-m-error">*</span>
+              </label>
+              <span className="text-[11px] font-medium text-m-text-subtle">Auto-derived for URLs</span>
+            </div>
+            <input
+              type="text"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="acme-corporation"
+              className="h-10 w-full rounded-m-md border border-m-border bg-m-neutral-50 px-3.5 text-xs font-mono text-m-text outline-none transition-colors focus:border-m-primary focus:bg-m-surface"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold text-m-text">
+              Contact Email <span className="text-m-error">*</span>
+            </label>
+            <input
               type="email"
-              placeholder="admin@acme.com"
               value={contactEmail}
               onChange={(e) => setContactEmail(e.target.value)}
-              disabled={isSubmitting}
               required
+              placeholder="admin@acmecorp.com"
+              className="h-10 w-full rounded-m-md border border-m-border bg-m-surface px-3.5 text-xs font-medium text-m-text outline-none transition-colors focus:border-m-primary focus:ring-1 focus:ring-m-primary placeholder:text-m-text-subtle"
             />
           </div>
-          {name.trim() && (
-            <p className="text-[11px] text-m-text-muted">
-              Slug: <span className="font-mono">{slugify(name)}</span>
-            </p>
-          )}
+
           {error && <p className="text-xs text-m-error">{error}</p>}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" disabled={isSubmitting}>
-            {isSubmitting ? "Creating…" : "Create Client"}
-          </Button>
-        </Modal.Footer>
-      </form>
-    </Modal>
+
+          <div className="mt-2 flex justify-end gap-3 border-t border-m-border pt-5">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={isSubmitting || !name.trim() || !contactEmail.trim()}>
+              {isSubmitting ? "Creating…" : "Create Client"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

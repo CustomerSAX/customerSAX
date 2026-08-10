@@ -15,10 +15,6 @@ import {
   Icon,
   EmptyState,
   LoadingSpinner,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
   Table,
   TableHeader,
   TableBody,
@@ -50,7 +46,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [smtpProfiles, setSmtpProfiles] = useState<CsaSmtpProfilePublic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState<TabKey>("overview");
 
   const fetchClient = async () => {
     setIsLoading(true);
@@ -96,53 +92,83 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     );
   }
 
+  const tabs: { key: TabKey; label: string; count: number }[] = [
+    { key: "overview", label: "Overview", count: -1 },
+    { key: "projects", label: "Projects", count: projects.length },
+    { key: "users", label: "Users", count: users.length },
+    { key: "email", label: "Email", count: smtpProfiles.length }
+  ];
+
   return (
     <PageShell maxWidth="lg">
+      <div className="text-[11px] font-bold uppercase tracking-wider text-m-primary">Client Details</div>
       <PageHeader
-        breadcrumbs={
-          <Link href="/superadmin/clients" className="text-xs text-m-text-muted hover:text-m-text">
-            &larr; Client Organizations
-          </Link>
+        title={
+          <div className="flex items-center gap-3">
+            <span>{client.name}</span>
+            <ClientStatusBadge status={client.status} />
+          </div>
         }
-        title={client.name}
-        subtitle={`Slug: ${client.slug}`}
-        badge={
-          <Badge variant={client.status === "active" ? "success" : "error"} appearance="subtle" size="sm">
-            {client.status === "active" ? "Active" : "Blocked"}
-          </Badge>
+        subtitle={`${client.slug} · ${client.contactEmail}`}
+        actions={
+          <Link href="/superadmin/clients">
+            <Button variant="secondary" size="sm" leftIcon={<Icon name="arrow-left" size="xs" />}>
+              All Clients
+            </Button>
+          </Link>
         }
       />
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="overview" icon={<Icon name="info" size="xs" />}>
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="projects" icon={<Icon name="package" size="xs" />}>
-            Projects ({projects.length})
-          </TabsTrigger>
-          <TabsTrigger value="users" icon={<Icon name="users" size="xs" />}>
-            Users ({users.length})
-          </TabsTrigger>
-          <TabsTrigger value="email" icon={<Icon name="mail" size="xs" />}>
-            Email ({smtpProfiles.length})
-          </TabsTrigger>
-        </TabsList>
+      {/* Underline tab bar — matches ct-csa-standalone's exactly (plain
+          buttons with a 2px bottom-border active indicator, not pills). */}
+      <div className="flex border-b border-m-border">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`border-b-2 px-4 py-2.5 text-xs transition-all ${
+              tab === t.key
+                ? "border-m-primary font-bold text-m-primary"
+                : "border-transparent font-medium text-m-text-muted hover:text-m-text"
+            }`}
+          >
+            {t.label}
+            {t.count >= 0 && ` (${t.count})`}
+          </button>
+        ))}
+      </div>
 
-        <TabsContent value="overview">
-          <OverviewTab client={client} onUpdated={fetchClient} />
-        </TabsContent>
-        <TabsContent value="projects">
+      <div className="pt-5">
+        {tab === "overview" && <OverviewTab client={client} onUpdated={fetchClient} />}
+        {tab === "projects" && (
           <ProjectsTab clientId={id} clientBlocked={client.status === "blocked"} projects={projects} onChanged={fetchClient} />
-        </TabsContent>
-        <TabsContent value="users">
+        )}
+        {tab === "users" && (
           <UsersTab clientId={id} clientBlocked={client.status === "blocked"} users={users} projects={projects} onChanged={fetchClient} />
-        </TabsContent>
-        <TabsContent value="email">
-          <EmailTab clientId={id} profiles={smtpProfiles} onChanged={fetchClient} />
-        </TabsContent>
-      </Tabs>
+        )}
+        {tab === "email" && <EmailTab clientId={id} profiles={smtpProfiles} onChanged={fetchClient} />}
+      </div>
     </PageShell>
+  );
+}
+
+type TabKey = "overview" | "projects" | "users" | "email";
+
+/** Pill status badge matching ct-csa-standalone's StatusBadge exactly. */
+function ClientStatusBadge({ status }: { status: "active" | "blocked" }) {
+  const blocked = status === "blocked";
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
+        blocked
+          ? "border-m-error-border bg-m-error-light text-m-error"
+          : "border-m-success-border bg-m-success-light text-m-success"
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${blocked ? "bg-m-error" : "bg-m-success"}`} />
+      {status}
+    </span>
   );
 }
 
@@ -479,13 +505,13 @@ function ProjectsTab({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
-                        <Button variant="ghost" size="sm" onClick={() => setEditing(p)}>
+                        <Button variant="outline" size="sm" onClick={() => setEditing(p)}>
                           Manage
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => void handleTest(p)} disabled={testingId === p.id}>
+                        <Button variant="outline" size="sm" onClick={() => void handleTest(p)} disabled={testingId === p.id}>
                           {testingId === p.id ? "Testing…" : "Test"}
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => void handleDelete(p)}>
+                        <Button variant="outline" size="sm" onClick={() => void handleDelete(p)}>
                           <Icon name="trash-2" size="xs" className="text-m-error" />
                         </Button>
                       </div>
@@ -716,7 +742,7 @@ function ProjectModal({
           {error && <p className="text-xs text-m-error">{error}</p>}
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
           <Button type="submit" variant="primary" disabled={isSaving}>
@@ -803,10 +829,10 @@ function UsersTab({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <Button variant="ghost" size="sm" onClick={() => setEditing(u)}>
+                      <Button variant="outline" size="sm" onClick={() => setEditing(u)}>
                         Manage
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => void handleRemove(u)}>
+                      <Button variant="outline" size="sm" onClick={() => void handleRemove(u)}>
                         <Icon name="trash-2" size="xs" className="text-m-error" />
                       </Button>
                     </div>
@@ -999,7 +1025,7 @@ function UserModal({
           {error && <p className="text-xs text-m-error">{error}</p>}
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
           <Button type="submit" variant="primary" disabled={isSaving}>
@@ -1075,13 +1101,13 @@ function EmailTab({ clientId, profiles, onChanged }: { clientId: string; profile
                     <TableCell>{p.isDefault && <Badge variant="primary" appearance="subtle" size="sm">Default</Badge>}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
-                        <Button variant="ghost" size="sm" onClick={() => setEditing(p)}>
+                        <Button variant="outline" size="sm" onClick={() => setEditing(p)}>
                           Manage
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => void handleTest(p)} disabled={testingId === p.id}>
+                        <Button variant="outline" size="sm" onClick={() => void handleTest(p)} disabled={testingId === p.id}>
                           {testingId === p.id ? "Sending…" : "Send test"}
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => void handleDelete(p)}>
+                        <Button variant="outline" size="sm" onClick={() => void handleDelete(p)}>
                           <Icon name="trash-2" size="xs" className="text-m-error" />
                         </Button>
                       </div>
@@ -1232,7 +1258,7 @@ function SmtpProfileModal({
           {error && <p className="text-xs text-m-error">{error}</p>}
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
           <Button type="submit" variant="primary" disabled={isSaving}>
