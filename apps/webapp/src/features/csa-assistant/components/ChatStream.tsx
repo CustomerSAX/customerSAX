@@ -295,6 +295,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
     // only, no id). Without this, CreateOrderStepper's Step 1→2 auto-advance
     // (`workflow?.customer?.id`) can never fire and the stepper looks stuck.
     let newCustomerId: string | undefined;
+    let newCustomerEmail: string | undefined;
     let orderCustomerName: string | undefined;
     let orderCartValue: any = undefined;
     let orderPendingApproval: any = undefined;
@@ -365,6 +366,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             if (!orderCustomerName) {
               orderCustomerName = [first.firstName, first.lastName].filter(Boolean).join(' ') || first.email || undefined;
             }
+            if (first.email) newCustomerEmail = String(first.email);
           }
         }
 
@@ -479,6 +481,44 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         pendingApproval: returnPendingApproval ?? null,
         completed: returnCompleted ?? store.returnWorkflow?.completed ?? null,
       });
+    }
+
+    // Right-panel Customer card — previously only populated when a customer
+    // was picked from the sidebar list (ConversationList's handleSelectCustomer
+    // calls setContextHydrated there). A customer identified purely through
+    // free-form chat (find_customer / update_ui_state's customerId) never
+    // reached this field, so the panel kept saying "No customer identified
+    // yet." even once the chat had already found and displayed them. Only
+    // fires once per newly-identified id — re-running this effect on every
+    // message doesn't re-fetch for a customer already in the panel.
+    if (newCustomerId && newCustomerId !== store.customer?.id) {
+      const interimName = orderCustomerName || newCustomerEmail || 'Customer';
+      store.setContextHydrated("Customer", {
+        id: newCustomerId,
+        name: interimName,
+        email: newCustomerEmail,
+        status: "Active",
+      });
+
+      fetch(`/api/context/resolve?customerId=${encodeURIComponent(newCustomerId)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const resolved = data?.customer;
+          if (!resolved) return;
+          // Guard against a stale response landing after the rep has moved
+          // on to a different customer in the meantime.
+          if (useConversationStore.getState().customer?.id !== newCustomerId) return;
+          store.setContextHydrated("Customer", {
+            id: resolved.id ?? newCustomerId,
+            name: resolved.name || interimName,
+            email: resolved.email || newCustomerEmail,
+            status: resolved.tier || "Active",
+            createdAt: resolved.createdAt ?? undefined,
+            orderCount: resolved.orderCount ?? undefined,
+            lifetimeValue: resolved.lifetimeValue ?? undefined,
+          });
+        })
+        .catch((e) => console.error('Failed to resolve customer context:', e));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, isLoading]);
