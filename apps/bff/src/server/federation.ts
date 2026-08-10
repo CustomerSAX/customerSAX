@@ -29,7 +29,17 @@ export function buildGateway(): ApolloGateway | undefined {
         }
       }),
     supergraphSdl: new IntrospectAndCompose({
-      subgraphs: services
+      subgraphs: services,
+      // Without this, the gateway introspects every subgraph exactly once at
+      // startup and never again — any schema change (a new field, a new
+      // argument) on a subgraph requires a full BFF restart to become
+      // reachable through the federated API, even though the subgraph itself
+      // already serves it. That silent staleness broke createB2bCart's new
+      // customerEmail argument and the new shippingMethods query/mutation
+      // more than once during development. Polling makes new capabilities
+      // show up on their own within a few seconds, same as a subgraph's own
+      // hot reload — no restart dance needed for schema changes going forward.
+      pollIntervalInMs: 10_000
     })
   });
 }

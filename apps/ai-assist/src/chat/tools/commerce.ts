@@ -445,6 +445,58 @@ export const updateCartAddressTool = tool({
   }
 });
 
+// ─── list_shipping_methods ──────────────────────────────────────────────────
+
+export const listShippingMethodsTool = tool({
+  description:
+    "List real shipping methods available in this project, with their real ids. " +
+    "Call this before update_cart_shipping_method — never invent a shipping method id " +
+    "or reuse a label the rep typed (e.g. \"standard\", \"express\") as if it were a real id.",
+  inputSchema: z.object({
+    limit: z.number().optional().default(20)
+  }),
+  execute: async ({ limit }) => {
+    try {
+      const data = await bffQuery<{ shippingMethods: Array<{ id: string; key?: string; name?: string }> }>(
+        `query ShippingMethods($limit: Int) {
+          shippingMethods(limit: $limit) { id key name }
+        }`,
+        { limit }
+      );
+      return data.shippingMethods ?? [];
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
+// ─── update_cart_shipping_method ────────────────────────────────────────────
+
+export const updateCartShippingMethodTool = tool({
+  description:
+    "Set a real shipping method on a cart, by its real id (from list_shipping_methods). Executes " +
+    "immediately — no approval needed (a draft cart operation). commercetools requires a shipping " +
+    "address on the cart before a shipping method can be set — call update_cart_address first if the " +
+    "cart doesn't have one yet, or this fails with a 'Shipping address is not set' error.",
+  inputSchema: z.object({
+    cartId: z.string().describe("Cart ID"),
+    shippingMethodId: z.string().describe("Real shipping method ID from list_shipping_methods")
+  }),
+  execute: async ({ cartId, shippingMethodId }) => {
+    try {
+      const data = await bffQuery<{ setCartShippingMethod: unknown }>(
+        `mutation SetCartShippingMethod($id: ID!, $shippingMethodId: ID!) {
+          setCartShippingMethod(id: $id, shippingMethodId: $shippingMethodId) { ${CART_FIELDS} }
+        }`,
+        { id: cartId, shippingMethodId }
+      );
+      return data.setCartShippingMethod ?? { error: "Failed to set shipping method" };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
 // ─── remove_from_cart ─────────────────────────────────────────────────────────
 
 export const removeFromCartTool = tool({
@@ -723,6 +775,8 @@ export function buildCommerceTools() {
     add_to_cart: addToCartTool,
     remove_from_cart: removeFromCartTool,
     update_cart_address: updateCartAddressTool,
+    list_shipping_methods: listShippingMethodsTool,
+    update_cart_shipping_method: updateCartShippingMethodTool,
     place_order: placeOrderTool,
     cancel_order: cancelOrderTool,
     start_return: startReturnTool,

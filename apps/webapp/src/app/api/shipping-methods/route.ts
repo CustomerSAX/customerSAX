@@ -1,10 +1,45 @@
 import { NextResponse } from 'next/server';
 
+const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
+
+// No mock data here. The stepper sends whatever `id` this route returns
+// straight back to the AI as the hidden-action's shippingMethodId — the old
+// hardcoded "express"/"standard"/"overnight" ids were never real
+// commercetools shipping method ids, so the AI could never actually set one
+// (and previously had no tool to do so anyway; that gap is fixed separately).
 export async function GET() {
-  const methods = [
-    { id: 'express', name: 'Express Courier ($15.00)' },
-    { id: 'standard', name: 'Standard Delivery ($5.00)' },
-    { id: 'overnight', name: 'Overnight Air ($25.00)' },
-  ];
-  return NextResponse.json(methods, { headers: { 'Cache-Control': 'no-store' } });
+  try {
+    const res = await fetch(BFF_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-csa-commerce-platform': 'commercetools' },
+      body: JSON.stringify({
+        query: `query ShippingMethods($limit: Int) {
+          shippingMethods(limit: $limit) { id key name }
+        }`,
+        variables: { limit: 20 },
+      }),
+    });
+    if (!res.ok) {
+      return NextResponse.json({ error: 'Unable to reach the commerce backend right now.' }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+    }
+    const data = await res.json();
+    if (data?.errors?.length) {
+      console.error(`[shipping-methods] commerce backend error: ${data.errors.map((e: any) => e.message).join('; ')}`);
+      return NextResponse.json({ error: 'Unable to reach the commerce backend right now.' }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+    }
+    const results = data?.data?.shippingMethods;
+    if (!Array.isArray(results)) {
+      return NextResponse.json({ error: 'Unable to reach the commerce backend right now.' }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+    }
+
+    const methods = results.map((m: { id: string; key?: string; name?: string }) => ({
+      id: m.id,
+      name: m.name || m.key || 'Shipping method',
+    }));
+
+    return NextResponse.json(methods, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (err) {
+    console.error('[shipping-methods] fetch failed:', err);
+    return NextResponse.json({ error: 'Unable to reach the commerce backend right now.' }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+  }
 }

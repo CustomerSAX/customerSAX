@@ -111,7 +111,27 @@ export const resolvers = {
         args.shippingAddress ? { setShippingAddress: { address: args.shippingAddress } } : undefined,
         args.billingAddress ? { setBillingAddress: { address: args.billingAddress } } : undefined
       ].filter(Boolean)
-    )
+    ),
+  shippingMethods: async (_parent: unknown, args: { limit?: number }) => {
+    const data = await commercetoolsGraphql<Record<string, unknown>>(
+      `#graphql
+        query ShippingMethods($limit: Int!) {
+          shippingMethods(limit: $limit) { results { id key name } }
+        }
+      `,
+      { limit: args.limit ?? 20 }
+    );
+
+    // Defensive: commercetools' real shippingMethods field shape (plain
+    // array vs. { results } pagination wrapper) — accept either so this
+    // never returns null for a non-nullable field.
+    const raw = data.shippingMethods as unknown;
+    if (Array.isArray(raw)) return raw;
+    const wrapped = raw as { results?: unknown } | null | undefined;
+    return Array.isArray(wrapped?.results) ? wrapped.results : [];
+  },
+  setCartShippingMethod: async (_parent: unknown, args: { id: string; shippingMethodId: string }) =>
+    updateCart(args.id, [{ setShippingMethod: { shippingMethod: { id: args.shippingMethodId } } }])
 };
 
 async function queryCarts(where: string | undefined, args: PagingArgs) {

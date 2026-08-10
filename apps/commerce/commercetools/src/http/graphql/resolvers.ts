@@ -21,6 +21,7 @@ export const resolvers = {
     removeCartLineItem: cartResolvers.removeCartLineItem,
     removeCustomerAddress: customerResolvers.removeCustomerAddress,
     replicateOrder: orderResolvers.replicateOrder,
+    setCartShippingMethod: cartResolvers.setCartShippingMethod,
     setDefaultCustomerAddress: customerResolvers.setDefaultCustomerAddress,
     updateCartAddresses: cartResolvers.updateCartAddresses,
     updateCustomer: customerResolvers.updateCustomer,
@@ -59,6 +60,7 @@ export const resolvers = {
     searchCarts: cartResolvers.searchCarts,
     searchCustomers: customerResolvers.searchCustomers,
     searchOrders: orderResolvers.searchOrders,
+    shippingMethods: cartResolvers.shippingMethods,
     standalonePrices: productResolvers.standalonePrices
   }
 };
