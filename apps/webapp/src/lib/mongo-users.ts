@@ -9,23 +9,37 @@
  * bcrypt password hashing the auth service verifies with, so any user
  * created/edited here can log in through the real /login flow unchanged.
  *
- * The live schema is single-tenant-per-user (`tenantId` + optional
- * `projectKey`, not an array of memberships) — this module matches that,
- * it does not invent a richer multi-project model the auth service
- * wouldn't understand.
+ * Real, already-existing users in this collection were provisioned before
+ * `tenantId` existed on AuthUser — they carry only a `projectKey` (e.g.
+ * "rc_b2b_shop_july_2023"), which is how the client they belong to is
+ * actually derivable: via the csa_projects document whose projectKey
+ * matches, not a direct tenantId FK. So "users belonging to a client" is
+ * resolved as `tenantId === clientId` OR `projectKey ∈ {that client's real
+ * project keys}` — matching real data, not just newly-created rows. New
+ * writes from this module still set tenantId, since that's the shape the
+ * live AuthUser type declares.
+ *
+ * Real `role` values also aren't limited to the AuthRole enum (agent/admin/
+ * superadmin) — some pre-existing accounts carry roles like "supervisor" or
+ * "customer_admin" from before this superadmin console existed. Reads keep
+ * whatever string is actually stored rather than coercing it, and edits
+ * never overwrite role/projectKey unless the caller explicitly changes
+ * them, so managing an existing account can't silently clobber a
+ * non-standard real value.
  *
  * Collection: MONGO_AGENTS_DB / MONGO_USERS_COLLECTION (default csa-agents / csa_users)
  */
 
 import bcrypt from 'bcryptjs';
 import { ObjectId } from '@csa/mongodb';
-import { getUsersCollection } from '@/lib/db';
-import type { CsaRole } from '@/constants';
+import { getUsersCollection, getProjectsCollection } from '@/lib/db';
 
 const BCRYPT_ROUNDS = 10;
 
 // ---------------------------------------------------------------------------
-// Types — mirrors apps/auth/src/users/types.ts's AuthUser exactly
+// Types — mirrors apps/auth/src/users/types.ts's AuthUser, but with `role`
+// and `tenantId` widened since real stored documents don't all conform to
+// the narrower type that file declares (see module doc comment above).
 // ---------------------------------------------------------------------------
 
 export interface CsaUser {
@@ -38,8 +52,8 @@ export interface CsaUser {
   name: string;
   passwordHash: string;
   projectKey?: string;
-  role: CsaRole;
-  tenantId: string;
+  role: string;
+  tenantId?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -61,21 +75,36 @@ function displayName(firstName?: string, lastName?: string, fallbackEmail?: stri
   return joined || fallbackEmail || '';
 }
 
+/** Real project keys belonging to a client, per the live csa_projects collection. */
+async function projectKeysForClient(clientId: string): Promise<string[]> {
+  const col = await getProjectsCollection<{ clientId: string; projectKey: string }>();
+  const docs = await col.find({ clientId }).project({ projectKey: 1 }).toArray();
+  return docs.map((d) => d.projectKey).filter((k): k is string => Boolean(k));
+}
+
+/** Query matching every user that actually belongs to a client — see module doc comment. */
+async function membershipQuery(clientId: string): Promise<Record<string, unknown>> {
+  const projectKeys = await projectKeysForClient(clientId);
+  return projectKeys.length > 0
+    ? { $or: [{ tenantId: clientId }, { projectKey: { $in: projectKeys } }] }
+    : { tenantId: clientId };
+}
+
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
 
-/** Lists every user belonging to a client (tenant), sorted by email. */
+/** Lists every user belonging to a client, sorted by email. */
 export async function listUsersByClient(clientId: string): Promise<CsaUserPublic[]> {
   const col = await getUsersCollection<CsaUser>();
-  const docs = await col.find({ tenantId: clientId }).sort({ email: 1 }).toArray();
+  const docs = await col.find(await membershipQuery(clientId)).sort({ email: 1 }).toArray();
   return docs.map(toPublic);
 }
 
 /** Counts users belonging to a client. */
 export async function countUsersByClient(clientId: string): Promise<number> {
   const col = await getUsersCollection<CsaUser>();
-  return col.countDocuments({ tenantId: clientId });
+  return col.countDocuments(await membershipQuery(clientId));
 }
 
 /** Finds a user by email (any tenant) — used for lookups before create/assign. */
@@ -94,9 +123,11 @@ export async function findUserByIdForClient(id: string, clientId: string): Promi
   } catch {
     oid = undefined;
   }
-  const or: Record<string, unknown>[] = [{ id }];
-  if (oid) or.push({ _id: oid });
-  const doc = await col.findOne({ tenantId: clientId, $or: or });
+  const idOr: Record<string, unknown>[] = [{ id }];
+  if (oid) idOr.push({ _id: oid });
+
+  const membership = await membershipQuery(clientId);
+  const doc = await col.findOne({ $and: [membership, { $or: idOr }] });
   return doc ? toPublic(doc) : null;
 }
 
@@ -114,7 +145,7 @@ export async function createUser(data: {
   password: string;
   firstName?: string;
   lastName?: string;
-  role: CsaRole;
+  role: string;
   tenantId: string;
   projectKey?: string;
 }): Promise<CsaUserPublic> {
@@ -158,7 +189,7 @@ export async function createUser(data: {
 export async function assignExistingUserToClient(data: {
   email: string;
   tenantId: string;
-  role: CsaRole;
+  role: string;
   projectKey?: string;
 }): Promise<CsaUserPublic | null> {
   const col = await getUsersCollection<CsaUser>();
@@ -178,14 +209,19 @@ export async function assignExistingUserToClient(data: {
   return updated ? toPublic(updated) : null;
 }
 
-/** Updates a user's profile/role/project/active fields. Scoped to the given client. */
+/**
+ * Updates a user's profile/role/project/active fields. Scoped to the given
+ * client. Only touches role/projectKey/active/password when the caller
+ * explicitly passes them — editing a real user's name never silently
+ * resets an existing non-standard role or unlinks their real project.
+ */
 export async function updateUser(
   id: string,
   clientId: string,
   updates: {
     firstName?: string;
     lastName?: string;
-    role?: CsaRole;
+    role?: string;
     projectKey?: string | null;
     active?: boolean;
     password?: string;
@@ -213,27 +249,26 @@ export async function updateUser(
   }
 
   const oid = new ObjectId(existing.id);
-  const result = await col.updateOne({ _id: oid, tenantId: clientId }, { $set: set });
+  const result = await col.updateOne({ _id: oid }, { $set: set });
   return result.matchedCount > 0;
 }
 
 /** Permanently deletes a user (scoped to the client, to avoid cross-tenant deletes). */
 export async function deleteUserForClient(id: string, clientId: string): Promise<boolean> {
-  const col = await getUsersCollection<CsaUser>();
   const existing = await findUserByIdForClient(id, clientId);
   if (!existing) return false;
+  const col = await getUsersCollection<CsaUser>();
   const oid = new ObjectId(existing.id);
-  const result = await col.deleteOne({ _id: oid, tenantId: clientId });
+  const result = await col.deleteOne({ _id: oid });
   return result.deletedCount > 0;
 }
 
-/** Detaches all of a client's users (used when a client is deleted) — deactivates rather than deletes accounts. */
+/** Deactivates every user belonging to a client (used when a client is deleted) — never deletes real accounts. */
 export async function deactivateUsersByClient(clientId: string): Promise<number> {
   const col = await getUsersCollection<CsaUser>();
-  const result = await col.updateMany(
-    { tenantId: clientId },
-    { $set: { active: false, updatedAt: new Date() } }
-  );
+  const result = await col.updateMany(await membershipQuery(clientId), {
+    $set: { active: false, updatedAt: new Date() },
+  });
   return result.modifiedCount;
 }
 
