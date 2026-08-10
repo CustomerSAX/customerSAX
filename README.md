@@ -37,8 +37,8 @@ App-specific env examples live with each app:
 
 Default local URLs:
 
-- Webapp: `http://localhost:3001`
-- BFF GraphQL: `http://localhost:4001/graphql`
+- Webapp: `http://localhost:3000`
+- BFF GraphQL: `http://localhost:4000/graphql`
 - commercetools Adapter GraphQL: `http://localhost:4310/graphql`
 - Ticketing GraphQL: `http://localhost:4350/graphql`
 - AI Assist: `http://localhost:8080`
