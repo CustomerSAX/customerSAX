@@ -11,7 +11,9 @@ export function getCommercePlatform() {
 }
 
 export function buildGateway(): ApolloGateway | undefined {
-  const services = parseFederatedServices(process.env.FEDERATED_SERVICES);
+  const services = parseFederatedServices(
+    process.env.FEDERATED_SERVICES ?? defaultLocalFederatedServices()
+  );
 
   if (services.length === 0) {
     console.warn("BFF running with local fallback schema. FEDERATED_SERVICES is not configured.");
@@ -41,6 +43,17 @@ export function buildGateway(): ApolloGateway | undefined {
       // hot reload — no restart dance needed for schema changes going forward.
       pollIntervalInMs: 10_000
     })
+  });
+}
+
+function defaultLocalFederatedServices() {
+  if (process.env.NODE_ENV === "production") {
+    return undefined;
+  }
+
+  return JSON.stringify({
+    "commerce-commercetools": "http://localhost:4310/graphql",
+    ticketing: "http://localhost:4350/graphql"
   });
 }
 
