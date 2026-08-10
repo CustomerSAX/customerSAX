@@ -295,7 +295,10 @@ export function RenderRefundCard({
             else in the chat — this card was the one place a rep had no way
             to back out of an in-flight approval, and its lone red button
             read as a destructive/dangerous action rather than a normal
-            confirm step. */}
+            confirm step. Label is "Confirm" (not "Confirm Return") so it
+            doesn't wrap to two lines in a 50/50 flex split like "Approve"
+            doesn't on ActionApproval — the card title already says "Return
+            / Refund", so the button doesn't need to repeat it. */}
         <div className="flex gap-2 mt-2">
           <Button
             variant="primary"
@@ -305,7 +308,7 @@ export function RenderRefundCard({
             disabled={isPending}
             leftIcon={<Icon name="check" size="xs" />}
           >
-            Confirm Return
+            Confirm
           </Button>
           <Button
             variant="ghost"
