@@ -1,6 +1,8 @@
 "use client";
 
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Icon } from "@csa/ui";
+import { useState } from "react";
+import { Badge, Button, Card, CardContent, CardFooter, CardHeader, CardTitle, Icon } from "@csa/ui";
+import { ProductDetailDrawer } from "./ProductDetailDrawer";
 import type {
   CartSummaryArgs,
   CaseBriefingArgs,
@@ -153,36 +155,72 @@ export function CartSummaryCard({ args }: { args: CartSummaryArgs }) {
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
 
-export function ProductCard({ args }: { args: ProductCardArgs }) {
+export function ProductCard({
+  args,
+  onAddToCart,
+}: {
+  args: ProductCardArgs;
+  /** Callback fired when the rep clicks Add to Cart. The caller (ChatStream's
+   *  ToolCallCard dispatcher) sends an order.add_item hidden-action to the AI,
+   *  which uses the active customer/cart context to make the real commerce call.
+   *  No direct API call is made here — the AI assistant owns the cart flow. */
+  onAddToCart?: (args: ProductCardArgs) => void;
+}) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   const stockVariant = args.stock.toLowerCase().includes("out") ? "error"
     : args.stock.toLowerCase().includes("low") ? "warning"
     : "success";
 
   return (
-    <Card variant="default" className="my-2 max-w-sm">
-      {args.image && (
-        <div className="h-32 overflow-hidden rounded-t-m-lg bg-m-surface-2 flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={args.image} alt={args.name} className="max-h-full object-contain" />
-        </div>
-      )}
-      <CardHeader className="px-4 pt-3 pb-1.5">
-        <CardTitle className="text-sm font-semibold leading-snug">{args.name}</CardTitle>
-        <p className="text-xs text-m-text-muted font-mono">{args.sku}</p>
-      </CardHeader>
-      <CardContent className="px-4 pb-4 space-y-1.5">
-        {args.category && (
-          <p className="text-xs text-m-text-muted">{args.category}</p>
+    <>
+      <Card variant="default" className="my-2 max-w-sm">
+        {args.image && (
+          <div className="h-32 overflow-hidden rounded-t-m-lg bg-m-surface-2 flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={args.image} alt={args.name} className="max-h-full object-contain" />
+          </div>
         )}
-        <div className="flex items-center justify-between">
-          <span className="text-base font-semibold text-m-text">{args.price}</span>
-          <Badge variant={stockVariant} size="sm">{args.stock}</Badge>
-        </div>
-        {args.description && (
-          <p className="text-xs text-m-text-muted line-clamp-2">{args.description}</p>
-        )}
-      </CardContent>
-    </Card>
+        <CardHeader className="px-4 pt-3 pb-1.5">
+          <CardTitle className="text-sm font-semibold leading-snug">{args.name}</CardTitle>
+          <p className="text-xs text-m-text-muted font-mono">{args.sku}</p>
+        </CardHeader>
+        <CardContent className="px-4 pb-2 space-y-1.5">
+          {args.category && (
+            <p className="text-xs text-m-text-muted">{args.category}</p>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-base font-semibold text-m-text">{args.price}</span>
+            <Badge variant={stockVariant} size="sm">{args.stock}</Badge>
+          </div>
+          {args.description && (
+            <p className="text-xs text-m-text-muted line-clamp-2">{args.description}</p>
+          )}
+        </CardContent>
+        <CardFooter className="px-4 pb-4 pt-0 gap-2 flex">
+          <Button variant="outline" size="sm" className="flex-1" onClick={() => setDrawerOpen(true)}>
+            View Details
+          </Button>
+          {onAddToCart && (
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1"
+              onClick={() => onAddToCart(args)}
+            >
+              Add to Cart
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
+
+      <ProductDetailDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        product={args}
+        onAddToCart={onAddToCart ? () => onAddToCart(args) : undefined}
+      />
+    </>
   );
 }
 

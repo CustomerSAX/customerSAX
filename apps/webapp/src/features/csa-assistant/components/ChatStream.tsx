@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Avatar, Badge, Button, Icon, Input } from "@csa/ui";
 import type { UIMessage } from "ai";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { useConversationStore } from "../store/conversation-store";
 import type {
   ActionApprovalArgs,
@@ -95,7 +96,25 @@ function ToolCallCard({
     case "cart_summary":
       return <CartSummaryCard args={args as CartSummaryArgs} />;
     case "product_card":
-      return <ProductCard args={args as ProductCardArgs} />;
+      return (
+        <ProductCard
+          args={args as ProductCardArgs}
+          onAddToCart={(cardArgs) => {
+            // Route through the AI's order.add_item action so the cart flow
+            // (customer resolution, real add_to_cart tool, BFF → commercetools)
+            // is handled by the assistant, not a standalone endpoint. The AI
+            // already knows which customer/cart is active from the conversation.
+            onSuggest(
+              `[hidden-action] ${JSON.stringify({
+                type: "order.add_item",
+                sku: cardArgs.sku,
+                name: cardArgs.name,
+                quantity: 1,
+              })}`
+            );
+          }}
+        />
+      );
     case "case_briefing_card":
       return <CaseBriefingCard args={args as CaseBriefingArgs} />;
     case "draft_email":
@@ -149,6 +168,7 @@ function MessageBubble({
   isLoading: boolean;
 }) {
   const isUser = message.role === "user";
+  const { user } = useCurrentUser();
 
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -161,7 +181,7 @@ function MessageBubble({
       )}
       {isUser && (
         <div className="flex-shrink-0 mt-1">
-          <Avatar name="AG" size="sm" />
+          <Avatar name={user?.name || "AG"} size="sm" />
         </div>
       )}
 

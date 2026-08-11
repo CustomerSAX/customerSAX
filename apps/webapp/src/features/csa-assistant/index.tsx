@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Icon } from "@csa/ui";
 import type { BusinessType, SessionContext } from "./types";
 import { useCsaChat } from "./hooks/use-csa-chat";
 import { useConversationStore } from "./store/conversation-store";
@@ -31,7 +32,7 @@ export function CsaAssistant() {
   // undefined until the session loads; ai-assist has its own defensive
   // fallback for that brief window, but every real request now carries the
   // actual agent's identity instead of a fixed literal.
-  const { user } = useCurrentUser();
+  const { user, loading } = useCurrentUser();
 
   // Dynamic session context with active pageContext
   const sessionContext: SessionContext = {
@@ -114,6 +115,15 @@ export function CsaAssistant() {
   );
 
   const sessionCustomerName = customer?.name;
+
+  if (loading) {
+    return (
+      <div className="flex h-full min-h-[540px] items-center justify-center text-m-text-muted">
+        <Icon name="loader" className="animate-spin mr-2" />
+        Loading session...
+      </div>
+    );
+  }
 
   return (
     <div
