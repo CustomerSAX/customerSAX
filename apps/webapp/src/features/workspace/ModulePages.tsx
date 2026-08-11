@@ -16,13 +16,6 @@ import {
   Button,
   SearchBar,
   Select,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardMetric,
-  Tabs,
-  Accordion,
   Avatar,
   Icon
 } from "@csa/ui";
@@ -60,12 +53,6 @@ const productsData = [
 // Note: productsData is kept for reference only; ProductsPageView now delegates to
 // the full-parity ProductListView (features/products/components/ProductListView.tsx).
 void productsData;
-
-const auditEventsData = [
-  ["Ticket created", "agent@csa.local", "Tickets", "CSA-1024", "8 min ago"],
-  ["Order lookup", "agent@csa.local", "Orders", "ORD-54019", "18 min ago"],
-  ["AI summary generated", "ai-assist", "CSA Assistant", "session-76", "26 min ago"]
-];
 
 function ModuleToolbar({
   actionLabel,
@@ -279,149 +266,6 @@ export function CartPageView() {
 
 export { ProductListView as ProductsPageView } from "../products/components/ProductListView";
 
-export function ReportsPageView() {
-  return (
-    <>
-      <PageHeader
-        actions={
-          <Button variant="primary" size="md" leftIcon={<Icon name="download" size="xs" />}>
-            Export Report
-          </Button>
-        }
-        description="Export operational reports for tickets, orders, carts, customers, products, SLA, and AI usage."
-        eyebrow="Analytics & Insights"
-        title="Reports"
-      />
-
-      <Tabs defaultValue="tickets" variant="pill" className="mb-6">
-        <Tabs.List>
-          <Tabs.Trigger value="tickets">Tickets</Tabs.Trigger>
-          <Tabs.Trigger value="orders">Orders</Tabs.Trigger>
-          <Tabs.Trigger value="carts">Carts</Tabs.Trigger>
-          <Tabs.Trigger value="customer">Customer</Tabs.Trigger>
-          <Tabs.Trigger value="product">Product</Tabs.Trigger>
-          <Tabs.Trigger value="sla">SLA</Tabs.Trigger>
-        </Tabs.List>
-      </Tabs>
-
-      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <CardMetric title="Sessions" value="214" subtitle="Selected period" trend={{ value: "8%", direction: "up" }} />
-        <CardMetric title="Messages" value="1.8k" subtitle="AI and agent activity" trend={{ value: "14%", direction: "up" }} />
-        <CardMetric title="Tokens" value="842k" subtitle="Gateway usage" />
-        <CardMetric title="Cost" value="$42.18" subtitle="Estimated" trend={{ value: "3%", direction: "down" }} />
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-2">
-        <Card variant="default">
-          <CardHeader>
-            <CardTitle>Daily Activity Bar</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex h-32 items-end gap-2 pt-4">
-              {[42, 64, 48, 88, 72, 96, 58, 112, 84, 76, 104, 68].map((height, index) => (
-                <div className="flex flex-1 flex-col items-center gap-2" key={index}>
-                  <div className="w-full rounded-t-m-sm bg-m-primary transition-all hover:bg-m-primary-600" style={{ height }} />
-                  <span className="text-[10px] text-m-text-muted">{index + 1}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card variant="default">
-          <CardHeader>
-            <CardTitle>Top Performing Agents</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Agent</TableHead>
-                  <TableHead>Messages</TableHead>
-                  <TableHead>Tokens</TableHead>
-                  <TableHead>Cost</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[
-                  ["agent@csa.local", "420", "128k", "$12.20"],
-                  ["ops@csa.local", "312", "88k", "$8.40"],
-                  ["admin@csa.local", "206", "61k", "$5.10"]
-                ].map((row, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="font-semibold">{row[0]}</TableCell>
-                    <TableCell>{row[1]}</TableCell>
-                    <TableCell>{row[2]}</TableCell>
-                    <TableCell>{row[3]}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </section>
-    </>
-  );
-}
-
-export function KnowledgeBasePageView() {
-  return (
-    <>
-      <PageHeader
-        description="Agent-facing FAQ and troubleshooting repository with categorized article tabs."
-        eyebrow="Knowledge Base"
-        title="Knowledge Base"
-      />
-
-      <Tabs defaultValue="faq" variant="underline" className="mb-6">
-        <Tabs.List>
-          <Tabs.Trigger value="faq" icon={<Icon name="help-circle" size="xs" />}>Frequently Asked Questions</Tabs.Trigger>
-          <Tabs.Trigger value="troubleshoot" icon={<Icon name="wrench" size="xs" />}>Troubleshooting Guides</Tabs.Trigger>
-        </Tabs.List>
-
-        <Tabs.Content value="faq">
-          <Accordion type="single" defaultValue="item-1">
-            <Accordion.Item value="item-1">
-              <Accordion.Trigger>What omnichannel services are supported?</Accordion.Trigger>
-              <Accordion.Content>
-                Multi-channel support ticketing, intelligent agent routing, analytics, order management context, and automated AI assistance.
-              </Accordion.Content>
-            </Accordion.Item>
-            <Accordion.Item value="item-2">
-              <Accordion.Trigger>What payment methods are supported?</Accordion.Trigger>
-              <Accordion.Content>
-                Credit cards, debit cards, PayPal, Klarna, B2B purchase orders, and custom gateway integrations.
-              </Accordion.Content>
-            </Accordion.Item>
-            <Accordion.Item value="item-3">
-              <Accordion.Trigger>Can agents manage multiple customer sessions in parallel?</Accordion.Trigger>
-              <Accordion.Content>
-                Yes. The Meridian workspace supports concurrent ticket handling with priority queues and instant customer 360 views.
-              </Accordion.Content>
-            </Accordion.Item>
-          </Accordion>
-        </Tabs.Content>
-
-        <Tabs.Content value="troubleshoot">
-          <Accordion type="single" defaultValue="item-1">
-            <Accordion.Item value="item-1">
-              <Accordion.Trigger>Customer login failure resolution</Accordion.Trigger>
-              <Accordion.Content>
-                Verify client domain, check identity provider state, then trigger password reset or clear active session token.
-              </Accordion.Content>
-            </Accordion.Item>
-            <Accordion.Item value="item-2">
-              <Accordion.Trigger>Discount code not applying to cart</Accordion.Trigger>
-              <Accordion.Content>
-                Inspect cart line items, verify promotion minimum spend requirements, and re-apply discount via cart connector API.
-              </Accordion.Content>
-            </Accordion.Item>
-          </Accordion>
-        </Tabs.Content>
-      </Tabs>
-    </>
-  );
-}
 
 export function CsaAssistantPageView() {
   return (
@@ -429,19 +273,3 @@ export function CsaAssistantPageView() {
   );
 }
 
-export function AuditLogPageView() {
-  return (
-    <>
-      <PageHeader
-        description="Review security audit trail, agent actions, AI assistant tool calls, and platform configuration changes."
-        eyebrow="Administration"
-        title="Audit Log"
-      />
-      <ModuleToolbar actionLabel="Export Audit" options={["All Modules", "Tickets", "Orders", "CSA Assistant"]} searchPlaceholder="Search audit log..." />
-      <ModuleDataTable
-        columns={["Action", "Actor", "Module", "Entity", "Time"]}
-        rows={auditEventsData}
-      />
-    </>
-  );
-}
