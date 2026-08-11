@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import {
   Sidebar,
@@ -15,6 +15,7 @@ import {
   Icon,
   Button
 } from "@csa/ui";
+import { useCurrentUser, roleLabel, type CurrentUser } from "@/lib/use-current-user";
 
 const sidebarGroups: SidebarGroup[] = [
   {
@@ -51,14 +52,6 @@ const sidebarGroups: SidebarGroup[] = [
   }
 ];
 
-type CurrentUser = {
-  email: string;
-  id: string;
-  name: string;
-  role: "agent" | "admin" | "superadmin";
-  tenantId: string;
-};
-
 const fallbackUser: CurrentUser = {
   email: "agent@csa.local",
   id: "local-agent",
@@ -67,46 +60,26 @@ const fallbackUser: CurrentUser = {
   tenantId: "default"
 };
 
-function roleLabel(role: CurrentUser["role"]) {
-  const labels: Record<CurrentUser["role"], string> = {
-    agent: "CSA Agent",
-    admin: "CSA Administrator",
-    superadmin: "CSA Super Administrator"
-  };
-
-  return labels[role];
-}
-
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<CurrentUser>(fallbackUser);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadCurrentUser() {
-      const response = await fetch("/api/auth/me", { cache: "no-store" }).catch(() => null);
-
-      if (!response?.ok) {
-        return;
-      }
-
-      const payload = await response.json().catch(() => null);
-      if (!cancelled && payload?.user?.email) {
-        setCurrentUser({ ...fallbackUser, ...payload.user });
-      }
-    }
-
-    loadCurrentUser();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { user } = useCurrentUser();
+  const currentUser = user ?? fallbackUser;
 
   const userDisplayName = currentUser.name || currentUser.email;
   const userSubtitle = useMemo(() => roleLabel(currentUser.role), [currentUser.role]);
+
+  // Superadmin console link — only shown to platform-level superadmin
+  // accounts, since /superadmin is a separate isolated shell (see
+  // app/superadmin/layout.tsx), not a regular agent page.
+  const groups = useMemo(() => {
+    if (currentUser.role !== "superadmin") return sidebarGroups;
+    return sidebarGroups.map((group) =>
+      group.id === "administration"
+        ? { ...group, items: [...group.items, { id: "superadmin", href: "/superadmin", label: "Superadmin", icon: "shield-check" }] }
+        : group
+    );
+  }, [currentUser.role]);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
@@ -116,7 +89,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // Find active item ID
   let activeItemId = "dashboard";
-  for (const group of sidebarGroups) {
+  for (const group of groups) {
     for (const item of group.items) {
       if (
         item.href &&
@@ -150,7 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         }
-        groups={sidebarGroups}
+        groups={groups}
         activeItemId={activeItemId}
         onSelectItem={handleSelectItem}
         footer={

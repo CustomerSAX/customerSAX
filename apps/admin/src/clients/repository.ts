@@ -1,0 +1,133 @@
+/**
+ * MongoDB CRUD for CSA client organisations. Moved here from the webapp so
+ * the webapp never talks to Mongo directly — see this repo's established
+ * pattern (webapp -> BFF -> subgraph -> real backend), the same one
+ * apps/ticketing already follows.
+ */
+
+import { ObjectId } from "mongodb";
+import { getClientsCollection } from "../db/mongodb.js";
+import type { CsaClient, ClientStatus, ClientSsoConfigStored } from "./types.js";
+
+function toObjectId(id: string): ObjectId | null {
+  try {
+    return new ObjectId(id);
+  } catch {
+    return null;
+  }
+}
+
+function ssoConfigView(cfg: ClientSsoConfigStored | undefined) {
+  if (!cfg || cfg.provider === "none") {
+    return { provider: "none" as const };
+  }
+  if (cfg.provider === "oidc") {
+    return {
+      provider: "oidc" as const,
+      issuer: cfg.issuer,
+      clientId: cfg.clientId,
+      providerDisplayName: cfg.providerDisplayName,
+      extraScopes: cfg.extraScopes,
+      authorizeConnection: cfg.authorizeConnection,
+      oidcClientSecretSet: Boolean(cfg.clientSecret?.trim()),
+    };
+  }
+  return {
+    provider: "saml" as const,
+    entryPointUrl: cfg.entryPointUrl,
+    issuer: cfg.issuer,
+    idpCertSet: Boolean(cfg.idpCertPem?.trim()),
+  };
+}
+
+export function clientView(doc: CsaClient) {
+  const { _id, ssoConfig, ...rest } = doc;
+  return { id: _id.toHexString(), ...rest, ssoConfig: ssoConfigView(ssoConfig) };
+}
+
+export async function findClientByIdRaw(id: string): Promise<CsaClient | null> {
+  const col = await getClientsCollection();
+  const oid = toObjectId(id);
+  if (!oid) return null;
+  return (await col.findOne({ _id: oid })) as CsaClient | null;
+}
+
+export async function listClients(): Promise<CsaClient[]> {
+  const col = await getClientsCollection();
+  const docs = await col.find({ name: { $exists: true } }).sort({ name: 1 }).toArray();
+  return docs as unknown as CsaClient[];
+}
+
+export async function findClientById(id: string): Promise<CsaClient | null> {
+  return findClientByIdRaw(id);
+}
+
+export async function findClientBySlug(slug: string): Promise<CsaClient | null> {
+  const col = await getClientsCollection();
+  const doc = await col.findOne({ slug: slug.toLowerCase().trim() });
+  return doc as CsaClient | null;
+}
+
+export async function createClient(data: {
+  name: string;
+  slug: string;
+  contactEmail: string;
+  createdBy: string;
+}): Promise<CsaClient> {
+  const col = await getClientsCollection();
+  const now = new Date();
+
+  const doc: CsaClient = {
+    _id: new ObjectId(),
+    name: data.name.trim(),
+    slug: data.slug.trim().toLowerCase().replace(/\s+/g, "-"),
+    contactEmail: data.contactEmail.trim().toLowerCase(),
+    status: "active",
+    createdBy: data.createdBy,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await col.insertOne(doc as never);
+  return doc;
+}
+
+export async function updateClient(
+  id: string,
+  updates: { name?: string; contactEmail?: string; ssoConfig?: ClientSsoConfigStored | null }
+): Promise<boolean> {
+  const col = await getClientsCollection();
+  const oid = toObjectId(id);
+  if (!oid) return false;
+
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (updates.name !== undefined) set.name = updates.name.trim();
+  if (updates.contactEmail !== undefined) set.contactEmail = updates.contactEmail.trim().toLowerCase();
+  if (updates.ssoConfig !== undefined) {
+    set.ssoConfig = updates.ssoConfig === null ? { provider: "none" as const } : updates.ssoConfig;
+  }
+
+  const result = await col.updateOne({ _id: oid }, { $set: set });
+  return result.matchedCount > 0;
+}
+
+export async function setClientStatus(id: string, status: ClientStatus): Promise<boolean> {
+  const col = await getClientsCollection();
+  const oid = toObjectId(id);
+  if (!oid) return false;
+  const result = await col.updateOne({ _id: oid }, { $set: { status, updatedAt: new Date() } });
+  return result.matchedCount > 0;
+}
+
+export async function deleteClient(id: string): Promise<boolean> {
+  const col = await getClientsCollection();
+  const oid = toObjectId(id);
+  if (!oid) return false;
+  const result = await col.deleteOne({ _id: oid });
+  return result.deletedCount > 0;
+}
+
+export async function ensureClientsIndex(): Promise<void> {
+  const col = await getClientsCollection();
+  await col.createIndex({ slug: 1 }, { unique: true });
+}

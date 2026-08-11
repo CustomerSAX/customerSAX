@@ -1,12 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SessionContext } from "./types";
+import type { BusinessType, SessionContext } from "./types";
 import { useCsaChat } from "./hooks/use-csa-chat";
 import { useConversationStore } from "./store/conversation-store";
 import { ConversationList } from "./components/ConversationList";
 import { ChatStream } from "./components/ChatStream";
 import { ContextPanel } from "./components/ContextPanel";
+import { useCurrentUser, roleLabel } from "@/lib/use-current-user";
+
+// This deployment is wired to a single commercetools project (see the
+// architecture note in CLAUDE.md) — its key/business type come from real
+// config, not a guess. Neither variable falls back to a literal here: if
+// they're unset the assistant just doesn't get a projectKey/businessType,
+// which is the honest state, not a fabricated one.
+const CT_PROJECT_KEY = process.env.NEXT_PUBLIC_CT_PROJECT_KEY || undefined;
+const rawBusinessType = process.env.NEXT_PUBLIC_CT_BUSINESS_TYPE;
+const CT_BUSINESS_TYPE: BusinessType | undefined =
+  rawBusinessType === "b2b" || rawBusinessType === "b2c" ? rawBusinessType : undefined;
 
 export function CsaAssistant() {
   // ConversationStore bindings
@@ -16,12 +27,18 @@ export function CsaAssistant() {
   const activeStepper    = useConversationStore((s) => s.activeStepper);
   const newConversationNonce = useConversationStore((s) => s.newConversationNonce);
 
+  // Real logged-in identity — never a placeholder. userEmail/userRole stay
+  // undefined until the session loads; ai-assist has its own defensive
+  // fallback for that brief window, but every real request now carries the
+  // actual agent's identity instead of a fixed literal.
+  const { user } = useCurrentUser();
+
   // Dynamic session context with active pageContext
   const sessionContext: SessionContext = {
-    userEmail: "agent@csa.local",
-    userRole: "Support Agent",
-    projectKey: process.env.NEXT_PUBLIC_CT_PROJECT_KEY ?? "rc_b2b_shop_july_2023",
-    businessType: "b2c",
+    userEmail: user?.email,
+    userRole: user ? roleLabel(user.role) : undefined,
+    projectKey: CT_PROJECT_KEY,
+    businessType: CT_BUSINESS_TYPE,
     pageContext: activeTicketId
       ? { type: "ticket", id: activeTicketId }
       : customer?.id

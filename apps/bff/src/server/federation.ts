@@ -53,7 +53,8 @@ function defaultLocalFederatedServices() {
 
   return JSON.stringify({
     "commerce-commercetools": "http://localhost:4310/graphql",
-    ticketing: "http://localhost:4350/graphql"
+    ticketing: "http://localhost:4350/graphql",
+    admin: "http://localhost:4370/graphql"
   });
 }
 
