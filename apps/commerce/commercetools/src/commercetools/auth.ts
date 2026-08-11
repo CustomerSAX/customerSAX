@@ -11,9 +11,9 @@ export async function getCommercetoolsToken() {
     return cachedToken.token;
   }
 
-  const clientId = requiredEnv("COMMERCETOOLS_CLIENT_ID");
-  const clientSecret = requiredEnv("COMMERCETOOLS_CLIENT_SECRET");
-  const authUrl = trimTrailingSlash(requiredEnv("COMMERCETOOLS_AUTH_URL"));
+  const clientId = requiredEnv("COMMERCETOOLS_CLIENT_ID", "CT_CLIENT_ID");
+  const clientSecret = requiredEnv("COMMERCETOOLS_CLIENT_SECRET", "CT_CLIENT_SECRET");
+  const authUrl = trimTrailingSlash(requiredEnv("COMMERCETOOLS_AUTH_URL", "CT_AUTH_URL"));
   const projectKey = requiredEnv("COMMERCETOOLS_PROJECT_KEY");
   const scope = process.env.COMMERCETOOLS_SCOPE?.trim() || `manage_project:${projectKey}`;
 
@@ -43,8 +43,8 @@ export async function getCommercetoolsToken() {
   return cachedToken.token;
 }
 
-function requiredEnv(name: string) {
-  const value = process.env[name];
+function requiredEnv(name: string, alias?: string) {
+  const value = process.env[name] ?? (alias ? process.env[alias] : undefined);
 
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
