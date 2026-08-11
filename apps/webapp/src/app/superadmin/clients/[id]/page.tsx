@@ -23,6 +23,7 @@ import {
   ADMIN_REMOVE_USER_FROM_PROJECT,
   ADMIN_REMOVE_USER_FROM_CLIENT
 } from "@/features/superadmin/api/queries";
+import { useCurrentUser } from "@/lib/use-current-user";
 
 // ─── Types (mirror the apps/admin GraphQL schema) ──────────────────────────
 
@@ -774,6 +775,7 @@ function ProjectModal({
   const [updateProject] = useMutation(ADMIN_UPDATE_PROJECT);
   const [testCredentials] = useMutation(ADMIN_TEST_PROJECT_CREDENTIALS);
   const [testConnection] = useMutation(ADMIN_TEST_PROJECT_CONNECTION);
+  const { user: currentUser } = useCurrentUser();
 
   const isEdit = !!existing;
   const [platform, setPlatform] = useState<Platform>(existing?.platform ?? "commercetools");
@@ -871,13 +873,17 @@ function ProjectModal({
               : { displayName, ctApiUrl, ctAuthUrl, ctClientId, ctClientSecret: ctClientSecret || undefined, scopes: scopes || undefined, ...shellFlags };
         await updateProject({ variables: { id: existing.id, input } });
       } else {
+        if (!currentUser) {
+          setError("Still loading your session — try again in a moment.");
+          return;
+        }
         const input =
           platform === "shopify"
             ? { platform, projectKey, displayName, shopifyStoreDomain, shopifyAdminAccessToken, shopifyApiVersion, ...shellFlags }
             : platform === "bigcommerce"
               ? { platform, projectKey, displayName, bigcommerceStoreHash, bigcommerceClientId, bigcommerceAccessToken, ...shellFlags }
               : { platform, projectKey, displayName, ctApiUrl, ctAuthUrl, ctClientId, ctClientSecret, scopes: scopes || undefined, ...shellFlags };
-        await createProject({ variables: { clientId, input, createdBy: "superadmin" } });
+        await createProject({ variables: { clientId, input, createdBy: currentUser.email } });
       }
       onSaved();
     } catch (e) {
@@ -1016,7 +1022,7 @@ function ProjectModal({
             <Button type="button" variant="secondary" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={isSaving}>
+            <Button type="submit" variant="primary" disabled={isSaving || (!isEdit && !currentUser)}>
               {isSaving ? "Saving…" : isEdit ? "Save Changes" : "Add Project"}
             </Button>
           </div>
@@ -1199,6 +1205,7 @@ function UserModal({
   const [createUser] = useMutation(ADMIN_CREATE_CLIENT_USER);
   const [assignUser] = useMutation(ADMIN_ASSIGN_CLIENT_USER);
   const [updateUser] = useMutation(ADMIN_UPDATE_CLIENT_USER);
+  const { user: currentUser } = useCurrentUser();
 
   const isEdit = !!existing;
   const [mode, setMode] = useState<"create" | "assign">("create");
@@ -1245,13 +1252,19 @@ function UserModal({
     setIsSaving(true);
     setError(null);
 
+    if (!currentUser) {
+      setError("Still loading your session — try again in a moment.");
+      setIsSaving(false);
+      return;
+    }
+
     try {
       if (isEdit && existing) {
         const projectsPayload = selectedKeys.map((projectKey) => ({ projectKey, role: editRoles[projectKey] ?? "admin" }));
         await updateUser({
           variables: {
             clientId,
-            grantedBy: "superadmin",
+            grantedBy: currentUser.email,
             input: { email: existing.email, firstName, lastName, password: password.trim() || undefined, projects: projectsPayload }
           }
         });
@@ -1260,13 +1273,13 @@ function UserModal({
         await createUser({
           variables: {
             clientId,
-            grantedBy: "superadmin",
+            grantedBy: currentUser.email,
             input: { email, password, firstName: firstName || undefined, lastName: lastName || undefined, projects: projectsPayload }
           }
         });
       } else {
         const projectsPayload = selectedKeys.map((projectKey) => ({ projectKey, role: bulkRole }));
-        await assignUser({ variables: { clientId, grantedBy: "superadmin", input: { email, projects: projectsPayload } } });
+        await assignUser({ variables: { clientId, grantedBy: currentUser.email, input: { email, projects: projectsPayload } } });
       }
       onSaved();
     } catch (e) {
@@ -1385,7 +1398,7 @@ function UserModal({
             <Button type="button" variant="secondary" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={isSaving || !isFormValid}>
+            <Button type="submit" variant="primary" disabled={isSaving || !isFormValid || !currentUser}>
               {isSaving ? (isEdit ? "Saving…" : mode === "assign" ? "Assigning…" : "Creating…") : isEdit ? "Save Changes" : mode === "assign" ? "Assign User" : "Create User"}
             </Button>
           </div>

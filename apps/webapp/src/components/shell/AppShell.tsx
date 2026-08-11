@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import {
   Sidebar,
@@ -15,6 +15,7 @@ import {
   Icon,
   Button
 } from "@csa/ui";
+import { useCurrentUser, roleLabel, type CurrentUser } from "@/lib/use-current-user";
 
 const sidebarGroups: SidebarGroup[] = [
   {
@@ -51,14 +52,6 @@ const sidebarGroups: SidebarGroup[] = [
   }
 ];
 
-type CurrentUser = {
-  email: string;
-  id: string;
-  name: string;
-  role: "agent" | "admin" | "superadmin";
-  tenantId: string;
-};
-
 const fallbackUser: CurrentUser = {
   email: "agent@csa.local",
   id: "local-agent",
@@ -67,43 +60,11 @@ const fallbackUser: CurrentUser = {
   tenantId: "default"
 };
 
-function roleLabel(role: CurrentUser["role"]) {
-  const labels: Record<CurrentUser["role"], string> = {
-    agent: "CSA Agent",
-    admin: "CSA Administrator",
-    superadmin: "CSA Super Administrator"
-  };
-
-  return labels[role];
-}
-
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<CurrentUser>(fallbackUser);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadCurrentUser() {
-      const response = await fetch("/api/auth/me", { cache: "no-store" }).catch(() => null);
-
-      if (!response?.ok) {
-        return;
-      }
-
-      const payload = await response.json().catch(() => null);
-      if (!cancelled && payload?.user?.email) {
-        setCurrentUser({ ...fallbackUser, ...payload.user });
-      }
-    }
-
-    loadCurrentUser();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { user } = useCurrentUser();
+  const currentUser = user ?? fallbackUser;
 
   const userDisplayName = currentUser.name || currentUser.email;
   const userSubtitle = useMemo(() => roleLabel(currentUser.role), [currentUser.role]);
