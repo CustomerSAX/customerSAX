@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@apollo/client";
 import {
   PageShell,
   PageHeader,
@@ -18,54 +19,45 @@ import {
   EmptyState,
   LoadingSpinner
 } from "@csa/ui";
-import type { CsaClientPublic } from "@/lib/mongo-clients";
+import { ADMIN_CLIENTS_QUERY, ADMIN_CREATE_CLIENT, ADMIN_SET_CLIENT_STATUS } from "@/features/superadmin/api/queries";
 
-type ClientRow = CsaClientPublic & { projectCount?: number; userCount?: number };
+interface ClientRow {
+  id: string;
+  name: string;
+  slug: string;
+  contactEmail: string;
+  status: "active" | "blocked";
+  projectCount: number;
+  userCount: number;
+}
 
 /**
  * Superadmin client-organisation list — the entry point for the whole
- * superadmin console. Real MongoDB-backed data via /api/superadmin/clients,
- * no mock rows. Visually mirrors ct-csa-standalone's
- * app/superadmin/clients/page.tsx (same Meridian design tokens).
+ * superadmin console. Real data via the BFF's GraphQL API (apps/admin
+ * subgraph) — this page never talks to MongoDB directly, matching the
+ * rest of this repo's webapp -> BFF -> subgraph -> real backend pattern.
+ * Visually mirrors ct-csa-standalone's app/superadmin/clients/page.tsx
+ * (same Meridian design tokens).
  */
 export default function SuperadminClientsPage() {
   const router = useRouter();
-  const [clients, setClients] = useState<ClientRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, refetch } = useQuery<{ adminClients: ClientRow[] }>(ADMIN_CLIENTS_QUERY, {
+    fetchPolicy: "cache-and-network"
+  });
+  const [setClientStatus] = useMutation(ADMIN_SET_CLIENT_STATUS);
+
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const fetchClients = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/superadmin/clients");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to load clients");
-      setClients(data.clients ?? []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load clients");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void fetchClients();
-  }, []);
+  const clients = data?.adminClients ?? [];
 
   async function handleToggleStatus(c: ClientRow) {
     const nextStatus = c.status === "active" ? "blocked" : "active";
     setTogglingId(c.id);
     try {
-      const res = await fetch(`/api/superadmin/clients/${c.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status: nextStatus })
-      });
-      if (res.ok) await fetchClients();
+      await setClientStatus({ variables: { id: c.id, status: nextStatus } });
+      await refetch();
     } finally {
       setTogglingId(null);
     }
@@ -98,14 +90,14 @@ export default function SuperadminClientsPage() {
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard title="Total Organisations" value={isLoading ? "…" : clients.length} icon="building-2" />
+        <MetricCard title="Total Organisations" value={loading ? "…" : clients.length} icon="building-2" />
         <MetricCard
           title="Active Tenants"
-          value={isLoading ? "…" : activeCount}
+          value={loading ? "…" : activeCount}
           icon="check-circle-2"
           tone="success"
         />
-        <MetricCard title="Blocked Tenants" value={isLoading ? "…" : blockedCount} icon="ban" tone="error" />
+        <MetricCard title="Blocked Tenants" value={loading ? "…" : blockedCount} icon="ban" tone="error" />
       </div>
 
       <Card>
@@ -132,13 +124,13 @@ export default function SuperadminClientsPage() {
           </div>
         </div>
 
-        {isLoading ? (
+        {loading && clients.length === 0 ? (
           <div className="flex justify-center py-16">
             <LoadingSpinner />
           </div>
         ) : error ? (
           <div className="p-5">
-            <EmptyState icon="alert-triangle" title="Couldn't load clients" description={error} />
+            <EmptyState icon="alert-triangle" title="Couldn't load clients" description={error.message} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-5">
@@ -196,13 +188,13 @@ export default function SuperadminClientsPage() {
                   <TableCell>
                     <div className="flex items-center gap-1.5 font-semibold text-m-text">
                       <Icon name="briefcase" size="xs" className="text-m-text-muted" />
-                      {c.projectCount ?? 0}
+                      {c.projectCount}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5 font-semibold text-m-text">
                       <Icon name="users" size="xs" className="text-m-text-muted" />
-                      {c.userCount ?? 0}
+                      {c.userCount}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -232,7 +224,7 @@ export default function SuperadminClientsPage() {
         onClose={() => setIsAddOpen(false)}
         onCreated={() => {
           setIsAddOpen(false);
-          void fetchClients();
+          void refetch();
         }}
       />
     </PageShell>
@@ -297,6 +289,7 @@ function AddClientModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const [createClient] = useMutation(ADMIN_CREATE_CLIENT);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -324,13 +317,7 @@ function AddClientModal({
     setIsSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/superadmin/clients", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), contactEmail: contactEmail.trim(), slug: slug.trim() })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to create client");
+      await createClient({ variables: { name: name.trim(), contactEmail: contactEmail.trim(), slug: slug.trim() } });
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create client");

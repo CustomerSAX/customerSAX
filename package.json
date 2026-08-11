@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "app:admin": "pnpm --filter @csa/admin",
     "app:ai-assist": "pnpm --filter @csa/ai-assist",
     "app:auth": "pnpm --filter @csa/auth",
     "app:bff": "pnpm --filter @csa/bff",
