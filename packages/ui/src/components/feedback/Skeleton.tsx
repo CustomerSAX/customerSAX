@@ -7,12 +7,14 @@ export interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'text' | 'circular' | 'rectangular' | 'card';
   width?: string | number;
   height?: string | number;
+  rounded?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
 }
 
 export function Skeleton({
   variant = 'text',
   width,
   height,
+  rounded,
   className,
   style,
   ...props
@@ -31,6 +33,13 @@ export function Skeleton({
         variant === 'circular' && 'rounded-full shrink-0',
         variant === 'rectangular' && 'rounded-m-md w-full h-12',
         variant === 'card' && 'rounded-m-xl w-full h-36 border border-m-border/40',
+        rounded === 'none' && 'rounded-none',
+        rounded === 'sm' && 'rounded-m-sm',
+        rounded === 'md' && 'rounded-m-md',
+        rounded === 'lg' && 'rounded-m-lg',
+        rounded === 'xl' && 'rounded-m-xl',
+        rounded === '2xl' && 'rounded-m-2xl',
+        rounded === 'full' && 'rounded-m-full',
         className,
       )}
       style={customStyles}
