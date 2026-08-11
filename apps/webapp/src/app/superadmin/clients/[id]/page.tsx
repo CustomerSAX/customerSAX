@@ -291,7 +291,7 @@ function OverviewTab({
   }
 
   return (
-    <div className="flex max-w-2xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <div className={CARD_CLASS}>
         <div className={PANEL_HEADER_CLASS}>
           <div className="text-sm font-bold text-m-text">Client Information</div>
