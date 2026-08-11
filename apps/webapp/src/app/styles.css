@@ -1,4 +1,4 @@
-@import "@csa/ui/styles";
+@import "../ui/styles/tokens.css";
 @import "../features/csa-assistant/components/steppers/stepper.css";
 
 @tailwind base;
