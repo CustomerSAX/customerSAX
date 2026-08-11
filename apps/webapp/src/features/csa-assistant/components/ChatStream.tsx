@@ -179,8 +179,6 @@ function MessageBubble({
     );
   }
 
-  // When there are product cards the bubble must stretch to full width so the
-  // scroll row isn't constrained to the 78% max — cards can't be seen otherwise.
   const hasProductCards = productCards.length > 0;
 
   return (
@@ -198,7 +196,8 @@ function MessageBubble({
         </div>
       )}
 
-      <div className={`flex flex-col gap-1 ${hasProductCards ? "w-full min-w-0" : "max-w-[78%]"} ${isUser ? "items-end" : "items-start"}`}>
+      {/* Always constrain to 78% — the horizontal scroll row scrolls within that width */}
+      <div className={`flex flex-col gap-1 max-w-[78%] ${isUser ? "items-end" : "items-start"}`}>
         {/* Text bubble — in ai@6+, text is in parts, not message.content */}
         {message.parts?.filter(p => p.type === "text").map((p, i) => {
           const textPart = p as { type: "text"; text: string };
