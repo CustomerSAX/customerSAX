@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Card, CardContent, CardFooter, CardHeader, CardTitle, Icon } from "@csa/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Icon } from "@csa/ui";
 import { ProductDetailDrawer } from "./ProductDetailDrawer";
 import type {
   CartSummaryArgs,
@@ -154,16 +154,17 @@ export function CartSummaryCard({ args }: { args: CartSummaryArgs }) {
 }
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
+// Compact fixed-width card designed for horizontal scroll rows.
+// Width is fixed at 176px so all cards in a row are identical in size.
 
 export function ProductCard({
   args,
   onAddToCart,
 }: {
   args: ProductCardArgs;
-  /** Callback fired when the rep clicks Add to Cart. The caller (ChatStream's
-   *  ToolCallCard dispatcher) sends an order.add_item hidden-action to the AI,
-   *  which uses the active customer/cart context to make the real commerce call.
-   *  No direct API call is made here — the AI assistant owns the cart flow. */
+  /** Callback fired when the rep clicks Add to Cart. Handled by ChatStream's
+   *  MessageBubble, which sends an order.add_item hidden-action to the AI so
+   *  the real cart flow (customer resolution → BFF → commercetools) runs. */
   onAddToCart?: (args: ProductCardArgs) => void;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -172,47 +173,48 @@ export function ProductCard({
     : args.stock.toLowerCase().includes("low") ? "warning"
     : "success";
 
+  // Simplify stock label to fit the compact card
+  const stockLabel = args.stock.toLowerCase().includes("out") ? "Out of stock" : "In stock";
+
   return (
     <>
-      <Card variant="default" className="my-2 max-w-sm">
-        {args.image && (
-          <div className="h-32 overflow-hidden rounded-t-m-lg bg-m-surface-2 flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={args.image} alt={args.name} className="max-h-full object-contain" />
-          </div>
-        )}
-        <CardHeader className="px-4 pt-3 pb-1.5">
-          <CardTitle className="text-sm font-semibold leading-snug">{args.name}</CardTitle>
-          <p className="text-xs text-m-text-muted font-mono">{args.sku}</p>
-        </CardHeader>
-        <CardContent className="px-4 pb-2 space-y-1.5">
-          {args.category && (
-            <p className="text-xs text-m-text-muted">{args.category}</p>
+      {/* Fixed width keeps all cards in the horizontal row the same size */}
+      <div className="flex-shrink-0 w-44 rounded-m-xl border border-m-border bg-m-surface overflow-hidden flex flex-col shadow-m-xs hover:shadow-m-sm transition-shadow">
+
+        {/* Image area — always rendered at a fixed height so cards align */}
+        <div className="h-28 bg-m-surface-2 flex items-center justify-center overflow-hidden flex-shrink-0">
+          {args.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={args.image} alt={args.name} className="w-full h-full object-contain p-2" />
+          ) : (
+            <Icon name="package" size="md" className="text-m-border opacity-50" />
           )}
-          <div className="flex items-center justify-between">
-            <span className="text-base font-semibold text-m-text">{args.price}</span>
-            <Badge variant={stockVariant} size="sm">{args.stock}</Badge>
+        </div>
+
+        {/* Body — flex-1 so footer always sits at the bottom */}
+        <div className="px-3 pt-2.5 pb-2 flex flex-col flex-1 gap-1.5">
+          <div className="flex-1">
+            <p className="text-xs font-semibold text-m-text leading-snug line-clamp-2">{args.name}</p>
+            <p className="text-[10px] text-m-text-muted font-mono mt-0.5 truncate">{args.sku}</p>
           </div>
-          {args.description && (
-            <p className="text-xs text-m-text-muted line-clamp-2">{args.description}</p>
-          )}
-        </CardContent>
-        <CardFooter className="px-4 pb-4 pt-0 gap-2 flex">
-          <Button variant="outline" size="sm" className="flex-1" onClick={() => setDrawerOpen(true)}>
-            View Details
+          <div className="flex items-center justify-between gap-1 mt-1">
+            <span className="text-sm font-bold text-m-text">{args.price}</span>
+            <Badge variant={stockVariant} size="sm">{stockLabel}</Badge>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="px-3 pb-3 flex gap-1.5">
+          <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setDrawerOpen(true)}>
+            Details
           </Button>
           {onAddToCart && (
-            <Button
-              variant="primary"
-              size="sm"
-              className="flex-1"
-              onClick={() => onAddToCart(args)}
-            >
-              Add to Cart
+            <Button variant="primary" size="sm" className="flex-1 text-xs" onClick={() => onAddToCart(args)}>
+              Add
             </Button>
           )}
-        </CardFooter>
-      </Card>
+        </div>
+      </div>
 
       <ProductDetailDrawer
         isOpen={drawerOpen}

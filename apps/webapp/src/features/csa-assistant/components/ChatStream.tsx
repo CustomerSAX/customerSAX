@@ -95,26 +95,6 @@ function ToolCallCard({
       return <OrderConfirmationCard args={args as OrderConfirmationArgs} />;
     case "cart_summary":
       return <CartSummaryCard args={args as CartSummaryArgs} />;
-    case "product_card":
-      return (
-        <ProductCard
-          args={args as ProductCardArgs}
-          onAddToCart={(cardArgs) => {
-            // Route through the AI's order.add_item action so the cart flow
-            // (customer resolution, real add_to_cart tool, BFF → commercetools)
-            // is handled by the assistant, not a standalone endpoint. The AI
-            // already knows which customer/cart is active from the conversation.
-            onSuggest(
-              `[hidden-action] ${JSON.stringify({
-                type: "order.add_item",
-                sku: cardArgs.sku,
-                name: cardArgs.name,
-                quantity: 1,
-              })}`
-            );
-          }}
-        />
-      );
     case "case_briefing_card":
       return <CaseBriefingCard args={args as CaseBriefingArgs} />;
     case "draft_email":
@@ -170,6 +150,39 @@ function MessageBubble({
   const isUser = message.role === "user";
   const { user } = useCurrentUser();
 
+  // ── Collect product_card parts upfront for horizontal scroll rendering ──
+  // They're skipped in the main tool-card loop below and rendered together in
+  // a single flex row so all cards appear at the same height, same width.
+  const productCards: { args: ProductCardArgs; key: string }[] = [];
+  message.parts?.forEach((part, partIdx) => {
+    const p = part as { type: string; toolName?: string; state?: string; input?: unknown };
+    const isStaticTool = p.type.startsWith("tool-") && p.type !== "tool-invocation";
+    const isDynamicTool = p.type === "dynamic-tool";
+    if (!isStaticTool && !isDynamicTool) return;
+    const toolName = isDynamicTool ? (p.toolName ?? "") : p.type.slice(5);
+    if (toolName !== "product_card") return;
+    if (p.state !== "output-available" && p.state !== "input-available") return;
+    productCards.push({ args: p.input as ProductCardArgs, key: `${message.id}-part-${partIdx}` });
+  });
+
+  // Route through the AI's order.add_item action so the real cart flow
+  // (customer resolution → add_to_cart tool → BFF → commercetools) runs.
+  // No direct endpoint call from the card; the AI owns the cart.
+  function handleAddToCart(cardArgs: ProductCardArgs) {
+    onSuggest(
+      `[hidden-action] ${JSON.stringify({
+        type: "order.add_item",
+        sku: cardArgs.sku,
+        name: cardArgs.name,
+        quantity: 1,
+      })}`
+    );
+  }
+
+  // When there are product cards the bubble must stretch to full width so the
+  // scroll row isn't constrained to the 78% max — cards can't be seen otherwise.
+  const hasProductCards = productCards.length > 0;
+
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
       {!isUser && (
@@ -185,7 +198,7 @@ function MessageBubble({
         </div>
       )}
 
-      <div className={`flex flex-col gap-1 max-w-[78%] ${isUser ? "items-end" : "items-start"}`}>
+      <div className={`flex flex-col gap-1 ${hasProductCards ? "w-full min-w-0" : "max-w-[78%]"} ${isUser ? "items-end" : "items-start"}`}>
         {/* Text bubble — in ai@6+, text is in parts, not message.content */}
         {message.parts?.filter(p => p.type === "text").map((p, i) => {
           const textPart = p as { type: "text"; text: string };
@@ -204,7 +217,8 @@ function MessageBubble({
           );
         })}
 
-        {/* Tool cards — in ai@6+, ToolUIPart has type `tool-${name}` with invocation fields directly on the part */}
+        {/* Tool cards — product_card parts are skipped here and rendered in the
+            horizontal scroll row below so all cards appear at a consistent size. */}
         {message.parts?.map((part, partIdx) => {
           const p = part as { type: string; toolName?: string; state?: string; input?: unknown };
           // Handle both static tool parts (type: 'tool-${name}') and dynamic tool parts
@@ -217,6 +231,9 @@ function MessageBubble({
           const args = p.input;
 
           if (state !== "output-available" && state !== "input-available") return null;
+
+          // Handled in the horizontal scroll row below
+          if (toolName === "product_card") return null;
 
           return (
             <ToolCallCard
@@ -231,6 +248,21 @@ function MessageBubble({
             />
           );
         })}
+
+        {/* ── Horizontal product card scroll row ── */}
+        {hasProductCards && (
+          <div className="w-full overflow-x-auto">
+            <div className="flex gap-3 pb-2 pt-1">
+              {productCards.map(({ args, key }) => (
+                <ProductCard
+                  key={key}
+                  args={args}
+                  onAddToCart={handleAddToCart}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
