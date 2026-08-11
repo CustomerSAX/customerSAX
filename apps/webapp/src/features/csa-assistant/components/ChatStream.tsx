@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar, Badge, Button, Icon, Input } from "@csa/ui";
 import type { UIMessage } from "ai";
 import { useCurrentUser } from "@/lib/use-current-user";
@@ -248,21 +248,100 @@ function MessageBubble({
           );
         })}
 
-        {/* ── Horizontal product card scroll row ── */}
+        {/* ── Horizontal product card scroll row with ← → arrows ── */}
         {hasProductCards && (
-          <div className="w-full overflow-x-auto">
-            <div className="flex gap-3 pb-2 pt-1">
-              {productCards.map(({ args, key }) => (
-                <ProductCard
-                  key={key}
-                  args={args}
-                  onAddToCart={handleAddToCart}
-                />
-              ))}
-            </div>
-          </div>
+          <ProductCardScrollRow>
+            {productCards.map(({ args, key }) => (
+              <ProductCard
+                key={key}
+                args={args}
+                onAddToCart={handleAddToCart}
+              />
+            ))}
+          </ProductCardScrollRow>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Horizontal scroll row with left/right arrow buttons ─────────────────────
+// The scroll container is position:relative so the absolutely-positioned arrow
+// buttons overlay it without shifting the cards. Arrows appear only when the
+// row is actually wider than its visible area (canScrollLeft/canScrollRight).
+
+function ProductCardScrollRow({ children }: { children: React.ReactNode }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const updateArrows = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 4);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+
+  useEffect(() => {
+    updateArrows();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', updateArrows, { passive: true });
+    const ro = new ResizeObserver(updateArrows);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', updateArrows); ro.disconnect(); };
+  }, []);
+
+  const scroll = (dir: 'left' | 'right') => {
+    scrollRef.current?.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
+  };
+
+  const arrowBase: React.CSSProperties = {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+    zIndex: 10, width: 28, height: 28, borderRadius: '50%',
+    border: '1px solid #dde1ea', backgroundColor: '#fff',
+    boxShadow: '0 1px 6px rgba(0,0,0,0.12)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer', transition: 'opacity 0.15s, transform 0.15s',
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      {canLeft && (
+        <button
+          onClick={() => scroll('left')}
+          aria-label="Scroll left"
+          style={{ ...arrowBase, left: -12 }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1)')}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+      )}
+      <div
+        ref={scrollRef}
+        style={{ overflowX: 'auto', paddingBottom: 8, paddingTop: 4 }}
+        className="scrollbar-hide"
+      >
+        <div className="flex gap-3">
+          {children}
+        </div>
+      </div>
+      {canRight && (
+        <button
+          onClick={() => scroll('right')}
+          aria-label="Scroll right"
+          style={{ ...arrowBase, right: -12 }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1)')}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

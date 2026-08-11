@@ -8,6 +8,9 @@ import { useConversationStore } from "./store/conversation-store";
 import { ConversationList } from "./components/ConversationList";
 import { ChatStream } from "./components/ChatStream";
 import { ContextPanel } from "./components/ContextPanel";
+import { CartProvider } from "./components/CartProvider";
+import { CartDrawer } from "./components/CartDrawer";
+import { CheckoutFlow } from "./components/CheckoutFlow";
 import { useCurrentUser, roleLabel } from "@/lib/use-current-user";
 
 // This deployment is wired to a single commercetools project (see the
@@ -126,39 +129,55 @@ export function CsaAssistant() {
   }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: rightPanelOpen
-          ? "300px minmax(0,1fr) 450px"
-          : "300px minmax(0,1fr)",
-        gap: 0,
-        height: "100%",
-        minHeight: 540,
-        overflow: "hidden",
-        transition: "grid-template-columns 0.2s ease",
-      }}
-    >
-      {/* Left pane — conversation list (self-contained, reads its own data) */}
-      <div style={{ borderRight: "1px solid #e5e7eb", overflow: "hidden" }}>
-        <ConversationList />
-      </div>
+    <>
+      {/* Cart provider — watches conversation customer, resolves cart silently */}
+      <CartProvider />
 
-      {/* Center pane — streaming chat */}
-      <ChatStream
-        chat={chat}
-        sessionCustomerName={sessionCustomerName}
-      />
+      {/* Cart drawer — portal, mounted once, driven by CartStore.isCartOpen */}
+      <CartDrawer />
 
-      {/* Right pane — context + AI analysis (only when a ticket is selected) */}
-      {rightPanelOpen && (
-        <div style={{ borderLeft: "1px solid #e5e7eb", overflow: "hidden" }}>
-          <ContextPanel
-            onSendMessage={handleSendMessage}
-            isLoading={chat.isLoading}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: rightPanelOpen
+            ? "300px minmax(0,1fr) 450px"
+            : "300px minmax(0,1fr)",
+          gap: 0,
+          height: "100%",
+          minHeight: 540,
+          overflow: "hidden",
+          transition: "grid-template-columns 0.2s ease",
+        }}
+      >
+        {/* Left pane — conversation list (self-contained, reads its own data) */}
+        <div style={{ borderRight: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <ConversationList />
+        </div>
+
+        {/* Center pane — streaming chat */}
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <ChatStream
+            chat={chat}
+            sessionCustomerName={sessionCustomerName}
+          />
+          {/* In-chat checkout flow — inline below the chat, shown only while active */}
+          <CheckoutFlow
+            onViewOrder={(orderNumber) => {
+              chat.sendSuggestion(`[hidden-action] ${JSON.stringify({ type: 'order.view', orderNumber })}`);
+            }}
           />
         </div>
-      )}
-    </div>
+
+        {/* Right pane — context + AI analysis (only when a ticket is selected) */}
+        {rightPanelOpen && (
+          <div style={{ borderLeft: "1px solid #e5e7eb", overflow: "hidden" }}>
+            <ContextPanel
+              onSendMessage={handleSendMessage}
+              isLoading={chat.isLoading}
+            />
+          </div>
+        )}
+      </div>
+    </>
   );
 }

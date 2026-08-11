@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Icon } from "@csa/ui";
 import { ProductDetailDrawer } from "./ProductDetailDrawer";
+import { useCartStore } from "../store/cart-store";
+import { useConversationStore } from "../store/conversation-store";
 import type {
   CartSummaryArgs,
   CaseBriefingArgs,
@@ -162,19 +164,43 @@ export function ProductCard({
   onAddToCart,
 }: {
   args: ProductCardArgs;
-  /** Callback fired when the rep clicks Add to Cart. Handled by ChatStream's
-   *  MessageBubble, which sends an order.add_item hidden-action to the AI so
-   *  the real cart flow (customer resolution → BFF → commercetools) runs. */
+  /** Optional AI hidden-action callback — when present, "Add" also sends the
+   *  AI the order.add_item signal so the chat flow stays in sync. The cart
+   *  itself is updated directly via CartStore (no AI round-trip needed). */
   onAddToCart?: (args: ProductCardArgs) => void;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addDone, setAddDone] = useState(false);
 
-  const stockVariant = args.stock.toLowerCase().includes("out") ? "error"
+  // Live cart state so the button reflects what's already in the cart.
+  const cartItems = useCartStore((s) => s.items);
+  const customer = useConversationStore((s) => s.customer);
+  const cartItem = cartItems.find((i) => i.sku === args.sku);
+  const inCart = !!cartItem;
+
+  const stockIsOut = args.stock.toLowerCase().includes("out");
+  const stockVariant = stockIsOut ? "error"
     : args.stock.toLowerCase().includes("low") ? "warning"
     : "success";
+  const stockLabel = stockIsOut ? "Out of stock" : "In stock";
 
-  // Simplify stock label to fit the compact card
-  const stockLabel = args.stock.toLowerCase().includes("out") ? "Out of stock" : "In stock";
+  const handleAdd = async () => {
+    if (addBusy || stockIsOut) return;
+    setAddBusy(true);
+    const result = await useCartStore.getState().addItem({
+      sku: args.sku,
+      name: args.name,
+      customerId: customer?.id ?? null,
+      priceLabel: args.price,
+    });
+    setAddBusy(false);
+    if (result.ok) {
+      setAddDone(true);
+      setTimeout(() => setAddDone(false), 2000);
+      onAddToCart?.(args); // also tell the AI
+    }
+  };
 
   return (
     <>
@@ -208,9 +234,25 @@ export function ProductCard({
           <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setDrawerOpen(true)}>
             Details
           </Button>
-          {onAddToCart && (
-            <Button variant="primary" size="sm" className="flex-1 text-xs" onClick={() => onAddToCart(args)}>
-              Add
+          {inCart ? (
+            /* Already in cart — show View Cart shortcut */
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => useCartStore.getState().openCart()}
+            >
+              In Cart
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1 text-xs"
+              disabled={addBusy || stockIsOut}
+              onClick={() => void handleAdd()}
+            >
+              {addDone ? "✓ Added" : addBusy ? "…" : "Add"}
             </Button>
           )}
         </div>
