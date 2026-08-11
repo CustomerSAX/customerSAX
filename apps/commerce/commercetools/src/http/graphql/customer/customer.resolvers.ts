@@ -45,25 +45,26 @@ export const resolvers = {
     return data.customers.results.map(mapCustomer).filter(Boolean);
   },
   b2bCustomers: async (_parent: unknown, args: CustomerSearchArgs) => searchCustomers(args),
-  customerAddresses: async (_parent: unknown, args: { id: string }) =>
-    commercetoolsGraphql(
+  customerAddresses: async (_parent: unknown, args: { id: string }) => {
+    const isEmail = args.id.includes('@');
+    const where = isEmail ? `email="${escapeWhere(args.id)}"` : `id="${escapeWhere(args.id)}"`;
+    const data = await commercetoolsGraphql<{ customers: { results: Array<{ addresses: unknown[] }> } }>(
       `#graphql
-        query CustomerAddresses($id: String!) {
-          customer(id: $id) {
-            id
-            addresses {
-              id streetName streetNumber city region state country company department
-              building apartment pOBox phone mobile email firstName lastName postalCode
+        query CustomerAddresses($where: String!) {
+          customers(where: $where, limit: 1) {
+            results {
+              addresses {
+                id key streetName streetNumber city region state country company department
+                building apartment pOBox phone mobile email firstName lastName postalCode
+              }
             }
-            shippingAddressIds
-            billingAddressIds
-            defaultShippingAddressId
-            defaultBillingAddressId
           }
         }
       `,
-      { id: args.id }
-    ),
+      { where }
+    );
+    return data.customers?.results?.[0]?.addresses ?? [];
+  },
   customerShoppingLists: (_parent: unknown, args: PagingArgs & { id: string; wishlist?: boolean }) => {
     const { limit, offset } = paging(args);
 

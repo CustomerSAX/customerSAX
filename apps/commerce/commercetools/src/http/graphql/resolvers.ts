@@ -15,6 +15,7 @@ export const resolvers = {
   Mutation: {
     addCartLineItem: cartResolvers.addCartLineItem,
     addCustomerAddress: customerResolvers.addCustomerAddress,
+    changeCartLineItemQuantity: cartResolvers.changeCartLineItemQuantity,
     createB2bCart: cartResolvers.createB2bCart,
     createCustomer: customerResolvers.createCustomer,
     placeOrderFromCart: cartResolvers.placeOrderFromCart,

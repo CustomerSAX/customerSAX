@@ -121,15 +121,14 @@ async function apiPlaceOrder(cartId: string): Promise<{ id: string; orderNumber?
   return { id: data.id, orderNumber: data.orderNumber ?? null, totalLabel: data.totalLabel ?? null };
 }
 
-async function apiSearchCustomer(term: string): Promise<{ id?: string; email?: string; firstName?: string; lastName?: string } | null> {
-  const isEmail = term.includes('@');
+async function apiSearchCustomer(term: string): Promise<{ id?: string; email?: string; name?: string; firstName?: string; lastName?: string } | null> {
   const res = await fetch(
-    `/api/customers/search?${isEmail ? 'email' : 'name'}=${encodeURIComponent(term)}`,
+    `/api/customers/search?query=${encodeURIComponent(term)}`,
     { headers: { Accept: 'application/json' } },
   );
   if (!res.ok) return null;
-  const data = await res.json() as { customers?: Array<{ id?: string; email?: string; firstName?: string; lastName?: string }> };
-  return data.customers?.[0] ?? null;
+  const data = await res.json() as { results?: Array<{ id?: string; email?: string; name?: string; firstName?: string; lastName?: string }> };
+  return data.results?.[0] ?? null;
 }
 
 async function apiCustomerAddresses(customerId: string): Promise<CustomerAddress[]> {

@@ -93,9 +93,17 @@ export interface ProductCardArgs {
   price: string;
   stock: string;
   image?: string;
+  images?: string[];
   slug?: string;
   description?: string;
   category?: string;
+  variants?: Array<{
+    sku: string;
+    attributes?: Record<string, string>;
+    price: string;
+    stock: string;
+    images?: string[];
+  }>;
 }
 
 export interface CaseBriefingArgs {

@@ -54,6 +54,21 @@ export async function POST(
     const body = await request.json().catch(() => ({ actions: [] })) as { actions: CartUpdateAction[] };
     const actions: CartUpdateAction[] = Array.isArray(body.actions) ? body.actions : [];
 
+    // Fetch fresh cart line items for dynamic resolution if needed.
+    const getFreshLineItems = async (): Promise<Array<{ id: string; sku?: string }>> => {
+      try {
+        const fresh = await bff(
+          `query GetCartItems($id: ID!) {
+            cart(id: $id) { lineItems { id sku } }
+          }`,
+          { id }
+        );
+        return (fresh?.cart?.lineItems ?? []) as Array<{ id: string; sku?: string }>;
+      } catch {
+        return [];
+      }
+    };
+
     // Execute each action sequentially (order matters for CT cart versioning).
     for (const action of actions) {
       if ('addLineItem' in action) {
@@ -64,23 +79,33 @@ export async function POST(
           { id, sku: action.addLineItem.sku, quantity: action.addLineItem.quantity },
         );
       } else if ('removeLineItem' in action) {
+        let lineItemId = action.removeLineItem.lineItemId;
+        const live = await getFreshLineItems();
+        const match = live.find((i) => i.id === lineItemId) || live[0];
+        if (match) lineItemId = match.id;
         await bff(
           `mutation RemoveItem($id: ID!, $lineItemId: ID!) {
             removeCartLineItem(id: $id, lineItemId: $lineItemId) { id }
           }`,
-          { id, lineItemId: action.removeLineItem.lineItemId },
+          { id, lineItemId },
         );
       } else if ('changeLineItemQuantity' in action) {
-        const { lineItemId, quantity } = action.changeLineItemQuantity;
+        let lineItemId = action.changeLineItemQuantity.lineItemId;
+        const quantity = action.changeLineItemQuantity.quantity;
+        const live = await getFreshLineItems();
+        const match = live.find((i) => i.id === lineItemId) || live[0];
+        if (match) lineItemId = match.id;
+
         if (quantity <= 0) {
-          await bff(
-            `mutation RemoveItem($id: ID!, $lineItemId: ID!) {
-              removeCartLineItem(id: $id, lineItemId: $lineItemId) { id }
-            }`,
-            { id, lineItemId },
-          );
+          if (match) {
+            await bff(
+              `mutation RemoveItem($id: ID!, $lineItemId: ID!) {
+                removeCartLineItem(id: $id, lineItemId: $lineItemId) { id }
+              }`,
+              { id, lineItemId },
+            );
+          }
         } else {
-          // Try the direct mutation first; the BFF exposes changeCartLineItemQuantity if wired.
           try {
             await bff(
               `mutation ChangeQty($id: ID!, $lineItemId: ID!, $quantity: Int!) {
@@ -88,9 +113,24 @@ export async function POST(
               }`,
               { id, lineItemId, quantity },
             );
-          } catch {
-            // If changeCartLineItemQuantity isn't in the schema, the store's +1/-1 flow
-            // handles it via remove + re-add at the CartStore level.
+          } catch (err) {
+            // Safe fallback if primary mutation fails: remove + re-add via SKU
+            if (match?.sku) {
+              await bff(
+                `mutation RemoveItem($id: ID!, $lineItemId: ID!) {
+                  removeCartLineItem(id: $id, lineItemId: $lineItemId) { id }
+                }`,
+                { id, lineItemId },
+              );
+              await bff(
+                `mutation AddItem($id: ID!, $sku: String!, $quantity: Int!) {
+                  addCartLineItem(id: $id, sku: $sku, quantity: $quantity) { id }
+                }`,
+                { id, sku: match.sku, quantity },
+              );
+            } else {
+              throw err;
+            }
           }
         }
       } else if ('setShippingAddress' in action || 'setBillingAddress' in action) {
@@ -98,7 +138,7 @@ export async function POST(
           ? action.setShippingAddress.address
           : (action as { setBillingAddress: { address: Record<string, unknown> } }).setBillingAddress.address;
         await bff(
-          `mutation SetAddress($id: ID!, $address: AddressInput!) {
+          `mutation SetAddress($id: ID!, $address: Json!) {
             updateCartAddresses(id: $id, shippingAddress: $address, billingAddress: $address) { id }
           }`,
           { id, address: addr },

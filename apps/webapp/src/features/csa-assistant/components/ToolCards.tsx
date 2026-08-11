@@ -252,7 +252,7 @@ export function ProductCard({
               disabled={addBusy || stockIsOut}
               onClick={() => void handleAdd()}
             >
-              {addDone ? "✓ Added" : addBusy ? "…" : "Add"}
+              {addDone ? "✓ Added" : addBusy ? "…" : "Add to Cart"}
             </Button>
           )}
         </div>

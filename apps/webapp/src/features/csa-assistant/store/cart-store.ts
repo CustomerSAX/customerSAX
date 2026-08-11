@@ -363,8 +363,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         ? { addLineItem: { sku, quantity: 1 } }
         : { addLineItem: { productId, variantId: variantId ?? 1, quantity: 1 } };
 
-      await cartUpdate(resolvedCartId, [action]);
-      const fresh = await cartGet(resolvedCartId);
+      const fresh = await cartUpdate(resolvedCartId, [action]);
       set({
         items: parseLineItems(fresh),
         ...parseTotals(fresh),
@@ -383,17 +382,16 @@ export const useCartStore = create<CartState>((set, get) => ({
   changeQuantity: async (lineItemId, delta) => {
     const { cartId, items } = get();
     if (!cartId) return { ok: false, error: 'No active cart.' };
-    const current = items.find((i) => i.lineItemId === lineItemId);
+    const current = items.find((i) => i.lineItemId === lineItemId || (i.sku && i.sku === lineItemId));
     if (!current) return { ok: false, error: 'Item not found in cart.' };
     const nextQty = current.quantity + delta;
-    const key = itemKey(lineItemId);
+    const key = itemKey(current.lineItemId);
     markPending(set, get, key);
     try {
       const action = nextQty <= 0
-        ? { removeLineItem: { lineItemId } }
-        : { changeLineItemQuantity: { lineItemId, quantity: nextQty } };
-      await cartUpdate(cartId, [action]);
-      const fresh = await cartGet(cartId);
+        ? { removeLineItem: { lineItemId: current.lineItemId } }
+        : { changeLineItemQuantity: { lineItemId: current.lineItemId, quantity: nextQty } };
+      const fresh = await cartUpdate(cartId, [action]);
       set({ items: parseLineItems(fresh), ...parseTotals(fresh), mutating: false, pendingKeys: clearPending(get, key) });
       return { ok: true };
     } catch (e) {
@@ -405,13 +403,14 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   removeItem: async (lineItemId) => {
-    const { cartId } = get();
+    const { cartId, items } = get();
     if (!cartId) return { ok: false, error: 'No active cart.' };
-    const key = itemKey(lineItemId);
+    const current = items.find((i) => i.lineItemId === lineItemId || (i.sku && i.sku === lineItemId));
+    const targetId = current?.lineItemId ?? lineItemId;
+    const key = itemKey(targetId);
     markPending(set, get, key);
     try {
-      await cartUpdate(cartId, [{ removeLineItem: { lineItemId } }]);
-      const fresh = await cartGet(cartId);
+      const fresh = await cartUpdate(cartId, [{ removeLineItem: { lineItemId: targetId } }]);
       set({ items: parseLineItems(fresh), ...parseTotals(fresh), mutating: false, pendingKeys: clearPending(get, key) });
       return { ok: true };
     } catch (e) {

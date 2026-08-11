@@ -50,7 +50,6 @@ const richProductListFields = `#graphql
         prices { value { centAmount currencyCode fractionDigits } }
         availability {
           noChannel { isOnStock availableQuantity }
-          channels { results { availability { isOnStock availableQuantity } } }
         }
       }
       allVariants {
@@ -61,7 +60,6 @@ const richProductListFields = `#graphql
         prices { value { centAmount currencyCode fractionDigits } }
         availability {
           noChannel { isOnStock availableQuantity }
-          channels { results { availability { isOnStock availableQuantity } } }
         }
       }
     }
@@ -84,6 +82,16 @@ const richProductDetailFields = `#graphql
         nameAllLocales { locale value }
         ancestors { id nameAllLocales { locale value } }
       }
+      masterVariant {
+        id
+        sku
+        key
+        images { url }
+        prices { value { centAmount currencyCode fractionDigits } }
+        availability {
+          noChannel { isOnStock availableQuantity }
+        }
+      }
       allVariants {
         id
         sku
@@ -92,7 +100,6 @@ const richProductDetailFields = `#graphql
         prices { value { centAmount currencyCode fractionDigits } }
         availability {
           noChannel { isOnStock availableQuantity }
-          channels { results { availability { isOnStock availableQuantity } } }
         }
       }
     }
@@ -299,7 +306,7 @@ async function productRichTextScan(text: string, locale: string, limit: number, 
         }
       }
     `,
-    { limit: 500 }
+    { limit: 50 }
   );
 
   const matched = data.products.results.filter((p) => richProductMatchesText(p, locale, needle));

@@ -10,7 +10,6 @@ import { ChatStream } from "./components/ChatStream";
 import { ContextPanel } from "./components/ContextPanel";
 import { CartProvider } from "./components/CartProvider";
 import { CartDrawer } from "./components/CartDrawer";
-import { CheckoutFlow } from "./components/CheckoutFlow";
 import { useCurrentUser, roleLabel } from "@/lib/use-current-user";
 
 // This deployment is wired to a single commercetools project (see the
@@ -154,17 +153,12 @@ export function CsaAssistant() {
           <ConversationList />
         </div>
 
-        {/* Center pane — streaming chat */}
+        {/* Center pane — streaming chat (CheckoutFlow is rendered inside ChatStream,
+            between the messages area and the input bar, so it sits in-chat) */}
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <ChatStream
             chat={chat}
             sessionCustomerName={sessionCustomerName}
-          />
-          {/* In-chat checkout flow — inline below the chat, shown only while active */}
-          <CheckoutFlow
-            onViewOrder={(orderNumber) => {
-              chat.sendSuggestion(`[hidden-action] ${JSON.stringify({ type: 'order.view', orderNumber })}`);
-            }}
           />
         </div>
 

@@ -29,15 +29,13 @@ export async function POST(
   try {
     const data = await bff(
       `mutation PlaceOrder($id: ID!) {
-        placeOrderFromCart(id: $id) {
-          id orderNumber
-          totalPrice { centAmount currencyCode fractionDigits }
-        }
+        placeOrderFromCart(id: $id)
       }`,
       { id },
     );
 
-    const order = data?.placeOrderFromCart;
+    const rawOrder = data?.placeOrderFromCart;
+    const order = (rawOrder?.createOrderFromCart ?? rawOrder) as { id?: string; orderNumber?: string; totalPrice?: { centAmount?: number; currencyCode?: string; fractionDigits?: number } } | undefined;
     if (!order?.id) {
       return NextResponse.json(
         { error: 'Commerce backend returned no order after placing.' },

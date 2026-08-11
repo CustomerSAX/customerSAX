@@ -29,10 +29,7 @@ export async function GET(
   try {
     const data = await bff(
       `query CustomerAddresses($id: ID!) {
-        customerAddresses(id: $id) {
-          id key firstName lastName streetName streetNumber
-          additionalStreetInfo city region state postalCode country
-        }
+        customerAddresses(id: $id)
       }`,
       { id },
     );

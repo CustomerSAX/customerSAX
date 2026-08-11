@@ -28,6 +28,8 @@ import {
 import { ActionApproval } from "./ActionApproval";
 import { SuggestedActions } from "./SuggestedActions";
 import { Markdown } from "./Markdown";
+import { CheckoutFlow } from "./CheckoutFlow";
+import { useCartStore } from "../store/cart-store";
 import type { CsaChat } from "../hooks/use-csa-chat";
 
 // ─── Internal/technical message filtering ──────────────────────────────────
@@ -409,6 +411,11 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   const acCustomer = customer?.name || customer?.email || sessionCustomerName;
   const acOrderRef = contextOrders?.[0]?.orderNumber;
 
+  const cartItems = useCartStore((s) => s.items);
+  const cartTotalLabel = useCartStore((s) => s.totalLabel);
+  const cartItemCount = cartItems.reduce((n, i) => n + (i.quantity || 0), 0);
+  const openCart = useCartStore((s) => s.openCart);
+
   // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -712,8 +719,32 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           )}
         </div>
 
-        {/* Right: History icon & Toggle Right Panel icon */}
+        {/* Right: Cart pill + History icon & Toggle Right Panel icon */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {cartItemCount > 0 && (
+            <button
+              type="button"
+              title="View the order you're building"
+              onClick={openCart}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                padding: '5px 12px 5px 10px', borderRadius: '9999px',
+                border: '1px solid #c7d2fe', background: '#eef2ff', color: '#3730a3',
+                fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                transition: 'background 0.14s ease, border-color 0.14s ease',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#e0e7ff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#eef2ff'; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+              </svg>
+              <span>{cartItemCount} {cartItemCount === 1 ? 'item' : 'items'}</span>
+              {cartTotalLabel && <span style={{ opacity: 0.7 }}>·</span>}
+              {cartTotalLabel && <span>{cartTotalLabel}</span>}
+            </button>
+          )}
           <button
             type="button"
             title="Past conversations"
@@ -787,6 +818,13 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             <span>Connection error — please try again.</span>
           </div>
         )}
+
+        {/* Checkout flow — rendered inline inside the chat scroll list */}
+        <CheckoutFlow
+          onViewOrder={(orderNumber) => {
+            sendSuggestion(`[hidden-action] ${JSON.stringify({ type: 'order.view', orderNumber })}`);
+          }}
+        />
 
         <div ref={bottomRef} />
       </div>
