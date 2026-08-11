@@ -643,28 +643,12 @@ function ProjectsTab({
   projects: ProjectRow[];
   onChanged: () => void;
 }) {
-  const [testConnection] = useMutation(ADMIN_TEST_PROJECT_CONNECTION);
   const [deleteProject] = useMutation(ADMIN_DELETE_PROJECT);
   const [updateProject] = useMutation(ADMIN_UPDATE_PROJECT);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectRow | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string } | undefined>>({});
-  const [testingId, setTestingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
-
-  async function handleTest(project: ProjectRow) {
-    setTestingId(project.id);
-    try {
-      const { data } = await testConnection({ variables: { id: project.id } });
-      const result = data?.adminTestProjectConnection;
-      setTestResults((prev) => ({ ...prev, [project.id]: result ? { ok: result.ok, message: result.message } : undefined }));
-    } catch (e) {
-      setTestResults((prev) => ({ ...prev, [project.id]: { ok: false, message: e instanceof Error ? e.message : "Connection test failed" } }));
-    } finally {
-      setTestingId(null);
-    }
-  }
 
   async function handleDelete(project: ProjectRow) {
     setRemovingId(project.id);
@@ -742,33 +726,11 @@ function ProjectsTab({
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-m-text-muted">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}</td>
                       <td className="whitespace-nowrap px-4 py-3">
-                        <div className="flex flex-col items-start gap-1.5">
-                          <div className="flex gap-1.5">
-                            <Button variant="outline" size="sm" onClick={() => setEditing(p)}>
-                              Edit
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => void handleTest(p)} disabled={testingId === p.id}>
-                              {testingId === p.id ? "Testing…" : "Test"}
-                            </Button>
-                            <Button variant="danger" size="sm" onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
-                              Remove
-                            </Button>
-                          </div>
-                          {testResults[p.id] && (
-                            <span className={testResults[p.id]?.ok ? "text-[11px] text-m-success" : "text-[11px] text-m-error"}>
-                              {testResults[p.id]?.ok ? "✓ OK" : "✗ Failed"}
-                            </span>
-                          )}
-                        </div>
+                        <Button variant="danger" size="sm" onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
+                          Remove
+                        </Button>
                       </td>
                     </tr>
-                    {testResults[p.id] && !testResults[p.id]?.ok && (
-                      <tr>
-                        <td colSpan={8} className="bg-m-error-light px-4 py-2 text-[11px] text-m-error">
-                          {testResults[p.id]?.message}
-                        </td>
-                      </tr>
-                    )}
                   </Fragment>
                 ))}
               </tbody>
