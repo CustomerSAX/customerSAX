@@ -44,6 +44,8 @@ type ClientDetail = {
   slug: string;
   contactEmail: string;
   status: "active" | "blocked";
+  createdAt?: string | null;
+  createdBy?: string | null;
   ssoConfig: SsoConfig;
 };
 
@@ -191,7 +193,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       </div>
 
       <div className="pt-5">
-        {tab === "overview" && <OverviewTab client={client} onUpdated={refetch} />}
+        {tab === "overview" && (
+          <OverviewTab client={client} projectCount={projects.length} userCount={users.length} onUpdated={refetch} />
+        )}
         {tab === "projects" && (
           <ProjectsTab clientId={id} clientBlocked={client.status === "blocked"} projects={projects} onChanged={refetch} />
         )}
@@ -232,7 +236,17 @@ const INPUT_CLASS =
 
 // ─── Overview (client info + SSO/Federation) ───────────────────────────────
 
-function OverviewTab({ client, onUpdated }: { client: ClientDetail; onUpdated: () => void }) {
+function OverviewTab({
+  client,
+  projectCount,
+  userCount,
+  onUpdated
+}: {
+  client: ClientDetail;
+  projectCount: number;
+  userCount: number;
+  onUpdated: () => void;
+}) {
   const [updateClient] = useMutation(ADMIN_UPDATE_CLIENT);
   const [setStatus] = useMutation(ADMIN_SET_CLIENT_STATUS);
 
@@ -308,15 +322,7 @@ function OverviewTab({ client, onUpdated }: { client: ClientDetail; onUpdated: (
 
           {error && <p className="text-xs text-m-error">{error}</p>}
 
-          <div className="mt-1 flex items-center justify-between border-t border-m-border pt-4">
-            <Button
-              variant={client.status === "active" ? "danger" : "primary"}
-              size="sm"
-              onClick={handleToggleStatus}
-              disabled={isTogglingStatus}
-            >
-              {isTogglingStatus ? "Updating…" : client.status === "active" ? "Block Client" : "Unblock Client"}
-            </Button>
+          <div className="mt-1 flex justify-end border-t border-m-border pt-4">
             <Button variant="primary" size="sm" onClick={handleSave} disabled={!isDirty || isSaving}>
               {isSaving ? "Saving…" : "Save Changes"}
             </Button>
@@ -325,6 +331,53 @@ function OverviewTab({ client, onUpdated }: { client: ClientDetail; onUpdated: (
       </div>
 
       <SsoFederationCard client={client} onUpdated={onUpdated} />
+
+      {/* Access Control — matches ct-csa-standalone's separate "Block / unblock card". */}
+      <div className={CARD_CLASS}>
+        <div className={PANEL_HEADER_CLASS}>
+          <div className="text-sm font-bold text-m-text">Access Control</div>
+        </div>
+        <div className="flex items-center justify-between p-5">
+          <div>
+            <div className="mb-0.5 text-xs font-medium text-m-text">
+              Client Status: <ClientStatusBadge status={client.status} />
+            </div>
+            <p className="mt-1.5 text-xs text-m-text-muted">
+              {client.status === "active"
+                ? "Blocking prevents new projects and users from being added."
+                : "Client is currently blocked. Unblock to allow normal operations."}
+            </p>
+          </div>
+          <Button
+            variant={client.status === "active" ? "danger" : "outline"}
+            size="sm"
+            onClick={handleToggleStatus}
+            disabled={isTogglingStatus}
+          >
+            {isTogglingStatus ? "…" : client.status === "active" ? "Block Client" : "Unblock Client"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Details — matches ct-csa-standalone's "Metadata card". */}
+      <div className={CARD_CLASS}>
+        <div className={PANEL_HEADER_CLASS}>
+          <div className="text-sm font-bold text-m-text">Details</div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 p-5">
+          {[
+            ["Created by", client.createdBy || "—"],
+            ["Created at", client.createdAt ? new Date(client.createdAt).toLocaleDateString() : "—"],
+            ["Projects", String(projectCount)],
+            ["Users", String(userCount)]
+          ].map(([label, value]) => (
+            <div key={label}>
+              <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-subtle">{label}</div>
+              <div className="text-xs text-m-text">{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -339,6 +392,7 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
   const [oidcClientSecret, setOidcClientSecret] = useState("");
   const [providerDisplayName, setProviderDisplayName] = useState(stored.providerDisplayName ?? "");
   const [extraScopes, setExtraScopes] = useState(stored.extraScopes ?? "");
+  const [authorizeConnection, setAuthorizeConnection] = useState(stored.authorizeConnection ?? "");
   const [entryPointUrl, setEntryPointUrl] = useState(stored.entryPointUrl ?? "");
   const [samlIssuer, setSamlIssuer] = useState(stored.provider === "saml" ? (stored.issuer ?? "") : "");
   const [idpCertPem, setIdpCertPem] = useState("");
@@ -346,6 +400,8 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
   const [error, setError] = useState<string | null>(null);
 
   const redirectUri = typeof window !== "undefined" ? `${window.location.origin}/api/sso/oidc/callback` : "/api/sso/oidc/callback";
+  const oidcSecretSet = stored.oidcClientSecretSet ?? false;
+  const idpCertSet = stored.idpCertSet ?? false;
 
   async function handleSave() {
     setIsSaving(true);
@@ -361,7 +417,8 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
           clientId: oidcClientId.trim(),
           oidcClientSecret: oidcClientSecret.trim() || undefined,
           providerDisplayName: providerDisplayName.trim() || undefined,
-          extraScopes: extraScopes.trim() || undefined
+          extraScopes: extraScopes.trim() || undefined,
+          authorizeConnection: authorizeConnection.trim() || undefined
         };
       } else {
         ssoConfig = {
@@ -402,68 +459,125 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
             value={provider}
             onChange={(e) => setProvider(e.target.value as SsoConfig["provider"])}
           >
-            <option value="none">None</option>
-            <option value="oidc">OpenID Connect (OIDC)</option>
-            <option value="saml">SAML 2.0 (config only)</option>
+            <option value="none">None — password only</option>
+            <option value="oidc">OpenID Connect (OAuth 2.0)</option>
+            <option value="saml">SAML 2.0 (store metadata; runtime sign-in not wired yet)</option>
           </select>
         </div>
 
         {provider === "oidc" && (
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className={LABEL_CLASS}>Issuer URL</label>
-              <input className={INPUT_CLASS} placeholder="https://login.microsoftonline.com/{tenantId}/v2.0" value={issuer} onChange={(e) => setIssuer(e.target.value)} />
-            </div>
+          <>
             <div>
-              <label className={LABEL_CLASS}>Client ID</label>
-              <input className={INPUT_CLASS} value={oidcClientId} onChange={(e) => setOidcClientId(e.target.value)} />
+              <label className={LABEL_CLASS}>
+                Issuer URL {!issuer && <span className="text-m-error">*</span>}
+              </label>
+              <input className={`${INPUT_CLASS} font-mono`} placeholder="https://login.microsoftonline.com/{tenant}/v2.0" value={issuer} onChange={(e) => setIssuer(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3.5">
+              <div>
+                <label className={LABEL_CLASS}>
+                  Client ID {!oidcClientId && <span className="text-m-error">*</span>}
+                </label>
+                <input className={`${INPUT_CLASS} font-mono`} value={oidcClientId} onChange={(e) => setOidcClientId(e.target.value)} />
+              </div>
+              <div>
+                <label className={LABEL_CLASS}>
+                  Client secret{" "}
+                  {oidcSecretSet ? (
+                    <span className="font-normal text-m-text-muted">— leave blank to keep</span>
+                  ) : (
+                    <span className="text-m-error">*</span>
+                  )}
+                </label>
+                <input
+                  type="password"
+                  className={`${INPUT_CLASS} font-mono`}
+                  value={oidcClientSecret}
+                  onChange={(e) => setOidcClientSecret(e.target.value)}
+                  autoComplete="new-password"
+                  placeholder={oidcSecretSet ? "••••••••" : ""}
+                />
+              </div>
             </div>
             <div>
               <label className={LABEL_CLASS}>
-                Client secret {stored.oidcClientSecretSet && <span className="font-normal text-m-text-muted">(set — leave blank to keep)</span>}
+                Button label <span className="font-normal text-m-text-subtle">— optional</span>
               </label>
-              <input type="password" className={INPUT_CLASS} value={oidcClientSecret} onChange={(e) => setOidcClientSecret(e.target.value)} />
+              <input className={INPUT_CLASS} placeholder="e.g. Sign in with Azure AD" value={providerDisplayName} onChange={(e) => setProviderDisplayName(e.target.value)} />
             </div>
             <div>
-              <label className={LABEL_CLASS}>Provider display name</label>
-              <input className={INPUT_CLASS} placeholder="Contoso Azure AD" value={providerDisplayName} onChange={(e) => setProviderDisplayName(e.target.value)} />
+              <label className={LABEL_CLASS}>
+                Extra scopes <span className="font-normal text-m-text-subtle">— optional, space-separated</span>
+              </label>
+              <input className={INPUT_CLASS} placeholder="e.g. Groups.Claim" value={extraScopes} onChange={(e) => setExtraScopes(e.target.value)} />
             </div>
             <div>
-              <label className={LABEL_CLASS}>Extra scopes</label>
-              <input className={INPUT_CLASS} placeholder="offline_access" value={extraScopes} onChange={(e) => setExtraScopes(e.target.value)} />
+              <label className={LABEL_CLASS}>
+                OAuth connection <span className="font-normal text-m-text-subtle">— optional</span>
+              </label>
+              <input
+                className={`${INPUT_CLASS} font-mono`}
+                placeholder="e.g. Username-Password-Authentication"
+                value={authorizeConnection}
+                onChange={(e) => setAuthorizeConnection(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="mt-1.5 text-[11px] leading-relaxed text-m-text-muted">
+                Sends the standard <code className="text-[10px]">connection</code> authorize parameter. For{" "}
+                <strong className="font-semibold">Auth0</strong>, enter your <em>Connections → Database → connection name</em>{" "}
+                (often <code className="text-[10px]">Username-Password-Authentication</code>). Enable this connection for your
+                SPA application. Combined with Organisation sign-in, this improves the hand-off together with{" "}
+                <code className="text-[10px]">login_hint</code>. Whether the email field is editable and which input is
+                focused are controlled entirely by your IdP&apos;s Universal Login branding — not by this application.
+              </p>
             </div>
-          </div>
+          </>
         )}
 
         {provider === "saml" && (
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className={LABEL_CLASS}>Entry point URL</label>
-              <input className={INPUT_CLASS} value={entryPointUrl} onChange={(e) => setEntryPointUrl(e.target.value)} />
+          <>
+            <p className="rounded-m-md border border-m-warning-border bg-m-warning-light px-3 py-2.5 text-xs text-m-warning-dark">
+              SAML metadata is saved for your records. Interactive SAML login from /sign-in is not implemented in this
+              build — use OIDC where possible.
+            </p>
+            <div>
+              <label className={LABEL_CLASS}>
+                IdP SSO URL {!entryPointUrl && <span className="text-m-error">*</span>}
+              </label>
+              <input className={INPUT_CLASS} placeholder="https://idp.example.com/app/xxx/sso/saml" value={entryPointUrl} onChange={(e) => setEntryPointUrl(e.target.value)} />
             </div>
             <div>
-              <label className={LABEL_CLASS}>Issuer / Entity ID</label>
+              <label className={LABEL_CLASS}>
+                IdP issuer / entity ID {!samlIssuer && <span className="text-m-error">*</span>}
+              </label>
               <input className={INPUT_CLASS} value={samlIssuer} onChange={(e) => setSamlIssuer(e.target.value)} />
             </div>
-            <div className="sm:col-span-2">
+            <div>
               <label className={LABEL_CLASS}>
-                IdP x509 certificate (PEM) {stored.idpCertSet && <span className="font-normal text-m-text-muted">(set — leave blank to keep)</span>}
+                X.509 certificate (PEM){" "}
+                {idpCertSet ? (
+                  <span className="font-normal text-m-text-muted">— leave blank to keep</span>
+                ) : (
+                  <span className="text-m-error">*</span>
+                )}
               </label>
               <textarea
-                className="w-full rounded-m-md border border-m-border bg-m-surface px-3 py-2 font-mono text-xs"
-                rows={4}
+                className="w-full resize-y rounded-m-md border border-m-border bg-m-surface px-3 py-2 font-mono text-[11px]"
+                rows={5}
+                placeholder="-----BEGIN CERTIFICATE-----"
                 value={idpCertPem}
                 onChange={(e) => setIdpCertPem(e.target.value)}
               />
             </div>
-          </div>
+          </>
         )}
 
         {error && <p className="text-xs text-m-error">{error}</p>}
 
-        <div className="flex justify-end border-t border-m-border/60 pt-4">
+        <div className="flex justify-end">
           <Button variant="primary" size="sm" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving…" : "Save SSO Configuration"}
+            {isSaving ? "Saving…" : "Save SSO settings"}
           </Button>
         </div>
       </div>

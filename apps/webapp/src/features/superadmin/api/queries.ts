@@ -28,6 +28,7 @@ export const ADMIN_CLIENT_QUERY = gql`
       contactEmail
       status
       createdAt
+      createdBy
       ssoConfig {
         provider
         issuer
