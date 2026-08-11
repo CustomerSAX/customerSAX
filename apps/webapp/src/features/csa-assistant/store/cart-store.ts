@@ -13,7 +13,7 @@ function formatMoney(value?: MoneyValue): string | undefined {
   return (symbols[value.currencyCode] ?? value.currencyCode + ' ') + amount;
 }
 
-/** Parse a currency symbol/code from an already-formatted price label like "$12.00" or "GBP 10.00" */
+/** Parse a currency code from an already-formatted price label like "$12.00" or "GBP 10.00" */
 function parseCurrencyFromLabel(label?: string): string | undefined {
   if (!label) return undefined;
   const symbolToCode: Record<string, string> = { '$': 'USD', '£': 'GBP', '€': 'EUR' };
@@ -30,73 +30,8 @@ export interface CartLineItem {
   sku?: string;
   name?: string;
   quantity: number;
+  /** Per-unit price label, derived from li.totalPrice / li.quantity */
   unitPriceLabel?: string;
-}
-
-// ─── Totals shape ─────────────────────────────────────────────────────────────
-
-export interface CartTotals {
-  subtotalLabel: string | null;
-  discountLabel: string | null;
-  totalLabel: string | null;
-  hasDiscount: boolean;
-}
-
-// ─── BFF response parsers ─────────────────────────────────────────────────────
-
-interface RawLineItem {
-  id?: string;
-  productId?: string;
-  name?: string;
-  quantity?: number;
-  sku?: string;
-  variant?: { sku?: string };
-  price?: { value?: MoneyValue };
-}
-
-interface RawCart {
-  id?: string;
-  cartState?: string;
-  currency?: string;
-  country?: string;
-  totalPrice?: MoneyValue;
-  lineItems?: RawLineItem[];
-}
-
-function parseLineItems(cart: RawCart | null): CartLineItem[] {
-  const items = cart?.lineItems ?? [];
-  return items
-    .filter((li) => li.id)
-    .map((li) => ({
-      lineItemId: li.id as string,
-      productId: li.productId,
-      sku: li.sku ?? li.variant?.sku,
-      name: li.name,
-      quantity: li.quantity ?? 0,
-      unitPriceLabel: formatMoney(li.price?.value),
-    }));
-}
-
-function parseTotals(cart: RawCart | null): CartTotals {
-  const money = cart?.totalPrice;
-  const totalLabel = formatMoney(money) ?? null;
-  if (!cart || money?.centAmount == null) {
-    return { subtotalLabel: null, discountLabel: null, totalLabel, hasDiscount: false };
-  }
-  const fractionDigits = money.fractionDigits ?? 2;
-  const currencyCode = money.currencyCode ?? 'USD';
-  let subtotalCents = 0;
-  for (const li of cart.lineItems ?? []) {
-    const unit = li.price?.value?.centAmount ?? 0;
-    subtotalCents += unit * (li.quantity ?? 0);
-  }
-  const discountCents = Math.max(0, subtotalCents - (money.centAmount ?? 0));
-  return {
-    subtotalLabel: formatMoney({ centAmount: subtotalCents, currencyCode, fractionDigits }) ?? null,
-    discountLabel: discountCents > 0 ? (formatMoney({ centAmount: discountCents, currencyCode, fractionDigits }) ?? null) : null,
-    totalLabel,
-    hasDiscount: discountCents > 0,
-  };
 }
 
 // ─── Cart action result ───────────────────────────────────────────────────────
@@ -104,6 +39,68 @@ function parseTotals(cart: RawCart | null): CartTotals {
 export interface CartActionResult {
   ok: boolean;
   error?: string;
+}
+
+// ─── BFF response parsers ─────────────────────────────────────────────────────
+//
+// These only reference fields that actually exist in the BFF's Cart / CartLineItem schema:
+//
+//   Cart:         id, version, key, customerId, currencyCode, totalPrice, lineItems
+//   CartLineItem: id, productId, sku, name, quantity, totalPrice
+//
+// Fields that do NOT exist and must never be referenced:
+//   cartState, country, currency (it's currencyCode), customerEmail,
+//   shippingAddress, lineItems.variant, lineItems.price
+
+interface RawLineItem {
+  id?: string;
+  productId?: string;
+  name?: string;
+  sku?: string;
+  quantity?: number;
+  totalPrice?: MoneyValue;   // line total = unitPrice × quantity (already applied discounts)
+}
+
+interface RawCart {
+  id?: string;
+  customerId?: string;
+  currencyCode?: string;     // NOT "currency" — the schema field is "currencyCode"
+  totalPrice?: MoneyValue;
+  lineItems?: RawLineItem[];
+}
+
+function parseLineItems(cart: RawCart | null): CartLineItem[] {
+  return (cart?.lineItems ?? [])
+    .filter((li) => li.id)
+    .map((li) => ({
+      lineItemId: li.id as string,
+      productId: li.productId,
+      sku: li.sku,
+      name: li.name,
+      quantity: li.quantity ?? 0,
+      // Derive per-unit price from line total ÷ quantity
+      unitPriceLabel:
+        li.quantity && li.quantity > 0 && li.totalPrice?.centAmount != null
+          ? formatMoney({
+              centAmount: Math.round(li.totalPrice.centAmount / li.quantity),
+              currencyCode: li.totalPrice.currencyCode,
+              fractionDigits: li.totalPrice.fractionDigits,
+            })
+          : undefined,
+    }));
+}
+
+function parseTotals(cart: RawCart | null): {
+  subtotalLabel: string | null;
+  discountLabel: string | null;
+  totalLabel: string | null;
+  hasDiscount: boolean;
+} {
+  // The BFF schema only exposes cart.totalPrice (the final CT total, post-discount).
+  // We have no separate "gross price before discount" field, so we can't derive a
+  // meaningful subtotal/discount split. Display total only.
+  const totalLabel = formatMoney(cart?.totalPrice) ?? null;
+  return { subtotalLabel: null, discountLabel: null, totalLabel, hasDiscount: false };
 }
 
 // ─── Pending-key helpers ──────────────────────────────────────────────────────
@@ -121,8 +118,8 @@ interface CartState {
   customerId: string | null;
   customerEmail: string | null;
   cartId: string | null;
+  /** Cart currency code (e.g. "USD"), used when creating a new cart */
   currency: string | null;
-  country: string | null;
   items: CartLineItem[];
   subtotalLabel: string | null;
   discountLabel: string | null;
@@ -133,10 +130,6 @@ interface CartState {
   pendingKeys: Record<string, boolean>;
   error: string | null;
   isCartOpen: boolean;
-
-  // ── Computed ──────────────────────────────────────────────────────────────
-  /** Total number of individual units across all line items */
-  get itemCount(): number;
 
   // ── Actions ───────────────────────────────────────────────────────────────
   openCart: () => void;
@@ -158,13 +151,23 @@ interface CartState {
 
 // ─── BFF call helpers (calls webapp's own API routes, never BFF directly) ────
 
-const API_BASE = '';  // relative URLs; they resolve to /api/…
+/** Read the error message from a non-2xx response body, or fall back to a generic message. */
+async function readErrorBody(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json() as { error?: string };
+    if (body.error) return body.error;
+  } catch { /* ignore parse failures */ }
+  return fallback;
+}
 
 async function cartGet(id: string): Promise<RawCart> {
-  const res = await fetch(`${API_BASE}/api/carts/${encodeURIComponent(id)}`, {
+  const res = await fetch(`/api/carts/${encodeURIComponent(id)}`, {
     headers: { Accept: 'application/json' },
   });
-  if (!res.ok) throw new Error(`GET /api/carts/${id}: HTTP ${res.status}`);
+  if (!res.ok) {
+    const msg = await readErrorBody(res, `Cart fetch failed (HTTP ${res.status})`);
+    throw new Error(msg);
+  }
   return res.json() as Promise<RawCart>;
 }
 
@@ -173,24 +176,30 @@ async function cartCreate(body: {
   customerId?: string | null;
   customerEmail?: string | null;
 }): Promise<RawCart> {
-  const res = await fetch(`${API_BASE}/api/carts`, {
+  const res = await fetch('/api/carts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`POST /api/carts: HTTP ${res.status}`);
+  if (!res.ok) {
+    const msg = await readErrorBody(res, `Cart creation failed (HTTP ${res.status})`);
+    throw new Error(msg);
+  }
   const data = await res.json() as RawCart & { error?: string };
   if (data.error) throw new Error(data.error);
   return data;
 }
 
 async function cartUpdate(id: string, actions: Record<string, unknown>[]): Promise<RawCart> {
-  const res = await fetch(`${API_BASE}/api/carts/${encodeURIComponent(id)}/update`, {
+  const res = await fetch(`/api/carts/${encodeURIComponent(id)}/update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ actions }),
   });
-  if (!res.ok) throw new Error(`POST /api/carts/${id}/update: HTTP ${res.status}`);
+  if (!res.ok) {
+    const msg = await readErrorBody(res, `Cart update failed (HTTP ${res.status})`);
+    throw new Error(msg);
+  }
   const data = await res.json() as RawCart & { error?: string };
   if (data.error) throw new Error(data.error);
   return data;
@@ -198,7 +207,7 @@ async function cartUpdate(id: string, actions: Record<string, unknown>[]): Promi
 
 async function cartSearch(customerEmail: string): Promise<RawCart[]> {
   const res = await fetch(
-    `${API_BASE}/api/carts?customerEmail=${encodeURIComponent(customerEmail)}`,
+    `/api/carts?customerEmail=${encodeURIComponent(customerEmail)}`,
     { headers: { Accept: 'application/json' } },
   );
   if (!res.ok) return [];
@@ -208,7 +217,7 @@ async function cartSearch(customerEmail: string): Promise<RawCart[]> {
 
 function humanizeError(raw: string): string {
   if (raw.includes('price') && raw.includes('currency')) {
-    return 'This product is not available in the cart\'s currency. Try a different product.';
+    return "This product is not available in the cart's currency. Try a different product.";
   }
   if (raw.includes('version')) {
     return 'The cart was updated elsewhere — please refresh and try again.';
@@ -230,26 +239,25 @@ function clearPending(get: () => CartState, key: string): Record<string, boolean
   return next;
 }
 
+const EMPTY_TOTALS = {
+  subtotalLabel: null as string | null,
+  discountLabel: null as string | null,
+  totalLabel: null as string | null,
+  hasDiscount: false,
+};
+
 export const useCartStore = create<CartState>((set, get) => ({
   customerId: null,
   customerEmail: null,
   cartId: null,
   currency: null,
-  country: null,
   items: [],
-  subtotalLabel: null,
-  discountLabel: null,
-  totalLabel: null,
-  hasDiscount: false,
+  ...EMPTY_TOTALS,
   resolving: false,
   mutating: false,
   pendingKeys: {},
   error: null,
   isCartOpen: false,
-
-  get itemCount() {
-    return get().items.reduce((n, i) => n + (i.quantity || 0), 0);
-  },
 
   openCart: () => set({ isCartOpen: true }),
   closeCart: () => set({ isCartOpen: false }),
@@ -258,33 +266,44 @@ export const useCartStore = create<CartState>((set, get) => ({
     const state = get();
     if (!customerId) {
       if (state.customerId !== null) {
-        set({ customerId: null, customerEmail: null, cartId: null, items: [], currency: null, country: null, subtotalLabel: null, discountLabel: null, totalLabel: null, hasDiscount: false });
+        set({
+          customerId: null, customerEmail: null, cartId: null,
+          items: [], currency: null, ...EMPTY_TOTALS,
+        });
       }
       return;
     }
     if (state.customerId === customerId) return;
 
-    set({ resolving: true, error: null, customerId, customerEmail: customerEmail ?? null, cartId: null, items: [], currency: null, country: null, subtotalLabel: null, discountLabel: null, totalLabel: null, hasDiscount: false });
+    set({
+      resolving: true, error: null,
+      customerId, customerEmail: customerEmail ?? null,
+      cartId: null, items: [], currency: null, ...EMPTY_TOTALS,
+    });
+
     try {
       let activeCartId: string | null = null;
       if (customerEmail) {
         const carts = await cartSearch(customerEmail);
-        const active = carts.find((c) => c.cartState === 'Active');
-        activeCartId = active?.id ?? null;
+        // cartState is not exposed in the BFF schema; take the most recent result
+        // (searchCarts typically returns active carts first from CT).
+        activeCartId = carts[0]?.id ?? null;
       }
+
+      if (get().customerId !== customerId) return; // stale
+
       if (activeCartId) {
         const cart = await cartGet(activeCartId);
-        if (get().customerId !== customerId) return;
+        if (get().customerId !== customerId) return; // stale
         set({
           cartId: activeCartId,
           items: parseLineItems(cart),
           ...parseTotals(cart),
-          currency: cart.currency ?? null,
-          country: cart.country ?? null,
+          // cart.currencyCode is the correct field name; store it as "currency" internally
+          currency: cart.currencyCode ?? null,
           resolving: false,
         });
       } else {
-        if (get().customerId !== customerId) return;
         set({ resolving: false });
       }
     } catch (e) {
@@ -301,8 +320,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       let activeCartId = cartId;
       if (customerEmail) {
         const carts = await cartSearch(customerEmail);
-        const active = carts.find((c) => c.cartState === 'Active');
-        activeCartId = active?.id ?? activeCartId;
+        activeCartId = carts[0]?.id ?? activeCartId;
       }
       if (!activeCartId) return;
       const cart = await cartGet(activeCartId);
@@ -311,8 +329,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         cartId: activeCartId,
         items: parseLineItems(cart),
         ...parseTotals(cart),
-        currency: cart.currency ?? get().currency,
-        country: cart.country ?? get().country,
+        currency: cart.currencyCode ?? get().currency,
       });
     } catch (e) {
       console.error('[CartStore] refresh failed:', e);
@@ -339,7 +356,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         const created = await cartCreate(draft);
         if (!created.id) throw new Error('Cart creation returned no id.');
         resolvedCartId = created.id;
-        set({ cartId: resolvedCartId, currency });
+        set({ cartId: resolvedCartId, currency: created.currencyCode ?? currency });
       }
 
       const action = sku
@@ -348,7 +365,12 @@ export const useCartStore = create<CartState>((set, get) => ({
 
       await cartUpdate(resolvedCartId, [action]);
       const fresh = await cartGet(resolvedCartId);
-      set({ items: parseLineItems(fresh), ...parseTotals(fresh), mutating: false, pendingKeys: clearPending(get, key) });
+      set({
+        items: parseLineItems(fresh),
+        ...parseTotals(fresh),
+        mutating: false,
+        pendingKeys: clearPending(get, key),
+      });
       return { ok: true };
     } catch (e) {
       const msg = humanizeError(e instanceof Error ? e.message : String(e));
@@ -402,7 +424,6 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   clear: () => set({
     customerId: null, customerEmail: null, cartId: null, items: [],
-    subtotalLabel: null, discountLabel: null, totalLabel: null, hasDiscount: false,
-    currency: null, country: null, error: null, pendingKeys: {}, isCartOpen: false,
+    ...EMPTY_TOTALS, currency: null, error: null, pendingKeys: {}, isCartOpen: false,
   }),
 }));

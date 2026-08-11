@@ -7,6 +7,13 @@ const HEADERS = {
   'x-csa-commerce-platform': 'commercetools',
 };
 
+// Only fields exposed by the BFF's Cart / CartLineItem schema.
+const CART_FIELDS = `
+  id version key customerId currencyCode
+  totalPrice { centAmount currencyCode fractionDigits }
+  lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
+`;
+
 async function bff(query: string, variables?: Record<string, unknown>) {
   const res = await fetch(BFF_URL, {
     method: 'POST',
@@ -29,15 +36,7 @@ export async function GET(
   try {
     const data = await bff(
       `query GetCart($id: ID!) {
-        cart(id: $id) {
-          id cartState country currency
-          customerId customerEmail
-          shippingAddress { firstName lastName streetName streetNumber city state region postalCode country }
-          totalPrice { centAmount currencyCode fractionDigits }
-          lineItems { id productId sku name quantity variant { sku }
-            price { value { centAmount currencyCode fractionDigits } }
-            totalPrice { centAmount currencyCode fractionDigits } }
-        }
+        cart(id: $id) { ${CART_FIELDS} }
       }`,
       { id },
     );
@@ -48,10 +47,8 @@ export async function GET(
     }
     return NextResponse.json(cart);
   } catch (err) {
-    console.error(`[GET /api/carts/${id}]`, err);
-    return NextResponse.json(
-      { error: 'Unable to reach the commerce backend right now.' },
-      { status: 502 },
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[GET /api/carts/${id}]`, msg);
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

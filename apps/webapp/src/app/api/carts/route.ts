@@ -7,7 +7,16 @@ const HEADERS = {
   'x-csa-commerce-platform': 'commercetools',
 };
 
-async function bff(query: string, variables?: Record<string, unknown>) {
+// Only fields exposed by the BFF's Cart / CartLineItem schema.
+// Cart: id, version, key, customerId, currencyCode, totalPrice, lineItems
+// CartLineItem: id, productId, sku, name, quantity, totalPrice
+const CART_FIELDS = `
+  id version key customerId currencyCode
+  totalPrice { centAmount currencyCode fractionDigits }
+  lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
+`;
+
+async function bff<T = unknown>(query: string, variables?: Record<string, unknown>): Promise<T> {
   const res = await fetch(BFF_URL, {
     method: 'POST',
     headers: HEADERS,
@@ -17,7 +26,7 @@ async function bff(query: string, variables?: Record<string, unknown>) {
   const data = await res.json();
   if (data?.errors?.length)
     throw new Error(data.errors.map((e: { message: string }) => e.message).join('; '));
-  return data?.data;
+  return data?.data as T;
 }
 
 /** POST /api/carts — create a new cart */
@@ -30,13 +39,10 @@ export async function POST(request: NextRequest) {
       customerEmail?: string;
     };
 
-    const data = await bff(
+    const data = await bff<{ createB2bCart: unknown }>(
       `mutation CreateCart($currency: String!, $customerId: ID, $customerEmail: String) {
         createB2bCart(currency: $currency, customerId: $customerId, customerEmail: $customerEmail) {
-          id cartState country currency
-          totalPrice { centAmount currencyCode fractionDigits }
-          lineItems { id productId sku name quantity variant { sku }
-            price { value { centAmount currencyCode fractionDigits } } }
+          ${CART_FIELDS}
         }
       }`,
       { currency: currency ?? 'USD', customerId: customerId ?? null, customerEmail: customerEmail ?? null },
@@ -48,11 +54,9 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(cart);
   } catch (err) {
-    console.error('[POST /api/carts]', err);
-    return NextResponse.json(
-      { error: 'Unable to reach the commerce backend right now.' },
-      { status: 502 },
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[POST /api/carts]', msg);
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }
 
@@ -65,28 +69,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'customerEmail query param is required.' }, { status: 400 });
     }
 
-    const data = await bff(
+    const data = await bff<{ searchCarts: { results: unknown[] } }>(
       `query SearchCarts($option: String!, $text: String!) {
         searchCarts(option: $option, text: $text) {
-          results {
-            id cartState country currency
-            totalPrice { centAmount currencyCode fractionDigits }
-            lineItems { id productId sku name quantity variant { sku }
-              price { value { centAmount currencyCode fractionDigits } } }
-          }
+          results { ${CART_FIELDS} }
         }
       }`,
       { option: 'customerEmail', text: customerEmail },
     );
 
     const results = data?.searchCarts?.results ?? [];
-    const active = results.filter((c: { cartState?: string }) => c.cartState === 'Active');
-    return NextResponse.json({ results: active });
+    return NextResponse.json({ results });
   } catch (err) {
-    console.error('[GET /api/carts]', err);
-    return NextResponse.json(
-      { error: 'Unable to reach the commerce backend right now.' },
-      { status: 502 },
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[GET /api/carts]', msg);
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

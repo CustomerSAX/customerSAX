@@ -7,6 +7,13 @@ const HEADERS = {
   'x-csa-commerce-platform': 'commercetools',
 };
 
+// Only fields exposed by the BFF's Cart / CartLineItem schema.
+const CART_FIELDS = `
+  id version key customerId currencyCode
+  totalPrice { centAmount currencyCode fractionDigits }
+  lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
+`;
+
 async function bff(query: string, variables?: Record<string, unknown>) {
   const res = await fetch(BFF_URL, {
     method: 'POST',
@@ -64,9 +71,6 @@ export async function POST(
           { id, lineItemId: action.removeLineItem.lineItemId },
         );
       } else if ('changeLineItemQuantity' in action) {
-        // CommerceTools supports changeLineItemQuantity via the cart update endpoint.
-        // The BFF exposes this through removeCartLineItem + re-add OR a direct action.
-        // We'll use the BFF's changeLineItemQuantity if available, else remove + re-add.
         const { lineItemId, quantity } = action.changeLineItemQuantity;
         if (quantity <= 0) {
           await bff(
@@ -76,7 +80,7 @@ export async function POST(
             { id, lineItemId },
           );
         } else {
-          // Try the direct mutation first; if it fails (not implemented), fall through.
+          // Try the direct mutation first; the BFF exposes changeCartLineItemQuantity if wired.
           try {
             await bff(
               `mutation ChangeQty($id: ID!, $lineItemId: ID!, $quantity: Int!) {
@@ -85,10 +89,8 @@ export async function POST(
               { id, lineItemId, quantity },
             );
           } catch {
-            // If changeCartLineItemQuantity isn't in the schema, remove + re-add is the
-            // only option — but we'd lose the original variant info. We leave it as-is
-            // since the UI uses +1/-1 which goes through the store's changeQuantity
-            // (which does remove+re-add at the CartStore level).
+            // If changeCartLineItemQuantity isn't in the schema, the store's +1/-1 flow
+            // handles it via remove + re-add at the CartStore level.
           }
         }
       } else if ('setShippingAddress' in action || 'setBillingAddress' in action) {
@@ -110,32 +112,24 @@ export async function POST(
           { id, shippingMethodId: smId },
         );
       } else if ('setCustomerId' in action || 'setCustomerEmail' in action) {
-        // These are handled by setCustomerEmail mutation in CT.
-        // For customerId, we don't have a direct BFF mutation, so we'll accept silently.
-        // The order will still link to the customer via the cart's customerId from CT.
+        // customerId/customerEmail are not exposed as standalone BFF mutations; they were
+        // accepted at cart creation time. Silently accept — the cart's CT record was already
+        // linked at create-cart time when we passed those args to createB2bCart.
       }
     }
 
     // After all mutations, fetch the fresh cart to return current state.
     const cartData = await bff(
       `query GetCart($id: ID!) {
-        cart(id: $id) {
-          id cartState country currency
-          totalPrice { centAmount currencyCode fractionDigits }
-          lineItems { id productId sku name quantity variant { sku }
-            price { value { centAmount currencyCode fractionDigits } }
-            totalPrice { centAmount currencyCode fractionDigits } }
-        }
+        cart(id: $id) { ${CART_FIELDS} }
       }`,
       { id },
     );
 
     return NextResponse.json(cartData?.cart ?? { id });
   } catch (err) {
-    console.error(`[POST /api/carts/${id}/update]`, err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Unable to reach the commerce backend right now.' },
-      { status: 502 },
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[POST /api/carts/${id}/update]`, msg);
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }
