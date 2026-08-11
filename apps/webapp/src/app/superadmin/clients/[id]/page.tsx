@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@apollo/client";
-import { PageShell, PageHeader, Button, Icon, EmptyState, LoadingSpinner } from "@csa/ui";
+import { PageShell, Button, Icon, EmptyState, LoadingSpinner } from "@csa/ui";
 import {
   ADMIN_CLIENT_QUERY,
   ADMIN_UPDATE_CLIENT,
@@ -156,23 +156,25 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
   return (
     <PageShell maxWidth="lg">
-      <div className="text-[11px] font-bold uppercase tracking-wider text-m-primary">Client Details</div>
-      <PageHeader
-        title={
-          <div className="flex items-center gap-3">
+      <div className="flex flex-col justify-between gap-4 rounded-m-xl border border-m-border bg-m-surface p-6 shadow-m-card sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-m-primary">Client Details</div>
+          <h1 className="flex items-center gap-3 text-2xl font-extrabold leading-tight tracking-tight text-m-text">
             <span>{client.name}</span>
             <ClientStatusBadge status={client.status} />
-          </div>
-        }
-        subtitle={`${client.slug} · ${client.contactEmail}`}
-        actions={
+          </h1>
+          <p className="max-w-3xl pt-0.5 text-[13px] leading-relaxed text-m-text-muted">
+            {client.slug} · {client.contactEmail}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 pt-1 sm:pt-0">
           <Link href="/superadmin/clients">
             <Button variant="secondary" size="sm" leftIcon={<Icon name="arrow-left" size="xs" />}>
               All Clients
             </Button>
           </Link>
-        }
-      />
+        </div>
+      </div>
 
       <div className="flex border-b border-m-border">
         {tabs.map((t) => (
@@ -706,7 +708,7 @@ function ProjectsTab({
             <table className="w-full min-w-[900px] text-left text-xs">
               <thead>
                 <tr className="border-b border-m-border/60 bg-m-neutral-50">
-                  {["Project Key", "Display Name", "API Region", "Client ID", "Secret", "Shell", "Added", "Actions"].map((h) => (
+                  {["Project Key", "Display Name", "API Region", "Client ID", "Secret", "Shell", "Added", ""].map((h) => (
                     <th key={h} className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-2">
                       {h}
                     </th>
@@ -1125,7 +1127,7 @@ function UsersTab({
             <table className="w-full min-w-[640px] text-left text-xs">
               <thead>
                 <tr className="border-b border-m-border/60 bg-m-neutral-50">
-                  {["Email", "Name", "Projects", "Actions"].map((h) => (
+                  {["Email", "Name", "Projects", ""].map((h) => (
                     <th key={h} className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-2">
                       {h}
                     </th>
@@ -1507,7 +1509,7 @@ function EmailTab({
             <table className="w-full min-w-[720px] text-left text-xs">
               <thead>
                 <tr className="border-b border-m-border/60 bg-m-neutral-50">
-                  {["Label", "Host", "From", "Default", "Actions"].map((h) => (
+                  {["Label", "Host", "From", "Default", ""].map((h) => (
                     <th key={h} className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-2">
                       {h}
                     </th>

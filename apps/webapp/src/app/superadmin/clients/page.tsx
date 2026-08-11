@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@apollo/client";
 import {
   PageShell,
-  PageHeader,
   Card,
   Table,
   TableHeader,
@@ -78,16 +77,20 @@ export default function SuperadminClientsPage() {
 
   return (
     <PageShell maxWidth="lg">
-      <div className="text-[11px] font-bold uppercase tracking-wider text-m-primary">Super Admin Portal</div>
-      <PageHeader
-        title="Client Organisations"
-        subtitle="Manage client accounts, commerce project connections, and administrative access."
-        actions={
+      <div className="flex flex-col justify-between gap-4 rounded-m-xl border border-m-border bg-m-surface p-6 shadow-m-card sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-m-primary">Super Admin Portal</div>
+          <h1 className="text-2xl font-extrabold leading-tight tracking-tight text-m-text">Client Organisations</h1>
+          <p className="max-w-3xl pt-0.5 text-[13px] leading-relaxed text-m-text-muted">
+            Manage client accounts, commerce project connections, and administrative access.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 pt-1 sm:pt-0">
           <Button variant="primary" leftIcon={<Icon name="plus" size="xs" />} onClick={() => setIsAddOpen(true)}>
             New Client
           </Button>
-        }
-      />
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <MetricCard title="Total Organisations" value={loading ? "…" : clients.length} icon="building-2" />
