@@ -134,8 +134,12 @@ async function apiSearchCustomer(term: string): Promise<{ id?: string; email?: s
 async function apiCustomerAddresses(customerId: string): Promise<CustomerAddress[]> {
   const res = await fetch(`/api/customers/${encodeURIComponent(customerId)}/addresses`, { headers: { Accept: 'application/json' } });
   if (!res.ok) return [];
-  const data = await res.json() as { addresses?: CustomerAddress[] };
-  return data.addresses ?? [];
+  const data = await res.json() as { addresses?: CustomerAddress[] | CustomerAddress };
+  const raw = data.addresses;
+  // Guard: the API must return an array — if it ever comes back as an object
+  // (e.g. a mis-shaped resolver response) treat it as no saved addresses so
+  // the manual-entry form renders instead of leaving the address step blank.
+  return Array.isArray(raw) ? raw : [];
 }
 
 async function apiShippingMethods(): Promise<ShippingMethodOption[]> {
