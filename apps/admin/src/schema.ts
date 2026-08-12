@@ -1,15 +1,17 @@
 import { gql } from "graphql-tag";
 
-import * as clientsRepo from "./clients/repository.js";
-import { parseClientSsoConfigInput } from "./clients/parse-sso-input.js";
-import * as projectsRepo from "./projects/repository.js";
-import { normalizeExclusiveProjectShellFlags } from "./projects/standalone-workspace-core.js";
-import { testProjectConnection, testCredentials } from "./projects/test-connection.js";
-import * as smtpRepo from "./smtp-profiles/repository.js";
-import { testSmtpProfile } from "./smtp-profiles/test-send.js";
-import * as usersRepo from "./users/repository.js";
-import type { ClientSsoConfigStored } from "./clients/types.js";
-import type { CsaUser } from "./users/types.js";
+import {
+  clientsRepo,
+  parseClientSsoConfigInput,
+  projectsRepo,
+  normalizeExclusiveProjectShellFlags,
+  testProjectConnection,
+  testCredentials,
+  smtpRepo,
+  testSmtpProfile,
+  usersRepo,
+} from "@csa/mongodb";
+import type { ClientSsoConfigStored, CsaUser } from "@csa/mongodb";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,4 +1,4 @@
-import type { ObjectId } from "@csa/mongodb";
+import type { ObjectId } from "mongodb";
 
 /** Per-project role membership for a user. */
 export interface CsaUserProject {

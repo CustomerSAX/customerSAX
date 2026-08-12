@@ -15,13 +15,11 @@
     "@apollo/server": "^4.11.0",
     "@apollo/subgraph": "^2.10.0",
     "@csa/mongodb": "workspace:*",
-    "bcryptjs": "^3.0.3",
     "graphql": "^16.9.0",
     "graphql-tag": "^2.12.7"
   },
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",
-    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20.14.11",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"

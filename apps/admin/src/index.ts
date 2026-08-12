@@ -3,10 +3,7 @@ import { startStandaloneServer } from "@apollo/server/standalone";
 import { buildSubgraphSchema } from "@apollo/subgraph";
 import "./load-env.js";
 import { resolvers, typeDefs } from "./schema.js";
-import { ensureClientsIndex } from "./clients/repository.js";
-import { ensureProjectsIndex } from "./projects/repository.js";
-import { ensureSmtpProfilesIndex } from "./smtp-profiles/repository.js";
-import { ensureUsersIndex } from "./users/repository.js";
+import { ensureClientsIndex, ensureProjectsIndex, ensureSmtpProfilesIndex, ensureUsersIndex } from "@csa/mongodb";
 
 const port = Number(process.env.ADMIN_PORT ?? process.env.PORT ?? 4370);
 const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");

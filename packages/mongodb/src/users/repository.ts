@@ -13,8 +13,8 @@
  */
 
 import bcrypt from "bcryptjs";
-import { ObjectId } from "@csa/mongodb";
-import { getUsersCollection } from "../db/mongodb.js";
+import { ObjectId } from "mongodb";
+import { getUsersCollection } from "../admin/db.js";
 import type { CsaUser, CsaUserProject } from "./types.js";
 
 const BCRYPT_ROUNDS = 12;

@@ -1,4 +1,4 @@
-import type { ObjectId } from "@csa/mongodb";
+import type { ObjectId } from "mongodb";
 
 export type CommercePlatform = "commercetools" | "shopify" | "bigcommerce";
 

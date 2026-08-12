@@ -1,4 +1,4 @@
-import { env, getMongoCollection } from "@csa/mongodb";
+import { env, getMongoCollection } from "../connection.js";
 
 function adminDbName() {
   return env("MONGO_ADMIN_DB") || "csa-admin";

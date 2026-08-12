@@ -29,25 +29,16 @@ importers:
       '@csa/mongodb':
         specifier: workspace:*
         version: link:../../packages/mongodb
-      bcryptjs:
-        specifier: ^3.0.3
-        version: 3.0.3
       graphql:
         specifier: ^16.9.0
         version: 16.14.2
       graphql-tag:
         specifier: ^2.12.7
         version: 2.12.7(graphql@16.14.2)
-      mongodb:
-        specifier: ^7.1.1
-        version: 7.5.0(socks@2.8.9)
     devDependencies:
       '@csa/config-typescript':
         specifier: workspace:*
         version: link:../../configs/typescript
-      '@types/bcryptjs':
-        specifier: ^3.0.0
-        version: 3.0.0
       '@types/node':
         specifier: ^20.14.11
         version: 20.19.43
@@ -287,9 +278,6 @@ importers:
       graphql-tag:
         specifier: ^2.12.7
         version: 2.12.7(graphql@16.14.2)
-      mongodb:
-        specifier: ^7.1.1
-        version: 7.5.0(socks@2.8.9)
     devDependencies:
       '@csa/config-typescript':
         specifier: workspace:*
@@ -402,6 +390,9 @@ importers:
 
   packages/mongodb:
     dependencies:
+      bcryptjs:
+        specifier: ^3.0.3
+        version: 3.0.3
       mongodb:
         specifier: ^7.1.1
         version: 7.5.0(socks@2.8.9)
@@ -409,6 +400,9 @@ importers:
       '@csa/config-typescript':
         specifier: workspace:*
         version: link:../../configs/typescript
+      '@types/bcryptjs':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@types/node':
         specifier: ^20.14.11
         version: 20.19.43

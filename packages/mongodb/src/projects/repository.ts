@@ -5,8 +5,8 @@
  * decrypts for a live connection test.
  */
 
-import { ObjectId } from "@csa/mongodb";
-import { getProjectsCollection } from "../db/mongodb.js";
+import { ObjectId } from "mongodb";
+import { getProjectsCollection } from "../admin/db.js";
 import { encrypt, decrypt } from "../encrypt.js";
 import type { CommercePlatform, CsaProject, ProjectCredentials } from "./types.js";
 
