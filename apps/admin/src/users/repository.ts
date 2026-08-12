@@ -13,7 +13,7 @@
  */
 
 import bcrypt from "bcryptjs";
-import { ObjectId } from "mongodb";
+import { ObjectId } from "@csa/mongodb";
 import { getUsersCollection } from "../db/mongodb.js";
 import type { CsaUser, CsaUserProject } from "./types.js";
 
