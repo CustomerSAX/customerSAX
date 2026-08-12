@@ -10,11 +10,21 @@
 - `bigcommerce`: Placeholder adapter service.
 - `sfcc`: Placeholder adapter service for Salesforce Commerce Cloud.
 
+Each adapter is a deployable Node.js/Apollo subgraph with its own `package.json`, `Dockerfile`, and `tsconfig.json`. A different project can take only `apps/commerce/contract` plus the adapter it needs, for example `apps/commerce/commercetools`, without taking Shopify, BigCommerce, or SFCC.
+
+Each adapter also owns a `terraform` folder with portable Cloud Run boilerplate. The full CSA environment can still compose all adapters from `infra/gcp`.
+
 ## Local Run
 
 ```bash
 pnpm install
 pnpm app:commerce-commercetools dev
+```
+
+Build a single adapter image from the repository root:
+
+```bash
+docker build -f apps/commerce/commercetools/Dockerfile -t csa-commerce-commercetools .
 ```
 
 Default URLs:
@@ -39,6 +49,8 @@ BFF_COMMERCE_PLATFORM=commercetools
 ```
 
 The response shape stays the same for every platform because each adapter maps native platform data into the `contract` package types.
+
+The BFF composes only the selected adapter. Do not compose every commerce adapter at the same time, because they intentionally expose the same CSA commerce schema.
 
 ## Required Env
 

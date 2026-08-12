@@ -25,10 +25,11 @@ Commerce services can be listed independently:
 FEDERATED_SERVICES='{
   "commerce-commercetools": "https://commerce-commercetools/graphql",
   "commerce-shopify": "https://commerce-shopify/graphql",
-  "commerce-magento": "https://commerce-magento/graphql",
-  "commerce-salesforce": "https://commerce-salesforce/graphql"
+  "commerce-bigcommerce": "https://commerce-bigcommerce/graphql",
+  "commerce-sfcc": "https://commerce-sfcc/graphql"
 }'
 BFF_COMMERCE_PLATFORM=commercetools
 ```
 
 The BFF will compose only the selected commerce service, while keeping any non-commerce federated services in the same object.
+`BFF_COMMERCE_PLATFORM=salesforce` is accepted as an alias for `sfcc`.

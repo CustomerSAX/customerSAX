@@ -99,6 +99,8 @@ Every ticket read/write is scoped by `projectKey`. Locally, `TICKETING_PROJECT_K
 - `apps/commerce/commercetools`: commercetools adapter service that calls native commercetools GraphQL APIs and maps responses into the CSA contract.
 - `apps/commerce/shopify`, `apps/commerce/bigcommerce`, `apps/commerce/sfcc`: Separate adapter service placeholders for future implementation.
 
+Each commerce adapter is independently runnable and deployable with its own `package.json`, `Dockerfile`, and TypeScript config. To reuse only one platform in another repo, take `apps/commerce/contract` plus that adapter folder; the other commerce adapters are not required.
+
 The BFF federates directly with one selected commerce adapter from `FEDERATED_SERVICES`. The BFF-facing models stay the same:
 
 - `Product`
@@ -145,6 +147,30 @@ terraform plan \
 ```
 
 The Terraform is intentionally a starter layer. It enables the core APIs and declares Cloud Run services, Secret Manager secrets, Cloud SQL, Firestore, Cloud Storage, and BigQuery resources that match the diagram.
+
+The repository also includes component-owned Terraform boilerplate beside each deployable service:
+
+- `apps/bff/terraform`
+- `apps/ai-assist/terraform`
+- `apps/ticketing/terraform`
+- `apps/auth/terraform`
+- `apps/admin/terraform`
+- `apps/webapp/terraform`
+- `apps/commerce/commercetools/terraform`
+- `apps/commerce/shopify/terraform`
+- `apps/commerce/bigcommerce/terraform`
+- `apps/commerce/sfcc/terraform`
+
+These folders are intentionally portable. A component can be copied into another repo with its own Dockerfile, package metadata, and Terraform scaffold. `infra/gcp` remains the environment composition layer for the full CSA deployment.
+
+Commerce adapters are separate Cloud Run services:
+
+- `commerce-commercetools`
+- `commerce-shopify`
+- `commerce-bigcommerce`
+- `commerce-sfcc`
+
+Set `commerce_platform` to choose which commerce service the BFF and AI Assist service use by default.
 
 ## Multi-LLM Support
 
