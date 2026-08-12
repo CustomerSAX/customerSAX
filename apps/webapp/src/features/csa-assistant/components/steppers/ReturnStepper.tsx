@@ -100,6 +100,15 @@ export function ReturnStepper({
     if (workflow?.completed) setIsSubmitting(false);
   }, [workflow?.completed]);
 
+  // Safety net: if the AI stream ends (isLoading → false) while we're still
+  // waiting for confirmation, the stream must have failed — unlock the button.
+  useEffect(() => {
+    if (!isLoading && isSubmitting && !workflow?.completed) {
+      setIsSubmitting(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+
   const selectCustomer = (c: CustomerSearchResult) => {
     setSelectedCustomer(c);
   };
@@ -131,11 +140,12 @@ export function ReturnStepper({
   };
 
   // The one and only moment this stepper submits the return/refund for real —
-  // everything above is local draft editing. The assistant validates, gets
-  // approval, and calls the real start_return tool via confirm_action; the
+  // everything above is local draft editing. The assistant validates, presents
+  // an action_approval, and calls start_return directly on rep approval; the
   // real confirmation comes back on workflow.completed, never fabricated here.
-  // No items are sent — start_return with no lineItemId returns everything on
-  // the order, which is the only thing this UI offers (see doc comment above).
+  // We include the lineItems from the workflow snapshot (populated by the
+  // check_return_eligibility call made on step 1) so the AI has the real
+  // lineItemId values needed for start_return without needing another API call.
   const submitReturn = () => {
     setIsSubmitting(true);
     onAction({
@@ -143,6 +153,13 @@ export function ReturnStepper({
       orderId: localDraft.order?.id,
       orderNumber: localDraft.order?.orderNumber,
       reason: localDraft.reason,
+      // Pass real lineItemIds from the eligibility check result so the AI
+      // can call start_return directly without a redundant eligibility re-check.
+      lineItems: lineItems.map((li) => ({
+        lineItemId: li.lineItemId,
+        quantity: li.quantity,
+        name: li.name,
+      })),
     });
     // isSubmitting is cleared once the assistant either completes the return/
     // refund (workflow.completed appears — the auto-advance effect above

@@ -48,7 +48,17 @@ export const resolvers = {
   customerAddresses: async (_parent: unknown, args: { id: string }) => {
     const isEmail = args.id.includes('@');
     const where = isEmail ? `email="${escapeWhere(args.id)}"` : `id="${escapeWhere(args.id)}"`;
-    const data = await commercetoolsGraphql<{ customers: { results: Array<{ addresses: unknown[] }> } }>(
+    const data = await commercetoolsGraphql<{
+      customers: {
+        results: Array<{
+          addresses: unknown[];
+          shippingAddressIds: string[];
+          billingAddressIds: string[];
+          defaultShippingAddressId: string | null;
+          defaultBillingAddressId: string | null;
+        }>;
+      };
+    }>(
       `#graphql
         query CustomerAddresses($where: String!) {
           customers(where: $where, limit: 1) {
@@ -57,13 +67,25 @@ export const resolvers = {
                 id key streetName streetNumber city region state country company department
                 building apartment pOBox phone mobile email firstName lastName postalCode
               }
+              shippingAddressIds
+              billingAddressIds
+              defaultShippingAddressId
+              defaultBillingAddressId
             }
           }
         }
       `,
       { where }
     );
-    return data.customers?.results?.[0]?.addresses ?? [];
+    const record = data.customers?.results?.[0];
+    if (!record) return { addresses: [], defaultShippingAddressId: null, defaultBillingAddressId: null, shippingAddressIds: [], billingAddressIds: [] };
+    return {
+      addresses: record.addresses ?? [],
+      defaultShippingAddressId: record.defaultShippingAddressId ?? null,
+      defaultBillingAddressId: record.defaultBillingAddressId ?? null,
+      shippingAddressIds: record.shippingAddressIds ?? [],
+      billingAddressIds: record.billingAddressIds ?? [],
+    };
   },
   customerShoppingLists: (_parent: unknown, args: PagingArgs & { id: string; wishlist?: boolean }) => {
     const { limit, offset } = paging(args);

@@ -60,7 +60,7 @@ export const createTicketTool = tool({
     subject: z.string().describe("Short ticket subject line"),
     customerEmail: z.string().describe("Customer's email address"),
     customerName: z.string().optional().describe("Customer's display name"),
-    category: z.enum(["order", "shipping", "returns", "billing", "product", "account", "technical", "other"]).optional(),
+    category: z.enum(["request", "orderInquiry", "returns", "paymentMethod", "generalInfoChange", "passwordReset"]).optional(),
     priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
     status: z.enum(["open", "in progress", "waiting"]).default("open"),
     assignee: z.string().optional().describe("Agent assigned to this ticket"),

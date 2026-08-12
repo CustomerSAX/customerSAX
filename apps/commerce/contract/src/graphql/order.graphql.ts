@@ -1,6 +1,15 @@
 import { gql } from "graphql-tag";
 
 export const orderTypeDefs = gql`
+  type OrderAddress {
+    streetName: String
+    streetNumber: String
+    city: String
+    state: String
+    postalCode: String
+    country: String
+  }
+
   type Order @key(fields: "id") {
     id: ID!
     orderNumber: String
@@ -14,6 +23,9 @@ export const orderTypeDefs = gql`
     lastModifiedAt: String
     totalPrice: Money
     lineItems: [OrderLineItem!]!
+    shippingAddress: OrderAddress
+    billingAddress: OrderAddress
+    returnInfo: [OrderReturnInfo!]
   }
 
   type OrderLineItem {
@@ -23,6 +35,22 @@ export const orderTypeDefs = gql`
     name: String!
     quantity: Int!
     totalPrice: Money!
+  }
+
+  type OrderReturnItem {
+    id: ID!
+    type: String
+    quantity: Int!
+    lineItemId: ID
+    shipmentState: String!
+    paymentState: String!
+    comment: String
+  }
+
+  type OrderReturnInfo {
+    returnTrackingId: String
+    returnDate: String
+    items: [OrderReturnItem!]!
   }
 
   type OrderPage {

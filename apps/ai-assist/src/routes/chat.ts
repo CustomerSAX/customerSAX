@@ -37,19 +37,19 @@ chatRouter.post("/chat", async (request, response, next) => {
       proactiveHint: context.proactiveHint ?? null,
       workingMemoryBlock: context.workingMemoryBlock ?? null,
 
-      // ACL — reads default true, writes default false
+      // ACL — reads default true, writes default true
       canViewTickets: context.canViewTickets ?? true,
       canCreateTickets: context.canCreateTickets ?? true,
-      canUpdateTickets: context.canUpdateTickets ?? false,
+      canUpdateTickets: context.canUpdateTickets ?? true,
       canViewOrders: context.canViewOrders ?? true,
-      canCreateOrders: context.canCreateOrders ?? false,
-      canUpdateOrders: context.canUpdateOrders ?? false,
+      canCreateOrders: context.canCreateOrders ?? true,
+      canUpdateOrders: context.canUpdateOrders ?? true,
       canViewCustomers: context.canViewCustomers ?? true,
-      canCreateCustomers: context.canCreateCustomers ?? false,
-      canUpdateCustomers: context.canUpdateCustomers ?? false,
+      canCreateCustomers: context.canCreateCustomers ?? true,
+      canUpdateCustomers: context.canUpdateCustomers ?? true,
       canViewCarts: context.canViewCarts ?? true,
       canCreateCarts: context.canCreateCarts ?? true,
-      canUpdateCarts: context.canUpdateCarts ?? false,
+      canUpdateCarts: context.canUpdateCarts ?? true,
       canViewProducts: context.canViewProducts ?? true,
 
       vipThreshold: context.vipThreshold
@@ -68,7 +68,7 @@ chatRouter.post("/chat", async (request, response, next) => {
         system: systemPrompt,
         messages: modelMessages,
         tools: chatTools,
-        stopWhen: stepCountIs(8),
+        stopWhen: stepCountIs(20),
         temperature: 0.3,
         onError: (event) => {
           console.error("[chat] streamText error:", event.error);

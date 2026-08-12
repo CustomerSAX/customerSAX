@@ -41,6 +41,31 @@ export type Cart = {
   version: number;
 };
 
+export type OrderReturnItem = {
+  id: string;
+  type?: string | null;
+  quantity: number;
+  lineItemId?: string | null;
+  shipmentState: string;
+  paymentState: string;
+  comment?: string | null;
+};
+
+export type OrderReturnInfo = {
+  returnTrackingId?: string | null;
+  returnDate?: string | null;
+  items: OrderReturnItem[];
+};
+
+export type OrderAddress = {
+  streetName?: string | null;
+  streetNumber?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+};
+
 export type Order = {
   createdAt?: string;
   customerId?: string;
@@ -54,6 +79,9 @@ export type Order = {
   shipmentState?: string;
   state?: string;
   totalPrice?: Money;
+  shippingAddress?: OrderAddress | null;
+  billingAddress?: OrderAddress | null;
+  returnInfo?: OrderReturnInfo[] | null;
 };
 
 export type Customer = {

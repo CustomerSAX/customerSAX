@@ -31,10 +31,10 @@ const CATEGORIES = [
 const ORDER_LINKED_CATEGORIES = ['orderInquiry', 'paymentMethod', 'returns'];
 
 const PRIORITIES = [
-  { id: 'Low', label: 'Low' },
+  { id: 'low', label: 'Low' },
   { id: 'normal', label: 'Normal' },
-  { id: 'medium', label: 'Medium' },
   { id: 'high', label: 'High' },
+  { id: 'urgent', label: 'Urgent' },
 ];
 
 /**
@@ -125,6 +125,15 @@ export function CreateTicketStepper({
   useEffect(() => {
     if (workflow?.createdTicket && step !== 'done') setStep('done');
   }, [workflow?.createdTicket, step, setStep]);
+
+  // Safety net: if the AI stream ends (isLoading → false) while we're still
+  // waiting for a created ticket, the stream must have failed — unlock the button.
+  useEffect(() => {
+    if (!isLoading && isCreatingTicket && !workflow?.createdTicket) {
+      setIsCreatingTicket(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   const selectCustomer = (cust: CustomerSearchResult) => {
     setLocalDraft((prev) => ({ ...prev, customer: cust }));

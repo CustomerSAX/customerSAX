@@ -5,14 +5,37 @@ import type { CtOrder } from "../../../commercetools/types.js";
 import { compactWhere, escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
 import type { OrderSearchArgs } from "./order.types.js";
 
+// Fields requested from the CT GraphQL API for every order query. This local
+// constant takes precedence over the importable orderFields in orderFields.ts
+// (which are used by other callers). Keep them in sync if either changes.
+// customerEmail / shipmentState / paymentState were previously missing here,
+// causing those fields to always come back null despite being in the contract.
 const orderFields = `#graphql
   id
   orderNumber
   customerId
+  customerEmail
   orderState
+  shipmentState
+  paymentState
   createdAt
   totalPrice { centAmount currencyCode fractionDigits }
   lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
+  shippingAddress { streetName streetNumber city state postalCode country }
+  billingAddress  { streetName streetNumber city state postalCode country }
+  returnInfo {
+    returnTrackingId
+    returnDate
+    items {
+      id
+      type
+      quantity
+      shipmentState
+      paymentState
+      comment
+      ... on LineItemReturnItem { lineItemId }
+    }
+  }
 `;
 
 export const resolvers = {
@@ -73,7 +96,15 @@ export const resolvers = {
             returnInfo {
               returnTrackingId
               returnDate
-              items { id type quantity lineItemId shipmentState paymentState comment }
+              items {
+                id
+                type
+                quantity
+                shipmentState
+                paymentState
+                comment
+                ... on LineItemReturnItem { lineItemId }
+              }
             }
           }
         }

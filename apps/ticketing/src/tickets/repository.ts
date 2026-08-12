@@ -146,7 +146,13 @@ function buildFilter(args: TicketListArgs): Filter<Document> {
     filter.category = args.category.trim();
   }
   if (args.assignee?.trim()) {
-    filter.assignee = args.assignee.trim();
+    // Match both 'assignee' (current field) and the legacy 'assignedTo' field
+    // that older documents in MongoDB were written with. Using $and ensures this
+    // doesn't conflict with the search $or that may appear later in the filter.
+    filter.$and = [
+      ...((filter.$and as unknown[]) ?? []),
+      { $or: [{ assignee: args.assignee.trim() }, { assignedTo: args.assignee.trim() }] }
+    ] as Filter<Document>["$and"];
   }
   if (args.customerEmail?.trim()) {
     filter.customerEmail = new RegExp(escapeRegExp(args.customerEmail.trim()), "i");
@@ -247,7 +253,8 @@ function matchesArgs(ticket: Document, args: TicketListArgs) {
   if (args.status?.trim() && ticket.status !== args.status.trim()) return false;
   if (args.priority?.trim() && ticket.priority !== args.priority.trim()) return false;
   if (args.category?.trim() && ticket.category !== args.category.trim()) return false;
-  if (args.assignee?.trim() && ticket.assignee !== args.assignee.trim()) return false;
+  // Check both 'assignee' and legacy 'assignedTo' field (same as buildFilter above)
+  if (args.assignee?.trim() && ticket.assignee !== args.assignee.trim() && ticket.assignedTo !== args.assignee.trim()) return false;
   if (args.customerEmail?.trim() && !contains(ticket.customerEmail, args.customerEmail)) return false;
   if (args.search?.trim()) {
     const fields = [ticket.ticketNumber, ticket.subject, ticket.customerEmail, ticket.customerName, ticket.category];

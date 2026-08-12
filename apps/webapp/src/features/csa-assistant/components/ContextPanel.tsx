@@ -65,6 +65,13 @@ function useCountUp(target: number, duration = 750): number {
 // ─── Sentiment colours ────────────────────────────────────────────────────────
 
 const SENTIMENT_COLORS: Record<string, { color: string; bg: string; border: string }> = {
+  // Lowercase keys match the Zod schema values emitted by update_ui_state
+  positive:  { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+  neutral:   { color: "#6b7280", bg: "#f9fafb", border: "#e5e7eb" },
+  concerned: { color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+  frustrated:{ color: "#b91c1c", bg: "#fff1f2", border: "#fecdd3" },
+  resolved:  { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+  // Legacy capitalized keys kept for backward-compat with any old messages still in the stream
   Positive:            { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
   Neutral:             { color: "#6b7280", bg: "#f9fafb", border: "#e5e7eb" },
   "Slightly Negative": { color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
@@ -91,11 +98,12 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
   const activeTab      = useConversationStore((s) => s.rightPanelTab);
   const setActiveTab   = useConversationStore((s) => s.setRightPanelTab);
 
-  const activeStepper    = useConversationStore((s) => s.activeStepper);
-  const setActiveStepper = useConversationStore((s) => s.setActiveStepper);
-  const orderWorkflow    = useConversationStore((s) => s.orderWorkflow);
-  const ticketWorkflow   = useConversationStore((s) => s.ticketWorkflow);
-  const returnWorkflow   = useConversationStore((s) => s.returnWorkflow);
+  const activeStepper         = useConversationStore((s) => s.activeStepper);
+  const setActiveStepper      = useConversationStore((s) => s.setActiveStepper);
+  const orderWorkflow         = useConversationStore((s) => s.orderWorkflow);
+  const ticketWorkflow        = useConversationStore((s) => s.ticketWorkflow);
+  const returnWorkflow        = useConversationStore((s) => s.returnWorkflow);
+  const newConversationNonce  = useConversationStore((s) => s.newConversationNonce);
 
   // Stepper local states — step is a string key
   const [createOrderStep, setCreateOrderStep]   = useState<string>('customer');
@@ -104,6 +112,20 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
   const [ticketLocalDraft, setTicketLocalDraft] = useState<LocalTicketDraft>({ ...EMPTY_LOCAL_TICKET_DRAFT });
   const [createReturnStep, setCreateReturnStep] = useState<string>('order');
   const [returnLocalDraft, setReturnLocalDraft] = useState<LocalReturnDraft>({ ...EMPTY_LOCAL_RETURN_DRAFT });
+
+  // Reset all stepper local state when "New Conversation" is clicked.
+  // resetTicketContext() already clears the Zustand workflow snapshots; this
+  // effect syncs the React useState drafts/steps to match so reopening a
+  // stepper after a new conversation always starts from step 1 with no stale data.
+  useEffect(() => {
+    setCreateOrderStep('customer');
+    setOrderLocalDraft({ ...EMPTY_LOCAL_ORDER_DRAFT });
+    setCreateTicketStep('customer');
+    setTicketLocalDraft({ ...EMPTY_LOCAL_TICKET_DRAFT });
+    setCreateReturnStep('order');
+    setReturnLocalDraft({ ...EMPTY_LOCAL_RETURN_DRAFT });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newConversationNonce]);
 
   const sendAction = (action: Record<string, unknown>) => {
     if (onSendMessage) {
@@ -123,11 +145,12 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
 
   const hasAnalysis = !!(
     insights.intent ||
-    (insights.sentiment && insights.sentiment !== "Neutral") ||
+    (insights.sentiment && insights.sentiment !== "Neutral" && insights.sentiment !== "neutral") ||
     insights.confidence > 0
   );
   const sentimentCfg = SENTIMENT_COLORS[insights.sentiment ?? ""] ?? SENTIMENT_COLORS["Neutral"];
-  const isNegativeSentiment = insights.sentiment === "Negative" || insights.sentiment === "Frustrated";
+  const isNegativeSentiment = insights.sentiment === "frustrated" || insights.sentiment === "Frustrated"
+    || insights.sentiment === "Negative" || insights.sentiment === "concerned";
   const nextSteps: string[] = Array.isArray(resolution?.nextSteps) && resolution.nextSteps.length > 0
     ? (resolution.nextSteps as string[]).slice(0, 4)
     : [];
