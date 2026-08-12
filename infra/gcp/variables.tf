@@ -33,6 +33,24 @@ variable "commerce_commercetools_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "commerce_shopify_image" {
+  description = "Container image for the Shopify adapter Cloud Run service."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "commerce_bigcommerce_image" {
+  description = "Container image for the BigCommerce adapter Cloud Run service."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "commerce_sfcc_image" {
+  description = "Container image for the Salesforce Commerce Cloud adapter Cloud Run service."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
 variable "commercetools_project_key" {
   description = "commercetools project key used by the commerce connector."
   type        = string
@@ -58,9 +76,14 @@ variable "commercetools_api_url" {
 }
 
 variable "commerce_platform" {
-  description = "Commerce platform adapter to use, for example commercetools, shopify, bigcommerce, or sfcc."
+  description = "Commerce platform adapter to use, for example commercetools, shopify, bigcommerce, salesforce, or sfcc."
   type        = string
   default     = "commercetools"
+
+  validation {
+    condition     = contains(["commercetools", "shopify", "bigcommerce", "salesforce", "sfcc"], var.commerce_platform)
+    error_message = "commerce_platform must be one of: commercetools, shopify, bigcommerce, salesforce, sfcc."
+  }
 }
 
 variable "ai_gateway_base_url" {
@@ -70,7 +93,7 @@ variable "ai_gateway_base_url" {
 }
 
 variable "ai_commerce_service_url" {
-  description = "Optional commerce GraphQL URL used by the AI Assist service. Defaults to the deployed commercetools adapter."
+  description = "Optional commerce GraphQL URL used by the AI Assist service. Defaults to the Cloud Run URL for commerce_platform."
   type        = string
   default     = ""
 }
