@@ -20,6 +20,7 @@ app.use(cors({
   origin: corsOrigin,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["x-session-id"],
   credentials: true
 }));
 

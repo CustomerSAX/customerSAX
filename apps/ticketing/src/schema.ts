@@ -90,6 +90,7 @@ export const typeDefs = gql`
       projectKey: String
       search: String
       customerEmail: String
+      customerId: String
       status: String
       priority: String
       category: String

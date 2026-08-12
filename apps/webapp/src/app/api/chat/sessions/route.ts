@@ -1,32 +1,45 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/get-current-user';
 
-const MOCK_SESSIONS = [
-  {
-    sessionId: 'sess-today-1',
-    customerName: 'Shivam Soni',
-    customerEmail: 'shivam.soni@royalcyber.com',
-    topic: 'Return request for Order #ORD-RC-715370',
-    updatedAt: new Date().toISOString(),
-    messageCount: 6,
-  },
-  {
-    sessionId: 'sess-yesterday-1',
-    customerName: 'Pooja Naik',
-    customerEmail: 'pooja.n@royalcyber.com',
-    topic: 'Order status query #ORD-RC-884210',
-    updatedAt: new Date(Date.now() - 86400000).toISOString(),
-    messageCount: 4,
-  },
-  {
-    sessionId: 'sess-week-1',
-    customerName: 'Pankaj Malviya',
-    customerEmail: 'pankaj.malviya@royalcyber.com',
-    topic: 'Inquiry about vacuum sealer accessories',
-    updatedAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-    messageCount: 8,
-  },
-];
+const AI_ASSIST_URL = process.env.AI_ASSIST_URL ?? 'http://localhost:8080';
+const CT_PROJECT_KEY = process.env.NEXT_PUBLIC_CT_PROJECT_KEY ?? '';
 
-export async function GET() {
-  return NextResponse.json({ sessions: MOCK_SESSIONS, total: MOCK_SESSIONS.length });
+/**
+ * GET /api/chat/sessions
+ *
+ * Proxies to the ai-assist GET /sessions endpoint, scoped to the
+ * authenticated user's email. The History panel consumes this to display
+ * past conversations grouped by date.
+ *
+ * Query params forwarded: limit, skip
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getCurrentUser();
+    if (!user?.email) {
+      return NextResponse.json({ sessions: [], total: 0 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const limit = searchParams.get('limit') ?? '40';
+    const skip = searchParams.get('skip') ?? '0';
+
+    const url = new URL(`${AI_ASSIST_URL}/sessions`);
+    url.searchParams.set('userEmail', user.email);
+    url.searchParams.set('projectKey', CT_PROJECT_KEY);
+    url.searchParams.set('limit', limit);
+    url.searchParams.set('skip', skip);
+
+    const res = await fetch(url.toString(), { cache: 'no-store' });
+    if (!res.ok) {
+      console.error(`[api/chat/sessions] ai-assist returned ${res.status}`);
+      return NextResponse.json({ sessions: [], total: 0 });
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error('[api/chat/sessions] failed:', err);
+    return NextResponse.json({ sessions: [], total: 0 });
+  }
 }

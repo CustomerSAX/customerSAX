@@ -12,6 +12,23 @@ export interface SessionContext {
   businessType?: BusinessType;
   pageContext?: PageContext | null;
   proactiveHint?: string | null;
+  // ACL — sent by the webapp based on the authenticated user's role.
+  // ai-assist defaults writes to false when these are absent.
+  canViewTickets?: boolean;
+  canCreateTickets?: boolean;
+  canUpdateTickets?: boolean;
+  canViewOrders?: boolean;
+  canCreateOrders?: boolean;
+  canUpdateOrders?: boolean;
+  canViewCustomers?: boolean;
+  canCreateCustomers?: boolean;
+  canUpdateCustomers?: boolean;
+  canViewCarts?: boolean;
+  canCreateCarts?: boolean;
+  canUpdateCarts?: boolean;
+  canViewProducts?: boolean;
+  /** Minimum 12-month order total (in project currency cents) to classify a customer as VIP. */
+  vipThreshold?: string;
 }
 
 export interface ConversationSession {

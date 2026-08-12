@@ -163,17 +163,27 @@ function cartSearchWhere(args: CartSearchArgs) {
   const text = escapeWhere(args.text.trim());
 
   if (!text) {
-    return "id=\"\"";
+    return `id="" and cartState="Active"`;
   }
 
+  let base: string;
   switch (args.option) {
     case "id":
-      return `id="${text}"`;
+      base = `id="${text}"`;
+      break;
     case "customerEmail":
-      return `customerEmail="${text}"`;
+      base = `customerEmail="${text}"`;
+      break;
     default:
-      return `id="${text}" or customerEmail="${text}" or customerId="${text}"`;
+      base = `id="${text}" or customerEmail="${text}" or customerId="${text}"`;
   }
+
+  // Always restrict to Active carts.  commercetools changes a cart's state to
+  // "Ordered" when it is converted to an order (placeOrderFromCart), and to
+  // "Merged" when two carts are merged.  Any mutation on a non-Active cart
+  // throws "Cannot perform operation. Cart is not in Active state." — so we
+  // must never surface those carts to callers in the first place.
+  return `(${base}) and cartState="Active"`;
 }
 
 async function getCartVersion(id: string) {

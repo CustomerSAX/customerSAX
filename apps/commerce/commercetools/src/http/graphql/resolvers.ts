@@ -1,3 +1,4 @@
+import { agent } from "./agent/index.js";
 import { cart } from "./cart/index.js";
 import { customer } from "./customer/index.js";
 import { healthcheckResolvers } from "./healthcheck/healthcheck.resolvers.js";
@@ -5,6 +6,7 @@ import { order } from "./order/index.js";
 import { product } from "./product/index.js";
 import { jsonScalar } from "./shared/json-scalar.js";
 
+const agentResolvers = agent.resolvers;
 const cartResolvers = cart.resolvers;
 const customerResolvers = customer.resolvers;
 const orderResolvers = order.resolvers;
@@ -32,6 +34,7 @@ export const resolvers = {
   },
   Query: {
     ...healthcheckResolvers,
+    agentList: agentResolvers.agentList,
     activeCartCount: cartResolvers.activeCartCount,
     b2bCarts: cartResolvers.b2bCarts,
     b2bCustomers: customerResolvers.b2bCustomers,

@@ -43,6 +43,7 @@ export type TicketListArgs = {
   assignee?: string | null;
   category?: string | null;
   customerEmail?: string | null;
+  customerId?: string | null;
   limit?: number;
   offset?: number;
   priority?: string | null;
@@ -63,6 +64,7 @@ export type TicketDraft = {
   orderNumber?: string | null;
   createdBy?: string | null;
   message?: string | null;
+  worklog?: string | null;
   solution?: string | null;
   timeSpentOnTicket?: string | null;
   comments?: WorklogComment[] | null;
