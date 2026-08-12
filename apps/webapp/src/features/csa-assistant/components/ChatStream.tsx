@@ -416,6 +416,16 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   const cartItemCount = cartItems.reduce((n, i) => n + (i.quantity || 0), 0);
   const openCart = useCartStore((s) => s.openCart);
 
+  // Read the order workflow so we can gate the cart pill:
+  //  - CartProvider silently loads any pre-existing CT cart for the customer,
+  //    so cartItemCount > 0 doesn't mean "actively building an order".
+  //  - Only show the pill when the AI has produced a cart_summary (orderWorkflow.cart
+  //    is set) AND the order has not yet been placed (no placedOrder).
+  const orderWorkflow = useConversationStore((s) => s.orderWorkflow);
+  const showCartPill = cartItemCount > 0
+    && orderWorkflow?.cart != null
+    && !orderWorkflow?.placedOrder;
+
   // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -463,15 +473,22 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           const args = p.input as Record<string, unknown>;
           if (args.machineState || args.workflowStage) {
             const rawStage = String(args.machineState || args.workflowStage).toLowerCase();
+            // Map every Zod workflowStage value to a clean display label.
+            // Unknown/legacy values fall back to uppercased snake_case → spaces.
             const stageMap: Record<string, string> = {
-              greeting: "OPEN",
-              identifying_customer: "UNDERSTAND",
-              order_inquiry: "UNDERSTAND",
-              ticket_inquiry: "UNDERSTAND",
-              proposing_action: "PROPOSE",
-              executing: "EXECUTE",
-              resolved: "RESOLVED",
-              closed: "CLOSED",
+              greeting:             "GREETING",
+              identifying_customer: "IDENTIFYING CUSTOMER",
+              reading_order:        "READING ORDER",
+              reading_ticket:       "READING TICKET",
+              reading_cart:         "READING CART",
+              reading_product:      "READING PRODUCT",
+              composing_action:     "COMPOSING",
+              awaiting_approval:    "AWAITING APPROVAL",
+              executing_action:     "EXECUTING",
+              summarizing:          "SUMMARIZING",
+              drafting_email:       "DRAFTING EMAIL",
+              knowledge_lookup:     "KNOWLEDGE LOOKUP",
+              closing:              "CLOSING",
             };
             newMachineState = stageMap[rawStage] || String(args.machineState || args.workflowStage).toUpperCase().replace(/_/g, " ");
           }
@@ -495,14 +512,18 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
 
         // Fallback: pull the customer id straight from a find_customer result
         // in case the model didn't echo it into update_ui_state's customerId.
-        if (toolName === 'find_customer' && p.output && !newCustomerId) {
+        // No !newCustomerId guard — if the conversation has multiple customer
+        // lookups (e.g., first John Doe then Shivam Soni) the last one wins,
+        // because we iterate oldest→newest and the most recent find_customer
+        // result should be the active customer. update_ui_state's customerId
+        // (processed earlier in the same loop iteration) always takes priority
+        // because it arrives *after* find_customer in the same assistant turn.
+        if (toolName === 'find_customer' && p.output) {
           const result = unwrapMcpResult(p.output);
           const first = result?.customers?.[0] ?? (result?.id ? result : null);
           if (first?.id) {
             newCustomerId = String(first.id);
-            if (!orderCustomerName) {
-              orderCustomerName = [first.firstName, first.lastName].filter(Boolean).join(' ') || first.email || undefined;
-            }
+            orderCustomerName = [first.firstName, first.lastName].filter(Boolean).join(' ') || first.email || undefined;
             if (first.email) newCustomerEmail = String(first.email);
           }
         }
@@ -559,7 +580,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                 id: result.order.id,
                 orderNumber: result.order.orderNumber,
                 total: result.order.totalPrice,
-                lineItems: Array.isArray(result.order.lineItems) ? result.order.lineItems.map((li: any) => ({ name: li.name, quantity: li.quantity, price: li.price })) : []
+                lineItems: Array.isArray(result.order.lineItems) ? result.order.lineItems.map((li: any) => ({ lineItemId: li.lineItemId, name: li.name, quantity: li.quantity, price: li.price })) : []
               };
             }
           }
@@ -602,6 +623,13 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         pendingApproval: orderPendingApproval ?? null,
         placedOrder: orderPlaced ?? store.orderWorkflow?.placedOrder ?? null,
       });
+
+      // Once the order is confirmed, clear the cart store — the rep is done with
+      // this session's cart and the pill must not linger into the next conversation.
+      // orderPlaced is only non-null when order_confirmation fired this turn.
+      if (orderPlaced && !store.orderWorkflow?.placedOrder) {
+        useCartStore.getState().clear();
+      }
     }
 
     if (sawAnyTicketSignal) {
@@ -721,7 +749,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
 
         {/* Right: Cart pill + History icon & Toggle Right Panel icon */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {cartItemCount > 0 && (
+          {showCartPill && (
             <button
               type="button"
               title="View the order you're building"
