@@ -350,14 +350,13 @@ function TableSkeletonRows({
         <TableRow key={i}>
           {/* Expand button placeholder */}
           <TableCell className="w-10">
-            <Skeleton width={28} height={20} rounded="sm" />
+            <Skeleton width={28} height={20} />
           </TableCell>
           {Array.from({ length: colCount }, (_, j) => (
             <TableCell key={j} className={condensed ? "py-2" : ""}>
               <Skeleton
                 width={`${50 + ((i + j) % 4) * 10}%`}
                 height={14}
-                rounded="sm"
               />
             </TableCell>
           ))}

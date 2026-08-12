@@ -189,8 +189,8 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
-          title={<Skeleton width={300} height={28} rounded="sm" />}
-          subtitle={<Skeleton width={420} height={16} rounded="sm" />}
+          title={<Skeleton width={300} height={28} />}
+          subtitle={<Skeleton width={420} height={16} />}
           breadcrumbs={
             <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
               Catalog Details
@@ -202,15 +202,15 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 px-5 py-4">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="flex flex-col gap-1.5">
-                <Skeleton width={80} height={12} rounded="sm" />
-                <Skeleton width="90%" height={16} rounded="sm" />
+                <Skeleton width={80} height={12} />
+                <Skeleton width="90%" height={16} />
               </div>
             ))}
           </div>
         </Panel>
         <Panel title="Variants" collapsible defaultExpanded>
           <div className="px-5 py-6">
-            <Skeleton width="100%" height={120} rounded="md" />
+            <Skeleton width="100%" height={120} />
           </div>
         </Panel>
       </div>

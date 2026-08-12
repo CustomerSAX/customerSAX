@@ -52,6 +52,17 @@ const sidebarGroups: SidebarGroup[] = [
   }
 ];
 
+const b2bSidebarGroup: SidebarGroup = {
+  id: "b2b-operations",
+  title: "B2B Operations",
+  items: [
+    { id: "b2b-company", href: "/b2b/company", label: "Companies", icon: "building-2" },
+    { id: "b2b-employees", href: "/b2b/employees", label: "Employees", icon: "user-check" },
+    { id: "b2b-quotes", href: "/b2b/quotes", label: "Quotes", icon: "file-text" },
+    { id: "b2b-import-export", href: "/b2b/import-export", label: "Import / Export", icon: "arrow-left-right" }
+  ]
+};
+
 const fallbackUser: CurrentUser = {
   email: "agent@csa.local",
   id: "local-agent",
@@ -69,17 +80,34 @@ export function AppShell({ children }: { children: ReactNode }) {
   const userDisplayName = currentUser.name || currentUser.email;
   const userSubtitle = useMemo(() => roleLabel(currentUser.role), [currentUser.role]);
 
-  // Superadmin console link — only shown to platform-level superadmin
-  // accounts, since /superadmin is a separate isolated shell (see
-  // app/superadmin/layout.tsx), not a regular agent page.
-  const groups = useMemo(() => {
-    if (currentUser.role !== "superadmin") return sidebarGroups;
-    return sidebarGroups.map((group) =>
-      group.id === "administration"
-        ? { ...group, items: [...group.items, { id: "superadmin", href: "/superadmin", label: "Superadmin", icon: "shield-check" }] }
-        : group
+  const isB2bMode = useMemo(() => {
+    return (
+      process.env.NEXT_PUBLIC_PROJECT_TYPE === "B2B" ||
+      process.env.NEXT_PUBLIC_CT_BUSINESS_TYPE === "B2B" ||
+      pathname?.startsWith("/b2b")
     );
-  }, [currentUser.role]);
+  }, [pathname]);
+
+  const groups = useMemo(() => {
+    let baseGroups = [...sidebarGroups];
+    if (isB2bMode) {
+      // Insert B2B Operations right after Commerce
+      const commerceIdx = baseGroups.findIndex((g) => g.id === "commerce");
+      if (commerceIdx !== -1) {
+        baseGroups.splice(commerceIdx + 1, 0, b2bSidebarGroup);
+      } else {
+        baseGroups.push(b2bSidebarGroup);
+      }
+    }
+    if (currentUser.role === "superadmin") {
+      baseGroups = baseGroups.map((group) =>
+        group.id === "administration"
+          ? { ...group, items: [...group.items, { id: "superadmin", href: "/superadmin", label: "Superadmin", icon: "shield-check" }] }
+          : group
+      );
+    }
+    return baseGroups;
+  }, [currentUser.role, isB2bMode]);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
@@ -143,6 +171,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Badge variant="primary" appearance="subtle" size="md" leftIcon={<Icon name="database" size="xs" />}>
                 GCP Environment
               </Badge>
+              {isB2bMode && (
+                <Badge variant="success" appearance="subtle" size="md" leftIcon={<Icon name="building-2" size="xs" />}>
+                  B2B Mode
+                </Badge>
+              )}
             </div>
           }
           searchSlot={
