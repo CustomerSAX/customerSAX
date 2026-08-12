@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
+    "tf:check": "terraform fmt -check -recursive terraform",
+    "tf:format": "terraform fmt -recursive terraform",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

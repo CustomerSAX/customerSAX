@@ -24,6 +24,21 @@ locals {
     "sqladmin.googleapis.com",
     "storage.googleapis.com"
   ]
+
+  commerce_federated_services = {
+    "commerce-commercetools" = google_cloud_run_v2_service.commerce_commercetools.uri
+    "commerce-shopify"       = google_cloud_run_v2_service.commerce_shopify.uri
+    "commerce-bigcommerce"   = google_cloud_run_v2_service.commerce_bigcommerce.uri
+    "commerce-sfcc"          = google_cloud_run_v2_service.commerce_sfcc.uri
+  }
+
+  selected_commerce_service_url = (
+    var.ai_commerce_service_url != "" ? var.ai_commerce_service_url :
+    var.commerce_platform == "shopify" ? google_cloud_run_v2_service.commerce_shopify.uri :
+    var.commerce_platform == "bigcommerce" ? google_cloud_run_v2_service.commerce_bigcommerce.uri :
+    contains(["salesforce", "sfcc"], var.commerce_platform) ? google_cloud_run_v2_service.commerce_sfcc.uri :
+    google_cloud_run_v2_service.commerce_commercetools.uri
+  )
 }
 
 data "google_project" "current" {}
@@ -140,7 +155,7 @@ resource "google_cloud_run_v2_service" "bff" {
 
       env {
         name  = "FEDERATED_SERVICES"
-        value = jsonencode({ "commerce-commercetools" = google_cloud_run_v2_service.commerce_commercetools.uri })
+        value = jsonencode(local.commerce_federated_services)
       }
     }
   }
@@ -201,6 +216,60 @@ resource "google_cloud_run_v2_service" "commerce_commercetools" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_cloud_run_v2_service" "commerce_shopify" {
+  name     = "${local.name_prefix}-commerce-shopify"
+  location = var.region
+
+  template {
+    containers {
+      image = var.commerce_shopify_image
+
+      env {
+        name  = "SHOPIFY_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service" "commerce_bigcommerce" {
+  name     = "${local.name_prefix}-commerce-bigcommerce"
+  location = var.region
+
+  template {
+    containers {
+      image = var.commerce_bigcommerce_image
+
+      env {
+        name  = "BIGCOMMERCE_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service" "commerce_sfcc" {
+  name     = "${local.name_prefix}-commerce-sfcc"
+  location = var.region
+
+  template {
+    containers {
+      image = var.commerce_sfcc_image
+
+      env {
+        name  = "SFCC_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
 resource "google_cloud_run_v2_service" "ai_assist" {
   name     = "${local.name_prefix}-ai-assist"
   location = var.region
@@ -226,7 +295,7 @@ resource "google_cloud_run_v2_service" "ai_assist" {
 
       env {
         name  = "AI_COMMERCE_SERVICE_URL"
-        value = var.ai_commerce_service_url != "" ? var.ai_commerce_service_url : google_cloud_run_v2_service.commerce_commercetools.uri
+        value = local.selected_commerce_service_url
       }
 
       env {
