@@ -364,7 +364,7 @@ export function CreateOrderStepper({
                         <span className="qty-val">{q}</span>
                         <button className="qty-btn" onClick={() => changeQty(p.sku, 1)} disabled={p.stock <= 0}>+</button>
                         <button className="add-btn" onClick={() => addToCart(p.sku, p.name)} disabled={p.stock <= 0}>
-                          {inCart ? 'Add more' : 'Add'}
+                          {inCart ? 'Add more' : 'Add to Cart'}
                         </button>
                       </div>
                     </div>

@@ -239,12 +239,21 @@ export function mapRawToDetail(p: CtRawProduct): ProductDetail {
     current?.categories ?? []
   ).map(mapCategory);
 
-  const variants: VariantDetailRow[] = (current?.allVariants ?? []).map(
+  const rawVariants = [
+    ...(current?.masterVariant ? [current.masterVariant] : []),
+    ...(current?.allVariants ?? []),
+  ];
+  const uniqueVariants = rawVariants.filter(
+    (v, i, arr) => arr.findIndex((x) => (x.sku && x.sku === v.sku) || (x.id && x.id === v.id)) === i
+  );
+
+  const variants: VariantDetailRow[] = uniqueVariants.map(
     (v, i): VariantDetailRow => ({
       id: String(v.id ?? i + 1),
       sku: v.sku ?? "--",
       key: v.key ?? "--",
       imageUrl: v.images?.[0]?.url ?? "",
+      images: v.images?.map(img => img.url ?? "").filter(Boolean) ?? [],
       unitPrice: amountStr(
         v.prices?.[0]?.value?.centAmount,
         v.prices?.[0]?.value?.fractionDigits

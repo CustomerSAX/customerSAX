@@ -122,7 +122,9 @@ export interface VariantDetailRow {
   id: string;
   sku: string;
   key: string;
-  /** First image URL or empty string */
+  /** All image URLs */
+  images: string[];
+  /** First image URL (for backward compatibility) */
   imageUrl: string;
   unitPrice: string;
   quantity: string;

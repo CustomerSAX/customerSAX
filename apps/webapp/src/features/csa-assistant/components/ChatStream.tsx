@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar, Badge, Button, Icon, Input } from "@csa/ui";
 import type { UIMessage } from "ai";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { useConversationStore } from "../store/conversation-store";
 import type {
   ActionApprovalArgs,
@@ -27,6 +28,8 @@ import {
 import { ActionApproval } from "./ActionApproval";
 import { SuggestedActions } from "./SuggestedActions";
 import { Markdown } from "./Markdown";
+import { CheckoutFlow } from "./CheckoutFlow";
+import { useCartStore } from "../store/cart-store";
 import type { CsaChat } from "../hooks/use-csa-chat";
 
 // ─── Internal/technical message filtering ──────────────────────────────────
@@ -94,8 +97,6 @@ function ToolCallCard({
       return <OrderConfirmationCard args={args as OrderConfirmationArgs} />;
     case "cart_summary":
       return <CartSummaryCard args={args as CartSummaryArgs} />;
-    case "product_card":
-      return <ProductCard args={args as ProductCardArgs} />;
     case "case_briefing_card":
       return <CaseBriefingCard args={args as CaseBriefingArgs} />;
     case "draft_email":
@@ -149,6 +150,38 @@ function MessageBubble({
   isLoading: boolean;
 }) {
   const isUser = message.role === "user";
+  const { user } = useCurrentUser();
+
+  // ── Collect product_card parts upfront for horizontal scroll rendering ──
+  // They're skipped in the main tool-card loop below and rendered together in
+  // a single flex row so all cards appear at the same height, same width.
+  const productCards: { args: ProductCardArgs; key: string }[] = [];
+  message.parts?.forEach((part, partIdx) => {
+    const p = part as { type: string; toolName?: string; state?: string; input?: unknown };
+    const isStaticTool = p.type.startsWith("tool-") && p.type !== "tool-invocation";
+    const isDynamicTool = p.type === "dynamic-tool";
+    if (!isStaticTool && !isDynamicTool) return;
+    const toolName = isDynamicTool ? (p.toolName ?? "") : p.type.slice(5);
+    if (toolName !== "product_card") return;
+    if (p.state !== "output-available" && p.state !== "input-available") return;
+    productCards.push({ args: p.input as ProductCardArgs, key: `${message.id}-part-${partIdx}` });
+  });
+
+  // Route through the AI's order.add_item action so the real cart flow
+  // (customer resolution → add_to_cart tool → BFF → commercetools) runs.
+  // No direct endpoint call from the card; the AI owns the cart.
+  function handleAddToCart(cardArgs: ProductCardArgs) {
+    onSuggest(
+      `[hidden-action] ${JSON.stringify({
+        type: "order.add_item",
+        sku: cardArgs.sku,
+        name: cardArgs.name,
+        quantity: 1,
+      })}`
+    );
+  }
+
+  const hasProductCards = productCards.length > 0;
 
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -161,10 +194,11 @@ function MessageBubble({
       )}
       {isUser && (
         <div className="flex-shrink-0 mt-1">
-          <Avatar name="AG" size="sm" />
+          <Avatar name={user?.name || "AG"} size="sm" />
         </div>
       )}
 
+      {/* Always constrain to 78% — the horizontal scroll row scrolls within that width */}
       <div className={`flex flex-col gap-1 max-w-[78%] ${isUser ? "items-end" : "items-start"}`}>
         {/* Text bubble — in ai@6+, text is in parts, not message.content */}
         {message.parts?.filter(p => p.type === "text").map((p, i) => {
@@ -184,7 +218,8 @@ function MessageBubble({
           );
         })}
 
-        {/* Tool cards — in ai@6+, ToolUIPart has type `tool-${name}` with invocation fields directly on the part */}
+        {/* Tool cards — product_card parts are skipped here and rendered in the
+            horizontal scroll row below so all cards appear at a consistent size. */}
         {message.parts?.map((part, partIdx) => {
           const p = part as { type: string; toolName?: string; state?: string; input?: unknown };
           // Handle both static tool parts (type: 'tool-${name}') and dynamic tool parts
@@ -197,6 +232,9 @@ function MessageBubble({
           const args = p.input;
 
           if (state !== "output-available" && state !== "input-available") return null;
+
+          // Handled in the horizontal scroll row below
+          if (toolName === "product_card") return null;
 
           return (
             <ToolCallCard
@@ -211,7 +249,101 @@ function MessageBubble({
             />
           );
         })}
+
+        {/* ── Horizontal product card scroll row with ← → arrows ── */}
+        {hasProductCards && (
+          <ProductCardScrollRow>
+            {productCards.map(({ args, key }) => (
+              <ProductCard
+                key={key}
+                args={args}
+                onAddToCart={handleAddToCart}
+              />
+            ))}
+          </ProductCardScrollRow>
+        )}
       </div>
+    </div>
+  );
+}
+
+// ─── Horizontal scroll row with left/right arrow buttons ─────────────────────
+// The scroll container is position:relative so the absolutely-positioned arrow
+// buttons overlay it without shifting the cards. Arrows appear only when the
+// row is actually wider than its visible area (canScrollLeft/canScrollRight).
+
+function ProductCardScrollRow({ children }: { children: React.ReactNode }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const updateArrows = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 4);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+
+  useEffect(() => {
+    updateArrows();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', updateArrows, { passive: true });
+    const ro = new ResizeObserver(updateArrows);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', updateArrows); ro.disconnect(); };
+  }, []);
+
+  const scroll = (dir: 'left' | 'right') => {
+    scrollRef.current?.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
+  };
+
+  const arrowBase: React.CSSProperties = {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+    zIndex: 10, width: 28, height: 28, borderRadius: '50%',
+    border: '1px solid #dde1ea', backgroundColor: '#fff',
+    boxShadow: '0 1px 6px rgba(0,0,0,0.12)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer', transition: 'opacity 0.15s, transform 0.15s',
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      {canLeft && (
+        <button
+          onClick={() => scroll('left')}
+          aria-label="Scroll left"
+          style={{ ...arrowBase, left: -12 }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1)')}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+      )}
+      <div
+        ref={scrollRef}
+        style={{ overflowX: 'auto', paddingBottom: 8, paddingTop: 4 }}
+        className="scrollbar-hide"
+      >
+        <div className="flex gap-3">
+          {children}
+        </div>
+      </div>
+      {canRight && (
+        <button
+          onClick={() => scroll('right')}
+          aria-label="Scroll right"
+          style={{ ...arrowBase, right: -12 }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1)')}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
@@ -279,6 +411,21 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   const acCustomer = customer?.name || customer?.email || sessionCustomerName;
   const acOrderRef = contextOrders?.[0]?.orderNumber;
 
+  const cartItems = useCartStore((s) => s.items);
+  const cartTotalLabel = useCartStore((s) => s.totalLabel);
+  const cartItemCount = cartItems.reduce((n, i) => n + (i.quantity || 0), 0);
+  const openCart = useCartStore((s) => s.openCart);
+
+  // Read the order workflow so we can gate the cart pill:
+  //  - CartProvider silently loads any pre-existing CT cart for the customer,
+  //    so cartItemCount > 0 doesn't mean "actively building an order".
+  //  - Only show the pill when the AI has produced a cart_summary (orderWorkflow.cart
+  //    is set) AND the order has not yet been placed (no placedOrder).
+  const orderWorkflow = useConversationStore((s) => s.orderWorkflow);
+  const showCartPill = cartItemCount > 0
+    && orderWorkflow?.cart != null
+    && !orderWorkflow?.placedOrder;
+
   // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -326,15 +473,22 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           const args = p.input as Record<string, unknown>;
           if (args.machineState || args.workflowStage) {
             const rawStage = String(args.machineState || args.workflowStage).toLowerCase();
+            // Map every Zod workflowStage value to a clean display label.
+            // Unknown/legacy values fall back to uppercased snake_case → spaces.
             const stageMap: Record<string, string> = {
-              greeting: "OPEN",
-              identifying_customer: "UNDERSTAND",
-              order_inquiry: "UNDERSTAND",
-              ticket_inquiry: "UNDERSTAND",
-              proposing_action: "PROPOSE",
-              executing: "EXECUTE",
-              resolved: "RESOLVED",
-              closed: "CLOSED",
+              greeting:             "GREETING",
+              identifying_customer: "IDENTIFYING CUSTOMER",
+              reading_order:        "READING ORDER",
+              reading_ticket:       "READING TICKET",
+              reading_cart:         "READING CART",
+              reading_product:      "READING PRODUCT",
+              composing_action:     "COMPOSING",
+              awaiting_approval:    "AWAITING APPROVAL",
+              executing_action:     "EXECUTING",
+              summarizing:          "SUMMARIZING",
+              drafting_email:       "DRAFTING EMAIL",
+              knowledge_lookup:     "KNOWLEDGE LOOKUP",
+              closing:              "CLOSING",
             };
             newMachineState = stageMap[rawStage] || String(args.machineState || args.workflowStage).toUpperCase().replace(/_/g, " ");
           }
@@ -358,14 +512,18 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
 
         // Fallback: pull the customer id straight from a find_customer result
         // in case the model didn't echo it into update_ui_state's customerId.
-        if (toolName === 'find_customer' && p.output && !newCustomerId) {
+        // No !newCustomerId guard — if the conversation has multiple customer
+        // lookups (e.g., first John Doe then Shivam Soni) the last one wins,
+        // because we iterate oldest→newest and the most recent find_customer
+        // result should be the active customer. update_ui_state's customerId
+        // (processed earlier in the same loop iteration) always takes priority
+        // because it arrives *after* find_customer in the same assistant turn.
+        if (toolName === 'find_customer' && p.output) {
           const result = unwrapMcpResult(p.output);
           const first = result?.customers?.[0] ?? (result?.id ? result : null);
           if (first?.id) {
             newCustomerId = String(first.id);
-            if (!orderCustomerName) {
-              orderCustomerName = [first.firstName, first.lastName].filter(Boolean).join(' ') || first.email || undefined;
-            }
+            orderCustomerName = [first.firstName, first.lastName].filter(Boolean).join(' ') || first.email || undefined;
             if (first.email) newCustomerEmail = String(first.email);
           }
         }
@@ -422,7 +580,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                 id: result.order.id,
                 orderNumber: result.order.orderNumber,
                 total: result.order.totalPrice,
-                lineItems: Array.isArray(result.order.lineItems) ? result.order.lineItems.map((li: any) => ({ name: li.name, quantity: li.quantity, price: li.price })) : []
+                lineItems: Array.isArray(result.order.lineItems) ? result.order.lineItems.map((li: any) => ({ lineItemId: li.lineItemId, name: li.name, quantity: li.quantity, price: li.price })) : []
               };
             }
           }
@@ -465,6 +623,13 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         pendingApproval: orderPendingApproval ?? null,
         placedOrder: orderPlaced ?? store.orderWorkflow?.placedOrder ?? null,
       });
+
+      // Once the order is confirmed, clear the cart store — the rep is done with
+      // this session's cart and the pill must not linger into the next conversation.
+      // orderPlaced is only non-null when order_confirmation fired this turn.
+      if (orderPlaced && !store.orderWorkflow?.placedOrder) {
+        useCartStore.getState().clear();
+      }
     }
 
     if (sawAnyTicketSignal) {
@@ -582,8 +747,32 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           )}
         </div>
 
-        {/* Right: History icon & Toggle Right Panel icon */}
+        {/* Right: Cart pill + History icon & Toggle Right Panel icon */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {showCartPill && (
+            <button
+              type="button"
+              title="View the order you're building"
+              onClick={openCart}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                padding: '5px 12px 5px 10px', borderRadius: '9999px',
+                border: '1px solid #c7d2fe', background: '#eef2ff', color: '#3730a3',
+                fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                transition: 'background 0.14s ease, border-color 0.14s ease',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#e0e7ff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#eef2ff'; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+              </svg>
+              <span>{cartItemCount} {cartItemCount === 1 ? 'item' : 'items'}</span>
+              {cartTotalLabel && <span style={{ opacity: 0.7 }}>·</span>}
+              {cartTotalLabel && <span>{cartTotalLabel}</span>}
+            </button>
+          )}
           <button
             type="button"
             title="Past conversations"
@@ -657,6 +846,13 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             <span>Connection error — please try again.</span>
           </div>
         )}
+
+        {/* Checkout flow — rendered inline inside the chat scroll list */}
+        <CheckoutFlow
+          onViewOrder={(orderNumber) => {
+            sendSuggestion(`[hidden-action] ${JSON.stringify({ type: 'order.view', orderNumber })}`);
+          }}
+        />
 
         <div ref={bottomRef} />
       </div>

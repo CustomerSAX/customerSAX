@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Icon } from "@csa/ui";
+import { ProductDetailDrawer } from "./ProductDetailDrawer";
+import { useCartStore } from "../store/cart-store";
+import { useConversationStore } from "../store/conversation-store";
 import type {
   CartSummaryArgs,
   CaseBriefingArgs,
@@ -152,37 +156,115 @@ export function CartSummaryCard({ args }: { args: CartSummaryArgs }) {
 }
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
+// Compact fixed-width card designed for horizontal scroll rows.
+// Width is fixed at 176px so all cards in a row are identical in size.
 
-export function ProductCard({ args }: { args: ProductCardArgs }) {
-  const stockVariant = args.stock.toLowerCase().includes("out") ? "error"
+export function ProductCard({
+  args,
+  onAddToCart,
+}: {
+  args: ProductCardArgs;
+  /** Optional AI hidden-action callback — when present, "Add" also sends the
+   *  AI the order.add_item signal so the chat flow stays in sync. The cart
+   *  itself is updated directly via CartStore (no AI round-trip needed). */
+  onAddToCart?: (args: ProductCardArgs) => void;
+}) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addDone, setAddDone] = useState(false);
+
+  // Live cart state so the button reflects what's already in the cart.
+  const cartItems = useCartStore((s) => s.items);
+  const customer = useConversationStore((s) => s.customer);
+  const cartItem = cartItems.find((i) => i.sku === args.sku);
+  const inCart = !!cartItem;
+
+  const stockIsOut = args.stock.toLowerCase().includes("out");
+  const stockVariant = stockIsOut ? "error"
     : args.stock.toLowerCase().includes("low") ? "warning"
     : "success";
+  const stockLabel = stockIsOut ? "Out of stock" : "In stock";
+
+  const handleAdd = async () => {
+    if (addBusy || stockIsOut) return;
+    setAddBusy(true);
+    const result = await useCartStore.getState().addItem({
+      sku: args.sku,
+      name: args.name,
+      customerId: customer?.id ?? null,
+      priceLabel: args.price,
+    });
+    setAddBusy(false);
+    if (result.ok) {
+      setAddDone(true);
+      setTimeout(() => setAddDone(false), 2000);
+      onAddToCart?.(args); // also tell the AI
+    }
+  };
 
   return (
-    <Card variant="default" className="my-2 max-w-sm">
-      {args.image && (
-        <div className="h-32 overflow-hidden rounded-t-m-lg bg-m-surface-2 flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={args.image} alt={args.name} className="max-h-full object-contain" />
+    <>
+      {/* Fixed width keeps all cards in the horizontal row the same size */}
+      <div className="flex-shrink-0 w-44 rounded-m-xl border border-m-border bg-m-surface overflow-hidden flex flex-col shadow-m-xs hover:shadow-m-sm transition-shadow">
+
+        {/* Image area — always rendered at a fixed height so cards align */}
+        <div className="h-28 bg-m-surface-2 flex items-center justify-center overflow-hidden flex-shrink-0">
+          {args.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={args.image} alt={args.name} className="w-full h-full object-contain p-2" />
+          ) : (
+            <Icon name="package" size="md" className="text-m-border opacity-50" />
+          )}
         </div>
-      )}
-      <CardHeader className="px-4 pt-3 pb-1.5">
-        <CardTitle className="text-sm font-semibold leading-snug">{args.name}</CardTitle>
-        <p className="text-xs text-m-text-muted font-mono">{args.sku}</p>
-      </CardHeader>
-      <CardContent className="px-4 pb-4 space-y-1.5">
-        {args.category && (
-          <p className="text-xs text-m-text-muted">{args.category}</p>
-        )}
-        <div className="flex items-center justify-between">
-          <span className="text-base font-semibold text-m-text">{args.price}</span>
-          <Badge variant={stockVariant} size="sm">{args.stock}</Badge>
+
+        {/* Body — flex-1 so footer always sits at the bottom */}
+        <div className="px-3 pt-2.5 pb-2 flex flex-col flex-1 gap-1.5">
+          <div className="flex-1">
+            <p className="text-xs font-semibold text-m-text leading-snug line-clamp-2">{args.name}</p>
+            <p className="text-[10px] text-m-text-muted font-mono mt-0.5 truncate">{args.sku}</p>
+          </div>
+          <div className="flex items-center justify-between gap-1 mt-1">
+            <span className="text-sm font-bold text-m-text">{args.price}</span>
+            <Badge variant={stockVariant} size="sm">{stockLabel}</Badge>
+          </div>
         </div>
-        {args.description && (
-          <p className="text-xs text-m-text-muted line-clamp-2">{args.description}</p>
-        )}
-      </CardContent>
-    </Card>
+
+        {/* Action buttons */}
+        <div className="px-3 pb-3 flex gap-1.5">
+          <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setDrawerOpen(true)}>
+            Details
+          </Button>
+          {inCart ? (
+            /* Already in cart — show View Cart shortcut */
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => useCartStore.getState().openCart()}
+            >
+              In Cart
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1 text-xs"
+              disabled={addBusy || stockIsOut}
+              onClick={() => void handleAdd()}
+            >
+              {addDone ? "✓ Added" : addBusy ? "…" : "Add to Cart"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <ProductDetailDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        product={args}
+        onAddToCart={onAddToCart ? () => onAddToCart(args) : undefined}
+      />
+    </>
   );
 }
 

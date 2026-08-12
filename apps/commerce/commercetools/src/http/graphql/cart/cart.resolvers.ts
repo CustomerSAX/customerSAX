@@ -1,7 +1,7 @@
 import { commercetoolsGraphql } from "../../../commercetools/client.js";
 import { getCartByIdOrKey, listCarts } from "../../../commercetools/api/index.js";
-import { mapCart } from "./cart.mapper.js";
-import type { CtCart } from "../../../commercetools/types.js";
+import { mapCart, mapOrder } from "../../../commercetools/mappers.js";
+import type { CtCart, CtOrder } from "../../../commercetools/types.js";
 import { compactWhere, escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
 import type { CartSearchArgs } from "./cart.types.js";
 
@@ -73,34 +73,39 @@ export const resolvers = {
     const cart = await getCartVersion(args.id);
     const orderNumber = await generateUniqueOrderNumber();
 
-    return commercetoolsGraphql(
+    const data = await commercetoolsGraphql<{ createOrderFromCart: CtOrder | null }>(
       `#graphql
         mutation CreateOrderFromCart($draft: OrderCartCommand!) {
-          createOrderFromCart(draft: $draft) { id orderNumber orderState paymentState shipmentState }
+          createOrderFromCart(draft: $draft) {
+            id version orderNumber orderState paymentState shipmentState createdAt lastModifiedAt customerId customerEmail
+            totalPrice { centAmount currencyCode fractionDigits }
+            lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
+          }
         }
       `,
       {
         draft: {
           id: args.id,
           version: cart.version,
-          // This project has no order-number generator configured — CT
-          // leaves orderNumber null unless the caller supplies one, which
-          // showed up in Merchant Center as a blank Order Number field.
-          // Same story for paymentState/shipmentState: with no real
-          // payment/shipping integration behind this demo, "Pending" is the
-          // honest state (order placed, not yet paid or shipped) rather than
-          // leaving them unset ("--" in Merchant Center) or claiming Paid/Shipped.
           orderNumber,
           paymentState: "Pending",
           shipmentState: "Pending"
         }
       }
     );
+
+    return mapOrder(data.createOrderFromCart);
   },
   addCartLineItem: async (_parent: unknown, args: { id: string; quantity: number; sku: string }) =>
     updateCart(args.id, [{ addLineItem: { quantity: args.quantity, sku: args.sku } }]),
   removeCartLineItem: async (_parent: unknown, args: { id: string; lineItemId: string }) =>
     updateCart(args.id, [{ removeLineItem: { lineItemId: args.lineItemId } }]),
+  changeCartLineItemQuantity: async (_parent: unknown, args: { id: string; lineItemId: string; quantity: number }) =>
+    updateCart(args.id, [
+      args.quantity <= 0
+        ? { removeLineItem: { lineItemId: args.lineItemId } }
+        : { changeLineItemQuantity: { lineItemId: args.lineItemId, quantity: args.quantity } }
+    ]),
   updateCartAddresses: async (
     _parent: unknown,
     args: { billingAddress?: unknown; id: string; shippingAddress?: unknown }
