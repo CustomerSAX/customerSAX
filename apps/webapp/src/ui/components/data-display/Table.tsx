@@ -132,7 +132,10 @@ export function TablePagination({
   const endItem = totalItems ? Math.min(page * pageSize, totalItems) : 0;
 
   return (
-    <div className={cn('flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-m-border bg-m-surface-2/40 text-xs text-m-text-muted', className)}>
+    <tfoot>
+      <tr>
+        <td colSpan={100} className="p-0">
+          <div className={cn('flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-m-border bg-m-surface-2/40 text-xs text-m-text-muted', className)}>
       <div className="flex items-center gap-4">
         {totalItems !== undefined && (
           <span>
@@ -182,7 +185,10 @@ export function TablePagination({
           aria-label="Next page"
         />
       </div>
-    </div>
+          </div>
+        </td>
+      </tr>
+    </tfoot>
   );
 }
 
