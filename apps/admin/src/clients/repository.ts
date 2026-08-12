@@ -5,7 +5,7 @@
  * apps/ticketing already follows.
  */
 
-import { ObjectId } from "mongodb";
+import { ObjectId } from "@csa/mongodb";
 import { getClientsCollection } from "../db/mongodb.js";
 import type { CsaClient, ClientStatus, ClientSsoConfigStored } from "./types.js";
 

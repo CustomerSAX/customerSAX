@@ -19,8 +19,7 @@
     "@csa/mongodb": "workspace:*",
     "bcryptjs": "^3.0.3",
     "graphql": "^16.9.0",
-    "graphql-tag": "^2.12.7",
-    "mongodb": "^7.1.1"
+    "graphql-tag": "^2.12.7"
   },
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",

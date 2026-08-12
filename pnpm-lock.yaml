@@ -41,9 +41,6 @@ importers:
       graphql-tag:
         specifier: ^2.12.7
         version: 2.12.7(graphql@16.14.2)
-      mongodb:
-        specifier: ^7.1.1
-        version: 7.5.0(socks@2.8.9)
     devDependencies:
       '@csa/config-typescript':
         specifier: workspace:*
@@ -293,9 +290,6 @@ importers:
       graphql-tag:
         specifier: ^2.12.7
         version: 2.12.7(graphql@16.14.2)
-      mongodb:
-        specifier: ^7.1.1
-        version: 7.5.0(socks@2.8.9)
     devDependencies:
       '@csa/config-typescript':
         specifier: workspace:*

@@ -1,4 +1,4 @@
-import { ObjectId } from "mongodb";
+import { ObjectId } from "@csa/mongodb";
 import { getRolesCollection } from "../db/mongodb.js";
 
 export type Permission = { module: string; view: boolean; create: boolean; update: boolean; delete: boolean };

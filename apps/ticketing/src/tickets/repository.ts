@@ -1,4 +1,4 @@
-import { ObjectId, type Document, type Filter, type Sort } from "mongodb";
+import { ObjectId, type Document, type Filter, type Sort } from "@csa/mongodb";
 import { getTicketsCollection } from "../db/mongodb.js";
 import { mapTicket } from "./mapper.js";
 import { generateTicketNumber } from "./ticket-number.js";
