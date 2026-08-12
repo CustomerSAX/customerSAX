@@ -8,6 +8,11 @@ export type CurrentUser = {
   name: string;
   role: "agent" | "admin" | "superadmin";
   tenantId: string;
+  activeClientId?: string;
+  activeProjectKey?: string;
+  projectKey?: string;
+  projects: Array<{ clientId?: string; displayName?: string; projectKey: string; role: string }>;
+  requiresProjectSelection: boolean;
 };
 
 /**
@@ -33,7 +38,11 @@ export function useCurrentUser() {
         if (!response.ok) return;
         const payload = await response.json().catch(() => null);
         if (!cancelled && payload?.user?.email) {
-          setUser(payload.user as CurrentUser);
+          setUser({
+            ...payload.user,
+            projects: payload.user.projects ?? [],
+            requiresProjectSelection: Boolean(payload.user.requiresProjectSelection)
+          } as CurrentUser);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -46,7 +55,7 @@ export function useCurrentUser() {
     };
   }, []);
 
-  return { user, loading };
+  return { user, loading, reload: () => window.location.reload() };
 }
 
 /** Human-readable label for a role, shared by AppShell's topbar and the CSA Assistant's session context. */

@@ -47,7 +47,8 @@ export function LoginView() {
         return;
       }
 
-      router.replace(callbackUrl);
+      const payload = await response.json().catch(() => ({}));
+      router.replace(payload.user?.requiresProjectSelection ? `/select-project?callbackUrl=${encodeURIComponent(callbackUrl)}` : callbackUrl);
       router.refresh();
     } catch {
       setError("Unable to reach the auth service. Please try again.");

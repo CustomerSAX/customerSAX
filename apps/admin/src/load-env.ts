@@ -3,9 +3,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const appEnvPath = fileURLToPath(new URL("../.env", import.meta.url));
+const sharedAuthEnvPath = fileURLToPath(new URL("../../auth/.env", import.meta.url));
 const cwdEnvPath = resolve(process.cwd(), ".env");
 
-for (const envPath of Array.from(new Set([cwdEnvPath, appEnvPath]))) {
+// Local monorepo development shares Mongo/session collections with Auth.
+// Production still uses injected environment variables and never depends on this file.
+for (const envPath of Array.from(new Set([cwdEnvPath, appEnvPath, sharedAuthEnvPath]))) {
   loadEnvFile(envPath);
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import {
   Sidebar,
@@ -16,6 +16,7 @@ import {
   Button
 } from "@csa/ui";
 import { useCurrentUser, roleLabel, type CurrentUser } from "@/lib/use-current-user";
+import { apolloClient } from "@/graphql/client";
 
 const sidebarGroups: SidebarGroup[] = [
   {
@@ -68,7 +69,9 @@ const fallbackUser: CurrentUser = {
   id: "local-agent",
   name: "CSA Agent",
   role: "admin",
-  tenantId: "default"
+  tenantId: "default",
+  projects: [],
+  requiresProjectSelection: false
 };
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -76,6 +79,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user } = useCurrentUser();
   const currentUser = user ?? fallbackUser;
+
+  useEffect(() => {
+    if (user?.requiresProjectSelection) {
+      router.replace(`/select-project?callbackUrl=${encodeURIComponent(pathname || "/dashboard")}`);
+    }
+  }, [pathname, router, user?.requiresProjectSelection]);
 
   const userDisplayName = currentUser.name || currentUser.email;
   const userSubtitle = useMemo(() => roleLabel(currentUser.role), [currentUser.role]);
@@ -99,13 +108,22 @@ export function AppShell({ children }: { children: ReactNode }) {
         baseGroups.push(b2bSidebarGroup);
       }
     }
-    if (currentUser.role === "superadmin") {
-      baseGroups = baseGroups.map((group) =>
-        group.id === "administration"
-          ? { ...group, items: [...group.items, { id: "superadmin", href: "/superadmin", label: "Superadmin", icon: "shield-check" }] }
-          : group
-      );
-    }
+    baseGroups = baseGroups.map((group) =>
+      group.id === "administration"
+        ? {
+            ...group,
+            items: [
+              ...((currentUser.role === "admin" || currentUser.role === "superadmin")
+                ? [{ id: "admin-settings", href: "/admin/users", label: "Admin Settings", icon: "settings" } as SidebarItem]
+                : []),
+              ...group.items,
+              ...(currentUser.role === "superadmin"
+                ? [{ id: "superadmin", href: "/superadmin", label: "Superadmin", icon: "shield-check" } as SidebarItem]
+                : [])
+            ]
+          }
+        : group
+    );
     return baseGroups;
   }, [currentUser.role, isB2bMode]);
 
@@ -113,6 +131,23 @@ export function AppShell({ children }: { children: ReactNode }) {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     router.replace("/login");
     router.refresh();
+  };
+
+  const handleProjectChange = async (selection: string) => {
+    const project = currentUser.projects.find(
+      (candidate) => `${candidate.clientId ?? ""}:${candidate.projectKey}` === selection
+    );
+    if (!project) return;
+
+    const response = await fetch("/api/auth/project", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ projectKey: project.projectKey, clientId: project.clientId })
+    });
+    if (!response.ok) return;
+
+    await apolloClient.clearStore();
+    window.location.assign(pathname || "/dashboard");
   };
 
   // Find active item ID
@@ -175,6 +210,27 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Badge variant="success" appearance="subtle" size="md" leftIcon={<Icon name="building-2" size="xs" />}>
                   B2B Mode
                 </Badge>
+              )}
+              {currentUser.projects.length > 0 && (
+                <label className="flex items-center gap-2 text-xs font-semibold text-m-text-muted">
+                  <span className="sr-only">Project</span>
+                  <select
+                    aria-label="Project"
+                    value={currentUser.activeProjectKey ? `${currentUser.activeClientId ?? ""}:${currentUser.activeProjectKey}` : ""}
+                    onChange={(event) => void handleProjectChange(event.target.value)}
+                    className="h-8 min-w-48 rounded-m-md border border-m-border bg-m-surface px-2 text-xs font-semibold text-m-text outline-none focus:border-m-primary"
+                  >
+                    {!currentUser.activeProjectKey && <option value="">Select project</option>}
+                    {currentUser.projects.map((project) => (
+                      <option
+                        key={`${project.clientId ?? "legacy"}:${project.projectKey}`}
+                        value={`${project.clientId ?? ""}:${project.projectKey}`}
+                      >
+                        {project.displayName || project.projectKey}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               )}
             </div>
           }

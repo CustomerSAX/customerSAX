@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
@@ -17,7 +18,7 @@ const CART_FIELDS = `
 `;
 
 async function bff<T = unknown>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  const res = await fetch(BFF_URL, {
+  const res = await projectScopedBffFetch(BFF_URL, {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({ query, variables }),

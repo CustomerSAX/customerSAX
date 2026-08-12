@@ -7,6 +7,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
 
 const BFF_URL =
   process.env.AI_COMMERCE_SERVICE_URL ?? "http://localhost:4000/graphql";
@@ -31,7 +32,7 @@ export async function GET(
   }
 
   try {
-    const res = await fetch(BFF_URL, {
+    const res = await projectScopedBffFetch(BFF_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

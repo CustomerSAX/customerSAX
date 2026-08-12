@@ -11,6 +11,8 @@ type GraphqlResponse<TData> = {
   errors?: Array<{ message: string; locations?: unknown; path?: unknown }>;
 };
 
+import { contextStorage } from "../chat/system-prompt.js";
+
 function getServiceUrl(): string {
   return process.env.AI_COMMERCE_SERVICE_URL ?? "http://localhost:4000/graphql";
 }
@@ -29,7 +31,8 @@ export async function bffQuery<TData>(
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-csa-commerce-platform": getPlatform()
+      "x-csa-commerce-platform": getPlatform(),
+      ...(contextStorage.getStore()?.projectKey ? { "x-csa-project-key": contextStorage.getStore()!.projectKey } : {})
     },
     body: JSON.stringify({ query, variables })
   });
