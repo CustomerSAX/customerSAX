@@ -21,7 +21,6 @@
     "dev": "turbo run dev --parallel",
     "format": "prettier --write --ignore-path=.gitignore .",
     "infra:gcp": "pnpm --filter @csa/infra-gcp",
-    "lib:ui": "pnpm --filter @csa/ui",
     "lint": "turbo run lint",
     "tf:check": "turbo run tf:check",
     "tf:format": "turbo run tf:format",

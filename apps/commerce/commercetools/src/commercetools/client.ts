@@ -9,8 +9,8 @@ export async function commercetoolsGraphql<TData>(
   query: string,
   variables: Record<string, unknown> = {}
 ) {
-  const apiUrl = trimTrailingSlash(requiredEnv("COMMERCETOOLS_API_URL"));
   const projectKey = requiredEnv("COMMERCETOOLS_PROJECT_KEY");
+  const apiUrl = resolveApiUrl(projectKey);
   const token = await getCommercetoolsToken();
 
   const response = await fetch(`${apiUrl}/${projectKey}/graphql`, {
@@ -91,4 +91,20 @@ function requiredEnv(name: string) {
 
 function trimTrailingSlash(value: string) {
   return value.trim().replace(/\/+$/, "");
+}
+
+// Accept either the API origin used by this adapter or an existing full
+// project GraphQL URL used by older CSA deployments.
+function resolveApiUrl(projectKey: string) {
+  const apiUrl = process.env.COMMERCETOOLS_API_URL?.trim();
+  if (apiUrl) return trimTrailingSlash(apiUrl);
+
+  const graphqlUrl = process.env.COMMERCETOOLS_GRAPHQL_URL?.trim();
+  if (graphqlUrl) {
+    const suffix = `/${projectKey}/graphql`;
+    const normalized = trimTrailingSlash(graphqlUrl);
+    return normalized.endsWith(suffix) ? normalized.slice(0, -suffix.length) : normalized;
+  }
+
+  throw new Error("Missing required environment variable: COMMERCETOOLS_API_URL or COMMERCETOOLS_GRAPHQL_URL");
 }

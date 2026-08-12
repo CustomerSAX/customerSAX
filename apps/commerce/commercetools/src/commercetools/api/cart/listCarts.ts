@@ -5,8 +5,8 @@ import type { CtCart } from "../../types.js";
 import { cartFields } from "./cartFields.js";
 
 const query = `#graphql
-  query Carts($limit: Int!, $offset: Int!) {
-    carts(limit: $limit, offset: $offset) {
+  query Carts($limit: Int!, $offset: Int!, $sort: [String!]) {
+    carts(limit: $limit, offset: $offset, sort: $sort) {
       total
       count
       offset
@@ -17,7 +17,7 @@ const query = `#graphql
   }
 `;
 
-export async function listCarts(args: { limit?: number; offset?: number }): Promise<Page<Cart>> {
+export async function listCarts(args: { limit?: number; offset?: number; sortKey?: string; sortOrder?: string }): Promise<Page<Cart>> {
   const data = await commercetoolsGraphql<{
     carts: { count?: number; offset?: number; results: CtCart[]; total?: number };
   }>(
@@ -35,10 +35,13 @@ export async function listCarts(args: { limit?: number; offset?: number }): Prom
   };
 }
 
-function paging(args: { limit?: number; offset?: number }) {
+function paging(args: { limit?: number; offset?: number; sortKey?: string; sortOrder?: string }) {
   return {
     limit: args.limit ?? 20,
-    offset: args.offset ?? 0
+    offset: args.offset ?? 0,
+    sort: args.sortKey
+      ? [`${args.sortKey} ${args.sortOrder === "asc" ? "asc" : "desc"}`]
+      : undefined
   };
 }
 

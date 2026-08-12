@@ -19,7 +19,9 @@
     "strict": true,
     "target": "ES2022",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@csa/ui": ["./src/ui/index.ts"],
+      "@csa/ui/*": ["./src/ui/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
