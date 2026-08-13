@@ -374,7 +374,10 @@ export const createCartTool = tool({
 // ─── add_to_cart ──────────────────────────────────────────────────────────────
 
 export const addToCartTool = tool({
-  description: "Add a product SKU to an existing cart. Executes immediately — no approval needed.",
+  description:
+    "Add a product SKU to an existing cart. Executes immediately — no approval needed. " +
+    "If the result contains CART_STALE, call create_cart for the same customer to start a fresh cart, " +
+    "then call add_to_cart again with the new cart ID — do not ask the rep, just recover silently.",
   inputSchema: z.object({
     cartId: z.string().describe("Cart ID to add items to"),
     sku: z.string().describe("Product SKU"),
@@ -390,7 +393,22 @@ export const addToCartTool = tool({
       );
       return data.addCartLineItem ?? { error: "Failed to add item" };
     } catch (err) {
-      return { error: String(err) };
+      const message = String(err);
+      // commercetools rejects mutations on carts that were placed as orders
+      // (state: "Ordered") or merged (state: "Merged").  Return a structured
+      // CART_STALE signal so the model knows to create a new cart and retry
+      // rather than halting and asking the rep to intervene.
+      if (/active/i.test(message) && (/not in/i.test(message) || /state/i.test(message))) {
+        return {
+          error: "CART_STALE",
+          staleCartId: cartId,
+          instruction:
+            "The cart is no longer Active — it was placed as an order in a previous session. " +
+            "Call create_cart for the same customer (same customerId + customerEmail) to get a fresh cart, " +
+            "then call add_to_cart again with the new cart ID. Do not ask the rep — recover silently.",
+        };
+      }
+      return { error: message };
     }
   }
 });
@@ -789,19 +807,65 @@ export const updateOrderTool = tool({
 
 // ─── list_regions ─────────────────────────────────────────────────────────────
 
+/** Default regions used when neither env config nor BFF has project zones. */
+const DEFAULT_REGIONS = [
+  { code: "US", name: "United States", currency: "USD" },
+  { code: "DE", name: "Germany", currency: "EUR" },
+  { code: "GB", name: "United Kingdom", currency: "GBP" },
+  { code: "FR", name: "France", currency: "EUR" },
+  { code: "NL", name: "Netherlands", currency: "EUR" },
+  { code: "CA", name: "Canada", currency: "CAD" },
+  { code: "AU", name: "Australia", currency: "AUD" }
+];
+
 export const listRegionsTool = tool({
-  description: "List supported shipping regions / countries for this project.",
+  description:
+    "List supported shipping regions (countries + currencies) for this project. Call before " +
+    "create_cart when you don't know the project's currency — the first result is the default.",
   inputSchema: z.object({}),
   execute: async () => {
-    return [
-      { code: "US", name: "United States" },
-      { code: "DE", name: "Germany" },
-      { code: "GB", name: "United Kingdom" },
-      { code: "FR", name: "France" },
-      { code: "NL", name: "Netherlands" },
-      { code: "CA", name: "Canada" },
-      { code: "AU", name: "Australia" }
-    ];
+    // 1. Env-var override: CSA_REGIONS_JSON is a JSON array of { code, name, currency }
+    //    Use this to configure project-specific regions without code changes.
+    const envRegions = process.env.CSA_REGIONS_JSON?.trim();
+    if (envRegions) {
+      try {
+        const parsed = JSON.parse(envRegions);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed as typeof DEFAULT_REGIONS;
+        }
+      } catch {
+        console.warn("[list_regions] CSA_REGIONS_JSON is invalid JSON — falling back to defaults");
+      }
+    }
+
+    // 2. Try BFF: query real shipping zones configured for this CT project.
+    //    Zones define which countries the project supports. If the BFF doesn't
+    //    expose a zones query yet, this falls through to the static defaults.
+    try {
+      const data = await bffQuery<{ zones: Array<{ name: string; locations: Array<{ country: string; state?: string }> }> }>(
+        `query Zones { zones { name locations { country } } }`,
+        {}
+      );
+      if (data?.zones?.length) {
+        // Flatten to unique country codes — zones overlap, so deduplicate.
+        const seen = new Set<string>();
+        const regions: Array<{ code: string; name: string }> = [];
+        for (const zone of data.zones) {
+          for (const loc of zone.locations ?? []) {
+            if (!seen.has(loc.country)) {
+              seen.add(loc.country);
+              regions.push({ code: loc.country, name: loc.country });
+            }
+          }
+        }
+        if (regions.length > 0) return regions;
+      }
+    } catch {
+      // BFF zones not implemented yet — fall through to defaults
+    }
+
+    // 3. Static defaults — always works, covers the most common deployments.
+    return DEFAULT_REGIONS;
   }
 });
 

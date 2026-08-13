@@ -132,14 +132,37 @@ export function CreateOrderStepper({
           // the API genuinely had matches.
           const results = (data.results || [])
             .map((p: any) => {
-              const sku = typeof p.sku === 'string' ? p.sku.trim() : '';
-              const numericPrice =
-                typeof p.price === 'number'
-                  ? p.price
-                  : parseFloat(String(p.price ?? '0').replace(/[^0-9.]/g, '')) || 0;
+              const current = p.masterData?.current;
+              const masterVariant = current?.masterVariant;
+
+              const sku =
+                (typeof p.sku === 'string' && p.sku.trim()) ||
+                (typeof masterVariant?.sku === 'string' && masterVariant.sku.trim()) ||
+                (typeof current?.allVariants?.[0]?.sku === 'string' && current.allVariants[0].sku.trim()) ||
+                (typeof p.key === 'string' && p.key.trim()) ||
+                (typeof p.id === 'string' && p.id.trim()) ||
+                '';
+
+              const rawNameLocales = current?.nameAllLocales ?? p.nameAllLocales;
+              const localeName = Array.isArray(rawNameLocales)
+                ? (rawNameLocales.find((l: any) => l.locale === 'en')?.value || rawNameLocales[0]?.value)
+                : '';
+              const name = p.name ? String(p.name) : (localeName || sku || '');
+
+              let numericPrice = 0;
+              if (typeof p.price === 'number') {
+                numericPrice = p.price;
+              } else if (masterVariant?.prices?.[0]?.value) {
+                const val = masterVariant.prices[0].value;
+                const fractionDigits = typeof val.fractionDigits === 'number' ? val.fractionDigits : 2;
+                numericPrice = (val.centAmount || 0) / 10 ** fractionDigits;
+              } else if (p.price) {
+                numericPrice = parseFloat(String(p.price).replace(/[^0-9.]/g, '')) || 0;
+              }
+
               return {
                 sku,
-                name: p.name ? String(p.name) : '',
+                name,
                 price: numericPrice,
                 stock: p.inStock === false ? 0 : 99
               };
@@ -242,6 +265,16 @@ export function CreateOrderStepper({
   useEffect(() => {
     if (workflow?.placedOrder) setIsPlacingOrder(false);
   }, [workflow?.placedOrder]);
+
+  // Safety net: if the AI stream ends (isLoading → false) while we're still
+  // waiting for a placed order, the stream must have failed — unlock the button
+  // so the rep can retry instead of being stuck with a permanently disabled CTA.
+  useEffect(() => {
+    if (!isLoading && isPlacingOrder && !workflow?.placedOrder) {
+      setIsPlacingOrder(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   const startNew = () => {
     setLocalDraft(() => ({ ...EMPTY_LOCAL_ORDER_DRAFT }));

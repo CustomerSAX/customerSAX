@@ -32,6 +32,11 @@ const rawBusinessType = process.env.NEXT_PUBLIC_CT_BUSINESS_TYPE;
 const CT_BUSINESS_TYPE: BusinessType | undefined =
   rawBusinessType === "b2b" || rawBusinessType === "b2c" ? rawBusinessType : undefined;
 
+// VIP threshold — the minimum 12-month order total (in project currency) for a
+// customer to be considered high-value. Defaults to 50000 (cents or base units,
+// matching the system prompt's default) if the env var is not set.
+const VIP_THRESHOLD = process.env.NEXT_PUBLIC_CSA_VIP_THRESHOLD || undefined;
+
 export function CsaAssistant() {
   // ConversationStore bindings
   const activeTicketId   = useConversationStore((s) => s.activeTicketId);
@@ -46,6 +51,13 @@ export function CsaAssistant() {
   // actual agent's identity instead of a fixed literal.
   const { user, loading } = useCurrentUser();
 
+  // Role-based ACL — agents and admins have full write access; unauthenticated
+  // or unknown roles get read-only. This matches the old workspace's behaviour
+  // where the ACL collection defaulted writes to false and only granted them
+  // explicitly. Until a real per-user ACL store is wired up (Phase 4), roles
+  // serve as the coarse-grained gate.
+  const isWriter = user?.role === "agent" || user?.role === "admin" || user?.role === "superadmin";
+
   // Dynamic session context with active pageContext
   const sessionContext: SessionContext = {
     userEmail: user?.email,
@@ -57,6 +69,22 @@ export function CsaAssistant() {
       : customer?.id
       ? { type: "customer", id: customer.id }
       : null,
+    // ACL — explicit flags derived from the authenticated role so ai-assist's
+    // secure-by-default (writes=false) doesn't block legitimate agents.
+    canViewTickets: true,
+    canCreateTickets: isWriter,
+    canUpdateTickets: isWriter,
+    canViewOrders: true,
+    canCreateOrders: isWriter,
+    canUpdateOrders: isWriter,
+    canViewCustomers: true,
+    canCreateCustomers: isWriter,
+    canUpdateCustomers: isWriter,
+    canViewCarts: true,
+    canCreateCarts: isWriter,
+    canUpdateCarts: isWriter,
+    canViewProducts: true,
+    vipThreshold: VIP_THRESHOLD,
   };
 
   const chat = useCsaChat(sessionContext);
@@ -139,6 +167,8 @@ export function CsaAssistant() {
     }
     chat.setMessages([]);
     prevTicketId.current = null;
+    // Mint a fresh session ID so subsequent messages create a new MongoDB record.
+    chat.clearSession();
     // Also wipe the persisted transcript so the next mount starts clean.
     try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch { /* ignore */ }
     // Clear the cart so the pill never carries over into a fresh conversation.
@@ -195,6 +225,40 @@ export function CsaAssistant() {
     [chat]
   );
 
+  // ── Continue a past conversation from the History panel ──────────────────
+  // When the rep clicks "Continue" on a session card, we restore the session ID
+  // so subsequent messages go to the same MongoDB record, and then fetch the
+  // stored transcript from ai-assist to reload the chat UI.
+  const handleContinueConversation = useCallback(
+    async (sessionId: string, pageContext: { type: string; id: string } | null) => {
+      chat.restoreSession(sessionId);
+      if (pageContext?.type === "ticket" && pageContext.id) {
+        // If it was a ticket conversation, reopen that ticket
+        const { setActiveTicketId } = useConversationStore.getState();
+        setActiveTicketId(pageContext.id);
+        return; // ticket effect will handle message restore
+      }
+      // Free-form conversation — fetch stored messages and restore to chat
+      try {
+        const res = await fetch(`/api/chat?sessionId=${encodeURIComponent(sessionId)}`);
+        if (!res.ok) return;
+        const data = await res.json() as { messages?: Array<{ id?: string; role: string; content: string; createdAt?: string }> };
+        if (!Array.isArray(data.messages) || data.messages.length === 0) return;
+        // Convert stored { role, content } → UIMessage with text parts
+        const uiMessages = data.messages.map((m) => ({
+          id: m.id ?? crypto.randomUUID(),
+          role: m.role as "user" | "assistant",
+          parts: [{ type: "text" as const, text: m.content }],
+          createdAt: m.createdAt ? new Date(m.createdAt) : undefined,
+        }));
+        chat.setMessages(uiMessages);
+      } catch (err) {
+        console.error('[CsaAssistant] Failed to restore conversation:', err);
+      }
+    },
+    [chat]
+  );
+
   const sessionCustomerName = customer?.name;
 
   if (loading) {
@@ -247,6 +311,7 @@ export function CsaAssistant() {
             <ContextPanel
               onSendMessage={handleSendMessage}
               isLoading={chat.isLoading}
+              onContinueConversation={handleContinueConversation}
             />
           </div>
         )}

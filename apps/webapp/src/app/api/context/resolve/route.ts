@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
 
 /**
- * GET /api/context/resolve?email=<email>&customerId=<id>
+ * GET /api/context/resolve?email=<email>&customerId=<id>&ticketId=<id>
  *
  * Deterministically resolves the full customer profile (member-since, order
  * count, lifetime value) for the right-panel Customer card — no AI involved.
  * Called when an agent selects a ticket so the sidebar's Since/Orders/Spent
- * stats populate with real data instead of staying blank forever (they were
- * never fetched at all before this route existed).
+ * stats populate with real data instead of staying blank forever.
+ *
+ * When `ticketId` is provided, the route first fetches the ticket to extract
+ * the customer email and customerId, then proceeds with normal customer
+ * resolution. This lets ticket-context sessions populate the Customer card
+ * without the caller having to know the customer's email upfront.
  */
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
@@ -41,11 +45,26 @@ function formatMoney(money: { centAmount?: number; currencyCode?: string; fracti
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const email = url.searchParams.get('email')?.trim() || undefined;
-  const customerId = url.searchParams.get('customerId')?.trim() || undefined;
+  let email = url.searchParams.get('email')?.trim() || undefined;
+  let customerId = url.searchParams.get('customerId')?.trim() || undefined;
+  const ticketId = url.searchParams.get('ticketId')?.trim() || undefined;
+
+  // If a ticketId is given, fetch the ticket first to extract customer coords.
+  if (ticketId && !email && !customerId) {
+    const ticketData = await bffQuery<{ ticket: { customerEmail?: string; customerId?: string } | null }>(
+      `query GetTicketContext($id: ID!) { ticket(id: $id) { customerEmail customerId } }`,
+      { id: ticketId }
+    );
+    const ticket = ticketData?.ticket;
+    if (!ticket) {
+      return NextResponse.json({ customer: null, note: 'Ticket not found' });
+    }
+    email = ticket.customerEmail ?? undefined;
+    customerId = ticket.customerId ?? undefined;
+  }
 
   if (!email && !customerId) {
-    return NextResponse.json({ error: 'email or customerId query param required' }, { status: 400 });
+    return NextResponse.json({ error: 'email, customerId, or ticketId query param required' }, { status: 400 });
   }
 
   // Step 1: resolve the real customer record (id-first, falling back to email).

@@ -44,6 +44,10 @@ function isInternalMessageText(text: string): boolean {
   const trimmed = text.trim();
   return (
     trimmed.startsWith("[hidden-action]") ||
+    // Approval clicks are prefixed so the model knows to proceed, but the
+    // approval card in the chat already communicates the intent visually —
+    // showing the raw command as a user bubble is technical noise for the rep.
+    trimmed.startsWith("[approved-action]") ||
     trimmed.startsWith(AUTO_CONTEXT_PREFIX) ||
     /^\s*functions\.\w+\s*\(/.test(trimmed) ||
     /^\s*\{[\s\S]*"(cartId|orderId|sku|productId|customerId)"/.test(trimmed)
@@ -537,7 +541,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           orderCustomerName = args.customer?.name || orderCustomerName;
           orderCartValue = {
             cartId: args.cartId,
-            items: (args.items || []).map((it: any) => ({ sku: it.sku, name: it.name, price: it.price, quantity: it.qty })),
+            items: (args.items || []).map((it: any) => ({ sku: it.sku, name: it.name, price: it.lineTotal ?? it.price, quantity: it.quantity ?? it.qty })),
             itemCount: args.itemCount,
             total: args.total,
           };
@@ -574,7 +578,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           const result = unwrapMcpResult(p.output);
           if (result && typeof result.eligible === 'boolean') {
             sawAnyReturnSignal = true;
-            returnEligibility = { eligible: result.eligible, reason: result.eligible ? undefined : (Array.isArray(result.reasons) ? result.reasons.join(' ') : undefined) };
+            returnEligibility = { eligible: result.eligible, reason: result.eligible ? undefined : (result.reason ?? (Array.isArray(result.reasons) ? result.reasons.join(' ') : undefined)) };
             if (result.order) {
               returnOrder = {
                 id: result.order.id,
@@ -689,7 +693,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   }, [messages.length, isLoading]);
 
   function handleRefundConfirm(args: RenderRefundActionArgs) {
-    const command = `[hidden-action]:${JSON.stringify({ type: "confirm_return", orderId: args.orderId, reason: args.reason, lineItems: args.items })}`;
+    const command = `[hidden-action] ${JSON.stringify({ type: "return.confirm", orderId: args.orderId, reason: args.reason, lineItems: args.items })}`;
     sendSuggestion(command);
   }
 
@@ -881,8 +885,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               {
                 title: 'Create Order',
                 steer: acCustomer
-                  ? `${acCustomer} is the customer currently in focus — confirm whether this order is for them or someone else before proceeding, then help me find products, add them, and place it.`
-                  : 'Ask who the order is for, confirm their details, then help me find products, add them, and place it.',
+                  ? `Create a new order for ${acCustomer}`
+                  : 'Create a new order',
                 icon: 'shopping-cart' as const,
                 // Each action gets its own accent — same idea as ActionApproval's
                 // per-intent border color — so the quick-actions row reads at a
@@ -898,10 +902,10 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               {
                 title: 'Track Order',
                 steer: acOrderRef
-                  ? `Order ${acOrderRef} is already in focus — ask me whether I mean that same order or a different one before showing anything.`
+                  ? `Track order ${acOrderRef}`
                   : acCustomer
-                    ? `${acCustomer} is the customer in focus — ask whether I want their orders or a different customer's, then look it up.`
-                    : 'Ask me for the order number, email, or customer name, then look it up and show me the details.',
+                    ? `Track orders for ${acCustomer}`
+                    : 'Track an order',
                 icon: 'search' as const,
                 iconClass: 'text-blue-600',
                 hoverClass: 'hover:border-blue-300 hover:bg-blue-50',
@@ -910,8 +914,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               {
                 title: 'Look Up Customer',
                 steer: acCustomer
-                  ? `${acCustomer} is the customer currently in focus — ask whether I mean that customer or a different one, then look them up.`
-                  : "Ask me for the customer's name, email, or other details, then search for them and show me the details.",
+                  ? `Look up ${acCustomer}`
+                  : 'Look up a customer',
                 icon: 'users' as const,
                 iconClass: 'text-violet-600',
                 hoverClass: 'hover:border-violet-300 hover:bg-violet-50',
@@ -920,10 +924,10 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               {
                 title: 'Start Return',
                 steer: acOrderRef
-                  ? `Order ${acOrderRef} is in focus — ask whether it's for that order or a different one, then begin the return for the item(s) being returned.`
+                  ? `Start a return for order ${acOrderRef}`
                   : acCustomer
-                    ? `${acCustomer} is in focus — ask which order first, then begin the return.`
-                    : 'Ask me for the order number first, then begin the return process for the item(s) being returned.',
+                    ? `Start a return for ${acCustomer}`
+                    : 'Start a return',
                 icon: 'rotate-ccw' as const,
                 iconClass: 'text-orange-600',
                 hoverClass: 'hover:border-orange-300 hover:bg-orange-50',
@@ -936,10 +940,10 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               {
                 title: 'Process Refund',
                 steer: acOrderRef
-                  ? `Order ${acOrderRef} is in focus — ask whether the refund is for that order or a different one, then check eligibility and walk me through it.`
+                  ? `Process a refund for order ${acOrderRef}`
                   : acCustomer
-                    ? `${acCustomer} is in focus — ask which of their orders, then check eligibility and walk me through it.`
-                    : 'Ask me for the order number (or customer email) first, then check refund eligibility and walk me through it.',
+                    ? `Process a refund for ${acCustomer}`
+                    : 'Process a refund',
                 icon: 'dollar-sign' as const,
                 iconClass: 'text-teal-600',
                 hoverClass: 'hover:border-teal-300 hover:bg-teal-50',
@@ -952,8 +956,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               {
                 title: 'Create Ticket',
                 steer: acCustomer
-                  ? `${acCustomer}${acOrderRef ? ` (order ${acOrderRef})` : ''} is in focus — confirm this is what to escalate, then create a support ticket and hand it off.`
-                  : 'Create a support ticket capturing the customer and their issue, then hand it off. Ask me for anything you need to file it.',
+                  ? `Create a support ticket for ${acCustomer}${acOrderRef ? ` — order ${acOrderRef}` : ''}`
+                  : 'Create a support ticket',
                 icon: 'ticket' as const,
                 iconClass: 'text-rose-600',
                 hoverClass: 'hover:border-rose-300 hover:bg-rose-50',

@@ -215,7 +215,18 @@ async function cartSearch(customerEmail: string): Promise<RawCart[]> {
   return data.results ?? [];
 }
 
+/** True when the error is "Cart is not in Active state" from commercetools. */
+function isCartStaleError(raw: string): boolean {
+  return /active/i.test(raw) && (/not in/i.test(raw) || /state/i.test(raw));
+}
+
 function humanizeError(raw: string): string {
+  if (isCartStaleError(raw)) {
+    // The cart was placed as an order in a previous session and is now in
+    // "Ordered" state.  The calling code should clear the stale cartId and
+    // create a fresh one — surface a short message in case it can't.
+    return 'The previous cart session has ended. Starting a fresh cart…';
+  }
   if (raw.includes('price') && raw.includes('currency')) {
     return "This product is not available in the cart's currency. Try a different product.";
   }
@@ -340,30 +351,51 @@ export const useCartStore = create<CartState>((set, get) => ({
     const key = addKey({ sku, productId });
     markPending(set, get, key);
     try {
-      const existing = get();
-      let resolvedCartId: string;
-      let currency = existing.currency;
-
-      if (existing.cartId) {
-        resolvedCartId = existing.cartId;
-      } else {
-        // Infer currency from the item's price label; fall back to USD.
-        const itemCurrency = parseCurrencyFromLabel(priceLabel);
-        currency = currency ?? itemCurrency ?? 'USD';
-        const draft: { currency: string; customerId?: string | null; customerEmail?: string | null } = { currency };
-        if (customerId) draft.customerId = customerId;
-        if (existing.customerEmail) draft.customerEmail = existing.customerEmail;
-        const created = await cartCreate(draft);
-        if (!created.id) throw new Error('Cart creation returned no id.');
-        resolvedCartId = created.id;
-        set({ cartId: resolvedCartId, currency: created.currencyCode ?? currency });
-      }
-
       const action = sku
         ? { addLineItem: { sku, quantity: 1 } }
         : { addLineItem: { productId, variantId: variantId ?? 1, quantity: 1 } };
 
-      const fresh = await cartUpdate(resolvedCartId, [action]);
+      /** Resolve or create a cart, add the item, return the fresh cart. */
+      const addToCart = async (forceNew = false): Promise<RawCart> => {
+        const state = get();
+        let resolvedCartId: string;
+        let currency = state.currency;
+
+        if (state.cartId && !forceNew) {
+          resolvedCartId = state.cartId;
+        } else {
+          // No cart yet, or the previous one turned out to be stale — create fresh.
+          const itemCurrency = parseCurrencyFromLabel(priceLabel);
+          currency = state.currency ?? itemCurrency ?? 'USD';
+          const draft: { currency: string; customerId?: string | null; customerEmail?: string | null } = { currency };
+          if (customerId) draft.customerId = customerId;
+          if (state.customerEmail) draft.customerEmail = state.customerEmail;
+          const created = await cartCreate(draft);
+          if (!created.id) throw new Error('Cart creation returned no id.');
+          resolvedCartId = created.id;
+          set({ cartId: resolvedCartId, currency: created.currencyCode ?? currency });
+        }
+
+        return cartUpdate(resolvedCartId, [action]);
+      };
+
+      let fresh: RawCart;
+      try {
+        fresh = await addToCart();
+      } catch (firstErr) {
+        const raw = firstErr instanceof Error ? firstErr.message : String(firstErr);
+        // The stored cart was converted to an order in a previous session
+        // (commercetools changes its state to "Ordered", blocking all mutations).
+        // Clear the stale ID and create a fresh cart, then retry once.
+        if (isCartStaleError(raw)) {
+          console.warn('[CartStore] addItem: stale cart — creating fresh one and retrying');
+          set({ cartId: null });
+          fresh = await addToCart(true);
+        } else {
+          throw firstErr;
+        }
+      }
+
       set({
         items: parseLineItems(fresh),
         ...parseTotals(fresh),
@@ -395,7 +427,10 @@ export const useCartStore = create<CartState>((set, get) => ({
       set({ items: parseLineItems(fresh), ...parseTotals(fresh), mutating: false, pendingKeys: clearPending(get, key) });
       return { ok: true };
     } catch (e) {
-      const msg = humanizeError(e instanceof Error ? e.message : String(e));
+      const raw = e instanceof Error ? e.message : String(e);
+      // Stale cart — clear so the next addItem creates a fresh one.
+      if (isCartStaleError(raw)) set({ cartId: null, items: [], ...EMPTY_TOTALS });
+      const msg = humanizeError(raw);
       console.error('[CartStore] changeQuantity failed:', e);
       set({ mutating: false, error: msg, pendingKeys: clearPending(get, key) });
       return { ok: false, error: msg };
@@ -414,7 +449,9 @@ export const useCartStore = create<CartState>((set, get) => ({
       set({ items: parseLineItems(fresh), ...parseTotals(fresh), mutating: false, pendingKeys: clearPending(get, key) });
       return { ok: true };
     } catch (e) {
-      const msg = humanizeError(e instanceof Error ? e.message : String(e));
+      const raw = e instanceof Error ? e.message : String(e);
+      if (isCartStaleError(raw)) set({ cartId: null, items: [], ...EMPTY_TOTALS });
+      const msg = humanizeError(raw);
       console.error('[CartStore] removeItem failed:', e);
       set({ mutating: false, error: msg, pendingKeys: clearPending(get, key) });
       return { ok: false, error: msg };

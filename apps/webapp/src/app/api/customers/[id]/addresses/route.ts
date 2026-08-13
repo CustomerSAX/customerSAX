@@ -35,7 +35,10 @@ export async function GET(
       { id },
     );
 
-    const addresses = data?.customerAddresses ?? [];
+    // customerAddresses resolver returns { addresses: [...], defaultShippingAddressId, ... }
+    // — not a bare array. Drill into .addresses so the store gets the right shape.
+    const customerData = data?.customerAddresses as { addresses?: unknown[] } | null | undefined;
+    const addresses = customerData?.addresses ?? [];
     return NextResponse.json({ addresses });
   } catch (err) {
     console.error(`[GET /api/customers/${id}/addresses]`, err);

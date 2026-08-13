@@ -38,11 +38,14 @@ async function queryBffCustomers(query: string): Promise<BffResult> {
         name: [c.firstName, c.lastName].filter(Boolean).join(' ') || c.companyName || c.email || 'Customer',
         email: c.email || '',
         initials: (c.firstName?.[0] || c.email?.[0] || 'C').toUpperCase(),
-        phone: '+1 555 0100',
-        createdAt: c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent',
-        orderCount: 1,
-        lifetimeValue: 'USD 120.00',
-        status: 'Active',
+        // phone, orderCount, and lifetimeValue are not returned by the CT
+        // searchCustomers query — they are genuinely absent, not fabricated.
+        // Callers must treat null as "data unavailable", not "no orders / no phone".
+        phone: null,
+        createdAt: c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
+        orderCount: null,
+        lifetimeValue: null,
+        status: 'Active', // all customers returned by CT search are active
       })),
     };
   } catch (err) {

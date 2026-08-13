@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConversationStore } from "../store/conversation-store";
+import { useCurrentUser } from "@/lib/use-current-user";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -118,8 +119,15 @@ export function ConversationList() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterTab>("open");
+  const [filter, setFilter] = useState<FilterTab>("assigned_to_me");
   const [activeEmail, setActiveEmail] = useState<string | null>(null);
+
+  // Logged-in agent identity — needed to filter "Assigned to Me" correctly.
+  const { user } = useCurrentUser();
+  // Stable ref so fetchTickets (useCallback with [] deps) can always read the
+  // latest email without being recreated every time useCurrentUser resolves.
+  const userEmailRef = useRef<string | undefined>(undefined);
+  useEffect(() => { userEmailRef.current = user?.email; }, [user]);
 
   const setActiveTicketId = useConversationStore((s) => s.setActiveTicketId);
   const setContextHydrated = useConversationStore((s) => s.setContextHydrated);
@@ -143,7 +151,13 @@ export function ConversationList() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/tickets?status=${tab}&limit=100`);
+      // For the "Assigned to Me" tab, pass the logged-in agent's email as the
+      // assignee filter so the backend only returns their tickets, not all open ones.
+      let url = `/api/tickets?status=${tab}&limit=100`;
+      if (tab === "assigned_to_me" && userEmailRef.current) {
+        url += `&assignee=${encodeURIComponent(userEmailRef.current)}`;
+      }
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { results: RawTicket[]; total: number };
       const allTickets = data.results ?? [];
@@ -162,6 +176,18 @@ export function ConversationList() {
   }, []);
 
   useEffect(() => { void fetchTickets(filter); }, [filter, fetchTickets]);
+
+  // Re-fetch "Assigned to Me" once the user email resolves — the initial fetch
+  // fires before useCurrentUser completes, so the first call has no email and
+  // would return all-open instead of just the agent's tickets.
+  const prevEmailRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!user?.email || user.email === prevEmailRef.current) return;
+    prevEmailRef.current = user.email;
+    if (filter === "assigned_to_me") {
+      void fetchTickets("assigned_to_me");
+    }
+  }, [user?.email, filter, fetchTickets]);
 
   const handleSelectCustomer = useCallback(
     (row: CustomerRow, specificTicket?: RawTicket) => {

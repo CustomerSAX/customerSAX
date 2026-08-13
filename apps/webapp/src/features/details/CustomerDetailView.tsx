@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { useQuery } from "@apollo/client";
+import { CUSTOMER_ORDERS_QUERY, CUSTOMER_CARTS_QUERY, CUSTOMER_ADDRESSES_QUERY } from "../orders/api/queries";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -73,7 +75,186 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
   const { customers, groups, getCustomerById, updateCustomerProfile, loading, error } = useCustomerStore();
 
+  // ── Real orders from BFF (filtered by this customer's ID) ─────────────────
+  type GqlMoney = { centAmount: number; currencyCode: string; fractionDigits: number };
+  type GqlReturnItem = { id: string; type?: string | null; quantity: number; lineItemId?: string | null; shipmentState: string; paymentState: string; comment?: string | null };
+  type GqlReturnInfo = { returnTrackingId?: string | null; returnDate?: string | null; items: GqlReturnItem[] };
+  type GqlOrderRow = {
+    id: string;
+    orderNumber?: string | null;
+    orderState?: string | null;
+    paymentState?: string | null;
+    createdAt?: string | null;
+    totalPrice?: GqlMoney | null;
+    lineItems?: Array<{ id: string }> | null;
+    returnInfo?: GqlReturnInfo[] | null;
+  };
+  const { data: ordersGqlData, loading: ordersLoading } = useQuery<{
+    orderPage: { total: number; results: GqlOrderRow[] };
+  }>(CUSTOMER_ORDERS_QUERY, {
+    variables: { customerId: id, limit: 100 },
+  });
+
+  // ── Real carts from BFF (filtered by customerId) ──────────────────────────
+  type GqlCartLineItem = { id: string; name?: string | null; quantity: number };
+  type GqlCart = { id: string; key?: string | null; currencyCode: string; totalPrice: GqlMoney; lineItems: GqlCartLineItem[] };
+  const { data: cartsGqlData } = useQuery<{
+    b2bCarts: { total: number; results: GqlCart[] };
+  }>(CUSTOMER_CARTS_QUERY, {
+    variables: { customerId: id, limit: 50 },
+  });
+
+  // ── Real addresses from CT via BFF (includes default IDs) ────────────────
+  type CtAddrRaw = { id: string; streetName?: string | null; streetNumber?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null; phone?: string | null; email?: string | null };
+  type CustomerAddressesResult = { addresses: CtAddrRaw[]; defaultShippingAddressId: string | null; defaultBillingAddressId: string | null; shippingAddressIds: string[]; billingAddressIds: string[] };
+  const { data: addressesGqlData } = useQuery<{ customerAddresses: CustomerAddressesResult }>(
+    CUSTOMER_ADDRESSES_QUERY,
+    { variables: { id } }
+  );
+
+  // ── Real tickets from ticketing service (by customerEmail) ────────────────
+  const [realTickets, setRealTickets] = useState<CustomerTicket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+
   const customer = getCustomerById(id) || customers[0];
+
+  const fetchCustomerTickets = useCallback(async (email: string) => {
+    setTicketsLoading(true);
+    try {
+      const res = await fetch(`/api/tickets?customerEmail=${encodeURIComponent(email)}&limit=100`);
+      if (!res.ok) return;
+      const json = await res.json() as {
+        results: Array<{ id: string; ticketNumber: string; subject: string; status: string; priority: string; createdAt?: string }>;
+      };
+      setRealTickets(
+        (json.results ?? []).map((t) => ({
+          id: t.id,
+          ticketNumber: t.ticketNumber,
+          subject: t.subject,
+          status: (t.status as CustomerTicket["status"]) ?? "Open",
+          priority: (t.priority as CustomerTicket["priority"]) ?? "Medium",
+          createdAt: t.createdAt ? new Date(t.createdAt).toLocaleString() : "--",
+        }))
+      );
+    } catch {
+      /* silently ignore — tickets tab will show empty */
+    } finally {
+      setTicketsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (customer?.email) void fetchCustomerTickets(customer.email);
+  }, [customer?.email, fetchCustomerTickets]);
+
+  // Map BFF orders to the CustomerOrder shape used in tabs / metrics
+  function formatMoney(m?: GqlMoney | null): string {
+    if (!m) return "--";
+    const amt = m.centAmount / Math.pow(10, m.fractionDigits ?? 2);
+    return `${m.currencyCode} ${amt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  const realOrders: CustomerOrder[] = useMemo(
+    () =>
+      (ordersGqlData?.orderPage.results ?? []).map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber ?? o.id,
+        orderState: o.orderState ?? "Open",
+        paymentState: o.paymentState ?? "Pending",
+        totalPrice: formatMoney(o.totalPrice),
+        itemsCount: o.lineItems?.length ?? 0,
+        createdAt: o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-US") : "--",
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ordersGqlData]
+  );
+
+  const totalOrderCount = ordersGqlData?.orderPage.total ?? realOrders.length;
+
+  const totalSpend = useMemo(() => {
+    const rows = ordersGqlData?.orderPage.results ?? [];
+    if (rows.length === 0) return "--";
+    let sum = 0;
+    let currency = "USD";
+    let fraction = 2;
+    for (const o of rows) {
+      if (o.totalPrice) {
+        sum += o.totalPrice.centAmount;
+        currency = o.totalPrice.currencyCode;
+        fraction = o.totalPrice.fractionDigits ?? 2;
+      }
+    }
+    const amt = sum / Math.pow(10, fraction);
+    return `${currency} ${amt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }, [ordersGqlData]);
+
+  // Derive returns from orders that carry returnInfo
+  const realReturns: CustomerReturn[] = useMemo(() => {
+    const results: CustomerReturn[] = [];
+    for (const o of ordersGqlData?.orderPage.results ?? []) {
+      if (!o.returnInfo?.length) continue;
+      for (const ri of o.returnInfo) {
+        results.push({
+          id: ri.returnTrackingId ?? `${o.id}-${results.length}`,
+          orderNumber: o.orderNumber ?? o.id,
+          returnTrackingId: ri.returnTrackingId ?? "--",
+          returnDate: ri.returnDate ? new Date(ri.returnDate).toLocaleDateString("en-US") : "--",
+          itemsCount: ri.items?.length ?? 0,
+          items: (ri.items ?? []).map((item) => ({
+            id: item.id,
+            quantity: item.quantity,
+            shipmentState: item.shipmentState,
+            paymentState: item.paymentState,
+            createdAt: "--",
+            comment: item.comment ?? undefined,
+          })),
+        });
+      }
+    }
+    return results;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordersGqlData]);
+
+  // Real carts from BFF
+  const realCarts: CustomerCart[] = useMemo(
+    () =>
+      (cartsGqlData?.b2bCarts.results ?? []).map((c) => ({
+        id: c.id,
+        cartState: "Active",
+        orderNumber: "--",
+        totalPrice: formatMoney(c.totalPrice),
+        lineItemsCount: c.lineItems?.length ?? 0,
+        createdAt: "--",
+        currency: c.currencyCode,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cartsGqlData]
+  );
+
+  const totalCartsCount = cartsGqlData?.b2bCarts.total ?? realCarts.length;
+
+  // Real addresses from CT — derive CustomerAddress[] with default flags
+  const realAddresses: CustomerAddress[] = useMemo(() => {
+    const raw = addressesGqlData?.customerAddresses;
+    if (!raw?.addresses?.length) return [];
+    const { defaultShippingAddressId, defaultBillingAddressId, shippingAddressIds, billingAddressIds } = raw;
+    return raw.addresses.map((a) => ({
+      id: a.id,
+      streetName: a.streetName ?? "",
+      streetNumber: a.streetNumber ?? "",
+      city: a.city ?? "",
+      state: a.state ?? "",
+      postalCode: a.postalCode ?? "",
+      country: a.country ?? "",
+      email: a.email ?? customer?.email ?? "",
+      phone: a.phone ?? "",
+      isShipping: shippingAddressIds?.includes(a.id) ?? false,
+      isBilling: billingAddressIds?.includes(a.id) ?? false,
+      isDefaultShipping: defaultShippingAddressId === a.id,
+      isDefaultBilling: defaultBillingAddressId === a.id,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addressesGqlData, customer?.email]);
 
   // Local state for tabs and features
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -98,28 +279,14 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     setProfileGroup(customer.customerGroup?.id || "grp-vip");
   }, [customer]);
 
-  // Addresses State
-  const [addresses, setAddresses] = useState<CustomerAddress[]>(
-    customer?.addresses && customer.addresses.length > 0
-      ? customer.addresses
-      : [
-          {
-            id: "addr-1",
-            streetName: "Evergreen Terrace",
-            streetNumber: "742",
-            city: "Springfield",
-            state: "OR",
-            postalCode: "97477",
-            country: "US",
-            email: customer?.email || "mia.johnson@example.com",
-            phone: "+1 (555) 234-5678",
-            isShipping: true,
-            isBilling: true,
-            isDefaultShipping: true,
-            isDefaultBilling: true,
-          },
-        ]
-  );
+  // Addresses State — seeded empty, synced from real CT data via realAddresses memo
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+
+  // Sync real addresses from CT whenever the query resolves
+  useEffect(() => {
+    if (realAddresses.length > 0) setAddresses(realAddresses);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addressesGqlData]);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddrId, setEditingAddrId] = useState<string | null>(null);
   const [addrStreetName, setAddrStreetName] = useState("");
@@ -136,188 +303,45 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const [addrIsDefaultBill, setAddrIsDefaultBill] = useState(false);
   const [deleteConfirmAddrId, setDeleteConfirmAddrId] = useState<string | null>(null);
 
-  // Carts State & Order on Behalf
-  const [carts, setCarts] = useState<CustomerCart[]>([
-    {
-      id: "CRT-881",
-      cartState: "Active",
-      orderNumber: "--",
-      totalPrice: "$184.20",
-      lineItemsCount: 4,
-      createdAt: "2026-08-05",
-      currency: "USD",
-      country: "US",
-    },
-  ]);
+  // Carts State — seeded from real CT carts, agent-created carts are prepended
+  const [agentCreatedCarts, setAgentCreatedCarts] = useState<CustomerCart[]>([]);
+  const carts = [...agentCreatedCarts, ...realCarts];
   const [cartCountry, setCartCountry] = useState("US");
   const [cartCurrency, setCartCurrency] = useState("USD");
   const [showOrderBehalfPanel, setShowOrderBehalfPanel] = useState(false);
 
-  // Orders State
-  const [orders] = useState<CustomerOrder[]>([
-    {
-      id: "ORD-54019",
-      orderNumber: "ORD-54019",
-      orderState: "Processing",
-      paymentState: "Paid",
-      totalPrice: "$342.20",
-      itemsCount: 4,
-      createdAt: "2026-08-05",
-    },
-    {
-      id: "ORD-53982",
-      orderNumber: "ORD-53982",
-      orderState: "Delivered",
-      paymentState: "Paid",
-      totalPrice: "$128.50",
-      itemsCount: 2,
-      createdAt: "2026-07-18",
-    },
-    {
-      id: "ORD-53410",
-      orderNumber: "ORD-53410",
-      orderState: "Delivered",
-      paymentState: "Paid",
-      totalPrice: "$64.00",
-      itemsCount: 1,
-      createdAt: "2026-06-02",
-    },
-  ]);
+  // Orders State — derived from real BFF data (see realOrders above)
+  const orders = realOrders;
   const [ordersSearch, setOrdersSearch] = useState("");
 
-  // Returns State
-  const [returns] = useState<CustomerReturn[]>([
-    {
-      id: "ret-1",
-      orderNumber: "ORD-53982",
-      returnTrackingId: "RET-TRK-90041",
-      returnDate: "2026-07-22",
-      itemsCount: 1,
-      items: [
-        {
-          id: "ret-item-1",
-          quantity: 1,
-          shipmentState: "Returned",
-          paymentState: "Refunded",
-          createdAt: "2026-07-22 10:30 AM",
-          lastModifiedAt: "2026-07-24 02:15 PM",
-          comment: "Size was smaller than expected.",
-        },
-      ],
-    },
-  ]);
+  // Returns State — derived from realReturns extracted from order returnInfo
+  const returns = realReturns;
   const [returnsSearch, setReturnsSearch] = useState("");
   const [selectedReturn, setSelectedReturn] = useState<CustomerReturn | null>(null);
 
-  // Quotes State
-  const [quotes] = useState<CustomerQuote[]>([
-    {
-      id: "QTE-2041",
-      quoteKey: "Q-NORTH-2026",
-      quoteState: "Accepted",
-      totalPrice: "$1,450.00",
-      validUntil: "2026-09-30",
-      createdAt: "2026-07-01",
-    },
-  ]);
+  // Quotes State — no real customer-level quotes API; start empty
+  const [quotes] = useState<CustomerQuote[]>([]);
 
-  // Payments State
-  const [payments] = useState<CustomerPayment[]>([
-    {
-      id: "PAY-9041",
-      method: "Credit Card (Visa ending in 4242)",
-      amount: "$342.20",
-      status: "Success",
-      createdAt: "2026-08-05",
-    },
-    {
-      id: "PAY-8821",
-      method: "Credit Card (Visa ending in 4242)",
-      amount: "$128.50",
-      status: "Success",
-      createdAt: "2026-07-18",
-    },
-  ]);
+  // Payments State — no real customer-level payment API; start empty
+  const [payments] = useState<CustomerPayment[]>([]);
 
-  // Tickets State
-  const [tickets] = useState<CustomerTicket[]>([
-    {
-      id: "TCK-4019",
-      ticketNumber: "TCK-4019",
-      subject: "Inquiry regarding shipment delay for ORD-54019",
-      status: "In Progress",
-      priority: "High",
-      createdAt: "2026-08-06 11:20 AM",
-    },
-  ]);
+  // Tickets State — sourced from realTickets fetched by customerEmail (above)
+  const tickets = realTickets;
   const [ticketsSearch, setTicketsSearch] = useState("");
 
-  // Messages State
-  const [messages, setMessages] = useState<CustomerMessage[]>([
-    {
-      id: "msg-1",
-      sender: "customer",
-      senderName: customer?.firstName
-        ? `${customer.firstName} ${customer.lastName}`
-        : "Mia Johnson",
-      content: "Hello, could you please confirm when ORD-54019 will be shipped?",
-      createdAt: "2026-08-06 11:20 AM",
-      orderNumber: "ORD-54019",
-    },
-    {
-      id: "msg-2",
-      sender: "agent",
-      senderName: "Support Agent (John)",
-      content:
-        "Hi Mia! Your order is currently being prepared for dispatch and is scheduled to leave our warehouse by end of day today.",
-      createdAt: "2026-08-06 11:45 AM",
-      orderNumber: "ORD-54019",
-    },
-  ]);
+  // Messages State — no real messaging backend; starts empty for agents to type fresh replies
+  const [messages, setMessages] = useState<CustomerMessage[]>([]);
   const [newMessageText, setNewMessageText] = useState("");
 
   // Password Reset State
   const [passwordResetStatus, setPasswordResetStatus] = useState<"" | "sending" | "sent">("");
 
-  // Promotions State
+  // Promotions State — no real promotion-per-customer API; starts empty
   const [couponCodeInput, setCouponCodeInput] = useState("");
   const [couponFeedback, setCouponFeedback] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
-  const [assignedPromotions, setAssignedPromotions] = useState<CustomerPromotion[]>([
-    {
-      id: "promo-2",
-      name: "VIP Gold Free Shipping",
-      key: "VIPFREESHIP",
-      discount: "$0 Shipping",
-      requiresDiscountCode: false,
-      segmentVisible: true,
-      validFrom: "2026-01-01",
-      validUntil: "2026-12-31",
-      isActive: true,
-    },
-  ]);
-  const [availablePromotions] = useState<CustomerPromotion[]>([
-    {
-      id: "promo-1",
-      name: "Summer Tier Discount 15%",
-      key: "SUMMER15",
-      discount: "15%",
-      requiresDiscountCode: true,
-      segmentVisible: true,
-      validFrom: "2026-06-01",
-      validUntil: "2026-08-31",
-      isActive: true,
-    },
-  ]);
-  const [promotionUsages] = useState<PromotionUsage[]>([
-    {
-      id: "usg-1",
-      orderNumber: "ORD-53982",
-      couponCode: "VIPFREESHIP",
-      promotionName: "VIP Gold Free Shipping",
-      state: "Applied",
-      usedAt: "2026-07-18",
-    },
-  ]);
+  const [assignedPromotions, setAssignedPromotions] = useState<CustomerPromotion[]>([]);
+  const [availablePromotions] = useState<CustomerPromotion[]>([]);
+  const [promotionUsages] = useState<PromotionUsage[]>([]);
 
   // Handlers
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -348,7 +372,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       currency: cartCurrency,
       country: cartCountry,
     };
-    setCarts((prev) => [newCart, ...prev]);
+    setAgentCreatedCarts((prev) => [newCart, ...prev]);
     setShowOrderBehalfPanel(false);
   };
 
@@ -610,20 +634,22 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
       {/* Overview Metric Row */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <CardMetric title="Total Orders" value={orders.length.toString()} subtitle="Lifetime customer orders" />
+        <CardMetric
+          title="Total Orders"
+          value={ordersLoading ? "…" : totalOrderCount.toString()}
+          subtitle="Lifetime customer orders"
+        />
         <CardMetric
           title="Total Spend"
-          value="$534.70"
-          subtitle="Average order $178.23"
-          trend={{ value: "15%", direction: "up" }}
+          value={ordersLoading ? "…" : totalSpend}
+          subtitle={totalOrderCount > 100 ? `From first 100 of ${totalOrderCount} orders` : "Across all fetched orders"}
         />
         <CardMetric
-          title="Active Support Tickets"
-          value={tickets.length.toString()}
-          subtitle="1 High priority case"
-          trend={{ value: "High SLA", direction: "down" }}
+          title="Support Tickets"
+          value={ticketsLoading ? "…" : tickets.length.toString()}
+          subtitle={tickets.length > 0 ? `${tickets.filter((t) => t.priority === "High" || t.priority === "Urgent").length} high/urgent` : "No open tickets"}
         />
-        <CardMetric title="Saved Carts" value={carts.length.toString()} subtitle="Active checkout carts" />
+        <CardMetric title="Saved Carts" value={totalCartsCount.toString()} subtitle="Active checkout carts" />
       </section>
 
       {/* Customer 360 Tabs */}
@@ -631,8 +657,8 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
         <Tabs.List className="overflow-x-auto">
           <Tabs.Trigger value="summary" icon={<Icon name="user" size="xs" />}>Summary</Tabs.Trigger>
           <Tabs.Trigger value="profile" icon={<Icon name="edit" size="xs" />}>Profile</Tabs.Trigger>
-          <Tabs.Trigger value="carts" icon={<Icon name="shopping-cart" size="xs" />}>Carts ({carts.length})</Tabs.Trigger>
-          <Tabs.Trigger value="orders" icon={<Icon name="shopping-bag" size="xs" />}>Orders ({orders.length})</Tabs.Trigger>
+          <Tabs.Trigger value="carts" icon={<Icon name="shopping-cart" size="xs" />}>Carts ({totalCartsCount})</Tabs.Trigger>
+          <Tabs.Trigger value="orders" icon={<Icon name="shopping-bag" size="xs" />}>Orders ({totalOrderCount})</Tabs.Trigger>
           <Tabs.Trigger value="returns" icon={<Icon name="rotate-ccw" size="xs" />}>Returns ({returns.length})</Tabs.Trigger>
           <Tabs.Trigger value="quotes" icon={<Icon name="file-text" size="xs" />}>Quotes ({quotes.length})</Tabs.Trigger>
           <Tabs.Trigger value="payments" icon={<Icon name="credit-card" size="xs" />}>Payments ({payments.length})</Tabs.Trigger>
@@ -853,49 +879,68 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
         {/* 4. Orders Tab */}
         <Tabs.Content value="orders" className="space-y-4">
-          <div className="w-full max-w-sm">
-            <SearchBar
-              value={ordersSearch}
-              onChange={(val) => setOrdersSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
-              onClear={() => setOrdersSearch("")}
-              placeholder="Filter orders by number, status, total..."
-            />
+          <div className="flex items-center justify-between">
+            <div className="w-full max-w-sm">
+              <SearchBar
+                value={ordersSearch}
+                onChange={(val) => setOrdersSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
+                onClear={() => setOrdersSearch("")}
+                placeholder="Filter orders by number, status, total..."
+              />
+            </div>
+            {totalOrderCount > 0 && (
+              <span className="text-xs text-m-text-muted whitespace-nowrap ml-4">
+                {totalOrderCount} total orders
+              </span>
+            )}
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order Number</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Items</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((row) => (
-                <TableRow key={row.id} clickable onClick={() => router.push(`/orders/${row.orderNumber}`)}>
-                  <TableCell className="font-bold text-m-primary">
-                    <Link href={`/orders/${row.orderNumber}`}>{row.orderNumber}</Link>
-                  </TableCell>
-                  <TableCell className="font-semibold">{row.totalPrice}</TableCell>
-                  <TableCell>{row.itemsCount}</TableCell>
-                  <TableCell>
-                    <Badge variant="success" size="sm" dot>
-                      {row.orderState}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="primary" size="sm">
-                      {row.paymentState}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{row.createdAt}</TableCell>
+          {ordersLoading ? (
+            <p className="text-xs text-m-text-muted py-6 text-center">Loading orders from commerce platform…</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order Number</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Items</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Date</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-xs text-m-text-muted py-6">
+                      No orders found for this customer.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredOrders.map((row) => (
+                    <TableRow key={row.id} clickable onClick={() => router.push(`/orders/${row.orderNumber}`)}>
+                      <TableCell className="font-bold text-m-primary">
+                        <Link href={`/orders/${row.orderNumber}`}>{row.orderNumber}</Link>
+                      </TableCell>
+                      <TableCell className="font-semibold">{row.totalPrice}</TableCell>
+                      <TableCell>{row.itemsCount}</TableCell>
+                      <TableCell>
+                        <Badge variant="success" size="sm" dot>
+                          {row.orderState}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="primary" size="sm">
+                          {row.paymentState}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{row.createdAt}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </Tabs.Content>
 
         {/* 5. Returns Tab */}
@@ -1241,32 +1286,44 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
             </Button>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ticket Number</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredTickets.map((t) => (
-                <TableRow key={t.id} clickable onClick={() => router.push(`/tickets/${t.id}`)}>
-                  <TableCell className="font-bold text-m-primary">{t.ticketNumber}</TableCell>
-                  <TableCell className="font-medium text-m-text">{t.subject}</TableCell>
-                  <TableCell>
-                    <Badge variant="warning" size="sm">{t.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="error" size="sm">{t.priority}</Badge>
-                  </TableCell>
-                  <TableCell>{t.createdAt}</TableCell>
+          {ticketsLoading ? (
+            <p className="text-xs text-m-text-muted py-6 text-center">Loading tickets for this customer…</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ticket Number</TableHead>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Created</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredTickets.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-xs text-m-text-muted py-6">
+                      {customer?.email ? "No tickets found for this customer." : "Customer email required to load tickets."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredTickets.map((t) => (
+                    <TableRow key={t.id} clickable onClick={() => router.push(`/tickets/${t.id}`)}>
+                      <TableCell className="font-bold text-m-primary">{t.ticketNumber}</TableCell>
+                      <TableCell className="font-medium text-m-text">{t.subject}</TableCell>
+                      <TableCell>
+                        <Badge variant="warning" size="sm">{t.status}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="error" size="sm">{t.priority}</Badge>
+                      </TableCell>
+                      <TableCell>{t.createdAt}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </Tabs.Content>
 
         {/* 10. Messages Tab */}

@@ -11,9 +11,11 @@ function mapOrder(ord: any) {
   return {
     id: ord.id,
     orderNumber: ord.orderNumber || ord.id,
-    customerId: ord.customerId || 'cust-1',
-    customerName: 'Customer',
-    customerEmail: '',
+    customerId: ord.customerId || undefined,
+    // customerName: CT orders don't carry a display name — use email as the
+    // best available identifier (consistent with normalizeOrder in use-orders.ts).
+    customerName: ord.customerEmail || ord.customerId || 'Guest',
+    customerEmail: ord.customerEmail || '',
     createdAt: ord.createdAt || new Date().toISOString(),
     status: ord.state || 'Complete',
     totalPrice: `$${val}`,
@@ -57,7 +59,7 @@ async function queryBffOrderByNumber(orderNumber: string): Promise<BffResult> {
       body: JSON.stringify({
         query: `query GetOrder($orderNumber: String) {
           order(orderNumber: $orderNumber) {
-            id orderNumber customerId state createdAt
+            id orderNumber customerId customerEmail state createdAt
             totalPrice { centAmount currencyCode fractionDigits }
             lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
           }
@@ -87,7 +89,7 @@ async function queryBffOrdersByCustomer(customerId: string): Promise<BffResult> 
         query: `query GetCustomerOrders($customerId: ID) {
           orderPage(customerId: $customerId, limit: 20, sortKey: "createdAt", sortOrder: "desc") {
             results {
-              id orderNumber customerId state createdAt
+              id orderNumber customerId customerEmail state createdAt
               totalPrice { centAmount currencyCode fractionDigits }
               lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
             }

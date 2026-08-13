@@ -300,19 +300,7 @@ export function CaseBriefingCard({ args }: { args: CaseBriefingArgs }) {
           <p className="text-xs font-medium text-m-text-muted uppercase tracking-wide mb-1">Recommended Resolution</p>
           <p className="text-xs text-m-text">{args.recommendedResolution}</p>
         </div>
-        {args.suggestedActions.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-m-text-muted uppercase tracking-wide mb-1">Next Steps</p>
-            <ul className="space-y-0.5">
-              {args.suggestedActions.map((action, i) => (
-                <li key={i} className="text-xs text-m-text flex items-start gap-1.5">
-                  <span className="text-m-primary mt-0.5">›</span>
-                  {action}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+
       </CardContent>
     </Card>
   );

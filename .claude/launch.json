@@ -6,6 +6,18 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@csa/webapp", "dev"],
       "port": 3000
+    },
+    {
+      "name": "ai-assist",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@csa/ai-assist", "dev"],
+      "port": 8080
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@csa/admin", "dev"],
+      "port": 4370
     }
   ]
 }

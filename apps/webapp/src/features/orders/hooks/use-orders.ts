@@ -33,6 +33,15 @@ type CommerceOrderLineItem = {
   totalPrice?: CommerceMoney | null;
 };
 
+type CommerceOrderAddress = {
+  streetName?: string | null;
+  streetNumber?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+};
+
 type CommerceOrder = {
   createdAt?: string | null;
   customerEmail?: string | null;
@@ -46,6 +55,8 @@ type CommerceOrder = {
   shipmentState?: string | null;
   state?: string | null;
   totalPrice?: CommerceMoney | null;
+  shippingAddress?: CommerceOrderAddress | null;
+  billingAddress?: CommerceOrderAddress | null;
 };
 
 type OrdersPageData = {
@@ -116,14 +127,20 @@ function normalizeOrder(order: CommerceOrder): Order {
   });
   const grandTotal = moneyToNumber(order.totalPrice);
 
+  // Map a CT address to the OrderAddress shape used by the UI. Falls back to
+  // "--" only when the field is genuinely absent from the CT record — never
+  // fabricates data.
+  const mapAddress = (addr?: CommerceOrderAddress | null) => ({
+    streetName: addr?.streetName ?? "--",
+    streetNumber: addr?.streetNumber ?? undefined,
+    city: addr?.city ?? "--",
+    state: addr?.state ?? "--",
+    postalCode: addr?.postalCode ?? "--",
+    country: addr?.country ?? "--",
+  });
+
   return {
-    billingAddress: {
-      streetName: "--",
-      city: "--",
-      state: "--",
-      postalCode: "--",
-      country: "--",
-    },
+    billingAddress: mapAddress(order.billingAddress),
     comments: [],
     createdAt: order.createdAt ?? "",
     customerEmail: order.customerEmail ?? "",
@@ -142,13 +159,7 @@ function normalizeOrder(order: CommerceOrder): Order {
     payments: [],
     returnInfo: [],
     shipmentState: toShipmentState(order.shipmentState),
-    shippingAddress: {
-      streetName: "--",
-      city: "--",
-      state: "--",
-      postalCode: "--",
-      country: "--",
-    },
+    shippingAddress: mapAddress(order.shippingAddress),
     shippingInfo: {
       shippingMethodName: "--",
       price: 0,

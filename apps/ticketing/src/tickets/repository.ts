@@ -65,7 +65,7 @@ export async function createTicket(draft: TicketDraft): Promise<Ticket> {
     timeSpentOnTicket: draft.timeSpentOnTicket ?? null,
     comments: draft.comments ?? [],
     attachments: draft.attachments ?? [],
-    history: [{ id: `hist-${now.getTime()}`, ticketNumber, operationDate: now.toISOString(), reason: draft.category ?? "general_inquiry", solution: draft.solution ?? null, status: draft.status ?? "Open", priority: draft.priority ?? "Medium", assignedTo: draft.assignee ?? "Queue", worklog: `Ticket created by ${draft.createdBy ?? "Current Agent"}`, timeSpent: null }],
+    history: [{ id: `hist-${now.getTime()}`, ticketNumber, operationDate: now.toISOString(), reason: draft.category ?? "general_inquiry", solution: draft.solution ?? null, status: draft.status ?? "Open", priority: draft.priority ?? "Medium", assignedTo: draft.assignee ?? "Queue", worklog: draft.worklog ? `Ticket created by ${draft.createdBy ?? "Current Agent"}. ${draft.worklog}` : `Ticket created by ${draft.createdBy ?? "Current Agent"}`, timeSpent: null }],
     lastModifiedAt: now,
     priority: draft.priority ?? "normal",
     projectKey,
@@ -146,10 +146,19 @@ function buildFilter(args: TicketListArgs): Filter<Document> {
     filter.category = args.category.trim();
   }
   if (args.assignee?.trim()) {
-    filter.assignee = args.assignee.trim();
+    // Match both 'assignee' (current field) and the legacy 'assignedTo' field
+    // that older documents in MongoDB were written with. Using $and ensures this
+    // doesn't conflict with the search $or that may appear later in the filter.
+    filter.$and = [
+      ...((filter.$and as unknown[]) ?? []),
+      { $or: [{ assignee: args.assignee.trim() }, { assignedTo: args.assignee.trim() }] }
+    ] as Filter<Document>["$and"];
   }
   if (args.customerEmail?.trim()) {
     filter.customerEmail = new RegExp(escapeRegExp(args.customerEmail.trim()), "i");
+  }
+  if (args.customerId?.trim()) {
+    filter.customerId = args.customerId.trim();
   }
   if (args.search?.trim()) {
     const search = new RegExp(escapeRegExp(args.search.trim()), "i");
@@ -247,8 +256,10 @@ function matchesArgs(ticket: Document, args: TicketListArgs) {
   if (args.status?.trim() && ticket.status !== args.status.trim()) return false;
   if (args.priority?.trim() && ticket.priority !== args.priority.trim()) return false;
   if (args.category?.trim() && ticket.category !== args.category.trim()) return false;
-  if (args.assignee?.trim() && ticket.assignee !== args.assignee.trim()) return false;
+  // Check both 'assignee' and legacy 'assignedTo' field (same as buildFilter above)
+  if (args.assignee?.trim() && ticket.assignee !== args.assignee.trim() && ticket.assignedTo !== args.assignee.trim()) return false;
   if (args.customerEmail?.trim() && !contains(ticket.customerEmail, args.customerEmail)) return false;
+  if (args.customerId?.trim() && ticket.customerId !== args.customerId.trim()) return false;
   if (args.search?.trim()) {
     const fields = [ticket.ticketNumber, ticket.subject, ticket.customerEmail, ticket.customerName, ticket.category];
     if (!fields.some((value) => contains(value, args.search!))) return false;

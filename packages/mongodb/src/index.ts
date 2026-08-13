@@ -1,72 +1,49 @@
-import { setServers } from "node:dns";
-import { MongoClient, type Collection, type Document } from "mongodb";
-
+// ---------------------------------------------------------------------------
+// Connection utilities
+// ---------------------------------------------------------------------------
+export * from "./connection.js";
 export type { Collection, Db, Document, Filter, Sort } from "mongodb";
 export { ObjectId } from "mongodb";
 
-let clientPromise: Promise<MongoClient> | undefined;
-let dnsConfigured = false;
+// ---------------------------------------------------------------------------
+// Encryption
+// ---------------------------------------------------------------------------
+export * from "./encrypt.js";
 
-export async function getMongoClient(uri = mongoUri()) {
-  if (!clientPromise) {
-    configureDns();
-    const client = new MongoClient(uri);
-    clientPromise = client.connect();
-  }
+// ---------------------------------------------------------------------------
+// Domain — clients
+// ---------------------------------------------------------------------------
+export * from "./clients/types.js";
+export * from "./clients/repository.js";
+export * from "./clients/parse-sso-input.js";
 
-  return clientPromise;
-}
+// ---------------------------------------------------------------------------
+// Domain — projects
+// ---------------------------------------------------------------------------
+export * from "./projects/types.js";
+export * from "./projects/repository.js";
+export * from "./projects/standalone-workspace-core.js";
+export * from "./projects/test-connection.js";
 
-function configureDns() {
-  if (dnsConfigured) return;
+// ---------------------------------------------------------------------------
+// Domain — smtp profiles
+// ---------------------------------------------------------------------------
+export * from "./smtp-profiles/types.js";
+export * from "./smtp-profiles/repository.js";
+export * from "./smtp-profiles/resolve-send-email-post-url.js";
+export * from "./smtp-profiles/test-send.js";
 
-  const servers = env("MONGO_DNS_SERVERS")
-    ?.split(",")
-    .map((server) => server.trim())
-    .filter(Boolean);
+// ---------------------------------------------------------------------------
+// Domain — users
+// ---------------------------------------------------------------------------
+export * from "./users/types.js";
+export * from "./users/repository.js";
 
-  if (servers?.length) {
-    setServers(servers);
-  }
-
-  dnsConfigured = true;
-}
-
-export async function getMongoDb(dbName = env("MONGO_DB_NAME") || "csa") {
-  const client = await getMongoClient();
-
-  return client.db(dbName);
-}
-
-export async function getMongoCollection<TSchema extends Document = Document>(
-  collectionName: string,
-  options: { dbName?: string } = {}
-): Promise<Collection<TSchema>> {
-  const db = await getMongoDb(options.dbName);
-
-  return db.collection<TSchema>(collectionName);
-}
-
-export function env(name: string) {
-  return process.env[name]?.trim() || undefined;
-}
-
-export function requiredEnv(name: string) {
-  const value = env(name);
-
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-
-  return value;
-}
-
-function mongoUri() {
-  const value = env("MONGO_URI") || env("MONGODB_URI");
-
-  if (!value) {
-    throw new Error("Missing required environment variable: MONGO_URI or MONGODB_URI");
-  }
-
-  return value;
-}
+// ---------------------------------------------------------------------------
+// Namespace re-exports — lets apps/admin/src/schema.ts keep its existing
+// `import * as clientsRepo from "..."` style with minimal changes.
+// ---------------------------------------------------------------------------
+export * as clientsRepo from "./clients/repository.js";
+export * as projectsRepo from "./projects/repository.js";
+export * as smtpRepo from "./smtp-profiles/repository.js";
+export * as usersRepo from "./users/repository.js";

@@ -1,5 +1,5 @@
-import type { Cart, CommerceLineItem, Customer, Money, Order, Product } from "@csa/commerce-contract";
-import type { CtCart, CtCustomer, CtLineItem, CtMoney, CtOrder, CtProduct } from "./types.js";
+import type { Cart, CommerceLineItem, Customer, Money, Order, OrderReturnInfo, Product } from "@csa/commerce-contract";
+import type { CtCart, CtCustomer, CtLineItem, CtMoney, CtOrder, CtProduct, CtReturnInfo } from "./types.js";
 
 export function mapProduct(product: CtProduct | null | undefined): Product | null {
   if (!product) {
@@ -54,7 +54,26 @@ export function mapOrder(order: CtOrder | null | undefined): Order | null {
     paymentState: order.paymentState,
     shipmentState: order.shipmentState,
     state: order.orderState,
-    totalPrice: mapMoney(order.totalPrice)
+    totalPrice: mapMoney(order.totalPrice),
+    shippingAddress: order.shippingAddress ?? null,
+    billingAddress: order.billingAddress ?? null,
+    returnInfo: (order.returnInfo ?? []).map(mapReturnInfo),
+  };
+}
+
+function mapReturnInfo(ri: CtReturnInfo): OrderReturnInfo {
+  return {
+    returnTrackingId: ri.returnTrackingId ?? null,
+    returnDate: ri.returnDate ?? null,
+    items: (ri.items ?? []).map((item) => ({
+      id: item.id,
+      type: item.type ?? null,
+      quantity: item.quantity,
+      lineItemId: item.lineItemId ?? null,
+      shipmentState: item.shipmentState,
+      paymentState: item.paymentState,
+      comment: item.comment ?? null,
+    })),
   };
 }
 

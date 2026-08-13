@@ -67,7 +67,12 @@ const actionApprovalSchema = z.object({
   intent: z
     .enum(["cancel_order", "place_order", "start_return", "process_refund", "update_order", "other"])
     .describe("Category of the action"),
-  executeCommand: z.string().describe("Natural-language command the agent should send on approval")
+  executeCommand: z.string().describe(
+    "Plain-English sentence the UI will echo back as the approval signal. " +
+    "MUST be human-readable — NEVER a raw tool name. " +
+    "Good: 'Create the support ticket for John Doe with high priority' or 'Place the order for Jane Smith — 2 items totalling $150'. " +
+    "Bad: 'create_ticket' or 'place_order'."
+  )
 });
 
 const suggestedActionsSchema = z.object({
@@ -182,12 +187,8 @@ const draftEmailTool = tool({
   execute: async (_args: z.infer<typeof draftEmailSchema>) => ({ success: true })
 });
 
-const actionApprovalTool = tool({
-  description:
-    "Request explicit agent approval before executing a write operation. Show a confirmation card with full details.",
-  inputSchema: actionApprovalSchema,
-  execute: async (_args: z.infer<typeof actionApprovalSchema>) => ({ success: true })
-});
+// actionApprovalTool is constructed inside buildUiTools() so it can close over
+// the per-request approvalGate.  See bottom of this file.
 
 const suggestedActionsTool = tool({
   description: "Show 1–4 quick-action chips below the message for the agent to click.",
@@ -242,8 +243,34 @@ const caseBriefingCardTool = tool({
 });
 
 // ─── Export ───────────────────────────────────────────────────────────────────
+//
+// approvalGate is a per-request shared flag.  When action_approval.execute
+// sets it to true, any write tool (create_ticket, update_ticket, place_order)
+// that checks the gate in the SAME agentic step will be blocked, preventing
+// the ticket/order from being created before the agent clicks Approve.
 
-export function buildUiTools() {
+export function buildUiTools(approvalGate: { pending: boolean }) {
+  // Built here (not at module level) so execute can close over approvalGate.
+  const actionApprovalTool = tool({
+    description:
+      "Request explicit agent approval before executing a write operation. Show a confirmation card with full details.",
+    inputSchema: actionApprovalSchema,
+    execute: async (_args: z.infer<typeof actionApprovalSchema>) => {
+      // Set the gate — any write tool called later in this same step will see
+      // pending === true and return a blocking error instead of executing.
+      approvalGate.pending = true;
+      return {
+        status: "PENDING_APPROVAL",
+        message:
+          "The approval card has been displayed to the agent. " +
+          "STOP IMMEDIATELY — do NOT call create_ticket, update_ticket, place_order, " +
+          "or any other write tool in this turn. " +
+          "End your response now. " +
+          "The write action will only execute in the NEXT user turn after the agent clicks Approve.",
+      };
+    },
+  });
+
   return {
     update_ui_state: updateUiStateTool,
     draft_email: draftEmailTool,
