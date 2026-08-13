@@ -16,6 +16,10 @@ export type CurrentUser = {
   id: string;
   name: string;
   projectKey?: string;
+  activeClientId?: string;
+  activeProjectKey?: string;
+  projects?: Array<{ clientId?: string; displayName?: string; projectKey: string; role: string }>;
+  requiresProjectSelection?: boolean;
   role: 'agent' | 'admin' | 'superadmin';
   tenantId: string;
 };

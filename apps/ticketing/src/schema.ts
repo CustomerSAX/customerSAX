@@ -2,6 +2,14 @@ import { gql } from "graphql-tag";
 import { addWorklog, createTicket, getTicket, listTickets, updateTicket } from "./tickets/repository.js";
 import type { TicketDraft, TicketListArgs, TicketUpdate, WorklogComment } from "./tickets/types.js";
 
+type TicketingContext = { clientId?: string; projectKey?: string };
+
+function selectedProject(context: unknown) {
+  const projectKey = (context as TicketingContext | undefined)?.projectKey?.trim();
+  if (!projectKey) throw new Error("An active project is required for ticket operations");
+  return projectKey;
+}
+
 export const typeDefs = gql`
   type Ticket @key(fields: "id") {
     id: ID!
@@ -111,18 +119,20 @@ export const typeDefs = gql`
 
 export const resolvers = {
   Mutation: {
-    createTicket: (_parent: unknown, args: { draft: TicketDraft }) =>
-      createTicket(args.draft),
-    updateTicket: (_parent: unknown, args: { id: string; patch: TicketUpdate & { projectKey?: string | null } }) =>
-      updateTicket(args.id, args.patch),
-    addTicketWorklog: (_parent: unknown, args: { id: string; comment: WorklogComment; projectKey?: string | null }) => addWorklog(args.id, args.comment, args.projectKey)
+    createTicket: (_parent: unknown, args: { draft: TicketDraft }, context: unknown) =>
+      createTicket({ ...args.draft, projectKey: selectedProject(context) }),
+    updateTicket: (_parent: unknown, args: { id: string; patch: TicketUpdate & { projectKey?: string | null } }, context: unknown) =>
+      updateTicket(args.id, { ...args.patch, projectKey: selectedProject(context) }),
+    addTicketWorklog: (_parent: unknown, args: { id: string; comment: WorklogComment }, context: unknown) =>
+      addWorklog(args.id, args.comment, selectedProject(context))
   },
   Query: {
-    ticket: (_parent: unknown, args: { id: string; projectKey?: string | null }) =>
-      getTicket(args.id, args.projectKey),
-    ticketPage: (_parent: unknown, args: TicketListArgs) => listTickets(args),
-    tickets: async (_parent: unknown, args: TicketListArgs) => {
-      const page = await listTickets(args);
+    ticket: (_parent: unknown, args: { id: string }, context: unknown) =>
+      getTicket(args.id, selectedProject(context)),
+    ticketPage: (_parent: unknown, args: TicketListArgs, context: unknown) =>
+      listTickets({ ...args, projectKey: selectedProject(context) }),
+    tickets: async (_parent: unknown, args: TicketListArgs, context: unknown) => {
+      const page = await listTickets({ ...args, projectKey: selectedProject(context) });
 
       return page.results;
     }

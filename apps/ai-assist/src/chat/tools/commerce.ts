@@ -602,7 +602,7 @@ export const startReturnTool = tool({
       const actions = [
         {
           addReturnInfo: {
-            items: lineItems.map((li) => ({
+            items: lineItems.map((li: { lineItemId: string; quantity: number }) => ({
               comment: returnComment,
               lineItemId: li.lineItemId,
               quantity: li.quantity,

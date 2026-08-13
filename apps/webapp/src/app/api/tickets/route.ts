@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
 
 // Route all ticketing queries through the BFF (Apollo Federation gateway) —
 // the ticketing service is a federated subgraph and must not be called directly.
@@ -28,7 +29,7 @@ const LIST_QUERY = `
 `;
 
 async function gql(query: string, variables: Record<string, unknown>) {
-  const res = await fetch(BFF_URL, {
+  const res = await projectScopedBffFetch(BFF_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -13,7 +13,7 @@
  */
 
 import bcrypt from "bcryptjs";
-import { ObjectId } from "mongodb";
+import { ObjectId } from "@csa/mongodb";
 import { getUsersCollection } from "../db/mongodb.js";
 import type { CsaUser, CsaUserProject } from "./types.js";
 
@@ -73,6 +73,15 @@ export async function listUsersByClient(clientId: string): Promise<CsaUser[]> {
 export async function countUsersByClient(clientId: string): Promise<number> {
   const col = await getUsersCollection();
   return col.countDocuments({ $or: [{ "projects.clientId": clientId }, { clientId }] });
+}
+
+export async function countUsersByProjectRole(clientId: string, projectKey: string, role: string): Promise<number> {
+  const col = await getUsersCollection();
+  return col.countDocuments({ projects: { $elemMatch: { clientId, projectKey, role } } });
+}
+
+export async function countUsersAssignedRole(clientId: string, projectKey: string, role: string): Promise<number> {
+  return countUsersByProjectRole(clientId, projectKey, role);
 }
 
 // ---------------------------------------------------------------------------

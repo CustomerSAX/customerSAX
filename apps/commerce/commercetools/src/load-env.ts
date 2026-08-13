@@ -3,9 +3,10 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const appEnvPath = fileURLToPath(new URL("../.env", import.meta.url));
+const sharedAuthEnvPath = fileURLToPath(new URL("../../../auth/.env", import.meta.url));
 const cwdEnvPath = resolve(process.cwd(), ".env");
 
-for (const envPath of Array.from(new Set([cwdEnvPath, appEnvPath]))) {
+for (const envPath of Array.from(new Set([cwdEnvPath, appEnvPath, sharedAuthEnvPath]))) {
   loadEnvFile(envPath);
 }
 

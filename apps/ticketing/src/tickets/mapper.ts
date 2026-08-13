@@ -1,4 +1,4 @@
-import { ObjectId, type Document } from "mongodb";
+import { ObjectId, type Document } from "@csa/mongodb";
 import type { Ticket } from "./types.js";
 
 export function mapTicket(doc: Document): Ticket {

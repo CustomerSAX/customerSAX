@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
@@ -50,7 +51,7 @@ async function queryBffOrder(orderNumber?: string | null, customerId?: string | 
 
 async function queryBffOrderByNumber(orderNumber: string): Promise<BffResult> {
   try {
-    const res = await fetch(BFF_URL, {
+    const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-csa-commerce-platform': 'commercetools' },
       body: JSON.stringify({
@@ -79,7 +80,7 @@ async function queryBffOrderByNumber(orderNumber: string): Promise<BffResult> {
 
 async function queryBffOrdersByCustomer(customerId: string): Promise<BffResult> {
   try {
-    const res = await fetch(BFF_URL, {
+    const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-csa-commerce-platform': 'commercetools' },
       body: JSON.stringify({

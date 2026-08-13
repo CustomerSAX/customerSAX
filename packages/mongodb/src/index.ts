@@ -1,17 +1,35 @@
+import { setServers } from "node:dns";
 import { MongoClient, type Collection, type Document } from "mongodb";
 
 export type { Collection, Db, Document, Filter, Sort } from "mongodb";
 export { ObjectId } from "mongodb";
 
 let clientPromise: Promise<MongoClient> | undefined;
+let dnsConfigured = false;
 
 export async function getMongoClient(uri = mongoUri()) {
   if (!clientPromise) {
+    configureDns();
     const client = new MongoClient(uri);
     clientPromise = client.connect();
   }
 
   return clientPromise;
+}
+
+function configureDns() {
+  if (dnsConfigured) return;
+
+  const servers = env("MONGO_DNS_SERVERS")
+    ?.split(",")
+    .map((server) => server.trim())
+    .filter(Boolean);
+
+  if (servers?.length) {
+    setServers(servers);
+  }
+
+  dnsConfigured = true;
 }
 
 export async function getMongoDb(dbName = env("MONGO_DB_NAME") || "csa") {

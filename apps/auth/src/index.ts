@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import "./load-env.js";
-import { getCurrentSession, loginWithPassword, logout } from "./http/auth.js";
+import { getCurrentSession, loginWithPassword, logout, selectSessionProject } from "./http/auth.js";
 import { readJsonBody, sendJson, sendNoContent } from "./http/json.js";
 import { ensureAuthIndexes } from "./users/repository.js";
 
@@ -46,6 +46,25 @@ const server = createServer(async (request, response) => {
       }
 
       sendJson(response, 200, session);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/sessions/current/project") {
+      const body = await readJsonBody<{ projectKey?: string; clientId?: string }>(request);
+      if (!body.projectKey?.trim()) {
+        sendJson(response, 400, { error: "projectKey is required" });
+        return;
+      }
+      const result = await selectSessionProject(request, body.projectKey.trim(), body.clientId?.trim());
+      if (!result) {
+        sendJson(response, 401, { error: "unauthenticated" });
+        return;
+      }
+      if ("forbidden" in result) {
+        sendJson(response, 403, { error: "project access denied" });
+        return;
+      }
+      sendJson(response, 200, result);
       return;
     }
 

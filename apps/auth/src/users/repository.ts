@@ -55,3 +55,13 @@ export async function revokeSessionByTokenHash(tokenHash: string) {
     { $set: { revokedAt: new Date() } }
   );
 }
+
+export async function setSessionProject(tokenHash: string, activeProjectKey: string, activeClientId?: string) {
+  const sessions = await getSessionsCollection();
+  await sessions.updateOne(
+    { tokenHash, expiresAt: { $gt: new Date() }, revokedAt: { $exists: false } },
+    activeClientId
+      ? { $set: { activeProjectKey, activeClientId } }
+      : { $set: { activeProjectKey }, $unset: { activeClientId: "" } }
+  );
+}

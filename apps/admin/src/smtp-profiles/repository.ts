@@ -1,4 +1,4 @@
-import { ObjectId } from "mongodb";
+import { ObjectId } from "@csa/mongodb";
 import { getSmtpProfilesCollection } from "../db/mongodb.js";
 import { encrypt, decrypt } from "../encrypt.js";
 import type { CsaSmtpProfile } from "./types.js";
