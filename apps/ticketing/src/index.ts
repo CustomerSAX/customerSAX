@@ -12,7 +12,15 @@ const server = new ApolloServer({
 });
 
 const { url } = await startStandaloneServer(server, {
-  listen: { host, port }
+  listen: { host, port },
+  context: async ({ req }) => ({
+    projectKey: headerValue(req.headers["x-csa-project-key"]),
+    clientId: headerValue(req.headers["x-csa-client-id"])
+  })
 });
 
 console.log(`CSA ticketing service ready at ${url}`);
+
+function headerValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}

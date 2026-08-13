@@ -178,6 +178,9 @@ importers:
       '@csa/commerce-contract':
         specifier: workspace:*
         version: link:../contract
+      '@csa/mongodb':
+        specifier: workspace:*
+        version: link:../../../packages/mongodb
       graphql:
         specifier: ^16.9.0
         version: 16.14.2

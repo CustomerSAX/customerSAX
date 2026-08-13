@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
 
 /**
  * GET /api/context/resolve?email=<email>&customerId=<id>&ticketId=<id>
@@ -18,7 +19,7 @@ const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/gr
 
 async function bffQuery<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
   try {
-    const res = await fetch(BFF_URL, {
+    const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-csa-commerce-platform': 'commercetools' },
       body: JSON.stringify({ query, variables }),

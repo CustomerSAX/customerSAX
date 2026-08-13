@@ -6,6 +6,8 @@ type FederatedService = {
   url: string;
 };
 
+export type GatewayContext = { clientId?: string; projectKey?: string; userEmail?: string; userRole?: string };
+
 export function getCommercePlatform() {
   return process.env.BFF_COMMERCE_PLATFORM ?? "commercetools";
 }
@@ -26,8 +28,13 @@ export function buildGateway(): ApolloGateway | undefined {
     buildService: ({ url }) =>
       new RemoteGraphQLDataSource({
         url,
-        willSendRequest({ request }) {
+        willSendRequest({ request, context }) {
           request.http?.headers.set("x-csa-commerce-platform", getCommercePlatform());
+          const gatewayContext = context as GatewayContext;
+          if (gatewayContext.projectKey) request.http?.headers.set("x-csa-project-key", gatewayContext.projectKey);
+          if (gatewayContext.clientId) request.http?.headers.set("x-csa-client-id", gatewayContext.clientId);
+          if (gatewayContext.userRole) request.http?.headers.set("x-csa-user-role", gatewayContext.userRole);
+          if (gatewayContext.userEmail) request.http?.headers.set("x-csa-user-email", gatewayContext.userEmail);
         }
       }),
     supergraphSdl: new IntrospectAndCompose({

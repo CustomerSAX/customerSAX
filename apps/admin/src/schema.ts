@@ -12,6 +12,8 @@ import {
   usersRepo,
 } from "@csa/mongodb";
 import type { ClientSsoConfigStored, CsaUser } from "@csa/mongodb";
+import * as rolesRepo from "./roles/repository.js";
+import * as aiSettingsRepo from "./ai-settings/repository.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -269,6 +271,15 @@ export const typeDefs = gql`
     projects: [AdminUserProjectInput!]
   }
 
+  type AdminPermission { module: String!, view: Boolean!, create: Boolean!, update: Boolean!, delete: Boolean! }
+  input AdminPermissionInput { module: String!, view: Boolean!, create: Boolean!, update: Boolean!, delete: Boolean! }
+  type AdminRole { id: ID!, clientId: ID!, projectKey: String!, key: String!, label: String!, description: String!, system: Boolean!, permissions: [AdminPermission!]! }
+  input AdminRoleInput { key: String!, label: String!, description: String!, permissions: [AdminPermissionInput!]! }
+  input AdminRoleUpdateInput { label: String, description: String, permissions: [AdminPermissionInput!] }
+
+  type AdminAiSettings { clientId: ID!, enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKeySet: Boolean!, updatedBy: String, updatedAt: String }
+  input AdminAiSettingsInput { enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKey: String }
+
   extend type Query {
     adminClients: [AdminClient!]!
     adminClient(id: ID!): AdminClient
@@ -276,6 +287,8 @@ export const typeDefs = gql`
     adminProject(id: ID!): AdminProject
     adminUsersByClient(clientId: ID!): [AdminClientUser!]!
     adminSmtpProfilesByClient(clientId: ID!): [AdminSmtpProfile!]!
+    adminRoles(clientId: ID!, projectKey: String!): [AdminRole!]!
+    adminAiSettings(clientId: ID!): AdminAiSettings!
   }
 
   extend type Mutation {
@@ -300,6 +313,12 @@ export const typeDefs = gql`
     adminUpdateClientUser(clientId: ID!, input: AdminUpdateClientUserInput!, grantedBy: String!): AdminClientUser!
     adminRemoveUserFromProject(clientId: ID!, email: String!, projectKey: String!): Boolean!
     adminRemoveUserFromClient(clientId: ID!, email: String!): Boolean!
+    adminUpdateClientContact(clientId: ID!, contactEmail: String!): AdminClient!
+    adminCreateRole(clientId: ID!, projectKey: String!, input: AdminRoleInput!): AdminRole!
+    adminUpdateRole(id: ID!, clientId: ID!, projectKey: String!, input: AdminRoleUpdateInput!): AdminRole
+    adminDeleteRole(id: ID!, clientId: ID!, projectKey: String!): Boolean!
+    adminUpdateAiSettings(clientId: ID!, input: AdminAiSettingsInput!): AdminAiSettings!
+    adminSetProjectSmtp(clientId: ID!, projectKey: String!, smtpProfileId: String): Boolean!
   }
 `;
 
@@ -356,6 +375,8 @@ export const resolvers = {
       const docs = await smtpRepo.listSmtpProfilesByClient(args.clientId);
       return docs.map(smtpViewIso);
     },
+    adminRoles: (_p: unknown, args: { clientId: string; projectKey: string }) => rolesRepo.listRoles(args.clientId, args.projectKey),
+    adminAiSettings: (_p: unknown, args: { clientId: string }) => aiSettingsRepo.getAiSettings(args.clientId),
   },
 
   Mutation: {
@@ -720,6 +741,16 @@ export const resolvers = {
     ) => {
       await requireClient(args.clientId);
 
+      const existingUser = await usersRepo.findUserByEmail(args.input.email);
+      if (existingUser && args.input.projects) {
+        for (const membership of existingUser.projects.filter((item) => item.clientId === args.clientId && item.role === "admin")) {
+          const replacement = args.input.projects.find((item) => item.projectKey === membership.projectKey);
+          if ((!replacement || replacement.role !== "admin") && await usersRepo.countUsersByProjectRole(args.clientId, membership.projectKey, "admin") <= 1) {
+            throw new Error(`Cannot remove the last administrator from '${membership.projectKey}'`);
+          }
+        }
+      }
+
       if (args.input.password && args.input.password.trim() && args.input.password.length < 8) {
         throw new Error("Password must be at least 8 characters");
       }
@@ -752,6 +783,26 @@ export const resolvers = {
 
     adminRemoveUserFromClient: async (_p: unknown, args: { clientId: string; email: string }) => {
       return usersRepo.removeUserFromClient(args.email, args.clientId);
+    },
+    adminUpdateClientContact: async (_p: unknown, args: { clientId: string; contactEmail: string }) => {
+      await clientsRepo.updateClient(args.clientId, { contactEmail: args.contactEmail.trim() });
+      const client = await requireClient(args.clientId);
+      return { ...clientViewIso(client), projectCount: await projectsRepo.countProjectsByClient(args.clientId), userCount: await usersRepo.countUsersByClient(args.clientId) };
+    },
+    adminCreateRole: (_p: unknown, args: { clientId: string; projectKey: string; input: { key: string; label: string; description: string; permissions: rolesRepo.Permission[] } }) => rolesRepo.createRole(args.clientId, args.projectKey, args.input),
+    adminUpdateRole: (_p: unknown, args: { id: string; clientId: string; projectKey: string; input: { label?: string; description?: string; permissions?: rolesRepo.Permission[] } }) => rolesRepo.updateRole(args.id, args.clientId, args.projectKey, args.input),
+    adminDeleteRole: async (_p: unknown, args: { id: string; clientId: string; projectKey: string }) => {
+      const role = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.id === args.id);
+      if (!role) return false;
+      if (role.system) throw new Error("System roles cannot be deleted");
+      if (await usersRepo.countUsersAssignedRole(args.clientId, args.projectKey, role.key) > 0) throw new Error("Role is assigned to one or more users");
+      return rolesRepo.deleteRole(args.id, args.clientId, args.projectKey);
+    },
+    adminUpdateAiSettings: (_p: unknown, args: { clientId: string; input: { enabled: boolean; provider: string; displayName: string; model: string; baseUrl?: string; apiKey?: string } }, context: unknown) => aiSettingsRepo.updateAiSettings(args.clientId, args.input, (context as { userEmail?: string } | undefined)?.userEmail ?? "unknown"),
+    adminSetProjectSmtp: async (_p: unknown, args: { clientId: string; projectKey: string; smtpProfileId?: string | null }) => {
+      const project = (await projectsRepo.listProjectsByClient(args.clientId)).find((item) => item.projectKey === args.projectKey);
+      if (!project) throw new Error("Project not found in this organisation");
+      return projectsRepo.updateProject(project._id.toHexString(), { smtpProfileId: args.smtpProfileId ?? null });
     },
   },
 };

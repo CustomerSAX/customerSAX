@@ -1,4 +1,4 @@
-import type { ObjectId } from "mongodb";
+import type { ObjectId } from "@csa/mongodb";
 
 export interface CsaSmtpProfile {
   _id: ObjectId;

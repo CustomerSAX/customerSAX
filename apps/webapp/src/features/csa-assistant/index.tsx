@@ -28,7 +28,6 @@ const CHAT_STORAGE_KEY = "csa-chat-messages";
 // over into a new browser session.
 const ticketSessionKey = (ticketId: string) => `csa-ticket-msgs-${ticketId}`;
 
-const CT_PROJECT_KEY = process.env.NEXT_PUBLIC_CT_PROJECT_KEY || undefined;
 const rawBusinessType = process.env.NEXT_PUBLIC_CT_BUSINESS_TYPE;
 const CT_BUSINESS_TYPE: BusinessType | undefined =
   rawBusinessType === "b2b" || rawBusinessType === "b2c" ? rawBusinessType : undefined;
@@ -63,7 +62,7 @@ export function CsaAssistant() {
   const sessionContext: SessionContext = {
     userEmail: user?.email,
     userRole: user ? roleLabel(user.role) : undefined,
-    projectKey: CT_PROJECT_KEY,
+    projectKey: user?.activeProjectKey,
     businessType: CT_BUSINESS_TYPE,
     pageContext: activeTicketId
       ? { type: "ticket", id: activeTicketId }

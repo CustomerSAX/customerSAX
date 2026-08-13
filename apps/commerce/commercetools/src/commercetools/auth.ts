@@ -3,27 +3,26 @@ type TokenResponse = {
   expires_in: number;
   token_type: string;
 };
+import type { CommercetoolsProjectConfig } from "./project-config.js";
 
-let cachedToken: { expiresAt: number; token: string } | undefined;
+const cachedTokens = new Map<string, { expiresAt: number; token: string }>();
 
-export async function getCommercetoolsToken() {
+export async function getCommercetoolsToken(config: CommercetoolsProjectConfig) {
+  const cacheKey = `${config.projectKey}:${config.clientId}`;
+  const cachedToken = cachedTokens.get(cacheKey);
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
     return cachedToken.token;
   }
 
-  const clientId = requiredEnv("COMMERCETOOLS_CLIENT_ID", "CT_CLIENT_ID");
-  const clientSecret = requiredEnv("COMMERCETOOLS_CLIENT_SECRET", "CT_CLIENT_SECRET");
-  const authUrl = trimTrailingSlash(requiredEnv("COMMERCETOOLS_AUTH_URL", "CT_AUTH_URL"));
-  const projectKey = requiredEnv("COMMERCETOOLS_PROJECT_KEY");
-  const scope = process.env.COMMERCETOOLS_SCOPE?.trim() || `manage_project:${projectKey}`;
+  const scope = config.scope || `manage_project:${config.projectKey}`;
 
-  const response = await fetch(`${authUrl}/oauth/token`, {
+  const response = await fetch(`${config.authUrl}/oauth/token`, {
     body: new URLSearchParams({
       grant_type: "client_credentials",
       scope
     }),
     headers: {
-      authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+      authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`,
       "content-type": "application/x-www-form-urlencoded"
     },
     method: "POST"
@@ -35,26 +34,12 @@ export async function getCommercetoolsToken() {
 
   const payload = (await response.json()) as TokenResponse;
 
-  cachedToken = {
+  cachedTokens.set(cacheKey, {
     expiresAt: Date.now() + payload.expires_in * 1000,
     token: payload.access_token
-  };
+  });
 
-  return cachedToken.token;
-}
-
-function requiredEnv(name: string, alias?: string) {
-  const value = process.env[name] ?? (alias ? process.env[alias] : undefined);
-
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-
-  return value;
-}
-
-function trimTrailingSlash(value: string) {
-  return value.trim().replace(/\/+$/, "");
+  return payload.access_token;
 }
 
 async function safeErrorMessage(response: Response) {
