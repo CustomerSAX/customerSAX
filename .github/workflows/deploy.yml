@@ -11,15 +11,79 @@ env:
   REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
   ARTIFACT_REPO: csa-dev-repo
+  PLACEHOLDER_IMAGE: us-docker.pkg.dev/cloudrun/container/hello
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
-  # Job 1: Provision GCP infrastructure via Terraform
-  # Creates/updates Cloud Run services, Secret Manager, Artifact Registry, etc.
+  # Job 1: Bootstrap — ensure ALL Cloud Run services exist before Terraform.
+  # Creates any missing services via gcloud (idempotent). This prevents the
+  # "chicken-and-egg" where Terraform references a service URI before it exists.
+  # ──────────────────────────────────────────────────────────────────────────
+  bootstrap-services:
+    name: "🌱 Bootstrap Cloud Run Services"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Create missing Cloud Run services (idempotent)
+        run: |
+          # First ensure all APIs are enabled
+          gcloud services enable run.googleapis.com \
+            secretmanager.googleapis.com \
+            artifactregistry.googleapis.com \
+            cloudbuild.googleapis.com \
+            --project="${{ env.PROJECT_ID }}" --quiet
+
+          SERVICES=(
+            "csa-dev-bff"
+            "csa-dev-auth"
+            "csa-dev-ai-assist"
+            "csa-dev-commerce-commercetools"
+            "csa-dev-ticketing"
+            "csa-dev-admin"
+            "csa-dev-commerce-shopify"
+            "csa-dev-commerce-bigcommerce"
+            "csa-dev-commerce-sfcc"
+          )
+
+          for SVC in "${SERVICES[@]}"; do
+            EXISTS=$(gcloud run services describe "${SVC}" \
+              --region="${{ env.REGION }}" \
+              --project="${{ env.PROJECT_ID }}" \
+              --format='value(name)' 2>/dev/null || echo "")
+
+            if [ -z "${EXISTS}" ]; then
+              echo "🌱 Creating placeholder: ${SVC}"
+              gcloud run deploy "${SVC}" \
+                --image="${{ env.PLACEHOLDER_IMAGE }}" \
+                --region="${{ env.REGION }}" \
+                --project="${{ env.PROJECT_ID }}" \
+                --no-allow-unauthenticated \
+                --quiet
+              echo "  ✅ ${SVC} created"
+            else
+              echo "  ✓ ${SVC} already exists"
+            fi
+          done
+
+          echo ""
+          echo "✅ All Cloud Run services exist — Terraform can now import cleanly"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 2: Terraform — provision infra with all services guaranteed to exist
   # ──────────────────────────────────────────────────────────────────────────
   terraform-apply:
     name: "🏗️ Provision Infrastructure"
     runs-on: ubuntu-latest
+    needs: bootstrap-services
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -43,16 +107,7 @@ jobs:
             -var="environment=dev"
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Job 2: Build + Deploy all changed services via Cloud Build
-  #
-  # Delegates to the 4-step Cloud Build pipeline (cloudbuild.yaml):
-  #   Step 1: cloudbuild-detect.sh      detect changed services via git diff
-  #   Step 2: cloudbuild-build-push.sh  docker build + push (4 parallel)
-  #   Step 3: cloudbuild-deploy.sh      gcloud run deploy with per-service tuning
-  #   Step 4: cloudbuild-update-urls.sh wire service URLs between services
-  #
-  # Cloud Build runs on E2_HIGHCPU_8 (8 vCPU / 8 GB RAM) — faster than
-  # GitHub Actions runners for Docker builds.
+  # Job 3: Build + Deploy all changed services via Cloud Build
   # ──────────────────────────────────────────────────────────────────────────
   cloud-build-deploy:
     name: "🚀 Build & Deploy via Cloud Build"
@@ -83,7 +138,7 @@ jobs:
             --substitutions="BRANCH_NAME=${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Job 3: Print service URLs after successful deployment
+  # Job 4: Print service URLs after successful deployment
   # ──────────────────────────────────────────────────────────────────────────
   deployment-summary:
     name: "📋 Deployment Summary"
