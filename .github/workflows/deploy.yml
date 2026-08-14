@@ -166,15 +166,9 @@ jobs:
 
       - name: Deploy webapp to Vercel (Production)
         run: |
-          vercel pull --yes --environment=production \
+          vercel deploy --prod \
             --token="${{ secrets.VERCEL_TOKEN }}" \
-            --cwd apps/webapp
-          vercel build --prod \
-            --token="${{ secrets.VERCEL_TOKEN }}" \
-            --cwd apps/webapp
-          vercel deploy --prebuilt --prod \
-            --token="${{ secrets.VERCEL_TOKEN }}" \
-            --cwd apps/webapp
+            --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -182,14 +176,9 @@ jobs:
 
       - name: Deploy marketing to Vercel (Production)
         run: |
-          vercel pull --yes --environment=production \
+          vercel deploy --prod \
             --token="${{ secrets.VERCEL_TOKEN }}" \
-            --cwd apps/marketing
-          vercel build --prod \
-            --token="${{ secrets.VERCEL_TOKEN }}" \
-            --cwd apps/marketing
-          vercel deploy --prebuilt --prod \
-            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --yes \
             --cwd apps/marketing
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
