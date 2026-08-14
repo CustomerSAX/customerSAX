@@ -23,3 +23,5 @@ CLAUDE.local.md
 # Graphify's generated knowledge-graph output — regenerable, keep the repo diff-clean
 graphify-out/
 
+.vercel
+.env*
