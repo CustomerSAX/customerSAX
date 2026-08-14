@@ -206,20 +206,9 @@ resource "google_cloud_run_v2_service" "commerce_commercetools" {
         value = var.commercetools_scope
       }
 
-      dynamic "env" {
-        for_each = local.commerce_secrets
-
-        content {
-          name = env.value
-
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.commerce[env.key].secret_id
-              version = "latest"
-            }
-          }
-        }
-      }
+      # Secrets are injected by Cloud Build at deploy time via --update-secrets
+      # (see scripts/cloudbuild-deploy.sh). Terraform only bootstraps the
+      # placeholder service; secrets are bound after the first real build.
     }
   }
 
@@ -329,20 +318,9 @@ resource "google_cloud_run_v2_service" "ai_assist" {
         value = var.ai_gateway_base_url
       }
 
-      dynamic "env" {
-        for_each = local.llm_secrets
-
-        content {
-          name = env.value
-
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.llm[env.key].secret_id
-              version = "latest"
-            }
-          }
-        }
-      }
+      # Secrets are injected by Cloud Build at deploy time via --update-secrets
+      # (see scripts/cloudbuild-deploy.sh). Terraform only bootstraps the
+      # placeholder service; secrets are bound after the first real build.
     }
   }
 
