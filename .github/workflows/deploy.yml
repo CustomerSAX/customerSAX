@@ -42,9 +42,14 @@ jobs:
             cloudbuild.googleapis.com \
             --project="${{ env.PROJECT_ID }}" --quiet
 
-          SERVICES=(
+          # Public services (allow unauthenticated — frontend calls these directly)
+          PUBLIC_SERVICES=(
             "csa-dev-bff"
             "csa-dev-auth"
+          )
+
+          # Private services (service-to-service auth only)
+          PRIVATE_SERVICES=(
             "csa-dev-ai-assist"
             "csa-dev-commerce-commercetools"
             "csa-dev-ticketing"
@@ -54,14 +59,38 @@ jobs:
             "csa-dev-commerce-sfcc"
           )
 
-          for SVC in "${SERVICES[@]}"; do
+          for SVC in "${PUBLIC_SERVICES[@]}"; do
             EXISTS=$(gcloud run services describe "${SVC}" \
               --region="${{ env.REGION }}" \
               --project="${{ env.PROJECT_ID }}" \
               --format='value(name)' 2>/dev/null || echo "")
-
             if [ -z "${EXISTS}" ]; then
-              echo "🌱 Creating placeholder: ${SVC}"
+              echo "🌱 Creating public placeholder: ${SVC}"
+              gcloud run deploy "${SVC}" \
+                --image="${{ env.PLACEHOLDER_IMAGE }}" \
+                --region="${{ env.REGION }}" \
+                --project="${{ env.PROJECT_ID }}" \
+                --allow-unauthenticated \
+                --quiet
+            else
+              echo "  ✓ ${SVC} exists — ensuring public access"
+            fi
+            # Always grant allUsers (idempotent)
+            gcloud run services add-iam-policy-binding "${SVC}" \
+              --region="${{ env.REGION }}" \
+              --project="${{ env.PROJECT_ID }}" \
+              --member="allUsers" \
+              --role="roles/run.invoker" \
+              --quiet 2>/dev/null || true
+          done
+
+          for SVC in "${PRIVATE_SERVICES[@]}"; do
+            EXISTS=$(gcloud run services describe "${SVC}" \
+              --region="${{ env.REGION }}" \
+              --project="${{ env.PROJECT_ID }}" \
+              --format='value(name)' 2>/dev/null || echo "")
+            if [ -z "${EXISTS}" ]; then
+              echo "🌱 Creating private placeholder: ${SVC}"
               gcloud run deploy "${SVC}" \
                 --image="${{ env.PLACEHOLDER_IMAGE }}" \
                 --region="${{ env.REGION }}" \
@@ -75,7 +104,7 @@ jobs:
           done
 
           echo ""
-          echo "✅ All Cloud Run services exist — Terraform can now import cleanly"
+          echo "✅ All Cloud Run services exist — bff + auth are PUBLIC, others are private"
 
   # ──────────────────────────────────────────────────────────────────────────
   # Job 2: Terraform — provision infra with all services guaranteed to exist
