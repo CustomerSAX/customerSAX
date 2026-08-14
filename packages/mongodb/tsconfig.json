@@ -2,6 +2,7 @@
   "extends": "@csa/config-typescript/node",
   "compilerOptions": {
     "outDir": "dist",
+    "rootDir": "src",
     "noEmit": false
   },
   "include": ["src/**/*.ts"]

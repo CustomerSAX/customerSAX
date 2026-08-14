@@ -1,5 +1,4 @@
-import { encrypt } from "../encrypt.js";
-import { getAiSettingsCollection } from "../db/mongodb.js";
+import { encrypt, getAiSettingsCollection } from "@csa/mongodb";
 
 export async function getAiSettings(clientId: string) {
   const doc = await (await getAiSettingsCollection()).findOne({ clientId });

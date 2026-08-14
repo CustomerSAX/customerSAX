@@ -2,6 +2,7 @@
 // Connection utilities
 // ---------------------------------------------------------------------------
 export * from "./connection.js";
+export * from "./admin/db.js";
 export type { Collection, Db, Document, Filter, Sort } from "mongodb";
 export { ObjectId } from "mongodb";
 

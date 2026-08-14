@@ -203,9 +203,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         <TopBar
           brandOrBreadcrumbs={
             <div className="flex items-center gap-3">
-              <Badge variant="primary" appearance="subtle" size="md" leftIcon={<Icon name="database" size="xs" />}>
-                GCP Environment
-              </Badge>
               {isB2bMode && (
                 <Badge variant="success" appearance="subtle" size="md" leftIcon={<Icon name="building-2" size="xs" />}>
                   B2B Mode

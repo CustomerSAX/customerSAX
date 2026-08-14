@@ -9,8 +9,7 @@ import {
   CardContent,
   CardMetric,
   Badge,
-  Icon,
-  LoadingSpinner
+  Icon
 } from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
 import { GATEWAY_STATUS_QUERY } from "./api/queries";
@@ -22,7 +21,6 @@ type GatewayStatusData = {
 };
 
 const fallbackGateway = {
-  message: "Connected to GraphQL BFF",
   services: [
     { name: "Experience BFF", status: "online" },
     { name: "Commerce Connector", status: "online" },
@@ -62,29 +60,17 @@ const queue = [
 ];
 
 export function Dashboard() {
-  const { data, error, loading } = useQuery<GatewayStatusData>(GATEWAY_STATUS_QUERY);
+  const { data, error } = useQuery<GatewayStatusData>(GATEWAY_STATUS_QUERY);
   const gateway =
     error || !data
       ? fallbackGateway
       : {
-          message: data.hello ?? fallbackGateway.message,
           services: data.serviceMap ?? fallbackGateway.services
         };
 
   return (
     <AppShell>
       <PageHeader
-        actions={
-          <Card className="px-4 py-2 flex items-center gap-3">
-            <Icon name="activity" className="text-m-primary" size="sm" />
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-m-text-muted">BFF Gateway</span>
-              <span className="text-xs font-semibold text-m-text">
-                {loading ? <LoadingSpinner size="xs" label="Connecting..." /> : gateway.message}
-              </span>
-            </div>
-          </Card>
-        }
         description="Enterprise GCP-ready support console with Next.js, GraphQL BFF, commerce connectors, and Meridian design system."
         eyebrow="Dashboard"
         title="Customer Service Accelerator"
