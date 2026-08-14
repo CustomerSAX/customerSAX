@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "framework": "nextjs",
+  "buildCommand": "cd ../.. && turbo run build --filter=@csa/webapp",
+  "devCommand": "cd ../.. && turbo run dev --filter=@csa/webapp",
+  "installCommand": "pnpm install",
+  "outputDirectory": "apps/webapp/.next"
+}

@@ -1,0 +1,107 @@
+name: Deploy Zero Cost Infrastructure
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to Cloud Run (Zero Cost)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker Auth
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build and Push Docker Images
+        run: |
+          # Define registry and tag
+          export REGISTRY="us-central1-docker.pkg.dev/customersax/csa-dev-repo"
+          export TAG=$(git rev-parse --short HEAD)
+          
+          # BFF Image
+          docker build -t $REGISTRY/bff:$TAG -f apps/bff/Dockerfile .
+          docker push $REGISTRY/bff:$TAG
+          
+          # Ticketing Image
+          docker build -t $REGISTRY/ticketing:$TAG -f apps/ticketing/Dockerfile .
+          docker push $REGISTRY/ticketing:$TAG
+          
+          # Commerce Commercetools Image
+          docker build -t $REGISTRY/commerce-commercetools:$TAG -f apps/commerce/commercetools/Dockerfile .
+          docker push $REGISTRY/commerce-commercetools:$TAG
+          
+          # AI Assist Image
+          docker build -t $REGISTRY/ai-assist:$TAG -f apps/ai-assist/Dockerfile .
+          docker push $REGISTRY/ai-assist:$TAG
+
+          # Auth Image
+          docker build -t $REGISTRY/auth:$TAG -f apps/auth/Dockerfile .
+          docker push $REGISTRY/auth:$TAG
+
+          # Admin Image
+          docker build -t $REGISTRY/admin:$TAG -f apps/admin/Dockerfile .
+          docker push $REGISTRY/admin:$TAG
+
+          # Export variables for Terraform
+          echo "BFF_IMAGE=$REGISTRY/bff:$TAG" >> $GITHUB_ENV
+          echo "TICKETING_IMAGE=$REGISTRY/ticketing:$TAG" >> $GITHUB_ENV
+          echo "COMMERCE_COMMERCETOOLS_IMAGE=$REGISTRY/commerce-commercetools:$TAG" >> $GITHUB_ENV
+          echo "AI_ASSIST_IMAGE=$REGISTRY/ai-assist:$TAG" >> $GITHUB_ENV
+          echo "AUTH_IMAGE=$REGISTRY/auth:$TAG" >> $GITHUB_ENV
+          echo "ADMIN_IMAGE=$REGISTRY/admin:$TAG" >> $GITHUB_ENV
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Apply (Zero Cost Resources)
+        run: |
+          cd infra/gcp
+          terraform init
+          terraform apply -auto-approve \
+            -var="project_id=customersax" \
+            -var="region=us-central1" \
+            -var="environment=dev" \
+            -var="bff_image=${{ env.BFF_IMAGE }}" \
+            -var="commerce_commercetools_image=${{ env.COMMERCE_COMMERCETOOLS_IMAGE }}" \
+            -var="ai_assist_image=${{ env.AI_ASSIST_IMAGE }}" \
+            -var="ticketing_image=${{ env.TICKETING_IMAGE }}" \
+            -var="auth_image=${{ env.AUTH_IMAGE }}" \
+            -var="admin_image=${{ env.ADMIN_IMAGE }}"
+
+  deploy-frontend:
+    name: Deploy ${{ matrix.app }} to Vercel
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [webapp, marketing]
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      # Use dynamic secret names based on the app matrix (e.g. VERCEL_PROJECT_ID_WEBAPP)
+      VERCEL_PROJECT_ID: ${{ secrets[format('VERCEL_PROJECT_ID_{0}', matrix.app)] }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy Project Artifacts to Vercel
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

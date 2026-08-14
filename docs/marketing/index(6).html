@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="customerSAX is an AI-native customer service platform for human agents, AI agents and supervisors, connected to commerce, CRM, orders, payments, fulfillment and returns." />
+  <title>customerSAX — Customer service for the human + AI era</title>
+  <style>
+    :root{
+      --paper:#f6f5f1;
+      --white:#ffffff;
+      --ink:#101216;
+      --ink-2:#181b21;
+      --muted:#666b75;
+      --muted-2:#9398a2;
+      --line:#d9d9d4;
+      --line-dark:#2b3038;
+      --blue:#2b65f5;
+      --blue-soft:#eaf0ff;
+      --green:#1c9c6b;
+      --orange:#d97632;
+      --red:#d84d56;
+      --max:1280px;
+      --radius:18px;
+      --shadow:0 24px 70px rgba(16,18,22,.10);
+    }
+
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+    a{color:inherit;text-decoration:none}
+    button{font:inherit}
+    .shell{width:min(calc(100% - 48px),var(--max));margin:auto}
+    .hairline{border-top:1px solid var(--line)}
+
+    /* NAV */
+    .nav{position:sticky;top:0;z-index:100;background:rgba(246,245,241,.90);backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,18,22,.08)}
+    .nav-inner{height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px}
+    .brand{display:flex;align-items:center;gap:12px;font-size:19px;font-weight:770;letter-spacing:-.04em}
+    .brand-logo{display:block;width:168px;height:auto}
+    .brand-logo.dark-logo{display:none}
+    .brand-mark{width:29px;height:29px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:850;font-size:13px;letter-spacing:-.06em}
+    .brand small{font-weight:540;color:var(--muted);font-size:12px;letter-spacing:0;margin-left:3px}
+    .nav-links{display:flex;gap:27px;font-size:13px;font-weight:580;color:#3f434b}
+    .nav-links a:hover{color:var(--blue)}
+    .nav-actions{display:flex;align-items:center;gap:9px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 16px;border:1px solid #c9c9c4;border-radius:9px;background:transparent;color:var(--ink);font-weight:690;font-size:13px;transition:.18s ease;cursor:pointer}
+    .btn:hover{transform:translateY(-1px);border-color:#999}
+    .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+    .btn.primary:hover{background:var(--blue);border-color:var(--blue)}
+    .btn.blue{background:var(--blue);color:#fff;border-color:var(--blue)}
+    .menu{display:none;background:transparent;border:0;font-size:22px}
+
+    /* HERO */
+    .hero{padding:86px 0 44px}
+    .hero-copy{max-width:1040px}
+    .hero-kicker{display:flex;align-items:center;gap:10px;color:#3f444d;font-size:12px;font-weight:720;letter-spacing:.08em;text-transform:uppercase;margin-bottom:22px}
+    .hero-kicker i{width:8px;height:8px;background:var(--blue);border-radius:50%}
+    h1{font-size:clamp(58px,8vw,112px);line-height:.88;letter-spacing:-.075em;margin:0;max-width:1050px;font-weight:760}
+    h1 em{font-style:normal;color:var(--blue)}
+    .hero-lower{display:grid;grid-template-columns:1.1fr .9fr;gap:90px;align-items:end;margin-top:40px}
+    .hero-lede{font-size:21px;line-height:1.45;letter-spacing:-.02em;color:#424750;max-width:680px;margin:0}
+    .hero-side{display:flex;flex-direction:column;align-items:flex-start;gap:20px}
+    .hero-side p{font-size:13px;color:var(--muted);margin:0;max-width:380px;line-height:1.55}
+    .hero-ctas{display:flex;gap:10px;flex-wrap:wrap}
+
+    /* PRODUCT FRAME */
+    .product-stage{padding:34px 0 90px}
+    .product-frame{background:#dfe1e5;border:1px solid #c7c9ce;border-radius:20px;padding:10px;box-shadow:var(--shadow)}
+    .app{height:680px;border-radius:12px;background:#f9fafb;border:1px solid #cfd2d7;display:grid;grid-template-columns:204px minmax(0,1fr);overflow:hidden}
+    .app-sidebar{background:#171a20;color:#d8dbe1;padding:15px 12px;display:flex;flex-direction:column;min-width:0}
+    .app-brand{display:flex;align-items:center;gap:9px;padding:8px 9px 18px;font-size:13px;font-weight:700;color:#fff}.app-brand .brand-mark{width:24px;height:24px;font-size:11px;background:#fff;color:#111}
+    .side-label{font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:#747b87;padding:14px 9px 7px}
+    .side-item{height:38px;display:flex;align-items:center;gap:9px;border-radius:7px;padding:0 9px;font-size:11px;color:#aeb4bf;margin:1px 0}.side-item.active{background:#272c34;color:white}.side-icon{width:16px;height:16px;border:1px solid #59606c;border-radius:5px;display:grid;place-items:center;font-size:8px}.side-item.active .side-icon{border-color:#8daaf9;color:#9eb7ff;background:#25345c}
+    .side-spacer{flex:1}.workspace-info{padding:11px 9px;border-top:1px solid #2b3038;font-size:10px;color:#7e8490;line-height:1.5}
+    .app-main{display:grid;grid-template-rows:55px 1fr;background:#f4f5f6;min-width:0}
+    .app-top{background:#fff;border-bottom:1px solid #e0e2e5;display:flex;align-items:center;justify-content:space-between;padding:0 18px}.crumb{font-size:11px;color:#6a6f78}.crumb b{color:#202329}.top-actions{display:flex;gap:8px}.top-pill{height:29px;padding:0 9px;display:flex;align-items:center;border:1px solid #dadde1;border-radius:6px;font-size:10px;color:#525761;background:#fff}.avatar{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#15181d;color:#fff;font-size:9px;font-weight:700}
+    .app-body{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);min-height:0}
+    .conversation{background:#fff;border-right:1px solid #dedfe2;display:grid;grid-template-rows:auto 1fr auto;min-width:0}
+    .case-head{padding:20px 22px 14px;border-bottom:1px solid #ececee}.case-meta{display:flex;align-items:center;gap:8px;font-size:10px;color:#7a7f88;margin-bottom:9px}.status-dot{width:7px;height:7px;border-radius:50%;background:var(--orange)}.case-head h3{font-size:20px;letter-spacing:-.025em;margin:0 0 6px}.case-head p{font-size:11px;color:#7c8189;margin:0}.thread{padding:22px;overflow:auto}.msg{display:grid;grid-template-columns:32px 1fr;gap:11px;margin-bottom:21px}.msg-avatar{width:32px;height:32px;border-radius:50%;background:#eceef1;display:grid;place-items:center;font-size:9px;font-weight:750;color:#31353b}.msg.ai .msg-avatar{background:#eaf0ff;color:#234bc1}.bubble{font-size:12px;line-height:1.6;color:#30343a}.bubble b{display:block;font-size:10px;color:#7f848d;margin-bottom:4px}.ai-card{margin-top:10px;border:1px solid #d8e2ff;background:#f5f8ff;border-radius:9px;padding:11px}.ai-card .ai-title{display:flex;justify-content:space-between;gap:10px;color:#29489c;font-weight:720;font-size:10px;margin-bottom:7px}.ai-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.action-chip{border:1px solid #ccd6f7;background:#fff;border-radius:6px;padding:6px 8px;font-size:9px;color:#394360}.composer{padding:13px 15px;border-top:1px solid #e7e8ea;background:#fafafa}.compose-box{height:76px;background:#fff;border:1px solid #dcdfe3;border-radius:8px;padding:11px;font-size:10px;color:#9a9ea5;display:flex;flex-direction:column;justify-content:space-between}.compose-row{display:flex;align-items:center;justify-content:space-between}.send{background:#171a20;color:#fff;border-radius:5px;padding:5px 8px;font-size:9px}
+    .context-pane{background:#f7f8f9;overflow:auto}.ctx-head{padding:17px 17px 13px;border-bottom:1px solid #e1e3e6;background:#fff}.customer-row{display:flex;align-items:center;gap:10px}.customer-row .msg-avatar{background:#15181d;color:#fff}.customer-row b{font-size:12px}.customer-row span{display:block;font-size:9px;color:#8a8f98;margin-top:2px}.ctx-section{padding:15px 17px;border-bottom:1px solid #e2e4e7}.ctx-title{display:flex;justify-content:space-between;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#898e96;margin-bottom:10px}.order-card{background:#fff;border:1px solid #dfe1e5;border-radius:8px;padding:11px}.order-top{display:flex;justify-content:space-between;gap:10px}.order-top b{font-size:11px}.order-top span{font-size:9px;color:var(--green);background:#edf8f4;padding:3px 5px;border-radius:4px}.order-line{display:grid;grid-template-columns:42px 1fr auto;gap:9px;align-items:center;margin-top:10px}.prod-img{width:42px;height:46px;border-radius:5px;background:linear-gradient(145deg,#333942,#171a20)}.prod-copy b{display:block;font-size:9px}.prod-copy span{font-size:8px;color:#8b9099}.price{font-size:9px;font-weight:700}.data-list{display:grid;gap:8px}.data-row{display:flex;justify-content:space-between;gap:12px;font-size:9px}.data-row span:first-child{color:#8b9098}.data-row span:last-child{font-weight:620;color:#353941;text-align:right}.resolution{background:#fff;border:1px solid #dfe1e5;border-radius:8px;padding:11px}.res-step{display:grid;grid-template-columns:18px 1fr;gap:8px;margin:8px 0}.res-icon{width:18px;height:18px;border-radius:5px;background:#ecf2ff;color:#2b65f5;display:grid;place-items:center;font-size:8px}.res-copy b{display:block;font-size:9px}.res-copy span{font-size:8px;color:#878c94}.approval{margin-top:10px;background:#191c21;color:white;border-radius:7px;padding:9px;display:flex;justify-content:space-between;align-items:center;font-size:9px}.approval button{border:0;background:#fff;border-radius:5px;padding:5px 7px;font-size:8px;font-weight:750}
+    .frame-caption{display:flex;justify-content:space-between;gap:30px;padding:14px 4px 0;font-size:11px;color:var(--muted)}.frame-caption b{color:var(--ink)}
+
+    /* SHARED SECTION */
+    section{padding:112px 0}
+    .section-eyebrow{font-size:11px;font-weight:760;text-transform:uppercase;letter-spacing:.1em;color:var(--blue);margin-bottom:16px}
+    .section-title{font-size:clamp(44px,5.6vw,78px);line-height:.96;letter-spacing:-.055em;margin:0;font-weight:730;max-width:980px}
+    .section-title.narrow{max-width:760px}
+    .section-intro{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:end;margin-bottom:58px}.section-intro p{margin:0;color:#545963;font-size:18px;line-height:1.55;max-width:610px}
+
+    /* PROBLEM */
+    .problem-section{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+    .problem-layout{display:grid;grid-template-columns:.85fr 1.15fr;gap:80px;align-items:start}
+    .problem-statement{position:sticky;top:110px}.problem-statement p{font-size:18px;line-height:1.6;color:#5a5f67;max-width:450px}.problem-number{font-size:180px;line-height:.8;letter-spacing:-.09em;color:#ececea;font-weight:760;margin-top:50px}
+    .journey-list{border-top:1px solid var(--line)}
+    .journey-row{display:grid;grid-template-columns:52px 180px 1fr auto;align-items:center;gap:15px;min-height:92px;border-bottom:1px solid var(--line)}.journey-num{font-size:11px;color:#989da6}.journey-system{font-size:14px;font-weight:720}.journey-desc{font-size:13px;color:#666b74}.journey-state{font-size:10px;border:1px solid #d1d2ce;border-radius:99px;padding:5px 8px;color:#676b72;background:#fafaf8}
+    .journey-row.emphasis{background:#111318;color:white;margin:0 -18px;padding:0 18px;border-color:#111318}.journey-row.emphasis .journey-num,.journey-row.emphasis .journey-desc{color:#9299a4}.journey-row.emphasis .journey-state{background:#2b65f5;color:white;border-color:#2b65f5}
+
+    /* OPERATING LAYER */
+    .dark{background:#111318;color:white}
+    .dark .section-eyebrow{color:#84a5ff}.dark .section-intro p{color:#a7adb7}.dark .section-title{color:#f7f7f8}
+    .layer-diagram{border:1px solid #30343b;border-radius:16px;overflow:hidden;background:#16191f}
+    .layer-row{display:grid;grid-template-columns:180px 1fr;border-bottom:1px solid #30343b;min-height:132px}.layer-row:last-child{border-bottom:0}.layer-label{padding:24px;border-right:1px solid #30343b;color:#8f95a1;font-size:11px;text-transform:uppercase;letter-spacing:.08em}.layer-content{padding:19px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.layer-box{border:1px solid #333843;background:#1c2027;border-radius:10px;padding:15px;min-height:88px}.layer-box b{display:block;font-size:12px;margin-bottom:7px}.layer-box span{font-size:10px;color:#8d94a0;line-height:1.45}.layer-row.core{background:#132248}.layer-row.core .layer-label{color:#9cb5ff;border-color:#2d437b}.layer-row.core .layer-content{grid-template-columns:repeat(5,1fr)}.layer-row.core .layer-box{background:#182c61;border-color:#3151a0}.layer-row.core .layer-box span{color:#a9bcf0}
+
+    /* OUTCOMES */
+    .outcome-grid{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);border-left:1px solid var(--line)}
+    .outcome{min-height:330px;padding:28px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column}.outcome-index{font-size:11px;color:#9ba0a8}.outcome-spacer{flex:1}.outcome h3{font-size:27px;letter-spacing:-.035em;margin:0 0 10px}.outcome p{font-size:13px;line-height:1.55;color:#666b74;margin:0}.outcome .metric{font-size:46px;letter-spacing:-.055em;font-weight:730;color:var(--blue);margin-bottom:8px}
+
+    /* USE CASE SWITCHER */
+    .switcher{display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start}.tabs{display:grid;gap:7px}.tab{border:1px solid var(--line);background:transparent;text-align:left;border-radius:9px;padding:14px 15px;cursor:pointer;transition:.18s}.tab b{display:block;font-size:13px;margin-bottom:3px}.tab span{font-size:10px;color:#81868e}.tab.active{background:#111318;color:white;border-color:#111318}.tab.active span{color:#a0a6b0}
+    .case-panel{border:1px solid var(--line);background:#fff;border-radius:14px;min-height:500px;overflow:hidden}.case-panel-head{padding:24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:20px}.case-panel-head b{font-size:12px;color:var(--blue);text-transform:uppercase;letter-spacing:.07em}.case-panel-head span{font-size:11px;color:#8a8f97}.case-panel-body{padding:26px}.case-quote{font-size:31px;line-height:1.25;letter-spacing:-.035em;max-width:760px;margin:0 0 34px}.resolution-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}.res-cell{background:#fff;padding:18px;min-height:150px}.res-cell small{font-size:9px;color:#91969e;text-transform:uppercase;letter-spacing:.08em}.res-cell b{display:block;font-size:12px;margin:22px 0 7px}.res-cell p{font-size:10px;line-height:1.5;color:#777c85;margin:0}.case-result{margin-top:24px;padding:16px 18px;background:#ecf3ff;border-left:4px solid var(--blue);font-size:12px;color:#36445f}.case-result b{color:#172b5a}
+
+    /* INTEGRATIONS */
+    .integrations-section{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+    .integration-matrix{display:grid;grid-template-columns:210px 1fr;border:1px solid var(--line);border-radius:14px;overflow:hidden}.integration-nav{background:#f1f1ee;border-right:1px solid var(--line);padding:10px}.integration-nav button{display:flex;width:100%;border:0;background:transparent;text-align:left;padding:12px 11px;border-radius:7px;font-size:11px;color:#676c75;cursor:pointer}.integration-nav button.active{background:#fff;color:#17191e;font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .integration-content{padding:25px}.integration-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:25px}.integration-head h3{font-size:22px;letter-spacing:-.03em;margin:0}.integration-head p{font-size:11px;color:#858a92;margin:4px 0 0}.connector-count{font-size:10px;border:1px solid var(--line);border-radius:99px;padding:5px 8px;color:#737880}
+    .connector-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.connector{min-height:104px;border:1px solid #e0e1dd;border-radius:9px;padding:13px;background:#fff;display:flex;flex-direction:column;justify-content:space-between}.connector-logo{width:34px;height:34px;border-radius:8px;background:#f1f2f4;display:grid;place-items:center;font-size:10px;font-weight:800;color:#31343b}.connector b{font-size:11px}.connector small{font-size:8px;color:#9499a2}.connector .available{color:var(--green)}
+    .integration-foot{margin-top:17px;font-size:10px;color:#8a8f97;line-height:1.5}
+
+    /* AGENTS */
+    .agent-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.agent-card{border:1px solid #2d323a;background:#171a20;border-radius:14px;padding:23px;min-height:220px}.agent-top{display:flex;justify-content:space-between;gap:20px;align-items:start}.agent-icon{width:38px;height:38px;border:1px solid #3a414d;border-radius:9px;display:grid;place-items:center;color:#8ba9ff;font-size:12px}.agent-state{font-size:9px;color:#8da5e7;background:#1f2b50;border-radius:99px;padding:5px 7px}.agent-card h3{font-size:20px;letter-spacing:-.03em;margin:28px 0 8px}.agent-card p{font-size:11px;line-height:1.55;color:#9298a3;margin:0}.agent-tools{display:flex;gap:7px;flex-wrap:wrap;margin-top:20px}.agent-tools span{font-size:8px;color:#939aa6;border:1px solid #303641;border-radius:5px;padding:5px 6px}
+
+    /* GOVERNANCE */
+    .governance{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:start}.governance-copy p{font-size:17px;line-height:1.6;color:#595e67;max-width:550px}.governance-list{border-top:1px solid var(--line)}.gov-row{display:grid;grid-template-columns:42px 1fr;gap:14px;padding:20px 0;border-bottom:1px solid var(--line)}.gov-icon{width:34px;height:34px;border-radius:8px;background:#eaf0ff;color:#2b65f5;display:grid;place-items:center;font-size:11px;font-weight:800}.gov-row b{display:block;font-size:13px;margin-bottom:5px}.gov-row span{font-size:11px;line-height:1.5;color:#7c8189}
+
+    /* CUSTOMER SERVICE PLATFORM */
+    .service-platform{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+    .service-platform .section-intro{margin-bottom:46px}
+    .module-grid{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);border-left:1px solid var(--line)}
+    .module-card{min-height:265px;padding:26px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;background:#fff}
+    .module-no{font-size:10px;color:#9ba0a8;letter-spacing:.08em}.module-icon{width:42px;height:42px;border:1px solid var(--line);border-radius:10px;display:grid;place-items:center;margin:28px 0 30px;color:var(--blue);font-size:15px;background:#f8f9fb}.module-card h3{font-size:21px;letter-spacing:-.03em;margin:0 0 9px}.module-card p{font-size:11px;line-height:1.58;color:#727780;margin:0}.module-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:18px}.module-tags span{font-size:8px;border:1px solid #e1e2df;border-radius:5px;padding:5px 6px;color:#767b83;background:#fafaf8}
+
+    /* WORKFORCE / BATTLE CARD */
+    .workforce-section{background:#111318;color:#fff}.workforce-section .section-eyebrow{color:#84a5ff}.workforce-section .section-title{color:#fff}.workforce-section .section-intro p{color:#a8aeb8}
+    .workforce-map{display:grid;grid-template-columns:1fr 190px 1fr;border:1px solid #30343b;border-radius:16px;overflow:hidden;background:#16191f}
+    .force-column{padding:28px}.force-column.ai{background:#172244}.force-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8f96a2}.force-column.ai .force-label{color:#8eacff}.force-column h3{font-size:31px;letter-spacing:-.04em;margin:14px 0 8px}.force-column p{font-size:11px;line-height:1.58;color:#989faa;margin:0 0 24px}.force-list{display:grid;gap:0;border-top:1px solid #30343b}.force-item{padding:13px 0;border-bottom:1px solid #30343b;display:flex;justify-content:space-between;gap:20px;font-size:10px}.force-item span:first-child{color:#858c97}.force-item span:last-child{font-weight:650;text-align:right}.force-bridge{border-left:1px solid #30343b;border-right:1px solid #30343b;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;background:#12151a}.bridge-mark{width:54px;height:54px;border-radius:50%;background:var(--blue);display:grid;place-items:center;font-size:18px;font-weight:800;margin-bottom:16px}.force-bridge b{font-size:11px;line-height:1.35}.force-bridge span{font-size:9px;color:#858c97;line-height:1.5;margin-top:7px}
+    .mode-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.mode-card{border:1px solid #30343b;border-radius:12px;padding:19px;background:#171a20}.mode-card b{font-size:12px}.mode-card p{font-size:10px;color:#9097a2;line-height:1.5;margin:7px 0 0}.mode-chip{display:inline-block;font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9bb4ff;margin-bottom:12px}
+
+    /* TRANSITION */
+    .transition-rail{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}.transition-step{padding:23px;min-height:240px;border-right:1px solid var(--line);position:relative}.transition-step:last-child{border-right:0}.transition-step small{font-size:9px;color:#969ba3;letter-spacing:.08em;text-transform:uppercase}.transition-step h3{font-size:20px;letter-spacing:-.03em;margin:48px 0 9px}.transition-step p{font-size:10px;color:#777c84;line-height:1.55;margin:0}.transition-step.active{background:#edf2ff}.transition-step.active small{color:#3157b5}.transition-step.active:after{content:'AI-native';position:absolute;right:18px;top:18px;font-size:8px;color:#fff;background:var(--blue);padding:5px 7px;border-radius:99px;text-transform:uppercase;letter-spacing:.06em}
+
+    /* BRAND SYSTEM */
+    .brand-system{background:#fff;border-top:1px solid var(--line)}.brand-lockup-panel{display:grid;grid-template-columns:1.05fr .95fr;gap:0;border:1px solid var(--line);border-radius:16px;overflow:hidden}.brand-display{min-height:410px;padding:46px;background:#f6f5f1;display:flex;flex-direction:column;justify-content:space-between}.brand-display img{width:min(520px,90%);height:auto}.brand-display p{font-size:12px;color:#696e76;max-width:520px;line-height:1.55}.brand-rationale{padding:38px;background:#111318;color:#fff}.brand-rationale h3{font-size:28px;letter-spacing:-.04em;margin:0 0 16px}.brand-rationale p{font-size:11px;line-height:1.6;color:#a2a9b3}.brand-points{margin-top:28px;border-top:1px solid #30343b}.brand-point{padding:15px 0;border-bottom:1px solid #30343b;display:grid;grid-template-columns:90px 1fr;gap:16px;font-size:10px}.brand-point span{color:#777f8b}.palette{display:grid;grid-template-columns:repeat(5,1fr);margin-top:26px;border:1px solid var(--line);border-radius:12px;overflow:hidden}.swatch{min-height:145px;padding:15px;display:flex;flex-direction:column;justify-content:flex-end;border-right:1px solid rgba(0,0,0,.08%)}.swatch:last-child{border-right:0}.swatch b{font-size:10px}.swatch span{font-size:9px;margin-top:3px;opacity:.72}.swatch.ink{background:#101216;color:#fff}.swatch.paper{background:#f6f5f1}.swatch.blue{background:#2b65f5;color:#fff}.swatch.green{background:#1c9c6b;color:#fff}.swatch.orange{background:#d97632;color:#fff}
+    .asset-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+
+    /* CTA */
+    .cta-section{padding:0 0 70px}.cta{border-radius:18px;background:var(--blue);color:white;padding:58px;display:grid;grid-template-columns:1.15fr .85fr;gap:60px;align-items:end}.cta h2{font-size:clamp(45px,5vw,70px);line-height:.95;letter-spacing:-.055em;margin:0}.cta p{font-size:15px;line-height:1.6;color:#d6e1ff;margin:0 0 25px;max-width:500px}.cta .btn{background:#fff;border-color:#fff;color:#111}.cta .btn:hover{background:#111;color:#fff;border-color:#111}
+
+    footer{padding:32px 0 42px;border-top:1px solid var(--line)}.footer-grid{display:flex;justify-content:space-between;gap:30px;align-items:flex-start}.footer-copy{font-size:11px;color:#858a92;max-width:520px;line-height:1.5}.footer-links{display:flex;gap:20px;font-size:11px;color:#626770}
+
+    /* Motion */
+    .reveal{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}.reveal.show{opacity:1;transform:none}
+
+    @media(max-width:1080px){
+      .nav-links{display:none}.menu{display:block}.hero-lower,.section-intro,.problem-layout,.governance,.cta{grid-template-columns:1fr;gap:30px}.problem-statement{position:static}.problem-number{font-size:100px}.app{grid-template-columns:170px 1fr}.app-body{grid-template-columns:1fr}.context-pane{display:none}.outcome-grid{grid-template-columns:repeat(2,1fr)}.switcher{grid-template-columns:1fr}.tabs{grid-template-columns:repeat(2,1fr)}.layer-content{grid-template-columns:repeat(2,1fr)!important}.connector-grid{grid-template-columns:repeat(3,1fr)}.module-grid{grid-template-columns:repeat(2,1fr)}.workforce-map{grid-template-columns:1fr}.force-bridge{border-left:0;border-right:0;border-top:1px solid #30343b;border-bottom:1px solid #30343b;min-height:150px}.transition-rail{grid-template-columns:repeat(2,1fr)}.transition-step:nth-child(2){border-right:0}.transition-step:nth-child(-n+2){border-bottom:1px solid var(--line)}.brand-lockup-panel{grid-template-columns:1fr}
+    }
+    @media(max-width:760px){
+      .shell{width:min(calc(100% - 28px),var(--max))}.nav-inner{height:64px}.nav-actions .btn:not(.primary){display:none}.brand small{display:none}.hero{padding:58px 0 30px}h1{font-size:clamp(52px,16vw,78px)}.hero-lede{font-size:18px}.product-stage{padding-top:18px}.product-frame{padding:6px;border-radius:14px}.app{height:560px;grid-template-columns:1fr}.app-sidebar{display:none}.frame-caption{display:none}section{padding:78px 0}.section-title{font-size:44px}.journey-row{grid-template-columns:34px 1fr auto;min-height:84px}.journey-desc{display:none}.outcome-grid{grid-template-columns:1fr}.outcome{min-height:250px}.tabs{grid-template-columns:1fr}.resolution-grid{grid-template-columns:1fr 1fr}.integration-matrix{grid-template-columns:1fr}.integration-nav{display:flex;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}.integration-nav button{white-space:nowrap;width:auto}.connector-grid{grid-template-columns:repeat(2,1fr)}.agent-grid{grid-template-columns:1fr}.module-grid{grid-template-columns:1fr}.mode-grid{grid-template-columns:1fr}.transition-rail{grid-template-columns:1fr}.transition-step{border-right:0;border-bottom:1px solid var(--line)}.transition-step:last-child{border-bottom:0}.palette{grid-template-columns:1fr 1fr}.brand-display{min-height:300px;padding:28px}.brand-rationale{padding:28px}.layer-row{grid-template-columns:1fr}.layer-label{border-right:0;border-bottom:1px solid #30343b}.layer-content{grid-template-columns:1fr!important}.cta{padding:36px 26px}.footer-grid{flex-direction:column}.footer-links{flex-wrap:wrap}
+    }
+    @media(max-width:480px){.brand-logo{width:145px}.palette{grid-template-columns:1fr}.connector-grid{grid-template-columns:1fr}.resolution-grid{grid-template-columns:1fr}.case-quote{font-size:24px}.hero-ctas{width:100%}.hero-ctas .btn{flex:1}.product-stage{overflow:hidden}.product-frame{width:760px;transform:scale(.58);transform-origin:top left;margin-bottom:-235px}}
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="shell nav-inner">
+      <a class="brand" href="#top"><img class="brand-logo" src="brand/customerSAX-logo.svg" alt="customerSAX"></a>
+      <div class="nav-links"><a href="#platform">Platform</a><a href="#service">Customer service</a><a href="#workforce">Human + AI</a><a href="#usecases">Use cases</a><a href="#integrations">Integrations</a><a href="#enterprise">Enterprise</a></div>
+      <div class="nav-actions"><a class="btn" href="#platform">Explore platform</a><a class="btn primary" href="#demo">Book a demo</a><button class="menu">☰</button></div>
+    </div>
+  </nav>
+
+  <main id="top">
+    <header class="hero">
+      <div class="shell">
+        <div class="hero-copy reveal">
+          <div class="hero-kicker"><i></i> Customer service platform for the human + AI era</div>
+          <h1>Resolve the customer.<br><em>Not just the ticket.</em></h1>
+        </div>
+        <div class="hero-lower reveal">
+          <p class="hero-lede">customerSAX gives human agents and AI agents one service workspace across conversations, customers, orders, knowledge, policies and commerce actions — without forcing you to rip out the systems you already run.</p>
+          <div class="hero-side"><div class="hero-ctas"><a href="#demo" class="btn blue">See customerSAX in action →</a><a href="#platform" class="btn">How the platform works</a></div><p>Start with the customer-service model your team already understands. Add AI assist, AI coworkers and autonomous resolution at the pace your operation can govern.</p></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="product-stage">
+      <div class="shell">
+        <div class="product-frame reveal" aria-label="customerSAX product workspace concept">
+          <div class="app">
+            <aside class="app-sidebar">
+              <div class="app-brand"><span class="brand-mark">SAX</span> customerSAX</div>
+              <div class="side-label">Service</div>
+              <div class="side-item active"><span class="side-icon">◫</span> Inbox <span style="margin-left:auto;color:#fff">18</span></div>
+              <div class="side-item"><span class="side-icon">◉</span> Voice & messaging</div>
+              <div class="side-item"><span class="side-icon">◎</span> Customers</div>
+              <div class="side-item"><span class="side-icon">▣</span> Cases & tasks</div>
+              <div class="side-item"><span class="side-icon">⌁</span> Knowledge</div>
+              <div class="side-label">Workforce</div>
+              <div class="side-item"><span class="side-icon">✦</span> AI workforce</div>
+              <div class="side-item"><span class="side-icon">◫</span> Queues & routing</div>
+              <div class="side-item"><span class="side-icon">✓</span> Quality</div>
+              <div class="side-item"><span class="side-icon">⌘</span> Automations</div>
+              <div class="side-item"><span class="side-icon">▤</span> Knowledge</div>
+              <div class="side-label">Operations</div>
+              <div class="side-item"><span class="side-icon">◇</span> Integrations</div>
+              <div class="side-item"><span class="side-icon">◒</span> Insights</div>
+              <div class="side-spacer"></div>
+              <div class="workspace-info">ACME Commerce<br><span style="color:#5f6672">Enterprise workspace</span></div>
+            </aside>
+            <div class="app-main">
+              <div class="app-top"><div class="crumb">Inbox / <b>Order exception · #CS-1842</b></div><div class="top-actions"><div class="top-pill">SLA · 14m</div><div class="top-pill">Assign</div><div class="avatar">MK</div></div></div>
+              <div class="app-body">
+                <section class="conversation">
+                  <div class="case-head"><div class="case-meta"><span class="status-dot"></span> Open · Email · Priority customer</div><h3>Replacement still hasn’t arrived</h3><p>Customer wants shipment status and an express-shipping refund.</p></div>
+                  <div class="thread">
+                    <div class="msg"><div class="msg-avatar">AJ</div><div class="bubble"><b>Avery Johnson · 8:42 AM</b>Hi — my replacement was supposed to arrive yesterday and tracking hasn’t moved for three days. I paid for express shipping. Can you tell me what’s happening and refund the shipping charge?</div></div>
+                    <div class="msg ai"><div class="msg-avatar">SAX</div><div class="bubble"><b>customerSAX · Resolution plan</b>I found the replacement order, carrier exception and payment. The parcel is delayed at the regional hub and qualifies for the express-shipping guarantee.<div class="ai-card"><div class="ai-title"><span>Recommended resolution</span><span>Policy confidence 98%</span></div><div style="font-size:10px;line-height:1.55;color:#515a70">Refund $18.00 express shipping, keep the replacement in transit, notify the customer, and open a carrier delay watch. No reship needed yet.</div><div class="ai-actions"><span class="action-chip">Refund $18.00</span><span class="action-chip">Watch shipment</span><span class="action-chip">Send update</span></div></div></div></div>
+                    <div class="msg"><div class="msg-avatar">MK</div><div class="bubble"><b>Maya · Agent note</b>Looks right. Approving refund and customer update.</div></div>
+                  </div>
+                  <div class="composer"><div class="compose-box">Reply to Avery…<div class="compose-row"><span>✦ Draft with SAX</span><span class="send">Send reply</span></div></div></div>
+                </section>
+                <aside class="context-pane">
+                  <div class="ctx-head"><div class="customer-row"><div class="msg-avatar">AJ</div><div><b>Avery Johnson</b><span>Gold loyalty · 8 orders · $1,284 LTV</span></div></div></div>
+                  <div class="ctx-section"><div class="ctx-title"><span>Current order</span><span>#104872</span></div><div class="order-card"><div class="order-top"><b>Replacement order</b><span>In transit</span></div><div class="order-line"><div class="prod-img"></div><div class="prod-copy"><b>Studio Runner · Black</b><span>Size 9 · Qty 1</span></div><div class="price">$168</div></div></div></div>
+                  <div class="ctx-section"><div class="ctx-title"><span>Live commerce context</span><span>6 systems</span></div><div class="data-list"><div class="data-row"><span>Shopify</span><span>Fulfilled · Aug 11</span></div><div class="data-row"><span>DHL</span><span>Hub delay · 3 days</span></div><div class="data-row"><span>Stripe</span><span>Paid · $186.00</span></div><div class="data-row"><span>Loyalty</span><span>Gold · 1,920 pts</span></div><div class="data-row"><span>Returns</span><span>Replacement case R-332</span></div><div class="data-row"><span>CRM</span><span>Priority customer</span></div></div></div>
+                  <div class="ctx-section"><div class="ctx-title"><span>Resolution</span><span>Guarded action</span></div><div class="resolution"><div class="res-step"><div class="res-icon">1</div><div class="res-copy"><b>Validate guarantee</b><span>Shipping policy + fulfillment state</span></div></div><div class="res-step"><div class="res-icon">2</div><div class="res-copy"><b>Refund shipping</b><span>Stripe · $18.00</span></div></div><div class="res-step"><div class="res-icon">3</div><div class="res-copy"><b>Monitor shipment</b><span>DHL exception watch</span></div></div><div class="approval"><span>Human approval required</span><button>Approve</button></div></div></div>
+                </aside>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="frame-caption reveal"><span><b>One workspace.</b> Conversation, customer, order, policy and action plan in context.</span><span>Concept product UI · connectors shown are illustrative</span></div>
+      </div>
+    </div>
+
+    <section class="problem-section" id="platform">
+      <div class="shell problem-layout">
+        <div class="problem-statement reveal"><div class="section-eyebrow">The problem</div><h2 class="section-title narrow">One customer question. Six disconnected systems.</h2><p>The ticket is only the visible edge of the work. Real ecommerce support requires transaction context, policy decisions and actions across the systems behind the conversation.</p><div class="problem-number">06</div></div>
+        <div class="journey-list reveal">
+          <div class="journey-row"><span class="journey-num">01</span><span class="journey-system">Storefront</span><span class="journey-desc">Orders, products, inventory, customer tags</span><span class="journey-state">Context</span></div>
+          <div class="journey-row"><span class="journey-num">02</span><span class="journey-system">CRM / Helpdesk</span><span class="journey-desc">Identity, conversations, SLA, relationship history</span><span class="journey-state">Context</span></div>
+          <div class="journey-row"><span class="journey-num">03</span><span class="journey-system">OMS / ERP</span><span class="journey-desc">Fulfillment, allocation, inventory and order lifecycle</span><span class="journey-state">Action</span></div>
+          <div class="journey-row"><span class="journey-num">04</span><span class="journey-system">Payments</span><span class="journey-desc">Charges, refunds, disputes, credits and subscriptions</span><span class="journey-state">Action</span></div>
+          <div class="journey-row"><span class="journey-num">05</span><span class="journey-system">Returns</span><span class="journey-desc">Eligibility, exchange inventory, labels and reimbursements</span><span class="journey-state">Action</span></div>
+          <div class="journey-row"><span class="journey-num">06</span><span class="journey-system">Carrier / 3PL</span><span class="journey-desc">Tracking, exceptions, claims and delivery evidence</span><span class="journey-state">Action</span></div>
+          <div class="journey-row emphasis"><span class="journey-num">→</span><span class="journey-system">customerSAX</span><span class="journey-desc">Unifies context, policy, reasoning and governed execution</span><span class="journey-state">Resolution</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="dark">
+      <div class="shell">
+        <div class="section-intro reveal"><div><div class="section-eyebrow">The operating layer</div><h2 class="section-title">A service layer that sits across your commerce stack.</h2></div><p>customerSAX is designed to coexist with the platforms you already run. It creates a shared service context for human agents and AI agents, then exposes governed actions back into the systems of record.</p></div>
+        <div class="layer-diagram reveal">
+          <div class="layer-row"><div class="layer-label">Channels</div><div class="layer-content"><div class="layer-box"><b>Email</b><span>Shared inboxes and transactional service</span></div><div class="layer-box"><b>Chat</b><span>Web and in-app conversations</span></div><div class="layer-box"><b>Voice</b><span>Contact center and callbacks</span></div><div class="layer-box"><b>Messaging</b><span>WhatsApp, SMS and social</span></div></div></div>
+          <div class="layer-row core"><div class="layer-label">customerSAX</div><div class="layer-content"><div class="layer-box"><b>Agent workspace</b><span>Inbox + voice + cases + customer context</span></div><div class="layer-box"><b>Service workforce</b><span>Human agents + AI agents + supervisors</span></div><div class="layer-box"><b>Knowledge & policy</b><span>SOP + guidance + limits + approvals</span></div><div class="layer-box"><b>Routing & workflow</b><span>Queues + skills + multi-system execution</span></div><div class="layer-box"><b>Quality & insight</b><span>QA + SLA + CSAT + resolution outcomes</span></div></div></div>
+          <div class="layer-row"><div class="layer-label">Systems of record</div><div class="layer-content"><div class="layer-box"><b>Commerce</b><span>Shopify, Adobe, BigCommerce, custom</span></div><div class="layer-box"><b>CRM & service</b><span>Salesforce, Zendesk, HubSpot, Dynamics</span></div><div class="layer-box"><b>Operations</b><span>ERP, OMS, WMS, PIM and 3PL</span></div><div class="layer-box"><b>Transactions</b><span>Payments, returns, loyalty and carriers</span></div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="service-platform" id="service">
+      <div class="shell">
+        <div class="section-intro reveal"><div><div class="section-eyebrow">Customer service platform</div><h2 class="section-title">Everything a human service team expects. Rebuilt for a mixed workforce.</h2></div><p>customerSAX is not an AI-agent wrapper. It is the operating surface for the whole service organization: frontline agents, supervisors, CX leaders and AI coworkers — across digital and voice channels.</p></div>
+        <div class="module-grid reveal">
+          <article class="module-card"><span class="module-no">01 · FRONTLINE</span><div class="module-icon">◫</div><h3>Agent Workspace</h3><p>One desktop for inbox, chat, voice, customer history, order context, case work and guided next actions.</p><div class="module-tags"><span>Inbox</span><span>Voice</span><span>Chat</span><span>Customer 360</span></div></article>
+          <article class="module-card"><span class="module-no">02 · ORCHESTRATION</span><div class="module-icon">↳</div><h3>Queues, Routing & SLA</h3><p>Route by intent, skill, language, customer value, risk and availability. Manage priorities, callbacks and SLA commitments.</p><div class="module-tags"><span>Skills</span><span>Priority</span><span>SLA</span><span>Escalation</span></div></article>
+          <article class="module-card"><span class="module-no">03 · CASEWORK</span><div class="module-icon">▣</div><h3>Cases, Tasks & Approvals</h3><p>Handle issues that take longer than one conversation with ownership, internal tasks, approvals, follow-up and full history.</p><div class="module-tags"><span>Cases</span><span>Tasks</span><span>Approvals</span><span>Follow-up</span></div></article>
+          <article class="module-card"><span class="module-no">04 · KNOWLEDGE</span><div class="module-icon">⌁</div><h3>Knowledge & Agent Assist</h3><p>Bring SOPs, product knowledge, policy and prior resolutions into the flow of work. Draft, summarize and guide without hiding the source.</p><div class="module-tags"><span>Knowledge</span><span>Macros</span><span>Copilot</span><span>SOP</span></div></article>
+          <article class="module-card"><span class="module-no">05 · SUPERVISION</span><div class="module-icon">◎</div><h3>Supervisor, QA & Workforce</h3><p>See queues and service load in real time, coach agents, review quality, manage exceptions and understand where human capacity is needed.</p><div class="module-tags"><span>Live queue</span><span>QA</span><span>Coaching</span><span>Capacity</span></div></article>
+          <article class="module-card"><span class="module-no">06 · PERFORMANCE</span><div class="module-icon">↗</div><h3>Service Analytics</h3><p>Measure FCR, CSAT, AHT, recontact, backlog and SLA — then add AI resolution rate, handoff quality and commercial outcome to the same scorecard.</p><div class="module-tags"><span>FCR</span><span>CSAT</span><span>AHT</span><span>AI + human</span></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="shell">
+        <div class="section-intro reveal"><div><div class="section-eyebrow">From support to resolution</div><h2 class="section-title">Service that understands the transaction — and can act on it.</h2></div><p>Most platforms are excellent at capturing conversations. customerSAX is built around the operational resolution that follows: read the live state, apply policy, coordinate systems, and keep a human in control where needed.</p></div>
+        <div class="outcome-grid reveal">
+          <article class="outcome"><span class="outcome-index">01</span><div class="outcome-spacer"></div><div class="metric">01</div><h3>One customer context</h3><p>Customer history, order state, product, payment, loyalty, shipment and prior service in one live view.</p></article>
+          <article class="outcome"><span class="outcome-index">02</span><div class="outcome-spacer"></div><div class="metric">360°</div><h3>Human agent workspace</h3><p>Inbox, voice, cases, customer and transaction context come together so agents can resolve without tab-switching.</p></article>
+          <article class="outcome"><span class="outcome-index">03</span><div class="outcome-spacer"></div><div class="metric">24/7</div><h3>AI service workforce</h3><p>AI can answer, investigate and act on policy-bound work — then hand off with full context when judgment or empathy should stay human.</p></article>
+          <article class="outcome"><span class="outcome-index">04</span><div class="outcome-spacer"></div><div class="metric">∞</div><h3>Composable workflows</h3><p>Start read-only. Add approvals. Then automate proven paths without rebuilding your service stack.</p></article>
+          <article class="outcome"><span class="outcome-index">05</span><div class="outcome-spacer"></div><div class="metric">100%</div><h3>Resolution visibility</h3><p>Track customer intent, actions taken, policy decisions, escalations, quality and business outcome.</p></article>
+          <article class="outcome"><span class="outcome-index">06</span><div class="outcome-spacer"></div><div class="metric">API</div><h3>Your stack stays yours</h3><p>Connect the platforms you already own through APIs, events and adapters instead of forcing a rip-and-replace.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="transition">
+      <div class="shell">
+        <div class="section-intro reveal"><div><div class="section-eyebrow">A practical AI transition</div><h2 class="section-title">You do not have to jump from monolith helpdesk to autonomous AI.</h2></div><p>Most service organizations will transition in stages. customerSAX supports the familiar operating model first, then adds intelligence and autonomy without breaking ownership, controls or customer experience.</p></div>
+        <div class="transition-rail reveal">
+          <article class="transition-step"><small>Stage 1</small><h3>Unified human service</h3><p>Bring channels, queues, cases, knowledge, customer data and commerce context into one frontline workspace.</p></article>
+          <article class="transition-step"><small>Stage 2</small><h3>AI-assisted agents</h3><p>Summaries, answer drafts, intent, knowledge retrieval, next-best action and supervisor intelligence accelerate the human team.</p></article>
+          <article class="transition-step"><small>Stage 3</small><h3>AI coworkers</h3><p>AI investigates across systems, prepares actions and handles bounded work while humans own exceptions and approvals.</p></article>
+          <article class="transition-step active"><small>Stage 4</small><h3>Autonomous resolution</h3><p>Proven low-risk intents can resolve end-to-end under policy, monitoring and audit — with immediate human handoff when needed.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="usecases" class="problem-section">
+      <div class="shell">
+        <div class="section-intro reveal"><div><div class="section-eyebrow">Resolution journeys</div><h2 class="section-title">The conversation is different. The operating model is the same.</h2></div><p>Every journey starts with intent, gathers the right commerce context, checks policy and then chooses the safest resolution path — autonomous, assisted or human-led.</p></div>
+        <div class="switcher reveal">
+          <div class="tabs" role="tablist">
+            <button class="tab active" data-case="wismo"><b>Where is my order?</b><span>Shipment + carrier exception</span></button>
+            <button class="tab" data-case="return"><b>Return or exchange</b><span>Policy + inventory + refund</span></button>
+            <button class="tab" data-case="cancel"><b>Cancel or change order</b><span>Fulfillment-safe updates</span></button>
+            <button class="tab" data-case="billing"><b>Billing & subscription</b><span>Payment + plan + credit</span></button>
+            <button class="tab" data-case="product"><b>Product guidance</b><span>Catalog + inventory + fit</span></button>
+          </div>
+          <div class="case-panel">
+            <div class="case-panel-head"><div><b id="caseLabel">Post-purchase service</b></div><span>Example resolution path</span></div>
+            <div class="case-panel-body"><p class="case-quote" id="caseQuote">“My order was due yesterday. Tracking hasn’t moved. Where is it?”</p><div class="resolution-grid" id="caseSteps"></div><div class="case-result" id="caseResult"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="integrations-section" id="integrations">
+      <div class="shell">
+        <div class="section-intro reveal"><div><div class="section-eyebrow">Integration fabric</div><h2 class="section-title">Connect the stack you already run.</h2></div><p>Commerce service rarely lives in one platform. customerSAX is designed around a connector fabric spanning storefront, CRM, helpdesk, OMS, ERP, payments, returns, fulfillment, loyalty and messaging.</p></div>
+        <div class="integration-matrix reveal">
+          <div class="integration-nav"><button class="active" data-integration="commerce">Commerce</button><button data-integration="crm">CRM + service</button><button data-integration="ops">ERP + operations</button><button data-integration="payments">Payments</button><button data-integration="shipping">Shipping + returns</button><button data-integration="engagement">Engagement</button></div>
+          <div class="integration-content"><div class="integration-head"><div><h3 id="integrationTitle">Commerce platforms</h3><p id="integrationDesc">Storefront, product, order and customer context.</p></div><span class="connector-count" id="connectorCount">7 ecosystem targets</span></div><div class="connector-grid" id="connectorGrid"></div><div class="integration-foot">Connector names describe the intended customerSAX ecosystem. Production status should be published transparently as <b>Available</b>, <b>Beta</b>, <b>Planned</b> or <b>via API</b> as the roadmap is finalized.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="workforce-section" id="workforce">
+      <div class="shell">
+        <div class="section-intro reveal"><div><div class="section-eyebrow">The service workforce</div><h2 class="section-title">Human agent versus AI agent is the wrong final question.</h2></div><p>The useful question is: <b>which work belongs to which worker?</b> customerSAX lets the same customer journey move between AI-led, human-assisted and human-led service without losing context.</p></div>
+        <div class="workforce-map reveal">
+          <div class="force-column">
+            <div class="force-label">Human service agent</div><h3>Judgment, empathy and exceptions.</h3><p>Humans remain essential where the business needs discretion, negotiation, recovery, relationship judgment or accountability.</p>
+            <div class="force-list"><div class="force-item"><span>Availability</span><span>Scheduled capacity</span></div><div class="force-item"><span>Best at</span><span>Ambiguity + empathy</span></div><div class="force-item"><span>Authority</span><span>Discretionary</span></div><div class="force-item"><span>Complexity</span><span>Novel exceptions</span></div><div class="force-item"><span>Customer moments</span><span>High risk / high value</span></div></div>
+          </div>
+          <div class="force-bridge"><div class="bridge-mark">SAX</div><b>One queue.<br>One context.<br>One policy.</b><span>Route work to the right human or AI worker.</span></div>
+          <div class="force-column ai">
+            <div class="force-label">AI service agent</div><h3>Scale, speed and policy-bound execution.</h3><p>AI excels when work is repetitive, data-heavy, time-sensitive and governed by clear rules that can be observed and audited.</p>
+            <div class="force-list"><div class="force-item"><span>Availability</span><span>Always on</span></div><div class="force-item"><span>Best at</span><span>Volume + lookup + action</span></div><div class="force-item"><span>Authority</span><span>Guardrail-bound</span></div><div class="force-item"><span>Complexity</span><span>Repeatable procedures</span></div><div class="force-item"><span>Customer moments</span><span>Fast / predictable</span></div></div>
+          </div>
+        </div>
+        <div class="mode-grid reveal">
+          <article class="mode-card"><span class="mode-chip">AI-led</span><b>Routine resolution</b><p>Order status, simple returns, policy Q&A, appointment changes, known billing issues and other proven intents.</p></article>
+          <article class="mode-card"><span class="mode-chip">Human + AI</span><b>Assisted resolution</b><p>AI gathers context and prepares the action; the human reviews, adapts, approves and owns the customer relationship.</p></article>
+          <article class="mode-card"><span class="mode-chip">Human-led</span><b>Exceptions & recovery</b><p>Complex complaints, vulnerable customers, fraud, negotiation, policy exceptions and high-value recovery stay human-led.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="dark" id="agents">
+      <div class="shell">
+        <div class="section-intro reveal"><div><div class="section-eyebrow">Specialized AI coworkers</div><h2 class="section-title">AI agents are one workforce layer — not the whole platform.</h2></div><p>When automation is appropriate, customerSAX coordinates specialized AI workers around the same customer context, queues, knowledge, policies and actions used by the human service organization.</p></div>
+        <div class="agent-grid reveal">
+          <article class="agent-card"><div class="agent-top"><div class="agent-icon">01</div><span class="agent-state">Service</span></div><h3>Order Agent</h3><p>Investigates order status, fulfillment state, address changes, cancellations, reships and delivery exceptions.</p><div class="agent-tools"><span>Orders</span><span>OMS</span><span>Carriers</span><span>Handoff</span></div></article>
+          <article class="agent-card"><div class="agent-top"><div class="agent-icon">02</div><span class="agent-state">Service</span></div><h3>Returns Agent</h3><p>Evaluates return policy, exchange inventory, refund method, label options and exception handling.</p><div class="agent-tools"><span>Policy</span><span>Inventory</span><span>Returns</span><span>Approvals</span></div></article>
+          <article class="agent-card"><div class="agent-top"><div class="agent-icon">03</div><span class="agent-state">Commerce</span></div><h3>Product Agent</h3><p>Answers product, compatibility, availability and recommendation questions using live catalog and inventory data.</p><div class="agent-tools"><span>PIM</span><span>Catalog</span><span>Inventory</span><span>Knowledge</span></div></article>
+          <article class="agent-card"><div class="agent-top"><div class="agent-icon">04</div><span class="agent-state">Financial</span></div><h3>Billing Agent</h3><p>Handles billing questions, payment failures, subscription changes, approved credits and refund investigation.</p><div class="agent-tools"><span>Payments</span><span>Subscriptions</span><span>Risk</span><span>Human review</span></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="enterprise">
+      <div class="shell governance">
+        <div class="governance-copy reveal"><div class="section-eyebrow">Enterprise control</div><h2 class="section-title narrow">Autonomy should be earned, not assumed.</h2><p>customerSAX is designed for progressive automation. Start by observing and recommending. Add human approval for sensitive actions. Move only proven, low-risk intents to autonomous resolution.</p><a class="btn" href="#demo">Discuss enterprise architecture →</a></div>
+        <div class="governance-list reveal">
+          <div class="gov-row"><div class="gov-icon">01</div><div><b>Read before write</b><span>Connect systems in read-only mode first. Validate identity, data quality, policy and expected decisions before enabling actions.</span></div></div>
+          <div class="gov-row"><div class="gov-icon">02</div><div><b>Policy-bound actions</b><span>Every action can be constrained by amount, customer tier, order state, geography, role, confidence or business policy.</span></div></div>
+          <div class="gov-row"><div class="gov-icon">03</div><div><b>Human-in-the-loop</b><span>Require approval for refunds, exceptions, loyalty adjustments, cancellations or any workflow your business considers sensitive.</span></div></div>
+          <div class="gov-row"><div class="gov-icon">04</div><div><b>Full audit trail</b><span>Record the context used, decision path, tools called, data changed, approval and resulting customer outcome.</span></div></div>
+          <div class="gov-row"><div class="gov-icon">05</div><div><b>Measure resolution quality</b><span>Track not only deflection, but policy accuracy, action success, recontact, customer satisfaction and commercial outcome.</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="brand-system" id="brand">
+      <div class="shell">
+        <div class="section-intro reveal"><div><div class="section-eyebrow">Brand system</div><h2 class="section-title">A logo built around connection and resolution — not “AI magic.”</h2></div><p>The mark represents two service paths — human and AI — converging on the same customer context and leaving as one resolved outcome. The SVG assets are intentionally simple, editable and usable in Figma, Illustrator, Canva and the web.</p></div>
+        <div class="brand-lockup-panel reveal">
+          <div class="brand-display"><img src="brand/customerSAX-logo.svg" alt="customerSAX primary logo"><p><b>customer</b> stays lowercase and human. <b>SAX</b> carries the system identity. The symbol is a service-routing mark: two inputs, shared center, one resolved path.</p><div class="asset-links"><a class="btn" href="brand/customerSAX-logo.svg">Primary SVG</a><a class="btn" href="brand/customerSAX-mark.svg">Mark SVG</a><a class="btn" href="brand/customerSAX-logo-dark.svg">Dark SVG</a><a class="btn" href="brand/BRAND-GUIDE.md">Brand guide</a></div></div>
+          <div class="brand-rationale"><h3>Customer service first.<br>AI-native underneath.</h3><p>The identity should feel credible next to enterprise service, CRM and commerce platforms. That is why the system uses a neutral paper/ink base and a single operational blue rather than neon gradients.</p><div class="brand-points"><div class="brand-point"><span>Meaning</span><b>Conversation + routing + resolution</b></div><div class="brand-point"><span>Human cue</span><b>Open, rounded service paths</b></div><div class="brand-point"><span>System cue</span><b>Structured central junction</b></div><div class="brand-point"><span>Usage</span><b>Product, web, presentations, app icon</b></div></div></div>
+        </div>
+        <div class="palette reveal">
+          <div class="swatch ink"><b>Service Ink</b><span>#101216</span></div><div class="swatch paper"><b>Resolution Paper</b><span>#F6F5F1</span></div><div class="swatch blue"><b>Action Cobalt</b><span>#2B65F5</span></div><div class="swatch green"><b>Resolved</b><span>#1C9C6B</span></div><div class="swatch orange"><b>Review / Handoff</b><span>#D97632</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-section" id="demo">
+      <div class="shell"><div class="cta reveal"><h2>Turn your commerce stack into one service experience.</h2><div><p>Show us one high-volume support journey and the systems behind it. We’ll map the customerSAX context, decision and action flow around your current architecture.</p><a class="btn" href="mailto:hello@customersax.example?subject=customerSAX%20demo">Book a platform walkthrough →</a></div></div></div>
+    </section>
+  </main>
+
+  <footer><div class="shell footer-grid"><div><a class="brand" href="#top"><img class="brand-logo" src="brand/customerSAX-logo.svg" alt="customerSAX"></a><p class="footer-copy">Customer service for a mixed human + AI workforce, connected to the commerce systems that complete the resolution. Product concept website — connector availability and launch capabilities should be validated against the roadmap before public release.</p></div><div class="footer-links"><a href="#service">Customer service</a><a href="#workforce">Human + AI</a><a href="#integrations">Integrations</a><a href="#brand">Brand</a><a href="#enterprise">Enterprise</a></div></div></footer>
+
+  <script>
+    const cases={
+      wismo:{label:'Post-purchase service',quote:'“My order was due yesterday. Tracking hasn’t moved. Where is it?”',steps:[['Identify','Match customer + order across channel and storefront.'],['Investigate','Read fulfillment, carrier events and delivery exception.'],['Decide','Apply service policy and determine reship / wait / refund options.'],['Resolve','Send update, set shipment watch and take approved action.']],result:'Result: the customer receives a specific answer and the next operational step without an agent searching multiple systems.'},
+      return:{label:'Returns & exchanges',quote:'“These shoes are too small. Can I exchange them for a size 10?”',steps:[['Understand','Identify order, item, return window and reason.'],['Check','Validate policy and live replacement inventory.'],['Plan','Select exchange, label and price-adjustment workflow.'],['Execute','Create return, reserve size 10 and notify customer.']],result:'Result: policy, inventory and return execution become one guided journey instead of three separate tools.'},
+      cancel:{label:'Order management',quote:'“I entered the wrong shipping address. Can you fix it before it goes out?”',steps:[['Locate','Find order and current fulfillment state.'],['Guard','Check whether address change is still allowed.'],['Update','Write approved address to OMS / storefront.'],['Confirm','Return confirmation and preserve audit history.']],result:'Result: customerSAX acts only while the fulfillment state permits the change; otherwise it escalates with the correct alternative.'},
+      billing:{label:'Billing & subscriptions',quote:'“I was charged twice and I need one of these payments reversed.”',steps:[['Verify','Find payment intents, captures and order relationship.'],['Classify','Determine duplicate capture vs. separate orders.'],['Approve','Apply refund threshold and fraud / risk rules.'],['Resolve','Issue eligible refund or escalate with evidence.']],result:'Result: the platform connects payment context to the customer conversation and applies explicit financial guardrails.'},
+      product:{label:'Pre-purchase commerce',quote:'“Will this jacket work for Chicago winter, and is my size available today?”',steps:[['Profile','Use customer size, preference and prior purchase context.'],['Search','Read product attributes, content and live inventory.'],['Recommend','Explain fit, weather suitability and alternatives.'],['Convert','Deep-link or reserve eligible inventory where supported.']],result:'Result: customer service becomes a conversion surface because product answers are grounded in live commerce data.'}
+    };
+    const caseSteps=document.getElementById('caseSteps');
+    function renderCase(key){const c=cases[key];document.getElementById('caseLabel').textContent=c.label;document.getElementById('caseQuote').textContent=c.quote;document.getElementById('caseResult').textContent=c.result;caseSteps.innerHTML=c.steps.map((s,i)=>`<div class="res-cell"><small>0${i+1}</small><b>${s[0]}</b><p>${s[1]}</p></div>`).join('')}
+    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');renderCase(t.dataset.case)}));renderCase('wismo');
+
+    const integrations={
+      commerce:{title:'Commerce platforms',desc:'Storefront, product, order and customer context.',items:['Shopify / Plus','Adobe Commerce','BigCommerce','WooCommerce','Salesforce Commerce','commercetools','Custom storefront']},
+      crm:{title:'CRM + customer service',desc:'Customer identity, relationship history and service operations.',items:['Salesforce','Zendesk','HubSpot','Dynamics 365','Kustomer','Intercom','Freshworks','Custom CRM']},
+      ops:{title:'ERP + operations',desc:'Fulfillment, inventory, product and enterprise order processes.',items:['NetSuite','SAP','Oracle','Manhattan','Custom OMS','WMS','PIM','3PL systems']},
+      payments:{title:'Payments + billing',desc:'Charges, refunds, subscriptions, disputes and store credit.',items:['Stripe','Adyen','PayPal','Klarna','Recharge','Gift cards','Store credit']},
+      shipping:{title:'Shipping + returns',desc:'Tracking, exceptions, labels, exchanges and claims.',items:['FedEx','UPS','DHL','AfterShip','Narvar','Loop','Happy Returns','Custom 3PL']},
+      engagement:{title:'Engagement + loyalty',desc:'Customer messaging, lifecycle marketing and loyalty context.',items:['Klaviyo','Braze','Yotpo','Attentive','WhatsApp','SMS','Email','Social']}
+    };
+    const connectorGrid=document.getElementById('connectorGrid');
+    function initials(s){return s.split(/\s|\//).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
+    function renderIntegration(key){const c=integrations[key];document.getElementById('integrationTitle').textContent=c.title;document.getElementById('integrationDesc').textContent=c.desc;document.getElementById('connectorCount').textContent=`${c.items.length} ecosystem targets`;connectorGrid.innerHTML=c.items.map((x,i)=>`<div class="connector"><div class="connector-logo">${initials(x)}</div><div><b>${x}</b><small>${i<2?'<span class="available">Target connector</span>':'Roadmap / API'}</small></div></div>`).join('')}
+    document.querySelectorAll('.integration-nav button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.integration-nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderIntegration(b.dataset.integration)}));renderIntegration('commerce');
+
+    const io=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('show')}),{threshold:.09});document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+  </script>
+</body>
+</html>

@@ -102,6 +102,15 @@ resource "google_storage_bucket" "documents" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_artifact_registry_repository" "repo" {
+  location      = var.region
+  repository_id = "${local.name_prefix}-repo"
+  description   = "Docker repository for CSA backend services"
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.required]
+}
+
 resource "google_bigquery_dataset" "analytics" {
   dataset_id = replace("${local.name_prefix}_analytics", "-", "_")
   location   = "US"
@@ -109,31 +118,7 @@ resource "google_bigquery_dataset" "analytics" {
   depends_on = [google_project_service.required]
 }
 
-resource "google_firestore_database" "realtime" {
-  name        = "(default)"
-  location_id = var.region
-  type        = "FIRESTORE_NATIVE"
 
-  depends_on = [google_project_service.required]
-}
-
-resource "google_sql_database_instance" "postgres" {
-  name             = "${local.name_prefix}-postgres"
-  database_version = "POSTGRES_15"
-  region           = var.region
-
-  settings {
-    tier = "db-f1-micro"
-
-    backup_configuration {
-      enabled = true
-    }
-  }
-
-  deletion_protection = true
-
-  depends_on = [google_project_service.required]
-}
 
 resource "google_cloud_run_v2_service" "bff" {
   name     = "${local.name_prefix}-bff"
@@ -161,6 +146,14 @@ resource "google_cloud_run_v2_service" "bff" {
   }
 
   depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service_iam_member" "bff_public" {
+  project  = google_cloud_run_v2_service.bff.project
+  location = google_cloud_run_v2_service.bff.location
+  name     = google_cloud_run_v2_service.bff.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
 
 resource "google_cloud_run_v2_service" "commerce_commercetools" {
@@ -316,6 +309,68 @@ resource "google_cloud_run_v2_service" "ai_assist" {
             }
           }
         }
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service" "auth" {
+  name     = "${local.name_prefix}-auth"
+  location = var.region
+
+  template {
+    containers {
+      image = var.auth_image
+
+      env {
+        name  = "AUTH_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service_iam_member" "auth_public" {
+  project  = google_cloud_run_v2_service.auth.project
+  location = google_cloud_run_v2_service.auth.location
+  name     = google_cloud_run_v2_service.auth.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_v2_service" "admin" {
+  name     = "${local.name_prefix}-admin"
+  location = var.region
+
+  template {
+    containers {
+      image = var.admin_image
+
+      env {
+        name  = "ADMIN_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service" "ticketing" {
+  name     = "${local.name_prefix}-ticketing"
+  location = var.region
+
+  template {
+    containers {
+      image = var.ticketing_image
+
+      env {
+        name  = "TICKETING_PORT"
+        value = "8080"
       }
     }
   }
