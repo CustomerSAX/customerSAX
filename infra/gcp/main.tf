@@ -25,19 +25,23 @@ locals {
     "storage.googleapis.com"
   ]
 
+  # commerce_federated_services is used by the BFF for federation routing.
+  # try() with "" fallback means first-apply bootstrapping doesn't crash when
+  # commerce_commercetools doesn't exist yet. Cloud Build update-urls.sh
+  # injects the real URLs after all services are running.
   commerce_federated_services = {
-    "commerce-commercetools" = google_cloud_run_v2_service.commerce_commercetools.uri
-    "commerce-shopify"       = google_cloud_run_v2_service.commerce_shopify.uri
-    "commerce-bigcommerce"   = google_cloud_run_v2_service.commerce_bigcommerce.uri
-    "commerce-sfcc"          = google_cloud_run_v2_service.commerce_sfcc.uri
+    "commerce-commercetools" = try(google_cloud_run_v2_service.commerce_commercetools.uri, "")
+    "commerce-shopify"       = try(google_cloud_run_v2_service.commerce_shopify.uri, "")
+    "commerce-bigcommerce"   = try(google_cloud_run_v2_service.commerce_bigcommerce.uri, "")
+    "commerce-sfcc"          = try(google_cloud_run_v2_service.commerce_sfcc.uri, "")
   }
 
   selected_commerce_service_url = (
     var.ai_commerce_service_url != "" ? var.ai_commerce_service_url :
-    var.commerce_platform == "shopify" ? google_cloud_run_v2_service.commerce_shopify.uri :
-    var.commerce_platform == "bigcommerce" ? google_cloud_run_v2_service.commerce_bigcommerce.uri :
-    contains(["salesforce", "sfcc"], var.commerce_platform) ? google_cloud_run_v2_service.commerce_sfcc.uri :
-    google_cloud_run_v2_service.commerce_commercetools.uri
+    var.commerce_platform == "shopify" ? try(google_cloud_run_v2_service.commerce_shopify.uri, "") :
+    var.commerce_platform == "bigcommerce" ? try(google_cloud_run_v2_service.commerce_bigcommerce.uri, "") :
+    contains(["salesforce", "sfcc"], var.commerce_platform) ? try(google_cloud_run_v2_service.commerce_sfcc.uri, "") :
+    try(google_cloud_run_v2_service.commerce_commercetools.uri, "")
   )
 }
 
