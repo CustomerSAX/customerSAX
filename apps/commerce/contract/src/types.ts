@@ -103,6 +103,66 @@ export type Customer = {
   lastModifiedAt?: string;
 };
 
+export type CompanyAddress = {
+  id?: string;
+  key?: string;
+  streetName?: string;
+  streetNumber?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  company?: string;
+  email?: string;
+  phone?: string;
+  firstName?: string;
+  lastName?: string;
+};
+
+export type CompanyAssociate = {
+  id?: string;
+  customerId?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  roles: string[];
+};
+
+export type Company = {
+  id: string;
+  key: string;
+  name: string;
+  status?: string;
+  unitType?: string;
+  parentUnit?: {
+    id?: string;
+    key?: string;
+    name?: string;
+  };
+  contactEmail?: string;
+  associateMode?: string;
+  storeMode?: string;
+  approvalRuleMode?: string;
+  createdAt?: string;
+  lastModifiedAt?: string;
+  addresses: CompanyAddress[];
+  associates: CompanyAssociate[];
+};
+
+export type Quote = {
+  id: string;
+  key?: string;
+  quoteNumber?: string;
+  companyKey?: string;
+  companyName?: string;
+  customerId?: string;
+  customerEmail?: string;
+  status?: string;
+  totalPrice?: Money;
+  createdAt?: string;
+  lastModifiedAt?: string;
+};
+
 export type CommerceProvider = {
   getCart(args: { id?: string; key?: string }): Promise<Cart | null>;
   getCustomer(args: { email?: string; id?: string }): Promise<Customer | null>;

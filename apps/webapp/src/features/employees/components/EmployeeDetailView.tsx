@@ -25,6 +25,7 @@ import {
   Select,
   EmptyState,
 } from "@csa/ui";
+import { formatDate } from "@/lib/format-date";
 import { useEmployees } from "../hooks/use-employees";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
 import { useQuotes } from "@/features/quotes/hooks/use-quotes";
@@ -445,7 +446,7 @@ export function EmployeeDetailView({ id }: { id: string }) {
                             {c.cartState}
                           </Badge>
                         </TableCell>
-                        <TableCell>{new Date(c.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{formatDate(c.createdAt)}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -488,8 +489,8 @@ export function EmployeeDetailView({ id }: { id: string }) {
                             {q.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>{q.validUntil ? new Date(q.validUntil).toLocaleDateString() : "--"}</TableCell>
-                        <TableCell>{new Date(q.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{formatDate(q.validUntil)}</TableCell>
+                        <TableCell>{formatDate(q.createdAt)}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -537,7 +538,7 @@ export function EmployeeDetailView({ id }: { id: string }) {
                           </Badge>
                         </TableCell>
                         <TableCell className="font-semibold">${o.totalPrice.toFixed(2)}</TableCell>
-                        <TableCell>{new Date(o.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{formatDate(o.createdAt)}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -595,7 +596,7 @@ export function EmployeeDetailView({ id }: { id: string }) {
                     <TableCell>
                       <Badge variant="success" size="sm">Settled</Badge>
                     </TableCell>
-                    <TableCell>{new Date().toLocaleDateString()}</TableCell>
+                    <TableCell>{formatDate(new Date())}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -627,7 +628,7 @@ export function EmployeeDetailView({ id }: { id: string }) {
                     <TableCell>
                       <Badge variant="info" size="sm">In Progress</Badge>
                     </TableCell>
-                    <TableCell>{new Date().toLocaleDateString()}</TableCell>
+                    <TableCell>{formatDate(new Date())}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>

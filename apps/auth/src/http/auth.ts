@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
+import { projectsRepo } from "@csa/mongodb";
 import { createSessionToken, hashSessionToken } from "../security/tokens.js";
 import { verifyPassword } from "../security/passwords.js";
 import {
@@ -11,6 +12,7 @@ import {
   ,setSessionProject
 } from "../users/repository.js";
 import { projectsForUser, toPublicUser } from "../users/types.js";
+import type { AuthUser } from "../users/types.js";
 
 export async function loginWithPassword(email: string, password: string) {
   const user = await findUserByEmail(email);
@@ -38,7 +40,7 @@ export async function loginWithPassword(email: string, password: string) {
   return {
     expiresAt: expiresAt.toISOString(),
     token,
-    user: toPublicUser(user, onlyProject?.projectKey, onlyProject?.clientId)
+    user: await toPublicUserWithShellMode(user, onlyProject?.projectKey, onlyProject?.clientId)
   };
 }
 
@@ -63,7 +65,7 @@ export async function getCurrentSession(request: IncomingMessage) {
 
   return {
     expiresAt: session.expiresAt.toISOString(),
-    user: toPublicUser(user, session.activeProjectKey, session.activeClientId)
+    user: await toPublicUserWithShellMode(user, session.activeProjectKey, session.activeClientId)
   };
 }
 
@@ -86,7 +88,32 @@ export async function selectSessionProject(request: IncomingMessage, projectKey:
     projectKey: project.projectKey,
     clientId: project.clientId
   });
-  return { expiresAt: session.expiresAt.toISOString(), user: toPublicUser(user, project.projectKey, project.clientId) };
+  return { expiresAt: session.expiresAt.toISOString(), user: await toPublicUserWithShellMode(user, project.projectKey, project.clientId) };
+}
+
+async function toPublicUserWithShellMode(user: AuthUser, activeProjectKey?: string, activeClientId?: string) {
+  const publicUser = toPublicUser(user, activeProjectKey, activeClientId);
+  const clientIds = Array.from(new Set(publicUser.projects.map((project) => project.clientId).filter(Boolean))) as string[];
+
+  const projectDocs = (await Promise.all(clientIds.map((clientId) => projectsRepo.listProjectsByClient(clientId)))).flat();
+  const shellModeByProject = new Map(
+    projectDocs.map((project) => [`${project.clientId}:${project.projectKey}`, project.standaloneB2bEnabled === true ? "b2b" : "b2c"] as const)
+  );
+
+  const projects = publicUser.projects.map((project) => ({
+    ...project,
+    shellMode: project.clientId ? shellModeByProject.get(`${project.clientId}:${project.projectKey}`) ?? "b2c" : project.shellMode ?? "b2c"
+  }));
+
+  const activeProject = projects.find(
+    (project) => project.projectKey === publicUser.activeProjectKey && (!publicUser.activeClientId || project.clientId === publicUser.activeClientId)
+  );
+
+  return {
+    ...publicUser,
+    activeProjectShellMode: activeProject?.shellMode,
+    projects
+  };
 }
 
 export async function logout(request: IncomingMessage) {

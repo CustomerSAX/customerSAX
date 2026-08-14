@@ -20,6 +20,7 @@ import {
   EmptyState,
   Skeleton,
 } from "@csa/ui";
+import { formatDate } from "@/lib/format-date";
 import { useEmployees } from "../hooks/use-employees";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
 
@@ -282,7 +283,7 @@ export function EmployeeListView() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-m-text-muted">
-                      {new Date(emp.createdAt).toLocaleDateString()}
+                      {formatDate(emp.createdAt)}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <Button

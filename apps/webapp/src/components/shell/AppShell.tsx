@@ -34,6 +34,7 @@ const sidebarGroups: SidebarGroup[] = [
     items: [
       { id: "orders", href: "/orders", label: "Orders", icon: "shopping-bag" },
       { id: "cart", href: "/cart", label: "Cart", icon: "shopping-cart" },
+      { id: "b2b-quotes", href: "/b2b/quotes", label: "Quotes", icon: "file-text" },
       { id: "products", href: "/products", label: "Products", icon: "package" }
     ]
   },
@@ -55,11 +56,10 @@ const sidebarGroups: SidebarGroup[] = [
 
 const b2bSidebarGroup: SidebarGroup = {
   id: "b2b-operations",
-  title: "B2B Operations",
+  title: "Business Unit",
   items: [
     { id: "b2b-company", href: "/b2b/company", label: "Companies", icon: "building-2" },
     { id: "b2b-employees", href: "/b2b/employees", label: "Employees", icon: "user-check" },
-    { id: "b2b-quotes", href: "/b2b/quotes", label: "Quotes", icon: "file-text" },
     { id: "b2b-import-export", href: "/b2b/import-export", label: "Import / Export", icon: "arrow-left-right" }
   ]
 };
@@ -74,10 +74,17 @@ const fallbackUser: CurrentUser = {
   requiresProjectSelection: false
 };
 
+function activeProjectShellMode(user: CurrentUser) {
+  if (user.activeProjectShellMode) return user.activeProjectShellMode;
+  return user.projects.find(
+    (project) => project.projectKey === user.activeProjectKey && (!user.activeClientId || project.clientId === user.activeClientId)
+  )?.shellMode;
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useCurrentUser();
+  const { user, loading: userLoading } = useCurrentUser();
   const currentUser = user ?? fallbackUser;
 
   useEffect(() => {
@@ -90,12 +97,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const userSubtitle = useMemo(() => roleLabel(currentUser.role), [currentUser.role]);
 
   const isB2bMode = useMemo(() => {
-    return (
-      process.env.NEXT_PUBLIC_PROJECT_TYPE === "B2B" ||
-      process.env.NEXT_PUBLIC_CT_BUSINESS_TYPE === "B2B" ||
-      pathname?.startsWith("/b2b")
-    );
-  }, [pathname]);
+    const shellMode = activeProjectShellMode(currentUser);
+    if (shellMode) return shellMode === "b2b";
+    return process.env.NEXT_PUBLIC_PROJECT_TYPE === "B2B" || process.env.NEXT_PUBLIC_CT_BUSINESS_TYPE === "B2B";
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!userLoading && pathname?.startsWith("/b2b") && !isB2bMode) {
+      router.replace("/dashboard");
+    }
+  }, [isB2bMode, pathname, router, userLoading]);
 
   const groups = useMemo(() => {
     let baseGroups = [...sidebarGroups];

@@ -17,6 +17,7 @@ import {
   TableCell,
   Tabs,
 } from "@csa/ui";
+import { formatDateTime } from "@/lib/format-date";
 import { useImportExport } from "../hooks/use-import-export";
 import type { B2BResourceType } from "../types/import-export-types";
 
@@ -289,7 +290,7 @@ export function ImportExportView() {
                         )}
                       </TableCell>
                       <TableCell className="text-m-text-muted">
-                        {new Date(job.timestamp).toLocaleString()}
+                        {formatDateTime(job.timestamp)}
                       </TableCell>
                       <TableCell>
                         <Badge variant={job.status === "Completed" ? "success" : "error"} size="sm">
@@ -371,7 +372,7 @@ export function ImportExportView() {
                       <TableCell className="text-m-text-muted">{exp.fileSize}</TableCell>
                       <TableCell>{exp.recordCount}</TableCell>
                       <TableCell className="text-m-text-muted">
-                        {new Date(exp.timestamp).toLocaleString()}
+                        {formatDateTime(exp.timestamp)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
