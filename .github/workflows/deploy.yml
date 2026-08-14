@@ -21,6 +21,18 @@ jobs:
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Apply Artifact Registry
+        run: |
+          cd infra/gcp
+          terraform init
+          terraform apply -target=google_artifact_registry_repository.repo -auto-approve \
+            -var="project_id=customersax" \
+            -var="region=us-central1" \
+            -var="environment=dev"
+
       - name: Configure Docker Auth
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
@@ -61,9 +73,6 @@ jobs:
           echo "AI_ASSIST_IMAGE=$REGISTRY/ai-assist:$TAG" >> $GITHUB_ENV
           echo "AUTH_IMAGE=$REGISTRY/auth:$TAG" >> $GITHUB_ENV
           echo "ADMIN_IMAGE=$REGISTRY/admin:$TAG" >> $GITHUB_ENV
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Apply (Zero Cost Resources)
         run: |
