@@ -424,3 +424,65 @@ resource "google_cloud_run_v2_service" "ticketing" {
 
   depends_on = [google_project_service.required]
 }
+
+resource "google_cloud_run_v2_service" "auth" {
+  name     = "${local.name_prefix}-auth"
+  location = var.region
+
+  template {
+    containers {
+      image = var.auth_image
+
+      env {
+        name  = "AUTH_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service_iam_member" "auth_public" {
+  project  = google_cloud_run_v2_service.auth.project
+  location = google_cloud_run_v2_service.auth.location
+  name     = google_cloud_run_v2_service.auth.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_v2_service" "admin" {
+  name     = "${local.name_prefix}-admin"
+  location = var.region
+
+  template {
+    containers {
+      image = var.admin_image
+
+      env {
+        name  = "ADMIN_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service" "ticketing" {
+  name     = "${local.name_prefix}-ticketing"
+  location = var.region
+
+  template {
+    containers {
+      image = var.ticketing_image
+
+      env {
+        name  = "TICKETING_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
