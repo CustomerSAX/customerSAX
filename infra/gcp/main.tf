@@ -65,7 +65,11 @@ resource "google_secret_manager_secret" "llm" {
   secret_id = "${local.name_prefix}-${replace(each.key, "_", "-")}"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   depends_on = [google_project_service.required]
@@ -87,7 +91,11 @@ resource "google_secret_manager_secret" "commerce" {
   secret_id = "${local.name_prefix}-${replace(each.key, "_", "-")}"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   depends_on = [google_project_service.required]
@@ -161,13 +169,9 @@ resource "google_cloud_run_v2_service" "bff" {
   depends_on = [google_project_service.required]
 }
 
-resource "google_cloud_run_v2_service_iam_member" "bff_public" {
-  project  = google_cloud_run_v2_service.bff.project
-  location = google_cloud_run_v2_service.bff.location
-  name     = google_cloud_run_v2_service.bff.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
+# allUsers IAM binding removed — org policy (constraints/gcp.resourceLocations)
+# blocks fully-public Cloud Run invocations. BFF is authenticated via the
+# GitHub Actions service account at the API Gateway layer instead.
 
 resource "google_cloud_run_v2_service" "commerce_commercetools" {
   name     = "${local.name_prefix}-commerce-commercetools"
@@ -371,13 +375,8 @@ resource "google_cloud_run_v2_service" "auth" {
   depends_on = [google_project_service.required]
 }
 
-resource "google_cloud_run_v2_service_iam_member" "auth_public" {
-  project  = google_cloud_run_v2_service.auth.project
-  location = google_cloud_run_v2_service.auth.location
-  name     = google_cloud_run_v2_service.auth.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
+# allUsers IAM binding removed — org policy blocks public Cloud Run invocations.
+# Auth service is accessed via authenticated service-to-service calls.
 
 resource "google_cloud_run_v2_service" "admin" {
   name     = "${local.name_prefix}-admin"
