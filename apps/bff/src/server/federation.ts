@@ -1,4 +1,5 @@
 import { ApolloGateway, IntrospectAndCompose, RemoteGraphQLDataSource } from "@apollo/gateway";
+import { GoogleAuth } from "google-auth-library";
 
 type FederatedServices = Record<string, string>;
 type FederatedService = {
@@ -10,6 +11,32 @@ export type GatewayContext = { clientId?: string; projectKey?: string; userEmail
 
 export function getCommercePlatform() {
   return process.env.BFF_COMMERCE_PLATFORM ?? "commercetools";
+}
+
+const auth = new GoogleAuth();
+const tokenCache = new Map<string, string>();
+
+async function getIdentityToken(targetUrl: string): Promise<string | undefined> {
+  // Only attempt GCP authentication if we're in production (running on Cloud Run)
+  if (process.env.NODE_ENV !== "production") return undefined;
+
+  const audience = new URL(targetUrl).origin;
+  
+  if (!tokenCache.has(audience)) {
+    try {
+      const client = await auth.getIdTokenClient(audience);
+      const token = await client.idTokenProvider.fetchIdToken(audience);
+      tokenCache.set(audience, token);
+      
+      // Auto-refresh token cache (Google tokens expire in ~1h)
+      setTimeout(() => tokenCache.delete(audience), 50 * 60 * 1000);
+    } catch (e) {
+      console.error(`Failed to get identity token for ${audience}:`, e);
+      return undefined;
+    }
+  }
+
+  return tokenCache.get(audience);
 }
 
 export function buildGateway(): ApolloGateway | undefined {
@@ -28,7 +55,11 @@ export function buildGateway(): ApolloGateway | undefined {
     buildService: ({ url }) =>
       new RemoteGraphQLDataSource({
         url,
-        willSendRequest({ request, context }) {
+        async willSendRequest({ request, context }) {
+          if (url) {
+            const token = await getIdentityToken(url);
+            if (token) request.http?.headers.set("Authorization", `Bearer ${token}`);
+          }
           request.http?.headers.set("x-csa-commerce-platform", getCommercePlatform());
           const gatewayContext = context as GatewayContext;
           if (gatewayContext.projectKey) request.http?.headers.set("x-csa-project-key", gatewayContext.projectKey);
@@ -48,7 +79,18 @@ export function buildGateway(): ApolloGateway | undefined {
       // more than once during development. Polling makes new capabilities
       // show up on their own within a few seconds, same as a subgraph's own
       // hot reload — no restart dance needed for schema changes going forward.
-      pollIntervalInMs: 10_000
+      pollIntervalInMs: 10_000,
+      async fetcher(url: string, init?: RequestInit) {
+        const fetchInit = init ? { ...init } : {};
+        const token = await getIdentityToken(url);
+        if (token) {
+          fetchInit.headers = {
+            ...fetchInit.headers,
+            Authorization: `Bearer ${token}`
+          };
+        }
+        return fetch(url, fetchInit);
+      }
     })
   });
 }

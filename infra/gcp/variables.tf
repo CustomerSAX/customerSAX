@@ -27,6 +27,24 @@ variable "ai_assist_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "auth_image" {
+  description = "Container image for the Auth Cloud Run service."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "admin_image" {
+  description = "Container image for the Admin Cloud Run service."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "ticketing_image" {
+  description = "Container image for the Ticketing Cloud Run service."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
 variable "commerce_commercetools_image" {
   description = "Container image for the commercetools adapter Cloud Run service."
   type        = string
