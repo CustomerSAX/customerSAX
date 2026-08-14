@@ -103,7 +103,7 @@ export function MemoryPanel({ sessionId }: MemoryPanelProps) {
       });
       
     return () => abortController.abort();
-  }, [sessionId, customer?.id]);
+  }, [sessionId, customer?.id, customer?.email, customer?.name]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
