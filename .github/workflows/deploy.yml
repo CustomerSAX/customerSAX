@@ -3,7 +3,7 @@ name: Deploy Zero Cost Infrastructure
 on:
   push:
     branches:
-      - prod
+      - customerSAX-Prod
 
 jobs:
   deploy-backend:
