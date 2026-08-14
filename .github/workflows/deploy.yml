@@ -138,12 +138,63 @@ jobs:
             --substitutions="BRANCH_NAME=${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Job 4: Print service URLs after successful deployment
+  # Job 4: Deploy frontend apps to Vercel (runs in parallel with Cloud Build)
+  # Uses pre-configured secrets: VERCEL_TOKEN, VERCEL_ORG_ID,
+  # VERCEL_PROJECT_ID_WEBAPP, VERCEL_PROJECT_ID_MARKETING
+  # ──────────────────────────────────────────────────────────────────────────
+  vercel-deploy:
+    name: "🌐 Deploy Frontend to Vercel"
+    runs-on: ubuntu-latest
+    needs: terraform-apply
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Deploy webapp to Vercel (Production)
+        run: |
+          vercel deploy \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --scope="${{ secrets.VERCEL_ORG_ID }}" \
+            --yes \
+            --prod \
+            --build-env NEXT_PUBLIC_BFF_URL="https://csa-dev-bff-v3egj3ywmq-uc.a.run.app" \
+            --build-env NEXT_PUBLIC_ENV="production"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEBAPP }}
+
+      - name: Deploy marketing to Vercel (Production)
+        run: |
+          vercel deploy \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --scope="${{ secrets.VERCEL_ORG_ID }}" \
+            --yes \
+            --prod \
+            --build-env NEXT_PUBLIC_ENV="production"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_MARKETING }}
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 5: Print service URLs after successful deployment
   # ──────────────────────────────────────────────────────────────────────────
   deployment-summary:
     name: "📋 Deployment Summary"
     runs-on: ubuntu-latest
-    needs: cloud-build-deploy
+    needs: [cloud-build-deploy, vercel-deploy]
     if: always() && needs.cloud-build-deploy.result == 'success'
     steps:
       - name: Authenticate to Google Cloud
@@ -160,6 +211,7 @@ jobs:
         run: |
           echo "🎉 customerSAX Deployment Complete"
           echo ""
+          echo "── GCP Cloud Run ────────────────────────"
           for SVC in bff auth ai-assist commerce-commercetools ticketing admin; do
             RUN_SVC="csa-dev-${SVC}"
             URL=$(gcloud run services describe "${RUN_SVC}" \
@@ -167,3 +219,7 @@ jobs:
               --format='value(status.url)' 2>/dev/null || echo "not deployed")
             echo "  ${SVC}: ${URL}"
           done
+          echo ""
+          echo "── Vercel Frontend ──────────────────────"
+          echo "  webapp:    https://customersax.vercel.app"
+          echo "  marketing: (check Vercel dashboard)"
