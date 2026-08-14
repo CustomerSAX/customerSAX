@@ -41,7 +41,9 @@ locals {
   )
 }
 
-data "google_project" "current" {}
+data "google_project" "current" {
+  depends_on = [google_project_service.required]
+}
 
 resource "google_project_service" "required" {
   for_each = toset(local.services)
