@@ -80,16 +80,12 @@ export function buildGateway(): ApolloGateway | undefined {
       // show up on their own within a few seconds, same as a subgraph's own
       // hot reload — no restart dance needed for schema changes going forward.
       pollIntervalInMs: 10_000,
-      async fetcher(url: string, init?: RequestInit) {
-        const fetchInit = init ? { ...init } : {};
-        const token = await getIdentityToken(url);
-        if (token) {
-          fetchInit.headers = {
-            ...fetchInit.headers,
-            Authorization: `Bearer ${token}`
-          };
-        }
-        return fetch(url, fetchInit);
+      async introspectionHeaders(service) {
+        const headers: Record<string, string> = {};
+        if (!service.url) return headers;
+        const token = await getIdentityToken(service.url);
+        if (token) headers.Authorization = `Bearer ${token}`;
+        return headers;
       }
     })
   });
