@@ -161,23 +161,36 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
+      - name: Install dependencies (monorepo root)
+        run: pnpm install --frozen-lockfile
+
       - name: Deploy webapp to Vercel (Production)
-        working-directory: apps/webapp
         run: |
-          vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-          vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-          vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+          vercel pull --yes --environment=production \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --cwd apps/webapp
+          vercel build --prod \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --cwd apps/webapp
+          vercel deploy --prebuilt --prod \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --cwd apps/webapp
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEBAPP }}
 
       - name: Deploy marketing to Vercel (Production)
-        working-directory: apps/marketing
         run: |
-          vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-          vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-          vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+          vercel pull --yes --environment=production \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --cwd apps/marketing
+          vercel build --prod \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --cwd apps/marketing
+          vercel deploy --prebuilt --prod \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --cwd apps/marketing
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
