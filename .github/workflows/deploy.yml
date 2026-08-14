@@ -6,7 +6,7 @@ on:
       - customerSAX-Prod
 
 env:
-  PROJECT_ID: csa-project-1d161
+  PROJECT_ID: customerservice-505511
   REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
   ARTIFACT_REPO: csa-dev-repo
