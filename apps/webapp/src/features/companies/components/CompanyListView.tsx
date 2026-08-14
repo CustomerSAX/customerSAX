@@ -20,6 +20,7 @@ import {
   EmptyState,
   Skeleton,
 } from "@csa/ui";
+import { formatDate } from "@/lib/format-date";
 import { useCompanies } from "../hooks/use-companies";
 
 const SEARCH_OPTIONS = [
@@ -267,10 +268,10 @@ export function CompanyListView() {
                   </TableCell>
                   <TableCell className="text-m-text-muted">{comp.parentName ?? "--"}</TableCell>
                   <TableCell className="text-m-text-muted">
-                    {new Date(comp.createdAt).toLocaleDateString()}
+                    {formatDate(comp.createdAt)}
                   </TableCell>
                   <TableCell className="text-m-text-muted">
-                    {new Date(comp.lastModifiedAt).toLocaleDateString()}
+                    {formatDate(comp.lastModifiedAt)}
                   </TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <Button

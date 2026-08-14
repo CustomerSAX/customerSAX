@@ -18,7 +18,8 @@ export type CurrentUser = {
   projectKey?: string;
   activeClientId?: string;
   activeProjectKey?: string;
-  projects?: Array<{ clientId?: string; displayName?: string; projectKey: string; role: string }>;
+  activeProjectShellMode?: 'b2c' | 'b2b';
+  projects?: Array<{ clientId?: string; displayName?: string; projectKey: string; role: string; shellMode?: 'b2c' | 'b2b' }>;
   requiresProjectSelection?: boolean;
   role: 'agent' | 'admin' | 'superadmin';
   tenantId: string;

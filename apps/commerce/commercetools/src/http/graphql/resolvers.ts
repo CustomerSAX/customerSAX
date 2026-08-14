@@ -1,16 +1,20 @@
 import { agent } from "./agent/index.js";
 import { cart } from "./cart/index.js";
+import { company } from "./company/index.js";
 import { customer } from "./customer/index.js";
 import { healthcheckResolvers } from "./healthcheck/healthcheck.resolvers.js";
 import { order } from "./order/index.js";
 import { product } from "./product/index.js";
+import { quote } from "./quote/index.js";
 import { jsonScalar } from "./shared/json-scalar.js";
 
 const agentResolvers = agent.resolvers;
 const cartResolvers = cart.resolvers;
+const companyResolvers = company.resolvers;
 const customerResolvers = customer.resolvers;
 const orderResolvers = order.resolvers;
 const productResolvers = product.resolvers;
+const quoteResolvers = quote.resolvers;
 
 export const resolvers = {
   Json: jsonScalar,
@@ -42,6 +46,10 @@ export const resolvers = {
     cart: cartResolvers.cart,
     cartPage: cartResolvers.cartPage,
     carts: cartResolvers.carts,
+    companies: companyResolvers.companies,
+    company: companyResolvers.company,
+    companyCarts: companyResolvers.companyCarts,
+    companyOrders: companyResolvers.companyOrders,
     customer: customerResolvers.customer,
     customerAddresses: customerResolvers.customerAddresses,
     customerPage: customerResolvers.customerPage,
@@ -60,6 +68,7 @@ export const resolvers = {
     productPage: productResolvers.productPage,
     productSearch: productResolvers.productSearch,
     products: productResolvers.products,
+    quotes: quoteResolvers.quotes,
     quickSearchProducts: productResolvers.quickSearchProducts,
     searchCarts: cartResolvers.searchCarts,
     searchCustomers: customerResolvers.searchCustomers,
