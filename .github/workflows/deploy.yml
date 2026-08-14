@@ -29,7 +29,7 @@ jobs:
           cd infra/gcp
           terraform init
           terraform apply -target=google_artifact_registry_repository.repo -auto-approve \
-            -var="project_id=customersax" \
+            -var="project_id=csa-project-1d161" \
             -var="region=us-central1" \
             -var="environment=dev"
 
@@ -39,7 +39,7 @@ jobs:
       - name: Build and Push Docker Images
         run: |
           # Define registry and tag
-          export REGISTRY="us-central1-docker.pkg.dev/customersax/csa-dev-repo"
+          export REGISTRY="us-central1-docker.pkg.dev/csa-project-1d161/csa-dev-repo"
           export TAG=$(git rev-parse --short HEAD)
           
           # BFF Image
@@ -79,7 +79,7 @@ jobs:
           cd infra/gcp
           terraform init
           terraform apply -auto-approve \
-            -var="project_id=customersax" \
+            -var="project_id=csa-project-1d161" \
             -var="region=us-central1" \
             -var="environment=dev" \
             -var="bff_image=${{ env.BFF_IMAGE }}" \
