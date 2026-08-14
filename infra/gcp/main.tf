@@ -145,6 +145,10 @@ resource "google_cloud_run_v2_service" "bff" {
     }
   }
 
+  lifecycle {
+    ignore_changes = [template]
+  }
+
   depends_on = [google_project_service.required]
 }
 
@@ -206,6 +210,10 @@ resource "google_cloud_run_v2_service" "commerce_commercetools" {
     }
   }
 
+  lifecycle {
+    ignore_changes = [template]
+  }
+
   depends_on = [google_project_service.required]
 }
 
@@ -222,6 +230,10 @@ resource "google_cloud_run_v2_service" "commerce_shopify" {
         value = "8080"
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [template]
   }
 
   depends_on = [google_project_service.required]
@@ -242,6 +254,10 @@ resource "google_cloud_run_v2_service" "commerce_bigcommerce" {
     }
   }
 
+  lifecycle {
+    ignore_changes = [template]
+  }
+
   depends_on = [google_project_service.required]
 }
 
@@ -258,6 +274,10 @@ resource "google_cloud_run_v2_service" "commerce_sfcc" {
         value = "8080"
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [template]
   }
 
   depends_on = [google_project_service.required]
@@ -313,6 +333,10 @@ resource "google_cloud_run_v2_service" "ai_assist" {
     }
   }
 
+  lifecycle {
+    ignore_changes = [template]
+  }
+
   depends_on = [google_project_service.required]
 }
 
@@ -329,6 +353,10 @@ resource "google_cloud_run_v2_service" "auth" {
         value = "8080"
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [template]
   }
 
   depends_on = [google_project_service.required]
@@ -357,6 +385,10 @@ resource "google_cloud_run_v2_service" "admin" {
     }
   }
 
+  lifecycle {
+    ignore_changes = [template]
+  }
+
   depends_on = [google_project_service.required]
 }
 
@@ -373,6 +405,10 @@ resource "google_cloud_run_v2_service" "ticketing" {
         value = "8080"
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [template]
   }
 
   depends_on = [google_project_service.required]

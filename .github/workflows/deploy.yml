@@ -1,103 +1,229 @@
-name: Deploy Zero Cost Infrastructure
+name: Deploy customerSAX
 
 on:
   push:
     branches:
       - customerSAX-Prod
 
+env:
+  PROJECT_ID: csa-project-1d161
+  REGION: us-central1
+  REGISTRY: us-central1-docker.pkg.dev
+  ARTIFACT_REPO: csa-dev-repo
+
 jobs:
-  deploy-backend:
-    name: Deploy Backend to Cloud Run (Zero Cost)
+  detect-changes:
+    name: 🔍 Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.detect.outputs.services }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          
+      - name: Detect changes
+        id: detect
+        run: |
+          set -euo pipefail
+          
+          ALL_SERVICES='["bff","ticketing","commerce-commercetools","ai-assist","auth","admin"]'
+          CHANGED=$(git diff --name-only HEAD^ HEAD 2>/dev/null || git diff --name-only HEAD)
+          
+          echo "Changed files:"
+          echo "$CHANGED"
+          
+          if echo "$CHANGED" | grep -qE "^(package\.json|pnpm-workspace\.yaml|\.github/workflows/deploy\.yml|infra/gcp/)"; then
+            echo "⚠️ Core files changed → deploying ALL services"
+            echo "services=${ALL_SERVICES}" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          if echo "$CHANGED" | grep -q "^packages/"; then
+            echo "⚠️ Shared packages changed → deploying ALL services"
+            echo "services=${ALL_SERVICES}" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          SERVICES=()
+          for svc in bff ticketing commerce/commercetools ai-assist auth admin; do
+            if echo "$CHANGED" | grep -q "^apps/${svc}/"; then
+               svc_name=$(echo "$svc" | sed 's/\//-/g')
+               SERVICES+=("\"${svc_name}\"")
+               echo "  → ${svc_name} changed"
+            fi
+          done
+          
+          if [ ${#SERVICES[@]} -eq 0 ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "services=[]" >> $GITHUB_OUTPUT
+          else
+            SERVICES_JSON="[$(IFS=,; echo "${SERVICES[*]}")]"
+            echo "services=${SERVICES_JSON}" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+  terraform-apply:
+    name: 🏗️ Provision Infrastructure
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
+        
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
+          
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Apply Artifact Registry
-        run: |
-          cd infra/gcp
-          terraform init
-          terraform apply -target=google_artifact_registry_repository.repo -auto-approve \
-            -var="project_id=csa-project-1d161" \
-            -var="region=us-central1" \
-            -var="environment=dev"
-
-      - name: Configure Docker Auth
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
-
-      - name: Build and Push Docker Images
-        run: |
-          # Define registry and tag
-          export REGISTRY="us-central1-docker.pkg.dev/csa-project-1d161/csa-dev-repo"
-          export TAG=$(git rev-parse --short HEAD)
-          
-          # BFF Image
-          docker build -t $REGISTRY/bff:$TAG -f apps/bff/Dockerfile .
-          docker push $REGISTRY/bff:$TAG
-          
-          # Ticketing Image
-          docker build -t $REGISTRY/ticketing:$TAG -f apps/ticketing/Dockerfile .
-          docker push $REGISTRY/ticketing:$TAG
-          
-          # Commerce Commercetools Image
-          docker build -t $REGISTRY/commerce-commercetools:$TAG -f apps/commerce/commercetools/Dockerfile .
-          docker push $REGISTRY/commerce-commercetools:$TAG
-          
-          # AI Assist Image
-          docker build -t $REGISTRY/ai-assist:$TAG -f apps/ai-assist/Dockerfile .
-          docker push $REGISTRY/ai-assist:$TAG
-
-          # Auth Image
-          docker build -t $REGISTRY/auth:$TAG -f apps/auth/Dockerfile .
-          docker push $REGISTRY/auth:$TAG
-
-          # Admin Image
-          docker build -t $REGISTRY/admin:$TAG -f apps/admin/Dockerfile .
-          docker push $REGISTRY/admin:$TAG
-
-          # Export variables for Terraform
-          echo "BFF_IMAGE=$REGISTRY/bff:$TAG" >> $GITHUB_ENV
-          echo "TICKETING_IMAGE=$REGISTRY/ticketing:$TAG" >> $GITHUB_ENV
-          echo "COMMERCE_COMMERCETOOLS_IMAGE=$REGISTRY/commerce-commercetools:$TAG" >> $GITHUB_ENV
-          echo "AI_ASSIST_IMAGE=$REGISTRY/ai-assist:$TAG" >> $GITHUB_ENV
-          echo "AUTH_IMAGE=$REGISTRY/auth:$TAG" >> $GITHUB_ENV
-          echo "ADMIN_IMAGE=$REGISTRY/admin:$TAG" >> $GITHUB_ENV
-
-      - name: Terraform Apply (Zero Cost Resources)
+        
+      - name: Terraform Apply
         run: |
           cd infra/gcp
           terraform init
           terraform apply -auto-approve \
-            -var="project_id=csa-project-1d161" \
-            -var="region=us-central1" \
-            -var="environment=dev" \
-            -var="bff_image=${{ env.BFF_IMAGE }}" \
-            -var="commerce_commercetools_image=${{ env.COMMERCE_COMMERCETOOLS_IMAGE }}" \
-            -var="ai_assist_image=${{ env.AI_ASSIST_IMAGE }}" \
-            -var="ticketing_image=${{ env.TICKETING_IMAGE }}" \
-            -var="auth_image=${{ env.AUTH_IMAGE }}" \
-            -var="admin_image=${{ env.ADMIN_IMAGE }}"
+            -var="project_id=${{ env.PROJECT_ID }}" \
+            -var="region=${{ env.REGION }}" \
+            -var="environment=dev"
+
+  deploy-backend-services:
+    name: 🐳 Deploy ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [detect-changes, terraform-apply]
+    if: needs.detect-changes.outputs.has_changes == 'true' && needs.detect-changes.outputs.services != '[]'
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+      max-parallel: 3
+      fail-fast: false
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+          
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          
+      - name: Resolve service path
+        id: svc-path
+        run: |
+          SVC="${{ matrix.service }}"
+          if [ "$SVC" = "commerce-commercetools" ]; then
+            echo "path=apps/commerce/commercetools" >> $GITHUB_OUTPUT
+          else
+            echo "path=apps/${SVC}" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Build Docker image via Cloud Build
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ matrix.service }}"
+          cat > cloudbuild.yaml << 'CBEOF'
+          steps:
+            - name: 'gcr.io/cloud-builders/docker'
+              args:
+                - build
+                - '-t'
+                - '$_IMAGE:latest'
+                - '-t'
+                - '$_IMAGE:$_SHA'
+                - '-f'
+                - '$_PATH/Dockerfile'
+                - '.'
+              timeout: 1200s
+            - name: 'gcr.io/cloud-builders/docker'
+              args: ['push', '--all-tags', '$_IMAGE']
+          images:
+            - '$_IMAGE:latest'
+            - '$_IMAGE:$_SHA'
+          options:
+            machineType: E2_HIGHCPU_8
+            logging: CLOUD_LOGGING_ONLY
+          CBEOF
+          
+          gcloud builds submit \
+            --region="${{ env.REGION }}" \
+            --config=cloudbuild.yaml \
+            --substitutions="_IMAGE=${IMAGE},_SHA=${{ github.sha }},_PATH=${{ steps.svc-path.outputs.path }}" \
+            --project="${{ env.PROJECT_ID }}" \
+            .
+            
+      - name: Deploy to Cloud Run
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ matrix.service }}:${{ github.sha }}"
+          SERVICE_NAME="csa-dev-${{ matrix.service }}"
+          
+          gcloud run deploy "${SERVICE_NAME}" \
+            --image="${IMAGE}" \
+            --region="${{ env.REGION }}" \
+            --project="${{ env.PROJECT_ID }}" \
+            --update-labels="managed-by=github-actions,git-sha=${{ github.sha }}"
+
+  update-service-urls:
+    name: 🔗 Inject Internal Service URLs
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-backend-services]
+    if: always() && needs.detect-changes.outputs.has_changes == 'true' && (needs.deploy-backend-services.result == 'success' || needs.deploy-backend-services.result == 'skipped')
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+          
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          
+      - name: Collect and Inject URLs
+        run: |
+          ALL_SVCS=("csa-dev-bff" "csa-dev-ticketing" "csa-dev-commerce-commercetools" "csa-dev-ai-assist" "csa-dev-auth" "csa-dev-admin")
+          
+          echo "🔍 Fetching all Cloud Run service URLs..."
+          declare -A URL_MAP
+          for SVC in "${ALL_SVCS[@]}"; do
+            URL=$(gcloud run services describe "${SVC}" --region="${{ env.REGION }}" --project="${{ env.PROJECT_ID }}" --format='value(status.url)' 2>/dev/null || echo "")
+            if [ -n "$URL" ]; then
+              VAR=$(echo "${SVC}" | sed 's/csa-dev-//' | tr '[:lower:]-' '[:upper:]_')_URL
+              URL_MAP[$VAR]="$URL"
+              echo "  ✅ ${VAR} = ${URL}"
+              echo "${VAR}=${URL}" >> $GITHUB_ENV
+            fi
+          done
+          
+          # Inject URLs into specific services requiring them
+          if [ -n "${COMMERCE_COMMERCETOOLS_URL:-}" ]; then
+             echo "🔗 Injecting Commerce URL into BFF and AI Assist..."
+             
+             # Format as JSON string for BFF
+             FEDERATED_SERVICES="{\"commerce-commercetools\": \"${COMMERCE_COMMERCETOOLS_URL}\"}"
+             gcloud run services update csa-dev-bff \
+               --region="${{ env.REGION }}" --project="${{ env.PROJECT_ID }}" \
+               --update-env-vars="FEDERATED_SERVICES=${FEDERATED_SERVICES}" || true
+               
+             gcloud run services update csa-dev-ai-assist \
+               --region="${{ env.REGION }}" --project="${{ env.PROJECT_ID }}" \
+               --update-env-vars="AI_COMMERCE_SERVICE_URL=${COMMERCE_COMMERCETOOLS_URL}" || true
+          fi
 
   deploy-frontend:
-    name: Deploy ${{ matrix.app }} to Vercel
+    name: 🌐 Deploy ${{ matrix.app }} to Vercel
     runs-on: ubuntu-latest
     strategy:
       matrix:
         app: [webapp, marketing]
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      # Use dynamic secret names based on the app matrix (e.g. VERCEL_PROJECT_ID_WEBAPP)
       VERCEL_PROJECT_ID: ${{ secrets[format('VERCEL_PROJECT_ID_{0}', matrix.app)] }}
     steps:
       - name: Checkout Code
