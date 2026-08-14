@@ -43,11 +43,8 @@ locals {
   )
 }
 
-# Derive the compute service account email statically to avoid
-# chicken-and-egg: data.google_project requires cloudresourcemanager API
-# which hasn't been enabled yet on first apply.
-locals {
-  compute_sa_email = "${var.project_number}-compute@developer.gserviceaccount.com"
+data "google_project" "current" {
+  depends_on = [google_project_service.required]
 }
 
 resource "google_project_service" "required" {
