@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { apolloClient } from "@/graphql/client";
 import { useCurrentUser } from "@/lib/use-current-user";
 
@@ -9,7 +9,7 @@ function safeCallback(value: string | null) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : "/dashboard";
 }
 
-export default function SelectProjectPage() {
+function SelectProjectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useCurrentUser();
@@ -67,5 +67,13 @@ export default function SelectProjectPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function SelectProjectPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-slate-50" />}>
+      <SelectProjectContent />
+    </Suspense>
   );
 }

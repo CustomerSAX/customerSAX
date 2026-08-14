@@ -23,6 +23,7 @@
     "format": "prettier --write --ignore-path=.gitignore .",
     "infra:gcp": "pnpm --filter @csa/infra-gcp",
     "lint": "turbo run lint",
+    "test": "pnpm -r --if-present test",
     "tf:check": "turbo run tf:check",
     "tf:format": "turbo run tf:format",
     "typecheck": "turbo run typecheck"
