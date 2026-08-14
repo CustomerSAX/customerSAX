@@ -7,6 +7,7 @@ on:
 
 env:
   PROJECT_ID: customerservice-505511
+  PROJECT_NUMBER: "17754871169"
   REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
   ARTIFACT_REPO: csa-dev-repo
@@ -88,6 +89,7 @@ jobs:
           terraform init
           terraform apply -auto-approve \
             -var="project_id=${{ env.PROJECT_ID }}" \
+            -var="project_number=${{ env.PROJECT_NUMBER }}" \
             -var="region=${{ env.REGION }}" \
             -var="environment=dev"
 

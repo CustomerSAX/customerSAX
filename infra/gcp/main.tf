@@ -41,7 +41,12 @@ locals {
   )
 }
 
-data "google_project" "current" {}
+# Derive the compute service account email statically to avoid
+# chicken-and-egg: data.google_project requires cloudresourcemanager API
+# which hasn't been enabled yet on first apply.
+locals {
+  compute_sa_email = "${var.project_number}-compute@developer.gserviceaccount.com"
+}
 
 resource "google_project_service" "required" {
   for_each = toset(local.services)
@@ -71,7 +76,9 @@ resource "google_secret_manager_secret_iam_member" "ai_assist_llm_keys" {
 
   secret_id = each.value.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+  member    = "serviceAccount:${local.compute_sa_email}"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_secret_manager_secret" "commerce" {
@@ -91,7 +98,9 @@ resource "google_secret_manager_secret_iam_member" "commerce_keys" {
 
   secret_id = each.value.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+  member    = "serviceAccount:${local.compute_sa_email}"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_storage_bucket" "documents" {
