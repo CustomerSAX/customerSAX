@@ -25,6 +25,8 @@ locals {
     "storage.googleapis.com"
   ]
 
+  # commerce_federated_services: all services guaranteed to exist by the
+  # bootstrap-services job in deploy.yml before Terraform runs.
   commerce_federated_services = {
     "commerce-commercetools" = google_cloud_run_v2_service.commerce_commercetools.uri
     "commerce-shopify"       = google_cloud_run_v2_service.commerce_shopify.uri
@@ -62,7 +64,11 @@ resource "google_secret_manager_secret" "llm" {
   secret_id = "${local.name_prefix}-${replace(each.key, "_", "-")}"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   depends_on = [google_project_service.required]
@@ -73,7 +79,9 @@ resource "google_secret_manager_secret_iam_member" "ai_assist_llm_keys" {
 
   secret_id = each.value.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+  member    = "serviceAccount:${local.compute_sa_email}"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_secret_manager_secret" "commerce" {
@@ -82,7 +90,11 @@ resource "google_secret_manager_secret" "commerce" {
   secret_id = "${local.name_prefix}-${replace(each.key, "_", "-")}"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   depends_on = [google_project_service.required]
@@ -93,7 +105,9 @@ resource "google_secret_manager_secret_iam_member" "commerce_keys" {
 
   secret_id = each.value.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+  member    = "serviceAccount:${local.compute_sa_email}"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_storage_bucket" "documents" {
@@ -154,9 +168,10 @@ resource "google_cloud_run_v2_service" "bff" {
   depends_on = [google_project_service.required]
 }
 
+# Make BFF publicly accessible — frontend (Vercel) calls this directly from browser
 resource "google_cloud_run_v2_service_iam_member" "bff_public" {
-  project  = google_cloud_run_v2_service.bff.project
-  location = google_cloud_run_v2_service.bff.location
+  project  = var.project_id
+  location = var.region
   name     = google_cloud_run_v2_service.bff.name
   role     = "roles/run.invoker"
   member   = "allUsers"
@@ -195,20 +210,9 @@ resource "google_cloud_run_v2_service" "commerce_commercetools" {
         value = var.commercetools_scope
       }
 
-      dynamic "env" {
-        for_each = local.commerce_secrets
-
-        content {
-          name = env.value
-
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.commerce[env.key].secret_id
-              version = "latest"
-            }
-          }
-        }
-      }
+      # Secrets are injected by Cloud Build at deploy time via --update-secrets
+      # (see scripts/cloudbuild-deploy.sh). Terraform only bootstraps the
+      # placeholder service; secrets are bound after the first real build.
     }
   }
 
@@ -318,20 +322,9 @@ resource "google_cloud_run_v2_service" "ai_assist" {
         value = var.ai_gateway_base_url
       }
 
-      dynamic "env" {
-        for_each = local.llm_secrets
-
-        content {
-          name = env.value
-
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.llm[env.key].secret_id
-              version = "latest"
-            }
-          }
-        }
-      }
+      # Secrets are injected by Cloud Build at deploy time via --update-secrets
+      # (see scripts/cloudbuild-deploy.sh). Terraform only bootstraps the
+      # placeholder service; secrets are bound after the first real build.
     }
   }
 
@@ -364,9 +357,10 @@ resource "google_cloud_run_v2_service" "auth" {
   depends_on = [google_project_service.required]
 }
 
+# Make Auth publicly accessible — users hit login/register endpoints directly
 resource "google_cloud_run_v2_service_iam_member" "auth_public" {
-  project  = google_cloud_run_v2_service.auth.project
-  location = google_cloud_run_v2_service.auth.location
+  project  = var.project_id
+  location = var.region
   name     = google_cloud_run_v2_service.auth.name
   role     = "roles/run.invoker"
   member   = "allUsers"

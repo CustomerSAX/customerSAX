@@ -3,6 +3,11 @@ variable "project_id" {
   type        = string
 }
 
+variable "project_number" {
+  description = "GCP project number. Used to build compute service account email without requiring the Cloud Resource Manager API on first apply."
+  type        = string
+}
+
 variable "region" {
   description = "Primary GCP region."
   type        = string

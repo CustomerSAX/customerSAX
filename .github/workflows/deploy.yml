@@ -7,236 +7,245 @@ on:
 
 env:
   PROJECT_ID: customerservice-505511
+  PROJECT_NUMBER: "17754871169"
   REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
   ARTIFACT_REPO: csa-dev-repo
+  PLACEHOLDER_IMAGE: us-docker.pkg.dev/cloudrun/container/hello
 
 jobs:
-  detect-changes:
-    name: 🔍 Detect Changed Services
-    runs-on: ubuntu-latest
-    outputs:
-      services: ${{ steps.detect.outputs.services }}
-      has_changes: ${{ steps.detect.outputs.has_changes }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-          
-      - name: Detect changes
-        id: detect
-        run: |
-          set -euo pipefail
-          
-          ALL_SERVICES='["bff","ticketing","commerce-commercetools","ai-assist","auth","admin"]'
-          CHANGED=$(git diff --name-only HEAD^ HEAD 2>/dev/null || git diff --name-only HEAD)
-          
-          echo "Changed files:"
-          echo "$CHANGED"
-          
-          if echo "$CHANGED" | grep -qE "^(package\.json|pnpm-workspace\.yaml|\.github/workflows/deploy\.yml|infra/gcp/)"; then
-            echo "⚠️ Core files changed → deploying ALL services"
-            echo "services=${ALL_SERVICES}" >> $GITHUB_OUTPUT
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          if echo "$CHANGED" | grep -q "^packages/"; then
-            echo "⚠️ Shared packages changed → deploying ALL services"
-            echo "services=${ALL_SERVICES}" >> $GITHUB_OUTPUT
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          SERVICES=()
-          for svc in bff ticketing commerce/commercetools ai-assist auth admin; do
-            if echo "$CHANGED" | grep -q "^apps/${svc}/"; then
-               svc_name=$(echo "$svc" | sed 's/\//-/g')
-               SERVICES+=("\"${svc_name}\"")
-               echo "  → ${svc_name} changed"
-            fi
-          done
-          
-          if [ ${#SERVICES[@]} -eq 0 ]; then
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "services=[]" >> $GITHUB_OUTPUT
-          else
-            SERVICES_JSON="[$(IFS=,; echo "${SERVICES[*]}")]"
-            echo "services=${SERVICES_JSON}" >> $GITHUB_OUTPUT
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-          fi
-
-  terraform-apply:
-    name: 🏗️ Provision Infrastructure
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 1: Bootstrap — ensure ALL Cloud Run services exist before Terraform.
+  # Creates any missing services via gcloud (idempotent). This prevents the
+  # "chicken-and-egg" where Terraform references a service URI before it exists.
+  # ──────────────────────────────────────────────────────────────────────────
+  bootstrap-services:
+    name: "🌱 Bootstrap Cloud Run Services"
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-          
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Create missing Cloud Run services (idempotent)
+        run: |
+          # First ensure all APIs are enabled
+          gcloud services enable run.googleapis.com \
+            secretmanager.googleapis.com \
+            artifactregistry.googleapis.com \
+            cloudbuild.googleapis.com \
+            --project="${{ env.PROJECT_ID }}" --quiet
+
+          # Public services (allow unauthenticated — frontend calls these directly)
+          PUBLIC_SERVICES=(
+            "csa-dev-bff"
+            "csa-dev-auth"
+          )
+
+          # Private services (service-to-service auth only)
+          PRIVATE_SERVICES=(
+            "csa-dev-ai-assist"
+            "csa-dev-commerce-commercetools"
+            "csa-dev-ticketing"
+            "csa-dev-admin"
+            "csa-dev-commerce-shopify"
+            "csa-dev-commerce-bigcommerce"
+            "csa-dev-commerce-sfcc"
+          )
+
+          for SVC in "${PUBLIC_SERVICES[@]}"; do
+            EXISTS=$(gcloud run services describe "${SVC}" \
+              --region="${{ env.REGION }}" \
+              --project="${{ env.PROJECT_ID }}" \
+              --format='value(name)' 2>/dev/null || echo "")
+            if [ -z "${EXISTS}" ]; then
+              echo "🌱 Creating public placeholder: ${SVC}"
+              gcloud run deploy "${SVC}" \
+                --image="${{ env.PLACEHOLDER_IMAGE }}" \
+                --region="${{ env.REGION }}" \
+                --project="${{ env.PROJECT_ID }}" \
+                --allow-unauthenticated \
+                --quiet
+            else
+              echo "  ✓ ${SVC} exists — ensuring public access"
+            fi
+            # Always grant allUsers (idempotent)
+            gcloud run services add-iam-policy-binding "${SVC}" \
+              --region="${{ env.REGION }}" \
+              --project="${{ env.PROJECT_ID }}" \
+              --member="allUsers" \
+              --role="roles/run.invoker" \
+              --quiet 2>/dev/null || true
+          done
+
+          for SVC in "${PRIVATE_SERVICES[@]}"; do
+            EXISTS=$(gcloud run services describe "${SVC}" \
+              --region="${{ env.REGION }}" \
+              --project="${{ env.PROJECT_ID }}" \
+              --format='value(name)' 2>/dev/null || echo "")
+            if [ -z "${EXISTS}" ]; then
+              echo "🌱 Creating private placeholder: ${SVC}"
+              gcloud run deploy "${SVC}" \
+                --image="${{ env.PLACEHOLDER_IMAGE }}" \
+                --region="${{ env.REGION }}" \
+                --project="${{ env.PROJECT_ID }}" \
+                --no-allow-unauthenticated \
+                --quiet
+              echo "  ✅ ${SVC} created"
+            else
+              echo "  ✓ ${SVC} already exists"
+            fi
+          done
+
+          echo ""
+          echo "✅ All Cloud Run services exist — bff + auth are PUBLIC, others are private"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 2: Terraform — provision infra with all services guaranteed to exist
+  # ──────────────────────────────────────────────────────────────────────────
+  terraform-apply:
+    name: "🏗️ Provision Infrastructure"
+    runs-on: ubuntu-latest
+    needs: bootstrap-services
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-        
+
       - name: Terraform Apply
         run: |
           cd infra/gcp
           terraform init
           terraform apply -auto-approve \
             -var="project_id=${{ env.PROJECT_ID }}" \
+            -var="project_number=${{ env.PROJECT_NUMBER }}" \
             -var="region=${{ env.REGION }}" \
             -var="environment=dev"
 
-  deploy-backend-services:
-    name: 🐳 Deploy ${{ matrix.service }}
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 3: Build + Deploy all changed services via Cloud Build
+  # ──────────────────────────────────────────────────────────────────────────
+  cloud-build-deploy:
+    name: "🚀 Build & Deploy via Cloud Build"
     runs-on: ubuntu-latest
-    needs: [detect-changes, terraform-apply]
-    if: needs.detect-changes.outputs.has_changes == 'true' && needs.detect-changes.outputs.services != '[]'
-    strategy:
-      matrix:
-        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
-      max-parallel: 3
-      fail-fast: false
+    needs: terraform-apply
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        
+        with:
+          fetch-depth: 0
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-          
+
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
-          
-      - name: Resolve service path
-        id: svc-path
+
+      - name: Submit Cloud Build Pipeline
         run: |
-          SVC="${{ matrix.service }}"
-          if [ "$SVC" = "commerce-commercetools" ]; then
-            echo "path=apps/commerce/commercetools" >> $GITHUB_OUTPUT
-          else
-            echo "path=apps/${SVC}" >> $GITHUB_OUTPUT
-          fi
-          
-      - name: Build Docker image via Cloud Build
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ matrix.service }}"
-          cat > cloudbuild.yaml << 'CBEOF'
-          steps:
-            - name: 'gcr.io/cloud-builders/docker'
-              args:
-                - build
-                - '-t'
-                - '$_IMAGE:latest'
-                - '-t'
-                - '$_IMAGE:$_SHA'
-                - '-f'
-                - '$_PATH/Dockerfile'
-                - '.'
-              timeout: 1200s
-            - name: 'gcr.io/cloud-builders/docker'
-              args: ['push', '--all-tags', '$_IMAGE']
-          images:
-            - '$_IMAGE:latest'
-            - '$_IMAGE:$_SHA'
-          options:
-            machineType: E2_HIGHCPU_8
-            logging: CLOUD_LOGGING_ONLY
-          CBEOF
-          
-          gcloud builds submit \
-            --region="${{ env.REGION }}" \
+          gcloud builds submit . \
             --config=cloudbuild.yaml \
-            --substitutions="_IMAGE=${IMAGE},_SHA=${{ github.sha }},_PATH=${{ steps.svc-path.outputs.path }}" \
-            --project="${{ env.PROJECT_ID }}" \
-            .
-            
-      - name: Deploy to Cloud Run
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ matrix.service }}:${{ github.sha }}"
-          SERVICE_NAME="csa-dev-${{ matrix.service }}"
-          
-          gcloud run deploy "${SERVICE_NAME}" \
-            --image="${IMAGE}" \
             --region="${{ env.REGION }}" \
             --project="${{ env.PROJECT_ID }}" \
-            --update-labels="managed-by=github-actions,git-sha=${{ github.sha }}"
+            --substitutions="BRANCH_NAME=${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
 
-  update-service-urls:
-    name: 🔗 Inject Internal Service URLs
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 4: Deploy frontend apps to Vercel (runs in parallel with Cloud Build)
+  # Uses pre-configured secrets: VERCEL_TOKEN, VERCEL_ORG_ID,
+  # VERCEL_PROJECT_ID_WEBAPP, VERCEL_PROJECT_ID_MARKETING
+  # ──────────────────────────────────────────────────────────────────────────
+  vercel-deploy:
+    name: "🌐 Deploy Frontend to Vercel"
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-backend-services]
-    if: always() && needs.detect-changes.outputs.has_changes == 'true' && (needs.deploy-backend-services.result == 'success' || needs.deploy-backend-services.result == 'skipped')
-    steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-          
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ env.PROJECT_ID }}
-          
-      - name: Collect and Inject URLs
-        run: |
-          ALL_SVCS=("csa-dev-bff" "csa-dev-ticketing" "csa-dev-commerce-commercetools" "csa-dev-ai-assist" "csa-dev-auth" "csa-dev-admin")
-          
-          echo "🔍 Fetching all Cloud Run service URLs..."
-          declare -A URL_MAP
-          for SVC in "${ALL_SVCS[@]}"; do
-            URL=$(gcloud run services describe "${SVC}" --region="${{ env.REGION }}" --project="${{ env.PROJECT_ID }}" --format='value(status.url)' 2>/dev/null || echo "")
-            if [ -n "$URL" ]; then
-              VAR=$(echo "${SVC}" | sed 's/csa-dev-//' | tr '[:lower:]-' '[:upper:]_')_URL
-              URL_MAP[$VAR]="$URL"
-              echo "  ✅ ${VAR} = ${URL}"
-              echo "${VAR}=${URL}" >> $GITHUB_ENV
-            fi
-          done
-          
-          # Inject URLs into specific services requiring them
-          if [ -n "${COMMERCE_COMMERCETOOLS_URL:-}" ]; then
-             echo "🔗 Injecting Commerce URL into BFF and AI Assist..."
-             
-             # Format as JSON string for BFF
-             FEDERATED_SERVICES="{\"commerce-commercetools\": \"${COMMERCE_COMMERCETOOLS_URL}\"}"
-             gcloud run services update csa-dev-bff \
-               --region="${{ env.REGION }}" --project="${{ env.PROJECT_ID }}" \
-               --update-env-vars="FEDERATED_SERVICES=${FEDERATED_SERVICES}" || true
-               
-             gcloud run services update csa-dev-ai-assist \
-               --region="${{ env.REGION }}" --project="${{ env.PROJECT_ID }}" \
-               --update-env-vars="AI_COMMERCE_SERVICE_URL=${COMMERCE_COMMERCETOOLS_URL}" || true
-          fi
-
-  deploy-frontend:
-    name: 🌐 Deploy ${{ matrix.app }} to Vercel
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        app: [webapp, marketing]
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets[format('VERCEL_PROJECT_ID_{0}', matrix.app)] }}
+    needs: terraform-apply
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        run: npm install -g pnpm
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+        run: npm install -g vercel@latest
 
-      - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Install dependencies (monorepo root)
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Project Artifacts
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy webapp to Vercel (Production)
+        run: |
+          vercel deploy --prod \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEBAPP }}
 
-      - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy marketing to Vercel (Production)
+        working-directory: apps/marketing
+        run: |
+          vercel deploy --prod \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_MARKETING }}
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 5: Print service URLs after successful deployment
+  # ──────────────────────────────────────────────────────────────────────────
+  deployment-summary:
+    name: "📋 Deployment Summary"
+    runs-on: ubuntu-latest
+    needs: [cloud-build-deploy, vercel-deploy]
+    if: always() && needs.cloud-build-deploy.result == 'success'
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Print deployed service URLs
+        run: |
+          echo "🎉 customerSAX Deployment Complete"
+          echo ""
+          echo "── GCP Cloud Run ────────────────────────"
+          for SVC in bff auth ai-assist commerce-commercetools ticketing admin; do
+            RUN_SVC="csa-dev-${SVC}"
+            URL=$(gcloud run services describe "${RUN_SVC}" \
+              --region="${{ env.REGION }}" --project="${{ env.PROJECT_ID }}" \
+              --format='value(status.url)' 2>/dev/null || echo "not deployed")
+            echo "  ${SVC}: ${URL}"
+          done
+          echo ""
+          echo "── Vercel Frontend ──────────────────────"
+          echo "  webapp:    https://customersax.vercel.app"
+          echo "  marketing: (check Vercel dashboard)"
