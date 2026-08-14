@@ -75,7 +75,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
     setStatus(ticket.status);
     setPriority(ticket.priority);
     setSolution(ticket.solution || "");
-  }, [ticket?.id]);
+  }, [ticket]);
 
   // Audit Search State
   const [auditSearchText, setAuditSearchText] = useState("");

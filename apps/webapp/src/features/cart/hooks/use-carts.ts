@@ -476,7 +476,7 @@ export function useCartStore() {
     );
 
     return newOrderId;
-  }, [carts]);
+  }, []);
 
   return {
     carts,
