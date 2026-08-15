@@ -71,30 +71,7 @@ export const resolvers = {
   },
   placeOrderFromCart: async (_parent: unknown, args: { id: string }) => {
     const cart = await getCartVersion(args.id);
-    const orderNumber = await generateUniqueOrderNumber();
-
-    const data = await commercetoolsGraphql<{ createOrderFromCart: CtOrder | null }>(
-      `#graphql
-        mutation CreateOrderFromCart($draft: OrderCartCommand!) {
-          createOrderFromCart(draft: $draft) {
-            id version orderNumber orderState paymentState shipmentState createdAt lastModifiedAt customerId customerEmail
-            totalPrice { centAmount currencyCode fractionDigits }
-            lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
-          }
-        }
-      `,
-      {
-        draft: {
-          id: args.id,
-          version: cart.version,
-          orderNumber,
-          paymentState: "Pending",
-          shipmentState: "Pending"
-        }
-      }
-    );
-
-    return mapOrder(data.createOrderFromCart);
+    return createOrderWithUniqueNumber(args.id, cart.version);
   },
   addCartLineItem: async (_parent: unknown, args: { id: string; quantity: number; sku: string }) =>
     updateCart(args.id, [{ addLineItem: { quantity: args.quantity, sku: args.sku } }]),
@@ -201,28 +178,66 @@ async function getCartVersion(id: string) {
   return data.cart;
 }
 
+/** A candidate order number in this project's existing "ORD-RC-XXXXXX" format. */
+function generateOrderNumber(): string {
+  return `ORD-RC-${Math.floor(100000 + Math.random() * 900000)}`;
+}
+
 /**
- * Generates an order number in this project's existing "ORD-RC-XXXXXX" seed
- * format and confirms it isn't already taken (commercetools enforces
- * uniqueness and rejects a collision outright, so a random 6-digit number
- * verified up front is far cheaper than handling a failed order placement).
+ * commercetools enforces `orderNumber` uniqueness and rejects a collision
+ * outright (a `DuplicateField` error). That makes the store — not a pre-check
+ * query — the real source of truth: a "is it taken?" query before creating the
+ * order is a classic time-of-check/time-of-use race (two concurrent placements
+ * can both see the number free, then one fails anyway). So instead of
+ * pre-checking, we attempt creation with a fresh number and retry ONLY on a
+ * duplicate-orderNumber error, letting commercetools arbitrate uniqueness.
  */
-async function generateUniqueOrderNumber(): Promise<string> {
+async function createOrderWithUniqueNumber(cartId: string, cartVersion: number) {
+  let lastError: unknown;
   for (let attempt = 0; attempt < 5; attempt++) {
-    const candidate = `ORD-RC-${Math.floor(100000 + Math.random() * 900000)}`;
-    const data = await commercetoolsGraphql<{ orders: { total?: number } }>(
-      `#graphql
-        query OrderNumberTaken($where: String!) { orders(where: $where, limit: 1) { total } }
-      `,
-      { where: `orderNumber="${candidate}"` }
-    );
-    if (!data.orders.total) {
-      return candidate;
+    try {
+      const data = await commercetoolsGraphql<{ createOrderFromCart: CtOrder | null }>(
+        `#graphql
+          mutation CreateOrderFromCart($draft: OrderCartCommand!) {
+            createOrderFromCart(draft: $draft) {
+              id version orderNumber orderState paymentState shipmentState createdAt lastModifiedAt customerId customerEmail
+              totalPrice { centAmount currencyCode fractionDigits }
+              lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
+            }
+          }
+        `,
+        {
+          draft: {
+            id: cartId,
+            version: cartVersion,
+            orderNumber: generateOrderNumber(),
+            paymentState: "Pending",
+            shipmentState: "Pending"
+          }
+        }
+      );
+
+      return mapOrder(data.createOrderFromCart);
+    } catch (error) {
+      // A duplicate order number is the only error worth retrying — a fresh
+      // number will resolve it. Any other error (invalid cart, version
+      // conflict, auth) is real and must surface immediately, unretried.
+      // The failed create does not mutate the cart, so the same version is
+      // still valid for the next attempt.
+      if (!isDuplicateOrderNumberError(error)) throw error;
+      lastError = error;
     }
   }
-  // Extremely unlikely fallback — timestamp-suffixed, still within the
-  // project's format, essentially guaranteed unique.
-  return `ORD-RC-${Date.now().toString().slice(-6)}`;
+  throw lastError ?? new Error("Could not allocate a unique order number");
+}
+
+/** True when a create failed specifically because the order number was taken. */
+function isDuplicateOrderNumberError(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  const isDuplicate =
+    message.includes("duplicatefield") || message.includes("duplicate") || message.includes("already exists");
+  const mentionsOrderNumber = message.includes("ordernumber") || message.includes("order number");
+  return isDuplicate && mentionsOrderNumber;
 }
 
 async function updateCart(id: string, actions: unknown[]) {

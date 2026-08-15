@@ -16,6 +16,7 @@
  */
 import { ApolloGateway, IntrospectAndCompose, RemoteGraphQLDataSource } from "@apollo/gateway";
 import { GoogleAuth } from "google-auth-library";
+import { getOrSet, bffIdentityToken } from "@csa/cache";
 import { applyCsaHeaders } from "@csa/headers";
 import { type Logger, type RequestContext } from "@csa/logger";
 
@@ -32,7 +33,6 @@ export function getCommercePlatform() {
 }
 
 const auth = new GoogleAuth();
-const tokenCache = new Map<string, string>();
 
 async function getIdentityToken(targetUrl: string, logger?: Logger): Promise<string | undefined> {
   // Only attempt GCP authentication if we're in production (running on Cloud Run)
@@ -40,21 +40,18 @@ async function getIdentityToken(targetUrl: string, logger?: Logger): Promise<str
 
   const audience = new URL(targetUrl).origin;
 
-  if (!tokenCache.has(audience)) {
-    try {
+  try {
+    // `getOrSet` replaces the hand-rolled Map + setTimeout: single-flight
+    // collapses concurrent cold-cache fetches, and the 50-minute TTL preserves
+    // the previous auto-refresh window (Google identity tokens expire in ~1h).
+    return await getOrSet(bffIdentityToken(audience), 50 * 60, async () => {
       const client = await auth.getIdTokenClient(audience);
-      const token = await client.idTokenProvider.fetchIdToken(audience);
-      tokenCache.set(audience, token);
-
-      // Auto-refresh token cache (Google tokens expire in ~1h)
-      setTimeout(() => tokenCache.delete(audience), 50 * 60 * 1000);
-    } catch (e) {
-      logger?.error("failed to get identity token", e, { audience });
-      return undefined;
-    }
+      return client.idTokenProvider.fetchIdToken(audience);
+    });
+  } catch (e) {
+    logger?.error("failed to get identity token", e, { audience });
+    return undefined;
   }
-
-  return tokenCache.get(audience);
 }
 
 export function buildGateway(logger: Logger): ApolloGateway | undefined {

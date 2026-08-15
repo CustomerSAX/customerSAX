@@ -11,6 +11,7 @@ import { loadOrCreateSession, appendSessionMessages, getSessionMessages, listSes
 import type { StoredMessage } from "../db/mongo-chat.js";
 import { getWorkingMemory, setWorkingMemory, formatWorkingMemoryForPrompt } from "../memory/working-memory.js";
 import { getEpisodicMemory, getCustomerMemory } from "../memory/episodic-memory.js";
+import { incrementFixedWindow, aiChatRateLimit } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 
 const log = createLogger("ai-assist").child({ module: "chat" });
@@ -18,24 +19,24 @@ const log = createLogger("ai-assist").child({ module: "chat" });
 export const chatRouter = Router();
 
 // ---------------------------------------------------------------------------
-// Per-session rate limiter — sliding window, in-process
+// Per-user rate limiter — fixed window, Redis-backed (shared across instances)
 // ---------------------------------------------------------------------------
 
 const RATE_LIMIT_MAX = config.chat.rateLimitMax;
-const RATE_LIMIT_WINDOW_MS = config.chat.rateLimitWindowMs; // 1 hour
-const rateLimitStore = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_SECONDS = Math.ceil(config.chat.rateLimitWindowMs / 1000); // 1 hour
 
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW_MS;
-  const timestamps = (rateLimitStore.get(key) ?? []).filter((t) => t > windowStart);
-  if (timestamps.length >= RATE_LIMIT_MAX) {
-    rateLimitStore.set(key, timestamps);
-    return true;
-  }
-  timestamps.push(now);
-  rateLimitStore.set(key, timestamps);
-  return false;
+/**
+ * Fixed-window rate limit via a shared Redis counter (`@csa/cache`), so the
+ * limit holds across every ai-assist instance rather than per-process.
+ *
+ * DEGRADE-OPEN: when Redis is unavailable `incrementFixedWindow` returns null;
+ * we allow the request rather than block on a cache outage — a rate limiter
+ * must never take down the chat path.
+ */
+async function isRateLimited(key: string): Promise<boolean> {
+  const count = await incrementFixedWindow(aiChatRateLimit(key), RATE_LIMIT_WINDOW_SECONDS);
+  if (count === null) return false; // Redis down → degrade open (allow)
+  return count > RATE_LIMIT_MAX;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +109,7 @@ chatRouter.post("/chat", async (request, response, next) => {
     const projectKey = sessionCtx.projectKey;
 
     // Rate-limit by userEmail so runaway clients can't spam the LLM
-    if (isRateLimited(userEmail)) {
+    if (await isRateLimited(userEmail)) {
       response.status(429).json({ error: "Rate limit exceeded — please wait before sending more messages." });
       return;
     }

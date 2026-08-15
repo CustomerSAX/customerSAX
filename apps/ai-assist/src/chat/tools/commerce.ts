@@ -5,10 +5,13 @@
  * inside the BFF subgraph.
  */
 
+import { createHash } from "crypto";
 import { tool } from "ai";
 import { z } from "zod";
 import { createLogger } from "@csa/logger";
+import { withIdempotency } from "@csa/mongodb";
 import { bffQuery, formatMoney } from "../../commerce/graphql-client.js";
+import { contextStorage } from "../system-prompt.js";
 
 const log = createLogger("ai-assist").child({ module: "tools/commerce" });
 
@@ -542,6 +545,24 @@ export const removeFromCartTool = tool({
   }
 });
 
+// ─── Idempotency helpers for write tools ────────────────────────────────────
+//
+// The webapp's approval flow only tracks an in-memory boolean, so a
+// double-submit (double-click "Place order", a client retry of a slow request)
+// could execute the same money-moving write twice. `withIdempotency` (durable
+// in Mongo, unique index on the key) collapses duplicates to a single execution
+// and replays the stored result for repeats. Keys are derived from
+// (operation, resource id, projectKey) — plus a payload signature for returns,
+// so genuinely distinct returns on the same order stay independent.
+
+function currentProjectKey(): string {
+  return contextStorage.getStore()?.projectKey ?? "default";
+}
+
+function payloadSignature(payload: unknown): string {
+  return createHash("sha1").update(JSON.stringify(payload)).digest("hex").slice(0, 12);
+}
+
 // ─── place_order ──────────────────────────────────────────────────────────────
 
 export const placeOrderTool = tool({
@@ -552,11 +573,21 @@ export const placeOrderTool = tool({
   }),
   execute: async ({ cartId }) => {
     try {
-      const data = await bffQuery<{ placeOrderFromCart: unknown }>(
-        `mutation PlaceOrder($id: ID!) { placeOrderFromCart(id: $id) }`,
-        { id: cartId }
-      );
-      return data.placeOrderFromCart ?? { error: "Order placement failed" };
+      const outcome = await withIdempotency<unknown>({
+        key: `place_order:${currentProjectKey()}:${cartId}`,
+        operation: "place_order",
+        exec: async () => {
+          const data = await bffQuery<{ placeOrderFromCart: unknown }>(
+            `mutation PlaceOrder($id: ID!) { placeOrderFromCart(id: $id) }`,
+            { id: cartId }
+          );
+          // Throw (rather than store an error result) so a genuine failure
+          // releases the idempotency claim and a later retry can execute.
+          if (data.placeOrderFromCart == null) throw new Error("Order placement failed");
+          return data.placeOrderFromCart;
+        }
+      });
+      return outcome.result;
     } catch (err) {
       return { error: String(err) };
     }
@@ -583,11 +614,18 @@ export const cancelOrderTool = tool({
       if (reason) {
         actions.push({ setCustomField: { name: "cancellationReason", value: reason } });
       }
-      const data = await bffQuery<{ updateOrder: unknown }>(
-        `mutation CancelOrder($id: ID!, $actions: Json!) { updateOrder(id: $id, actions: $actions) }`,
-        { id: orderId, actions }
-      );
-      return { success: true, result: data.updateOrder };
+      const outcome = await withIdempotency<{ success: true; result: unknown }>({
+        key: `cancel_order:${currentProjectKey()}:${orderId}`,
+        operation: "cancel_order",
+        exec: async () => {
+          const data = await bffQuery<{ updateOrder: unknown }>(
+            `mutation CancelOrder($id: ID!, $actions: Json!) { updateOrder(id: $id, actions: $actions) }`,
+            { id: orderId, actions }
+          );
+          return { success: true as const, result: data.updateOrder };
+        }
+      });
+      return outcome.result ?? { error: "Order cancellation failed" };
     } catch (err) {
       return { error: String(err) };
     }
@@ -612,34 +650,45 @@ export const startReturnTool = tool({
   }),
   execute: async ({ orderId, reason, comment, lineItems }) => {
     try {
-      const returnTrackingId = `CSA-RETURN-${Date.now()}`;
-      // Real commercetools ReturnItemDraftType has no `type` or
-      // `paymentState` field (only lineItemId/customLineItemId, quantity,
-      // shipmentState, comment) — those extra fields, and the wrapping
-      // `{action: "addReturnInfo", returnInfo: {...}}` REST-style shape,
-      // both fail GraphQL validation. See cancel_order's comment above for
-      // why the action must be `{addReturnInfo: {...}}` directly.
-      const returnComment = `${reason}${comment ? ` — ${comment}` : ""}`;
-      const actions = [
-        {
-          addReturnInfo: {
-            items: lineItems.map((li: { lineItemId: string; quantity: number }) => ({
-              comment: returnComment,
-              lineItemId: li.lineItemId,
-              quantity: li.quantity,
-              shipmentState: "Returned"
-            })),
-            returnDate: new Date().toISOString(),
-            returnTrackingId
-          }
-        }
-      ];
+      // Key includes a signature of the return payload so a true double-submit
+      // (identical items+reason) collapses, while two genuinely different
+      // returns on the same order remain independent operations.
+      const signature = payloadSignature({ reason, comment, lineItems });
+      const outcome = await withIdempotency<{ success: true; returnTrackingId: string; result: unknown }>({
+        key: `start_return:${currentProjectKey()}:${orderId}:${signature}`,
+        operation: "start_return",
+        exec: async () => {
+          const returnTrackingId = `CSA-RETURN-${Date.now()}`;
+          // Real commercetools ReturnItemDraftType has no `type` or
+          // `paymentState` field (only lineItemId/customLineItemId, quantity,
+          // shipmentState, comment) — those extra fields, and the wrapping
+          // `{action: "addReturnInfo", returnInfo: {...}}` REST-style shape,
+          // both fail GraphQL validation. See cancel_order's comment above for
+          // why the action must be `{addReturnInfo: {...}}` directly.
+          const returnComment = `${reason}${comment ? ` — ${comment}` : ""}`;
+          const actions = [
+            {
+              addReturnInfo: {
+                items: lineItems.map((li: { lineItemId: string; quantity: number }) => ({
+                  comment: returnComment,
+                  lineItemId: li.lineItemId,
+                  quantity: li.quantity,
+                  shipmentState: "Returned"
+                })),
+                returnDate: new Date().toISOString(),
+                returnTrackingId
+              }
+            }
+          ];
 
-      const data = await bffQuery<{ updateOrder: unknown }>(
-        `mutation StartReturn($id: ID!, $actions: Json!) { updateOrder(id: $id, actions: $actions) }`,
-        { id: orderId, actions }
-      );
-      return { success: true, returnTrackingId, result: data.updateOrder };
+          const data = await bffQuery<{ updateOrder: unknown }>(
+            `mutation StartReturn($id: ID!, $actions: Json!) { updateOrder(id: $id, actions: $actions) }`,
+            { id: orderId, actions }
+          );
+          return { success: true as const, returnTrackingId, result: data.updateOrder };
+        }
+      });
+      return outcome.result ?? { error: "Return could not be started" };
     } catch (err) {
       return { error: String(err) };
     }

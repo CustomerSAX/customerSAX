@@ -12,6 +12,7 @@ import {
   usersRepo,
 } from "@csa/mongodb";
 import type { ClientSsoConfigStored, CsaUser } from "@csa/mongodb";
+import { del as cacheDel, ctProjectConfig } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
 import * as aiSettingsRepo from "./ai-settings/repository.js";
@@ -559,6 +560,12 @@ export const resolvers = {
         standaloneB2bEnabled: exclusiveShellFlags?.standaloneB2bEnabled,
       });
       if (!ok) throw new Error("Failed to update project");
+
+      // Invalidate the commercetools subgraph's cached project config so an
+      // updated credential/URL takes effect immediately rather than after the
+      // 300s TTL. Keyed on (clientId, projectKey) — the same shape the subgraph
+      // caches under. Best-effort: `del` never throws (no-op if Redis is down).
+      await cacheDel(ctProjectConfig(existing.clientId, existing.projectKey));
 
       const updated = await projectsRepo.findProjectById(args.id);
       return updated ? projectViewIso(updated) : null;

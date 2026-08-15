@@ -19,6 +19,7 @@
  * every required credential is present, so a half-configured tenant fails loudly
  * at resolution time rather than mid-query.
  */
+import { getOrSet, ctProjectConfig } from "@csa/cache";
 import { currentProjectContext } from "./project-context.js";
 import { findStoredCommercetoolsProject } from "./project-store.js";
 
@@ -46,7 +47,19 @@ export async function resolveCommercetoolsProject(): Promise<CommercetoolsProjec
   }
 
   if (selectedClientId) {
-    const stored = await findStoredCommercetoolsProject(selectedClientId, selectedProjectKey);
+    // Cache the Mongo lookup + AES-decrypt (plumbing/config, not rep-facing
+    // business data) so a burst of requests for the same tenant doesn't
+    // re-hit Atlas and re-decrypt per request. Single-flight collapses
+    // concurrent misses; a 300s TTL bounds staleness, and the admin service
+    // invalidates this exact key on project update (see adminUpdateProject).
+    // Only the multi-tenant (stored-record) path is cached — the env-project
+    // recovery path above stays uncached. `getOrSet` never caches a null
+    // (project-not-found), so a missing tenant is not pinned.
+    const stored = await getOrSet(
+      ctProjectConfig(selectedClientId, selectedProjectKey),
+      300,
+      () => findStoredCommercetoolsProject(selectedClientId, selectedProjectKey)
+    );
     if (stored) return normalizeProject(selectedProjectKey, stored);
   }
 

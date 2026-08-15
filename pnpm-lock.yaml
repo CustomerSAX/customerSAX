@@ -29,6 +29,9 @@ importers:
       '@apollo/subgraph':
         specifier: ^2.10.0
         version: 2.14.3(graphql@16.14.2)
+      '@csa/cache':
+        specifier: workspace:*
+        version: link:../../packages/cache
       '@csa/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -66,6 +69,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^4.0.33
         version: 4.0.34(zod@3.25.76)
+      '@csa/cache':
+        specifier: workspace:*
+        version: link:../../packages/cache
       '@csa/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -75,6 +81,9 @@ importers:
       '@csa/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@csa/mongodb':
+        specifier: workspace:*
+        version: link:../../packages/mongodb
       ai:
         specifier: ^7.0.55
         version: 7.0.56(zod@3.25.76)
@@ -146,6 +155,9 @@ importers:
       '@apollo/server':
         specifier: ^4.11.0
         version: 4.13.0(graphql@16.14.2)
+      '@csa/cache':
+        specifier: workspace:*
+        version: link:../../packages/cache
       '@csa/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -214,6 +226,9 @@ importers:
       '@apollo/subgraph':
         specifier: ^2.10.0
         version: 2.14.3(graphql@16.14.2)
+      '@csa/cache':
+        specifier: workspace:*
+        version: link:../../../packages/cache
       '@csa/commerce-contract':
         specifier: workspace:*
         version: link:../contract
@@ -617,6 +632,25 @@ importers:
         version: 5.9.3
 
   infra/gcp: {}
+
+  packages/cache:
+    dependencies:
+      '@csa/logger':
+        specifier: workspace:*
+        version: link:../logger
+      redis:
+        specifier: ^6.2.1
+        version: 6.2.1(@opentelemetry/api@1.9.1)
+    devDependencies:
+      '@csa/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@types/node':
+        specifier: ^20.14.11
+        version: 20.19.43
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
 
   packages/config:
     devDependencies:

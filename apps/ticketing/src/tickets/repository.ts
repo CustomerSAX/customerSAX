@@ -1,7 +1,7 @@
 import { ObjectId, type Document, type Filter, type Sort } from "@csa/mongodb";
 import { getTicketsCollection } from "../db/mongodb.js";
 import { mapTicket } from "./mapper.js";
-import { generateTicketNumber } from "./ticket-number.js";
+import { generateTicketNumber, nextTicketNumber } from "./ticket-number.js";
 import type { Ticket, TicketDraft, TicketListArgs, TicketPage, TicketUpdate, WorklogComment } from "./types.js";
 
 const memoryTickets: Document[] = [];
@@ -49,7 +49,9 @@ export async function getTicket(id: string, projectKey?: string | null): Promise
 export async function createTicket(draft: TicketDraft): Promise<Ticket> {
   const now = new Date();
   const projectKey = resolveProjectKey(draft.projectKey);
-  const ticketNumber = generateTicketNumber();
+  // Durable atomic counter for the real Mongo store; random-suffix fallback for
+  // the in-memory dev store (which has no counter to draw from).
+  const ticketNumber = usesMemoryStore() ? generateTicketNumber() : await nextTicketNumber(projectKey);
   const doc = {
     assignee: draft.assignee ?? "Queue",
     category: draft.category ?? null,
