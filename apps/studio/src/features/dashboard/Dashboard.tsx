@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@apollo/client";
+import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardHeader,
@@ -12,61 +12,127 @@ import {
   Icon
 } from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
-import { GATEWAY_STATUS_QUERY } from "./api/queries";
 import { PageHeader } from "../workspace/PageHeader";
+import { useTicketStore } from "../tickets/hooks/use-tickets";
+import type { Ticket, TicketPriority } from "../tickets/types/ticket-types";
 
-type GatewayStatusData = {
-  hello?: string;
-  serviceMap?: Array<{ name: string; status: string }>;
-};
+// A ticket is "open" (actionable / unresolved) when it is neither Resolved nor
+// Closed. This bucket drives the Open Tickets KPI and the work queue.
+function isOpen(ticket: Ticket): boolean {
+  return ticket.status !== "Resolved" && ticket.status !== "Closed";
+}
 
-const fallbackGateway = {
-  services: [
-    { name: "Experience BFF", status: "online" },
-    { name: "Commerce Connector", status: "online" },
-    { name: "AI Assist Gateway", status: "online" }
-  ]
-};
+// "At-risk" is derived honestly from the real `priority` field — there is no
+// SLA/due-date field on a ticket, so this is NOT a phantom SLA timer: it is the
+// count of unresolved tickets a rep should look at first (High/Urgent priority).
+function isAtRisk(ticket: Ticket): boolean {
+  return isOpen(ticket) && (ticket.priority === "High" || ticket.priority === "Urgent");
+}
 
-const kpis = [
-  { label: "Open Tickets", value: "128", helper: "24 high priority", trend: { value: "12%", direction: "up" as const } },
-  { label: "SLA At-Risk", value: "18", helper: "Needs attention", trend: { value: "4 cases", direction: "down" as const } },
-  { label: "Orders Reviewed", value: "342", helper: "Today", trend: { value: "18%", direction: "up" as const } },
-  { label: "AI Assist Resolved", value: "76", helper: "Context-aware", trend: { value: "95% accuracy", direction: "up" as const } }
-];
-
-const queue = [
-  {
-    id: "CSA-1024",
-    customer: "Mia Johnson",
-    subject: "Order delayed after payment capture",
-    status: "High",
-    time: "8 min ago"
-  },
-  {
-    id: "CSA-1025",
-    customer: "Rahul Mehta",
-    subject: "Cart discount code not applied",
-    status: "Normal",
-    time: "21 min ago"
-  },
-  {
-    id: "CSA-1026",
-    customer: "Sofia Garcia",
-    subject: "Product availability confirmation",
-    status: "Low",
-    time: "43 min ago"
+function priorityBadgeVariant(priority: TicketPriority): "error" | "warning" | "neutral" | "success" {
+  switch (priority) {
+    case "Urgent":
+    case "High":
+      return "error";
+    case "Medium":
+      return "warning";
+    default:
+      return "neutral";
   }
-];
+}
+
+// Honest relative time from a real timestamp; falls back to "—" when the
+// backend genuinely has no date rather than inventing one.
+function relativeTime(iso?: string): string {
+  if (!iso) return "—";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "—";
+  const diffMs = Date.now() - then;
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+type ServiceStatus = "online" | "offline" | "unknown";
+type ServiceHealth = { name: string; status: ServiceStatus };
+type HealthState =
+  | { phase: "loading" }
+  | { phase: "ok"; services: ServiceHealth[] }
+  | { phase: "error" };
+
+function useServiceHealth(): HealthState {
+  const [state, setState] = useState<HealthState>({ phase: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/health", { cache: "no-store" });
+        const data = (await res.json().catch(() => null)) as
+          | { ok?: boolean; services?: ServiceHealth[] }
+          | null;
+        if (cancelled) return;
+        if (!res.ok || !data?.ok || !Array.isArray(data.services)) {
+          setState({ phase: "error" });
+          return;
+        }
+        setState({ phase: "ok", services: data.services });
+      } catch {
+        if (!cancelled) setState({ phase: "error" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return state;
+}
 
 export function Dashboard() {
-  const { data, error } = useQuery<GatewayStatusData>(GATEWAY_STATUS_QUERY);
-  const gateway =
-    error || !data
-      ? fallbackGateway
-      : {
-          services: data.serviceMap ?? fallbackGateway.services
-        };
+  // Real ticket data flows through the same authenticated Apollo path
+  // (/api/graphql -> BFF -> ticketing) the tickets feature uses. `error` means
+  // the backend is unreachable/unauthenticated; an empty `tickets` array with
+  // no error means the backend legitimately returned zero.
+  const { tickets, loading, error } = useTicketStore();
+
+  const { openCount, atRiskCount, highCount, queue } = useMemo(() => {
+    const open = tickets.filter(isOpen);
+    const atRisk = tickets.filter(isAtRisk);
+    const high = open.filter((t) => t.priority === "High" || t.priority === "Urgent").length;
+    const sortedQueue = [...open]
+      .sort((a, b) => {
+        const at = new Date(a.lastModifiedAt ?? a.createdAt ?? 0).getTime();
+        const bt = new Date(b.lastModifiedAt ?? b.createdAt ?? 0).getTime();
+        return bt - at;
+      })
+      .slice(0, 6);
+    return {
+      openCount: open.length,
+      atRiskCount: atRisk.length,
+      highCount: high,
+      queue: sortedQueue
+    };
+  }, [tickets]);
+
+  const health = useServiceHealth();
+
+  // Honest KPI values: real number when the backend answered, "…" while
+  // loading, "—" (with an explicit reason) when the backend is unreachable.
+  const ticketKpiValue = (value: number): string => {
+    if (error) return "—";
+    if (loading && tickets.length === 0) return "…";
+    return String(value);
+  };
+  const ticketKpiSubtitle = (subtitle: string): string => {
+    if (error) return "Ticketing unavailable";
+    if (loading && tickets.length === 0) return "Loading…";
+    return subtitle;
+  };
 
   return (
     <AppShell>
@@ -78,15 +144,28 @@ export function Dashboard() {
 
       {/* KPI Cards */}
       <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi) => (
-          <CardMetric
-            key={kpi.label}
-            title={kpi.label}
-            value={kpi.value}
-            subtitle={kpi.helper}
-            trend={kpi.trend}
-          />
-        ))}
+        <CardMetric
+          title="Open Tickets"
+          value={ticketKpiValue(openCount)}
+          subtitle={ticketKpiSubtitle(
+            highCount > 0 ? `${highCount} high priority` : "Active, unresolved"
+          )}
+        />
+        <CardMetric
+          title="At-Risk (High/Urgent)"
+          value={ticketKpiValue(atRiskCount)}
+          subtitle={ticketKpiSubtitle("Unresolved, high priority")}
+        />
+        <CardMetric
+          title="Orders Reviewed"
+          value="—"
+          subtitle="Not available"
+        />
+        <CardMetric
+          title="AI Assist Resolved"
+          value="—"
+          subtitle="Not available"
+        />
       </section>
 
       {/* Main Grid Section */}
@@ -96,34 +175,42 @@ export function Dashboard() {
           <CardHeader>
             <CardTitle>Active Work Queue</CardTitle>
             <CardDescription>
-              Real-time ticket requests, customer context, and commerce activity.
+              Open tickets from the ticketing backend, most recently updated first.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0 divide-y divide-m-border/60">
-            {queue.map((item) => (
-              <div
-                className="flex items-center justify-between gap-4 p-4 hover:bg-m-surface-2/40 transition-colors"
-                key={item.id}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-bold text-m-primary">{item.id}</span>
-                    <span className="text-xs font-semibold text-m-text truncate">{item.subject}</span>
+            {loading && tickets.length === 0 ? (
+              <p className="p-4 text-xs text-m-text-muted">Loading open tickets…</p>
+            ) : error ? (
+              <p className="p-4 text-xs text-m-text-muted">
+                Unable to reach the ticketing backend right now.
+              </p>
+            ) : queue.length === 0 ? (
+              <p className="p-4 text-xs text-m-text-muted">No open tickets right now.</p>
+            ) : (
+              queue.map((item) => (
+                <div
+                  className="flex items-center justify-between gap-4 p-4 hover:bg-m-surface-2/40 transition-colors"
+                  key={item.id}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-m-primary">{item.ticketNumber}</span>
+                      <span className="text-xs font-semibold text-m-text truncate">{item.subject}</span>
+                    </div>
+                    <p className="text-xs text-m-text-muted truncate">{item.email || item.customerId || "Unknown customer"}</p>
                   </div>
-                  <p className="text-xs text-m-text-muted">{item.customer}</p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Badge variant={priorityBadgeVariant(item.priority)} size="sm" dot>
+                      {item.priority} Priority
+                    </Badge>
+                    <span className="text-[11px] font-medium text-m-text-muted">
+                      {relativeTime(item.lastModifiedAt ?? item.createdAt)}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <Badge
-                    variant={item.status === "High" ? "error" : item.status === "Normal" ? "warning" : "success"}
-                    size="sm"
-                    dot
-                  >
-                    {item.status} Priority
-                  </Badge>
-                  <span className="text-[11px] font-medium text-m-text-muted">{item.time}</span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -138,7 +225,8 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-xs text-m-text-muted leading-relaxed">
-                AI Agent is active with Vercel AI Gateway support. Access models across OpenAI, Claude, or Grok with custom tools.
+                AI Agent runs on the Vercel AI SDK with configurable model providers — OpenAI or
+                Anthropic (Claude) — plus custom commerce and ticketing tools.
               </p>
             </CardContent>
           </Card>
@@ -148,21 +236,34 @@ export function Dashboard() {
               <CardTitle>Core Service Health</CardTitle>
             </CardHeader>
             <CardContent className="p-0 divide-y divide-m-border/60">
-              {gateway.services.map((service) => (
-                <div
-                  className="flex items-center justify-between px-5 py-3"
-                  key={service.name}
-                >
-                  <span className="text-xs font-medium text-m-text">{service.name}</span>
-                  <Badge
-                    variant={service.status.includes("online") ? "success" : "neutral"}
-                    size="sm"
-                    dot
-                  >
-                    {service.status}
-                  </Badge>
-                </div>
-              ))}
+              {health.phase === "loading" ? (
+                <p className="px-5 py-3 text-xs text-m-text-muted">Checking services…</p>
+              ) : health.phase === "error" ? (
+                <p className="px-5 py-3 text-xs text-m-text-muted">Status unavailable.</p>
+              ) : (
+                health.services.map((service) => (
+                  <div className="flex items-center justify-between px-5 py-3" key={service.name}>
+                    <span className="text-xs font-medium text-m-text">{service.name}</span>
+                    <Badge
+                      variant={
+                        service.status === "online"
+                          ? "success"
+                          : service.status === "offline"
+                            ? "error"
+                            : "neutral"
+                      }
+                      size="sm"
+                      dot
+                    >
+                      {service.status === "online"
+                        ? "online"
+                        : service.status === "offline"
+                          ? "offline"
+                          : "unavailable"}
+                    </Badge>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </aside>
