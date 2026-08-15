@@ -38,10 +38,27 @@ type RedisClientAny = any;
 
 let _client: RedisClientAny = null;
 let _connecting = false;
+/**
+ * Circuit breaker: epoch-ms until which we skip connect attempts entirely after
+ * a failure. Without it, an unreachable REDIS_URL costs one full `connectTimeout`
+ * on EVERY `getClient()` call — and `getOrSet` calls `getClient()` twice (get +
+ * set), so a single cached read would eat two connect timeouts back-to-back.
+ * After a failed connect we open the breaker for a short cooldown so subsequent
+ * calls (and the second half of the same `getOrSet`) degrade INSTANTLY.
+ */
+let _connectDisabledUntil = 0;
+const CONNECT_COOLDOWN_MS = 10_000;
 
 /**
  * Returns a connected Redis client if `REDIS_URL` is configured and reachable,
  * otherwise `null` ("Redis unavailable — use the in-memory fallback").
+ *
+ * Fail-fast contract: a dead/unreachable host must never hang a request. One
+ * bounded connect attempt (`connectTimeout`, no in-client reconnect loop, no
+ * offline command queue) probes the host; on failure the circuit opens for
+ * `CONNECT_COOLDOWN_MS` so the very next calls skip the probe and use the
+ * in-memory fallback immediately. The breaker self-heals: once the cooldown
+ * lapses a fresh attempt is made, so a recovered Redis is picked back up.
  */
 async function getClient(): Promise<RedisClientAny | null> {
   const url = process.env.REDIS_URL?.trim();
@@ -50,22 +67,37 @@ async function getClient(): Promise<RedisClientAny | null> {
   if (_client?.isReady) return _client;
 
   if (_connecting) return null; // avoid concurrent connect races
+  if (Date.now() < _connectDisabledUntil) return null; // circuit open — fail fast
 
   try {
     _connecting = true;
-    const client = createClient({ url });
+    const client = createClient({
+      url,
+      // FAIL FAST — bound the connect and take a single shot. `reconnectStrategy:
+      // () => false` disables the in-client reconnect loop (the circuit breaker
+      // above manages retry timing instead), and `disableOfflineQueue` makes
+      // commands fail immediately rather than queueing while disconnected — the
+      // exact multi-second hang we must avoid.
+      socket: {
+        connectTimeout: 1000,
+        reconnectStrategy: () => false,
+      },
+      disableOfflineQueue: true,
+    });
     client.on("error", (err: Error) => {
       log.warn("Redis error — cache falling back to in-memory", { reason: err.message });
       _client = null;
     });
     await client.connect();
     _client = client;
+    _connectDisabledUntil = 0; // healthy — close the breaker
     return _client;
   } catch (err) {
     log.warn("Redis connect failed (non-fatal) — using in-memory cache", {
       reason: (err as Error).message,
     });
     _client = null;
+    _connectDisabledUntil = Date.now() + CONNECT_COOLDOWN_MS; // open the breaker
     return null;
   } finally {
     _connecting = false;

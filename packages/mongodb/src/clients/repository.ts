@@ -8,6 +8,7 @@
 import { ObjectId } from "mongodb";
 import { getClientsCollection } from "../admin/db.js";
 import { createCollectionAccessor } from "../collection-accessor.js";
+import { encryptSsoConfigSecrets } from "./sso-secrets.js";
 import type { CsaClient, ClientStatus, ClientSsoConfigStored } from "./types.js";
 
 /** Shared id-keyed helpers over the `csa_clients` collection. */
@@ -93,7 +94,12 @@ export async function updateClient(
   if (updates.name !== undefined) set.name = updates.name.trim();
   if (updates.contactEmail !== undefined) set.contactEmail = updates.contactEmail.trim().toLowerCase();
   if (updates.ssoConfig !== undefined) {
-    set.ssoConfig = updates.ssoConfig === null ? { provider: "none" as const } : updates.ssoConfig;
+    // Encrypt the secret fields (OIDC clientSecret / SAML idpCertPem) at rest.
+    // The incoming value carries plaintext secrets (merged from a fresh input
+    // or the decrypted previous value in parse-sso-input.ts), so this is the
+    // single encrypt boundary — no double-encryption.
+    set.ssoConfig =
+      updates.ssoConfig === null ? { provider: "none" as const } : encryptSsoConfigSecrets(updates.ssoConfig);
   }
 
   return clients.updateById(id, { $set: set });

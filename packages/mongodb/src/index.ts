@@ -40,6 +40,7 @@ export * from "./idempotency.js";
 export * from "./clients/types.js";
 export * from "./clients/repository.js";
 export * from "./clients/parse-sso-input.js";
+export * from "./clients/sso-secrets.js";
 
 // ---------------------------------------------------------------------------
 // Domain — projects

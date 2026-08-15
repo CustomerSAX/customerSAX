@@ -63,6 +63,7 @@ export function CsaAssistant() {
     userEmail: user?.email,
     userRole: user ? roleLabel(user.role) : undefined,
     projectKey: user?.activeProjectKey,
+    clientId: user?.activeClientId,
     businessType: CT_BUSINESS_TYPE,
     pageContext: activeTicketId
       ? { type: "ticket", id: activeTicketId }

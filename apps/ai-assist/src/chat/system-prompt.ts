@@ -11,6 +11,13 @@ export interface SystemPromptContext {
   userEmail: string;
   userRole: string;
   projectKey: string;
+  /**
+   * Tenant/organisation id. Flows alongside `projectKey` from the webapp
+   * session so the commerce path can resolve a provisioned multi-tenant
+   * project (which is keyed on (clientId, projectKey)). Absent for the
+   * single-tenant/env path, which must keep working unchanged.
+   */
+  clientId?: string;
   commercePlatform?: string;
   businessType?: string;
   pageContext?: { type: string; id: string } | null;

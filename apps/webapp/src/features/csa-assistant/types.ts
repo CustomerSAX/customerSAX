@@ -9,6 +9,9 @@ export interface SessionContext {
   userEmail?: string;
   userRole?: string;
   projectKey?: string;
+  /** Tenant/organisation id — sent alongside projectKey so ai-assist can
+   *  forward x-csa-client-id and resolve the correct multi-tenant project. */
+  clientId?: string;
   businessType?: BusinessType;
   pageContext?: PageContext | null;
   proactiveHint?: string | null;

@@ -3,6 +3,7 @@
  * OIDC/SAML secrets when the caller leaves a secret field blank on edit.
  */
 
+import { decryptSsoSecret } from "./sso-secrets.js";
 import type { CsaClient, ClientSsoConfigStored } from "./types.js";
 
 export function parseClientSsoConfigInput(
@@ -42,7 +43,10 @@ export function parseClientSsoConfigInput(
       return { ok: false, error: "OIDC client ID is required" };
     }
 
-    const prev = existing?.ssoConfig?.provider === "oidc" ? existing.ssoConfig.clientSecret.trim() : "";
+    // The stored secret is encrypted at rest — decrypt it (plaintext fallback
+    // for legacy records) so the merged value flowing on to the write boundary
+    // is always plaintext, and gets re-encrypted exactly once there.
+    const prev = existing?.ssoConfig?.provider === "oidc" ? decryptSsoSecret(existing.ssoConfig.clientSecret).trim() : "";
 
     let clientSecret = secretIn.trim();
     if (!clientSecret) {
@@ -89,7 +93,9 @@ export function parseClientSsoConfigInput(
       return { ok: false, error: "SAML issuer / entity ID is required" };
     }
 
-    const prevCert = existing?.ssoConfig?.provider === "saml" ? existing.ssoConfig.idpCertPem.trim() : "";
+    // Decrypt the stored cert (plaintext fallback for legacy records) so the
+    // merged value stays plaintext up to the single encrypt boundary on write.
+    const prevCert = existing?.ssoConfig?.provider === "saml" ? decryptSsoSecret(existing.ssoConfig.idpCertPem).trim() : "";
     let idpCertPem = certTrim;
     if (!idpCertPem) {
       if (!prevCert) {

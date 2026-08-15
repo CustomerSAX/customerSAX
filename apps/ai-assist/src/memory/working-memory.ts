@@ -51,10 +51,23 @@ const HASH_PREFIX = "session:wm:";
 /** Module-level singleton — created once, reused across requests. */
 let _client: RedisClientAny = null;
 let _connecting = false;
+/**
+ * Circuit breaker: epoch-ms until which connect attempts are skipped after a
+ * failure. Working memory is read at the START of every chat turn, so an
+ * unreachable REDIS_URL must never cost a connect timeout per turn — after one
+ * failed probe the breaker opens for a short cooldown and every subsequent turn
+ * degrades instantly. Mirrors @csa/cache.
+ */
+let _connectDisabledUntil = 0;
+const CONNECT_COOLDOWN_MS = 10_000;
 
 /**
  * Returns a connected Redis client if REDIS_URL is configured, otherwise null.
  * Null means "Redis unavailable — skip memory operations silently."
+ *
+ * Fail-fast: one bounded connect attempt (no in-client reconnect loop, no
+ * offline queue); on failure the circuit opens for `CONNECT_COOLDOWN_MS` so the
+ * chat path never stalls on a dead host. Self-heals once the cooldown lapses.
  */
 async function getClient(): Promise<RedisClientAny | null> {
   const url = process.env.REDIS_URL?.trim();
@@ -63,20 +76,33 @@ async function getClient(): Promise<RedisClientAny | null> {
   if (_client?.isReady) return _client;
 
   if (_connecting) return null; // avoid concurrent connect races
+  if (Date.now() < _connectDisabledUntil) return null; // circuit open — fail fast
 
   try {
     _connecting = true;
-    const client = createClient({ url });
+    const client = createClient({
+      url,
+      // FAIL FAST — bound the connect, take a single shot (the circuit breaker
+      // above manages retry timing), and never queue commands while
+      // disconnected. Mirrors @csa/cache.
+      socket: {
+        connectTimeout: 1000,
+        reconnectStrategy: () => false,
+      },
+      disableOfflineQueue: true,
+    });
     client.on("error", (err: Error) => {
       log.warn("Redis error — working memory disabled", { reason: err.message });
       _client = null;
     });
     await client.connect();
     _client = client;
+    _connectDisabledUntil = 0; // healthy — close the breaker
     return _client;
   } catch (err) {
     log.warn("Redis connect failed (non-fatal)", { reason: (err as Error).message });
     _client = null;
+    _connectDisabledUntil = Date.now() + CONNECT_COOLDOWN_MS; // open the breaker
     return null;
   } finally {
     _connecting = false;

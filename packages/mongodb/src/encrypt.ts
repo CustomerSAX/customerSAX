@@ -99,3 +99,24 @@ export function decrypt(ciphertext: string, logger: InjectedLogger = noopLogger)
 
   return decipher.update(encrypted).toString('utf8') + decipher.final('utf8');
 }
+
+/**
+ * Decrypts a value produced by {@link encrypt}, falling back to the RAW value
+ * when it isn't in ciphertext form (bad format, or GCM auth failure).
+ *
+ * This is the read path for fields that were historically stored in PLAINTEXT
+ * and are only now being encrypted on write (e.g. SSO OIDC client secrets and
+ * SAML IdP certs). Existing legacy records don't match the `iv:tag:data` shape,
+ * so `decrypt()` throws — here we return them verbatim so those records keep
+ * working, while newly-written encrypted values round-trip normally. Never use
+ * this for a field that is guaranteed-encrypted; use {@link decrypt} there so a
+ * genuine tampering/format error surfaces instead of being silently swallowed.
+ */
+export function decryptWithFallback(value: string, logger: InjectedLogger = noopLogger): string {
+  if (!value) return value;
+  try {
+    return decrypt(value, logger);
+  } catch {
+    return value;
+  }
+}

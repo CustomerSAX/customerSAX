@@ -79,6 +79,10 @@ chatRouter.post("/chat", async (request, response, next) => {
       userEmail: context.userEmail ?? "agent@csa.local",
       userRole: context.userRole ?? "Support Agent",
       projectKey: context.projectKey ?? (process.env.COMMERCETOOLS_PROJECT_KEY ?? "default"),
+      // Tenant id — carried through so the commerce path (bffQuery) can forward
+      // x-csa-client-id and resolve provisioned multi-tenant projects. Absent
+      // for the single-tenant/env path, which is unaffected.
+      clientId: context.clientId,
       businessType: context.businessType ?? "b2c",
       pageContext: context.pageContext ?? null,
       proactiveHint: context.proactiveHint ?? null,

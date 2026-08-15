@@ -29,11 +29,21 @@ export async function bffQuery<TData>(
 ): Promise<TData> {
   const url = getServiceUrl();
 
+  // Forward the full per-request CSA identity, not just projectKey. The
+  // commercetools subgraph resolves a provisioned multi-tenant project on
+  // (clientId, projectKey) — omitting x-csa-client-id silently falls back to
+  // the single env project, a correctness AND tenant-isolation failure. Each
+  // field is written only when present, so the single-tenant/env path (no
+  // clientId in context) forwards exactly what it did before.
+  const store = contextStorage.getStore();
   const headers = applyCsaHeaders(
     { "content-type": "application/json" } as Record<string, string>,
     {
       commercePlatform: getPlatform(),
-      projectKey: contextStorage.getStore()?.projectKey
+      projectKey: store?.projectKey,
+      clientId: store?.clientId,
+      userRole: store?.userRole,
+      userEmail: store?.userEmail
     }
   );
 

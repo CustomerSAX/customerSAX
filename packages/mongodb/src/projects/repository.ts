@@ -88,7 +88,23 @@ export async function listProjectsByClient(clientId: string): Promise<CsaProject
   return docs as unknown as CsaProject[];
 }
 
-export async function findProjectById(id: string): Promise<CsaProject | null> {
+/**
+ * Tenant-scoped project lookup: matches ONLY when the project belongs to
+ * `clientId` (`{ _id, clientId }`). This is the safe default — a caller that is
+ * bound to one organisation can never read another tenant's project by id.
+ * Superadmin/cross-client flows must use `findProjectByIdAnyClient` explicitly.
+ */
+export async function findProjectById(id: string, clientId: string): Promise<CsaProject | null> {
+  return (await projects.findById(id, { clientId })) as CsaProject | null;
+}
+
+/**
+ * UNSCOPED project lookup by id — reads across all tenants. ONLY for
+ * superadmin/server-internal flows where cross-client scope is already enforced
+ * upstream (e.g. the admin subgraph's `authorize()` superadmin gate, or the
+ * internal connection-test path). Never call this from a client-scoped path.
+ */
+export async function findProjectByIdAnyClient(id: string): Promise<CsaProject | null> {
   return (await projects.findById(id)) as CsaProject | null;
 }
 
@@ -110,7 +126,10 @@ export async function getProjectWithSecret(id: string): Promise<
     })
   | null
 > {
-  const doc = await findProjectById(id);
+  // Internal server-to-server connection test — reached only from the admin
+  // subgraph's superadmin-gated `adminTestProjectConnection`, so a cross-client
+  // (unscoped) lookup is correct and intentional here.
+  const doc = await findProjectByIdAnyClient(id);
   if (!doc) return null;
 
   const view = projectView(doc);
@@ -298,7 +317,21 @@ export async function updateProject(
   return projects.updateById(id, updateDoc);
 }
 
-export async function deleteProject(id: string): Promise<boolean> {
+/**
+ * Tenant-scoped delete: removes the project ONLY when it belongs to `clientId`
+ * (`{ _id, clientId }`). The safe default — prevents a client-bound caller from
+ * deleting another tenant's project by id. Superadmin/cross-client deletes must
+ * use `deleteProjectAnyClient` explicitly.
+ */
+export async function deleteProject(id: string, clientId: string): Promise<boolean> {
+  return projects.deleteById(id, { clientId });
+}
+
+/**
+ * UNSCOPED delete by id — deletes across all tenants. ONLY for
+ * superadmin-gated flows where cross-client scope is already enforced upstream.
+ */
+export async function deleteProjectAnyClient(id: string): Promise<boolean> {
   return projects.deleteById(id);
 }
 

@@ -55,6 +55,35 @@ function clientViewIso(doc: Parameters<typeof clientsRepo.clientView>[0]) {
   return { ...v, createdAt: iso(v.createdAt), updatedAt: iso(v.updatedAt) };
 }
 
+/**
+ * Per-request admin identity, populated upstream from `x-csa-*` headers (see
+ * the header-trust boundary note in `index.ts`). `superadmin` crosses clients;
+ * a client-scoped `admin` is bound to a single `clientId`.
+ */
+type ResolverContext = { clientId?: string; userRole?: string };
+
+/**
+ * Look up a project for an admin resolver with correct tenant scope. A
+ * superadmin legitimately reads across clients (unscoped variant); any other
+ * caller is constrained to their own organisation's projects, so it can never
+ * read another tenant's project by id. A missing `clientId` fails closed
+ * (scoped lookup on `""` matches nothing).
+ */
+function findProjectScoped(context: unknown, id: string) {
+  const ctx = (context ?? {}) as ResolverContext;
+  return ctx.userRole === "superadmin"
+    ? projectsRepo.findProjectByIdAnyClient(id)
+    : projectsRepo.findProjectById(id, ctx.clientId ?? "");
+}
+
+/** Tenant-scoped project delete, mirroring {@link findProjectScoped}. */
+function deleteProjectScoped(context: unknown, id: string) {
+  const ctx = (context ?? {}) as ResolverContext;
+  return ctx.userRole === "superadmin"
+    ? projectsRepo.deleteProjectAnyClient(id)
+    : projectsRepo.deleteProject(id, ctx.clientId ?? "");
+}
+
 async function requireClient(id: string) {
   const client = await clientsRepo.findClientById(id);
   if (!client) throw new Error("Client not found");
@@ -363,8 +392,8 @@ export const resolvers = {
       return docs.map(projectViewIso);
     },
 
-    adminProject: async (_p: unknown, args: { id: string }) => {
-      const doc = await projectsRepo.findProjectById(args.id);
+    adminProject: async (_p: unknown, args: { id: string }, context: unknown) => {
+      const doc = await findProjectScoped(context, args.id);
       return doc ? projectViewIso(doc) : null;
     },
 
@@ -536,9 +565,10 @@ export const resolvers = {
           bigcommerceClientId?: string;
           bigcommerceAccessToken?: string;
         };
-      }
+      },
+      context: unknown
     ) => {
-      const existing = await projectsRepo.findProjectById(args.id);
+      const existing = await findProjectScoped(context, args.id);
       if (!existing) throw new Error("Project not found");
 
       const input = args.input;
@@ -567,12 +597,12 @@ export const resolvers = {
       // caches under. Best-effort: `del` never throws (no-op if Redis is down).
       await cacheDel(ctProjectConfig(existing.clientId, existing.projectKey));
 
-      const updated = await projectsRepo.findProjectById(args.id);
+      const updated = await findProjectScoped(context, args.id);
       return updated ? projectViewIso(updated) : null;
     },
 
-    adminDeleteProject: async (_p: unknown, args: { id: string }) => {
-      return projectsRepo.deleteProject(args.id);
+    adminDeleteProject: async (_p: unknown, args: { id: string }, context: unknown) => {
+      return deleteProjectScoped(context, args.id);
     },
 
     adminTestProjectConnection: async (_p: unknown, args: { id: string }) => {
