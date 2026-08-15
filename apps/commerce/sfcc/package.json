@@ -22,6 +22,7 @@
     "@apollo/subgraph": "^2.10.0",
     "@csa/commerce-contract": "workspace:*",
     "@csa/logger": "workspace:*",
+    "@csa/service-bootstrap": "workspace:*",
     "graphql": "^16.9.0"
   },
   "devDependencies": {

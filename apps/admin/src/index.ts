@@ -1,15 +1,13 @@
-import { ApolloServer } from "@apollo/server";
-import { startStandaloneServer } from "@apollo/server/standalone";
 import { buildSubgraphSchema } from "@apollo/subgraph";
 import "./env.js";
-import { apolloContext, apolloLoggingPlugin, createLogger } from "@csa/logger";
+import { createLogger } from "@csa/logger";
+import { startSubgraph } from "@csa/service-bootstrap";
 import { resolvers, typeDefs } from "./schema.js";
 import { ensureClientsIndex, ensureProjectsIndex, ensureSmtpProfilesIndex, ensureUsersIndex } from "@csa/mongodb";
 import { recordAdminAudit } from "./audit/repository.js";
 
 const log = createLogger("admin");
 const port = Number(process.env.ADMIN_PORT ?? process.env.PORT ?? 4370);
-const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
 
 await Promise.all([ensureClientsIndex(), ensureProjectsIndex(), ensureSmtpProfilesIndex(), ensureUsersIndex()]).catch(
   (error) => {
@@ -21,17 +19,11 @@ type AdminContext = { clientId?: string; projectKey?: string; userRole?: string;
 
 const securedResolvers = secureAdminResolvers(resolvers);
 
-const server = new ApolloServer({
+await startSubgraph({
+  serviceName: "admin",
   schema: buildSubgraphSchema({ resolvers: securedResolvers, typeDefs }),
-  plugins: [apolloLoggingPlugin(log)],
+  port,
 });
-
-const { url } = await startStandaloneServer(server, {
-  listen: { host, port },
-  context: async ({ req }) => apolloContext(req),
-});
-
-log.info("service ready", { url });
 
 function secureAdminResolvers<T extends Record<string, Record<string, unknown>>>(source: T): T {
   const secured = { ...source } as Record<string, Record<string, unknown>>;

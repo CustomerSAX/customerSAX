@@ -1,21 +1,11 @@
-import { ApolloServer } from "@apollo/server";
-import { startStandaloneServer } from "@apollo/server/standalone";
 import { buildSubgraphSchema } from "@apollo/subgraph";
-import { apolloContext, apolloLoggingPlugin, createLogger } from "@csa/logger";
+import { startSubgraph } from "@csa/service-bootstrap";
 import { resolvers, typeDefs } from "./schema.js";
 
-const log = createLogger("shopify");
 const port = Number(process.env.SHOPIFY_PORT ?? process.env.PORT ?? 4320);
-const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
 
-const server = new ApolloServer({
+await startSubgraph({
+  serviceName: "shopify",
   schema: buildSubgraphSchema({ resolvers, typeDefs }),
-  plugins: [apolloLoggingPlugin(log)]
+  port,
 });
-
-const { url } = await startStandaloneServer(server, {
-  listen: { host, port },
-  context: async ({ req }) => apolloContext(req)
-});
-
-log.info("service ready", { url });
