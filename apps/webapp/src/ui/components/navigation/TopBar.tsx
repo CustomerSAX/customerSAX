@@ -20,17 +20,25 @@ export function TopBar({
 }: TopBarProps) {
   return (
     <header
-      className={cn(
-        'sticky top-0 z-[var(--m-z-sticky)] flex h-16 w-full items-center justify-between gap-4 px-6 border-b border-m-topbar-border bg-m-topbar-bg backdrop-blur-md transition-colors',
-        className,
-      )}
+      className={cn('csa-topbar', className)}
       {...props}
     >
-      <div className="flex items-center gap-4 min-w-0">{brandOrBreadcrumbs}</div>
+      {/* Left: breadcrumbs / brand label */}
+      {brandOrBreadcrumbs && (
+        <div className="flex items-center gap-3 min-w-0 shrink-0">
+          {brandOrBreadcrumbs}
+        </div>
+      )}
 
-      {searchSlot && <div className="max-w-md w-full mx-4">{searchSlot}</div>}
+      {/* Center: search */}
+      {searchSlot && (
+        <div className="flex-1 max-w-xl mx-4">
+          {searchSlot}
+        </div>
+      )}
 
-      <div className="flex items-center gap-3 shrink-0 ml-auto">
+      {/* Right: actions + user */}
+      <div className="flex items-center gap-2 shrink-0 ml-auto">
         {actions}
         {userSlot}
       </div>

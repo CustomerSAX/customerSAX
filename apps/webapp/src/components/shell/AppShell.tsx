@@ -172,17 +172,49 @@ export function AppShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-m-surface-bg font-sans text-m-text">
-      {/* Meridian Sidebar */}
+    <div
+      className="flex h-screen overflow-hidden font-sans"
+      style={{ background: 'var(--color-bg)', color: 'var(--color-ink)' }}
+    >
+      {/* ── CSA Sidebar ──────────────────────────── */}
       <Sidebar
         brand={
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-m-lg bg-m-primary text-white font-bold shadow-m-xs">
-              <Icon name="headphones" size="sm" />
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 'var(--radius-lg)',
+                background: 'var(--csa-yellow-500)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--csa-navy-950)', lineHeight: 1 }}>C</span>
             </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-white tracking-tight leading-none">CSA Platform</span>
-              <span className="text-[10px] text-m-sidebar-text mt-0.5">Meridian System</span>
+            <div className="flex flex-col min-w-0">
+              <span
+                style={{
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 'var(--weight-bold)',
+                  color: 'var(--csa-white)',
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1.1,
+                }}
+              >
+                customerSAX
+              </span>
+              <span
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--sidebar-text)',
+                  marginTop: 1,
+                }}
+              >
+                Studio
+              </span>
             </div>
           </div>
         }
@@ -190,66 +222,209 @@ export function AppShell({ children }: { children: ReactNode }) {
         activeItemId={activeItemId}
         onSelectItem={handleSelectItem}
         footer={
-          <div className="flex items-center gap-2 text-xs text-m-sidebar-text">
-            <Icon name="shield-check" size="xs" className="text-m-primary" />
-            <span>GCP Enterprise v1.0</span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: 'var(--text-xs)',
+              color: 'var(--sidebar-text)',
+            }}
+          >
+            <Icon name="shield-check" size="xs" style={{ color: 'var(--csa-yellow-500)', flexShrink: 0 }} />
+            <span>Enterprise v1.0</span>
           </div>
         }
       />
 
-      {/* Main Content Area */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Meridian TopBar */}
+      {/* ── Main area ────────────────────────────── */}
+      <div
+        className="flex min-w-0 flex-1 flex-col overflow-hidden"
+        style={{ background: 'var(--color-bg)' }}
+      >
+        {/* ── Yellow TopBar ─────────────────────── */}
         <TopBar
           brandOrBreadcrumbs={
             <div className="flex items-center gap-3">
               {isB2bMode && (
-                <Badge variant="success" appearance="subtle" size="md" leftIcon={<Icon name="building-2" size="xs" />}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '2px 10px',
+                    borderRadius: 'var(--radius-full)',
+                    background: 'rgba(5,8,46,0.12)',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 'var(--weight-semibold)',
+                    color: 'var(--topbar-text)',
+                  }}
+                >
+                  <Icon name="building-2" size="xs" />
                   B2B Mode
-                </Badge>
+                </span>
               )}
               {currentUser.projects.length > 0 && (
-                <label className="flex items-center gap-2 text-xs font-semibold text-m-text-muted">
-                  <span className="sr-only">Project</span>
-                  <select
-                    aria-label="Project"
-                    value={currentUser.activeProjectKey ? `${currentUser.activeClientId ?? ""}:${currentUser.activeProjectKey}` : ""}
-                    onChange={(event) => void handleProjectChange(event.target.value)}
-                    className="h-8 min-w-48 rounded-m-md border border-m-border bg-m-surface px-2 text-xs font-semibold text-m-text outline-none focus:border-m-primary"
-                  >
-                    {!currentUser.activeProjectKey && <option value="">Select project</option>}
-                    {currentUser.projects.map((project) => (
-                      <option
-                        key={`${project.clientId ?? "legacy"}:${project.projectKey}`}
-                        value={`${project.clientId ?? ""}:${project.projectKey}`}
-                      >
-                        {project.displayName || project.projectKey}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <select
+                  aria-label="Project"
+                  value={currentUser.activeProjectKey ? `${currentUser.activeClientId ?? ""}:${currentUser.activeProjectKey}` : ""}
+                  onChange={(event) => void handleProjectChange(event.target.value)}
+                  style={{
+                    height: 32,
+                    minWidth: 160,
+                    borderRadius: 'var(--radius-lg)',
+                    border: '1px solid rgba(5,8,46,0.18)',
+                    background: 'rgba(255,255,255,0.25)',
+                    padding: '0 10px',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--weight-semibold)',
+                    color: 'var(--topbar-text)',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {!currentUser.activeProjectKey && <option value="">Select project</option>}
+                  {currentUser.projects.map((project) => (
+                    <option
+                      key={`${project.clientId ?? "legacy"}:${project.projectKey}`}
+                      value={`${project.clientId ?? ""}:${project.projectKey}`}
+                    >
+                      {project.displayName || project.projectKey}
+                    </option>
+                  ))}
+                </select>
               )}
             </div>
           }
           searchSlot={
-            <SearchBar
-              placeholder="Search tickets, customers, orders..."
-              shortcutHint="⌘K"
-            />
+            <div
+              className="flex items-center gap-2"
+              style={{
+                background: 'var(--topbar-search-bg)',
+                border: '1px solid var(--topbar-search-border)',
+                borderRadius: 'var(--radius-full)',
+                padding: '0 14px',
+                height: 34,
+              }}
+            >
+              <Icon name="search" size="xs" style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+              <input
+                type="search"
+                placeholder="Search customers, orders, tickets..."
+                aria-label="Global search"
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--color-ink)',
+                  minWidth: 0,
+                }}
+              />
+              <kbd
+                style={{
+                  fontSize: 10,
+                  color: 'var(--color-text-muted)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 4,
+                  padding: '1px 4px',
+                  background: 'var(--color-surface-3)',
+                  flexShrink: 0,
+                }}
+              >
+                ⌘K
+              </kbd>
+            </div>
           }
           actions={
-            <Button variant="ghost" size="sm" iconOnly leftIcon={<Icon name="bell" size="sm" />} aria-label="Notifications" />
+            <div className="flex items-center gap-1">
+              {/* Team selector */}
+              <button
+                type="button"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '0 12px',
+                  height: 34,
+                  borderRadius: 'var(--radius-full)',
+                  border: '1px solid rgba(5,8,46,0.18)',
+                  background: 'rgba(255,255,255,0.20)',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 'var(--weight-medium)',
+                  color: 'var(--topbar-text)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name="users" size="xs" />
+                <span>Customer Experience Team</span>
+                <Icon name="chevron-down" size="xs" style={{ opacity: 0.6 }} />
+              </button>
+              {/* Notification bell */}
+              <button
+                type="button"
+                aria-label="Notifications"
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 'var(--radius-full)',
+                  border: 'none',
+                  background: 'rgba(255,255,255,0.20)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'var(--topbar-icon)',
+                  position: 'relative',
+                }}
+              >
+                <Icon name="bell" size="sm" />
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: 'var(--csa-red-500)',
+                    border: '1.5px solid var(--topbar-bg)',
+                  }}
+                />
+              </button>
+            </div>
           }
           userSlot={
             <Dropdown
               trigger={
-                <div className="flex items-center gap-2 cursor-pointer select-none">
+                <div
+                  className="flex items-center gap-2 cursor-pointer select-none"
+                  style={{ padding: '4px 8px 4px 4px', borderRadius: 'var(--radius-full)', background: 'rgba(255,255,255,0.18)' }}
+                >
                   <Avatar name={userDisplayName} status="online" size="sm" />
                   <div className="hidden flex-col sm:flex">
-                    <span className="text-xs font-semibold text-m-text leading-none">{currentUser.email}</span>
-                    <span className="text-[10px] text-m-text-muted mt-0.5">{userSubtitle}</span>
+                    <span
+                      style={{
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 'var(--weight-semibold)',
+                        color: 'var(--topbar-text)',
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {userDisplayName}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--topbar-text-muted)',
+                        marginTop: 1,
+                      }}
+                    >
+                      {userSubtitle}
+                    </span>
                   </div>
-                  <Icon name="chevron-down" size="xs" className="text-m-text-muted" />
+                  <Icon name="chevron-down" size="xs" style={{ color: 'var(--topbar-text-muted)' }} />
                 </div>
               }
               items={[
@@ -262,8 +437,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           }
         />
 
-        {/* Dynamic Page Content */}
-        <main className={`flex-1 bg-m-surface-bg flex flex-col ${pathname === '/csa-assistant' ? 'overflow-hidden' : 'overflow-auto p-6'}`}>
+        {/* ── Page content ─────────────────────── */}
+        <main
+          className={`flex-1 flex flex-col ${
+            pathname === '/csa-assistant' ? 'overflow-hidden' : 'overflow-auto'
+          }`}
+          style={{
+            padding: pathname === '/csa-assistant' ? 0 : '28px 32px',
+            background: 'var(--color-bg)',
+          }}
+        >
           {children}
         </main>
       </div>

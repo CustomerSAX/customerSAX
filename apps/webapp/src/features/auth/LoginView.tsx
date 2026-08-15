@@ -2,11 +2,9 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Sparkles } from "lucide-react";
 
 function safeInternalPath(raw: string | null) {
   if (!raw) return "/dashboard";
-
   try {
     const decoded = decodeURIComponent(raw);
     return decoded.startsWith("/") && !decoded.startsWith("//") ? decoded : "/dashboard";
@@ -19,7 +17,7 @@ export function LoginView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = useMemo(() => safeInternalPath(searchParams.get("callbackUrl")), [searchParams]);
-  const [email, setEmail] = useState("agent@csa.local");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -28,27 +26,27 @@ export function LoginView() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
-
     if (!email.trim() || !password) {
-      setError("Enter your email and password.");
+      setError("Please enter your email and password.");
       return;
     }
-
     setIsLoading(true);
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
       });
-
       if (!response.ok) {
         setError("Invalid credentials. Please check your email and password.");
         return;
       }
-
       const payload = await response.json().catch(() => ({}));
-      router.replace(payload.user?.requiresProjectSelection ? `/select-project?callbackUrl=${encodeURIComponent(callbackUrl)}` : callbackUrl);
+      router.replace(
+        payload.user?.requiresProjectSelection
+          ? `/select-project?callbackUrl=${encodeURIComponent(callbackUrl)}`
+          : callbackUrl
+      );
       router.refresh();
     } catch {
       setError("Unable to reach the auth service. Please try again.");
@@ -58,132 +56,425 @@ export function LoginView() {
   };
 
   return (
-    <main className="flex min-h-screen overflow-hidden bg-white font-sans text-slate-950">
-      <section className="relative hidden min-h-screen w-1/2 flex-col justify-between overflow-hidden bg-[#12233d] px-20 py-20 text-white lg:flex">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(37,99,235,0.20),transparent_35%),linear-gradient(155deg,#101a31_0%,#173456_100%)]" />
-        <div className="relative m-auto w-full max-w-[520px]">
-          <div className="mb-14 flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 shadow-lg shadow-blue-900/30">
-              <Sparkles size={24} />
+    <main
+      style={{
+        display: "flex",
+        minHeight: "100vh",
+        fontFamily: "var(--font-family)",
+        background: "var(--color-bg)",
+        overflow: "hidden",
+      }}
+    >
+      {/* ── Left panel — Navy brand ─────────────────────────── */}
+      <section
+        style={{
+          display: "none",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          width: "45%",
+          minHeight: "100vh",
+          background: "linear-gradient(160deg, var(--csa-navy-900) 0%, var(--csa-navy-950) 100%)",
+          padding: "48px 56px",
+          position: "relative",
+          overflow: "hidden",
+        }}
+        className="lg-flex"
+      >
+        {/* Background glow */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "radial-gradient(ellipse at 20% 20%, rgba(245,166,36,0.08) 0%, transparent 55%), " +
+              "radial-gradient(ellipse at 80% 80%, rgba(27,75,235,0.10) 0%, transparent 55%)",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* Brand logo */}
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 64 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "var(--radius-xl)",
+                background: "var(--csa-yellow-500)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "var(--shadow-brand)",
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontSize: 18, fontWeight: 800, color: "var(--csa-navy-950)", lineHeight: 1 }}>C</span>
             </div>
             <div>
-              <div className="text-xl font-extrabold tracking-tight">
-                Royal Cyber<span className="text-cyan-400">. CSA</span>
+              <div
+                style={{
+                  fontSize: "var(--text-lg)",
+                  fontWeight: "var(--weight-bold)",
+                  color: "var(--csa-white)",
+                  letterSpacing: "-0.02em",
+                  lineHeight: 1.1,
+                }}
+              >
+                customerSAX
               </div>
-              <div className="text-sm font-semibold text-blue-300">Enterprise Customer Operations Platform</div>
+              <div style={{ fontSize: "var(--text-xs)", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
+                Studio · Enterprise Platform
+              </div>
             </div>
           </div>
 
-          <h1 className="mb-7 max-w-[520px] text-5xl font-extrabold leading-tight tracking-tight">
-            Unified Platform for Enterprise Customer Operations
+          <h1
+            style={{
+              fontSize: "clamp(28px, 3vw, 40px)",
+              fontWeight: "var(--weight-extrabold)",
+              color: "var(--csa-white)",
+              letterSpacing: "-0.03em",
+              lineHeight: 1.15,
+              marginBottom: 20,
+              maxWidth: 440,
+            }}
+          >
+            Unified Customer Service Operations Platform
           </h1>
-          <p className="mb-12 max-w-[480px] text-xl leading-relaxed text-slate-300">
-            Resolve support tickets, manage orders, and negotiate B2B quotes seamlessly in real time.
+          <p
+            style={{
+              fontSize: "var(--text-base)",
+              color: "rgba(255,255,255,0.55)",
+              lineHeight: "var(--leading-relaxed)",
+              maxWidth: 400,
+              marginBottom: 48,
+            }}
+          >
+            Resolve every customer issue faster — with AI-assisted context, real-time commerce data, and governed actions across all channels.
           </p>
 
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/8 p-5 shadow-sm">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600/35 text-lg">⚡</div>
-              <div>
-                <div className="text-base font-bold">Real-time Ticket Resolution</div>
-                <div className="mt-1 text-sm text-slate-400">Auto-context recovery and 1-click status updates</div>
-              </div>
+          {/* Feature pills */}
+          {[
+            "🎫  Ticket management & SLA tracking",
+            "🛒  Live order & cart operations",
+            "🤖  AI-powered resolution suggestions",
+            "📊  Real-time service analytics",
+          ].map((feat) => (
+            <div
+              key={feat}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 12,
+                padding: "10px 16px",
+                borderRadius: "var(--radius-lg)",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                fontSize: "var(--text-sm)",
+                color: "rgba(255,255,255,0.78)",
+                fontWeight: "var(--weight-medium)",
+              }}
+            >
+              {feat}
             </div>
-            <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/8 p-5 shadow-sm">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/25 text-lg">🛡</div>
-              <div>
-                <div className="text-base font-bold">Role-Based ACL Security</div>
-                <div className="mt-1 text-sm text-slate-400">Multi-tenant isolation and granular agent permission control</div>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
 
-        <div className="relative text-center text-sm text-slate-500">
-          © 2026 Customer Service Accelerator. All rights reserved.
+        {/* Footer */}
+        <div
+          style={{
+            position: "relative",
+            zIndex: 1,
+            fontSize: "var(--text-xs)",
+            color: "rgba(255,255,255,0.28)",
+          }}
+        >
+          © 2026 customerSAX — Powered by Royal Cyber
         </div>
       </section>
 
-      <section className="flex min-h-screen flex-1 items-center justify-center px-6 py-12">
-        <div className="w-full max-w-[440px] rounded-[24px] border border-slate-200 bg-white p-10 shadow-[0_28px_80px_rgba(15,23,42,0.10)]">
-          <div className="mb-8 text-center">
-            <h2 className="text-3xl font-extrabold tracking-tight text-slate-950">Sign In</h2>
-            <p className="mt-3 text-base text-slate-500">Enter your credentials to access the workspace</p>
+      {/* ── Right panel — Login form ────────────────────────── */}
+      <section
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "48px 32px",
+          background: "var(--color-surface-1)",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: 400 }}>
+          {/* Mobile-only logo */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 40,
+              justifyContent: "center",
+            }}
+            className="show-mobile"
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "var(--radius-lg)",
+                background: "var(--csa-yellow-500)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span style={{ fontSize: 16, fontWeight: 800, color: "var(--csa-navy-950)" }}>C</span>
+            </div>
+            <span style={{ fontSize: "var(--text-xl)", fontWeight: "var(--weight-bold)", color: "var(--color-ink)", letterSpacing: "-0.02em" }}>
+              customerSAX
+            </span>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Heading */}
+          <div style={{ marginBottom: 32 }}>
+            <h2
+              style={{
+                fontSize: "var(--text-2xl)",
+                fontWeight: "var(--weight-bold)",
+                color: "var(--color-ink)",
+                letterSpacing: "-0.02em",
+                marginBottom: 6,
+              }}
+            >
+              Sign in to Studio
+            </h2>
+            <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-muted)" }}>
+              Enter your credentials to access the backoffice.
+            </p>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div
+              role="alert"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                padding: "12px 14px",
+                borderRadius: "var(--radius-lg)",
+                background: "var(--color-error-bg)",
+                border: "1px solid var(--csa-red-700)",
+                marginBottom: 20,
+                fontSize: "var(--text-sm)",
+                color: "var(--csa-red-700)",
+                fontWeight: "var(--weight-medium)",
+              }}
+            >
+              <span style={{ flexShrink: 0, marginTop: 1 }}>⚠</span>
+              {error}
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} noValidate style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Email */}
             <div>
-              <label htmlFor="email" className="mb-2 block text-xs font-extrabold uppercase tracking-wide text-slate-600">
-                Email Address
+              <label
+                htmlFor="login-email"
+                style={{
+                  display: "block",
+                  fontSize: "var(--text-sm)",
+                  fontWeight: "var(--weight-medium)",
+                  color: "var(--color-ink-soft)",
+                  marginBottom: 6,
+                }}
+              >
+                Email address
               </label>
               <input
-                id="email"
+                id="login-email"
                 type="email"
-                autoComplete="email"
+                autoComplete="username"
+                required
+                placeholder="agent@customersax.com"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                placeholder="you@company.com"
+                onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
+                style={{
+                  width: "100%",
+                  height: 42,
+                  padding: "0 14px",
+                  borderRadius: "var(--radius-lg)",
+                  border: "1.5px solid var(--color-border)",
+                  background: "var(--color-surface-1)",
+                  fontSize: "var(--text-md)",
+                  color: "var(--color-ink)",
+                  outline: "none",
+                  transition: "border-color var(--duration-fast), box-shadow var(--duration-fast)",
+                  boxShadow: "var(--shadow-xs)",
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = "var(--color-brand)";
+                  e.target.style.boxShadow = "var(--shadow-focus-brand)";
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = "var(--color-border)";
+                  e.target.style.boxShadow = "var(--shadow-xs)";
+                }}
               />
             </div>
 
+            {/* Password */}
             <div>
-              <label htmlFor="password" className="mb-2 block text-xs font-extrabold uppercase tracking-wide text-slate-600">
-                Password
-              </label>
-              <div className="relative">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <label
+                  htmlFor="login-password"
+                  style={{
+                    fontSize: "var(--text-sm)",
+                    fontWeight: "var(--weight-medium)",
+                    color: "var(--color-ink-soft)",
+                  }}
+                >
+                  Password
+                </label>
+                <button
+                  type="button"
+                  style={{
+                    fontSize: "var(--text-sm)",
+                    color: "var(--color-primary)",
+                    fontWeight: "var(--weight-medium)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <div style={{ position: "relative" }}>
                 <input
-                  id="password"
+                  id="login-password"
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 pr-16 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                  required
                   placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
+                  style={{
+                    width: "100%",
+                    height: 42,
+                    padding: "0 42px 0 14px",
+                    borderRadius: "var(--radius-lg)",
+                    border: "1.5px solid var(--color-border)",
+                    background: "var(--color-surface-1)",
+                    fontSize: "var(--text-md)",
+                    color: "var(--color-ink)",
+                    outline: "none",
+                    transition: "border-color var(--duration-fast), box-shadow var(--duration-fast)",
+                    boxShadow: "var(--shadow-xs)",
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "var(--color-brand)";
+                    e.target.style.boxShadow = "var(--shadow-focus-brand)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "var(--color-border)";
+                    e.target.style.boxShadow = "var(--shadow-xs)";
+                  }}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500 hover:text-slate-900"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  style={{
+                    position: "absolute",
+                    right: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--color-text-muted)",
+                    padding: 2,
+                    fontSize: 14,
+                  }}
                 >
-                  {showPassword ? "Hide" : "Show"}
+                  {showPassword ? "🙈" : "👁"}
                 </button>
               </div>
             </div>
 
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                {error}
-              </div>
-            )}
-
+            {/* Submit */}
             <button
               type="submit"
               disabled={isLoading}
-              className="h-14 w-full rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-base font-extrabold text-white shadow-lg shadow-blue-600/20 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                width: "100%",
+                height: 44,
+                marginTop: 8,
+                borderRadius: "var(--radius-lg)",
+                border: "none",
+                background: isLoading ? "var(--csa-yellow-600)" : "var(--color-brand)",
+                color: "var(--color-brand-text)",
+                fontSize: "var(--text-base)",
+                fontWeight: "var(--weight-semibold)",
+                cursor: isLoading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                boxShadow: "var(--shadow-brand)",
+                transition: "background var(--duration-fast), box-shadow var(--duration-fast)",
+                letterSpacing: "-0.01em",
+              }}
             >
-              {isLoading ? "Signing in..." : "Sign in to Workspace"}
+              {isLoading ? (
+                <>
+                  <span
+                    style={{
+                      width: 16,
+                      height: 16,
+                      border: "2px solid rgba(5,8,46,0.25)",
+                      borderTopColor: "var(--csa-navy-950)",
+                      borderRadius: "50%",
+                      animation: "spin 0.7s linear infinite",
+                      display: "inline-block",
+                    }}
+                  />
+                  Signing in…
+                </>
+              ) : (
+                "Sign in to Studio"
+              )}
             </button>
           </form>
 
-          <div className="my-8 flex items-center gap-4">
-            <div className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">or continue with</span>
-            <div className="h-px flex-1 bg-slate-200" />
-          </div>
-
-          <button
-            type="button"
-            disabled
-            className="flex h-14 w-full cursor-not-allowed items-center justify-center gap-3 rounded-xl border border-slate-200 bg-slate-50 text-base font-extrabold text-slate-400"
+          {/* Footer */}
+          <p
+            style={{
+              marginTop: 32,
+              textAlign: "center",
+              fontSize: "var(--text-xs)",
+              color: "var(--color-text-subtle)",
+            }}
           >
-            <span className="h-4 w-4 rounded bg-orange-500" />
-            Continue with Auth0
-          </button>
+            Powered by customerSAX Studio · Enterprise Edition
+          </p>
         </div>
       </section>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (min-width: 1024px) {
+          .lg-flex { display: flex !important; }
+          .show-mobile { display: none !important; }
+        }
+      `}</style>
     </main>
   );
 }
