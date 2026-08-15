@@ -214,8 +214,8 @@ export function ReturnStepper({
           steps: STEP_ORDER,
           visibleCount: 3,
           currentStep: step,
-          activeColor: '#F97316',
-          doneColor: '#7c3aed',
+          activeColor: 'var(--color-primary)',
+          doneColor: 'var(--color-success)',
           // Step 0 (order) always reachable; step 1 (reason) only once the
           // selected order has actually been confirmed eligible; step 2
           // (review) only once a reason is also set. Dots can't be used to
@@ -253,7 +253,7 @@ export function ReturnStepper({
                   </div>
                   <span
                     className="rm"
-                    style={{ cursor: 'pointer', color: '#98a2b3', fontSize: '12px' }}
+                    style={{ cursor: 'pointer', color: 'var(--color-text-subtle)', fontSize: '12px' }}
                     onClick={() => {
                       setSelectedCustomer(null);
                       setCustomerSearch('');
@@ -342,7 +342,7 @@ export function ReturnStepper({
             <div className="section-label">Reason</div>
             {REASON_CATEGORIES.map((cat) => (
               <div key={cat} style={{ marginBottom: '8px' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#98a2b3', marginBottom: '4px' }}>{cat}</div>
+                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--color-text-subtle)', marginBottom: '4px' }}>{cat}</div>
                 <div className="chip-group">
                   {RESOLUTION_REASONS[cat].map((r) => (
                     <button

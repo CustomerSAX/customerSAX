@@ -8,12 +8,9 @@ import {
   SidebarGroup,
   SidebarItem,
   TopBar,
-  SearchBar,
   Avatar,
-  Badge,
   Dropdown,
-  Icon,
-  Button
+  Icon
 } from "@csa/ui";
 import { useCurrentUser, roleLabel, type CurrentUser } from "@/lib/use-current-user";
 import { apolloClient } from "@/graphql/client";
@@ -273,7 +270,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     height: 32,
                     minWidth: 160,
                     borderRadius: 'var(--radius-lg)',
-                    border: '1px solid rgba(5,8,46,0.18)',
+                    border: '1px solid var(--topbar-overlay)',
                     background: 'rgba(255,255,255,0.25)',
                     padding: '0 10px',
                     fontSize: 'var(--text-sm)',
@@ -349,8 +346,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                   padding: '0 12px',
                   height: 34,
                   borderRadius: 'var(--radius-full)',
-                  border: '1px solid rgba(5,8,46,0.18)',
-                  background: 'rgba(255,255,255,0.20)',
+                  border: '1px solid var(--topbar-overlay)',
+                  background: 'var(--sidebar-overlay)',
                   fontSize: 'var(--text-sm)',
                   fontWeight: 'var(--weight-medium)',
                   color: 'var(--topbar-text)',
@@ -370,7 +367,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   height: 34,
                   borderRadius: 'var(--radius-full)',
                   border: 'none',
-                  background: 'rgba(255,255,255,0.20)',
+                  background: 'var(--sidebar-overlay)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

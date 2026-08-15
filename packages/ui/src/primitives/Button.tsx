@@ -33,7 +33,7 @@ const variantStyles: Record<ButtonVariant, string> = {
 
   danger:
     'text-white border border-m-error bg-m-error shadow-m-xs ' +
-    'hover:bg-red-700 active:bg-red-800 disabled:opacity-50',
+    'hover:bg-m-error-dark active:bg-m-error-dark disabled:opacity-50',
 
   outline:
     'text-m-primary border border-m-primary-200 bg-m-primary-50 ' +

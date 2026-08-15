@@ -292,7 +292,7 @@ export function CsaAssistant() {
         }}
       >
         {/* Left pane — conversation list (self-contained, reads its own data) */}
-        <div style={{ borderRight: "1px solid #e5e7eb", overflow: "hidden" }}>
+        <div style={{ borderRight: "1px solid var(--color-border)", overflow: "hidden" }}>
           <ConversationList />
         </div>
 
@@ -307,7 +307,7 @@ export function CsaAssistant() {
 
         {/* Right pane — context + AI analysis (only when a ticket is selected) */}
         {rightPanelOpen && (
-          <div style={{ borderLeft: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <div style={{ borderLeft: "1px solid var(--color-border)", overflow: "hidden" }}>
             <ContextPanel
               onSendMessage={handleSendMessage}
               isLoading={chat.isLoading}

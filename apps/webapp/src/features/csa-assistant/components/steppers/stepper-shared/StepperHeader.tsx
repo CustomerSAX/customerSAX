@@ -25,7 +25,7 @@ export function StepperHeader({ stepDots, eyebrow, title, sub, onClose, closeTit
             border: 'none',
             fontSize: '18px',
             cursor: 'pointer',
-            color: '#6b7280',
+            color: 'var(--color-text-muted)',
             padding: '0 4px',
             lineHeight: 1,
           }}

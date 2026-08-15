@@ -267,8 +267,8 @@ export function CreateTicketStepper({
           steps: STEP_ORDER,
           visibleCount: 5,
           currentStep: step,
-          activeColor: '#F97316',
-          doneColor: '#067647',
+          activeColor: 'var(--color-primary)',
+          doneColor: 'var(--color-success)',
           isStepClickable: (i) => (i === 0 || !!localDraft.customer) && step !== 'done',
           onStepClick: setStep,
         }}
@@ -332,7 +332,7 @@ export function CreateTicketStepper({
                     </div>
                   </div>
                 ) : isOrdersLoading ? (
-                  <div style={{ color: '#6b7280', fontSize: '12.5px' }}>Loading eligible orders...</div>
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: '12.5px' }}>Loading eligible orders...</div>
                 ) : orders.length > 0 ? (
                   orders.map(o => {
                     // /api/orders already returns a pre-formatted totalPrice
@@ -354,7 +354,7 @@ export function CreateTicketStepper({
                     );
                   })
                 ) : (
-                  <div style={{ color: '#9ca3af', fontSize: '12.5px', padding: '4px 0' }}>No recent orders found for this customer.</div>
+                  <div style={{ color: 'var(--color-text-subtle)', fontSize: '12.5px', padding: '4px 0' }}>No recent orders found for this customer.</div>
                 )}
               </>
             )}
@@ -444,13 +444,13 @@ export function CreateTicketStepper({
                           <td className="text">{w.text}</td>
                           <td>{new Date(w.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                           <td>
-                            <span className="rm" style={{ cursor: 'pointer', color: '#98a2b3' }} onClick={() => removeWorklog(idx)}>Remove</span>
+                            <span className="rm" style={{ cursor: 'pointer', color: 'var(--color-text-subtle)' }} onClick={() => removeWorklog(idx)}>Remove</span>
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={3} style={{ textAlign: 'center', color: '#98a2b3', padding: '12px' }}>No worklog entries yet</td>
+                        <td colSpan={3} style={{ textAlign: 'center', color: 'var(--color-text-subtle)', padding: '12px' }}>No worklog entries yet</td>
                       </tr>
                     )}
                   </tbody>
@@ -464,7 +464,7 @@ export function CreateTicketStepper({
           <div className="summary-card">
             <div className="summary-head">
               <b>{localDraft.customer?.name}</b>
-              <span style={{ color: '#475467', fontSize: '12px', marginLeft: '6px' }}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginLeft: '6px' }}>
                 {localDraft.customer?.email}
               </span>
             </div>

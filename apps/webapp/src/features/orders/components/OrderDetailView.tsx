@@ -710,7 +710,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                       Calculate
                     </Button>
                     {loyaltySavedDollars !== null && (
-                      <div className="px-3 py-2 bg-emerald-50 text-emerald-700 font-bold rounded-md border border-emerald-200 text-xs">
+                      <div className="px-3 py-2 bg-m-success-light text-m-success-dark font-bold rounded-md border border-m-success-border text-xs">
                         Amount Saved: ${loyaltySavedDollars.toFixed(2)}
                       </div>
                     )}
@@ -1003,7 +1003,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                   {/* Applied discounts */}
                   {order.appliedDiscounts && order.appliedDiscounts.length > 0 && (
                     <div className="pt-3 border-t border-m-border space-y-1">
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                      <span className="text-[10px] font-bold text-m-success-dark uppercase tracking-wider block">
                         Applied Discounts
                       </span>
                       {order.appliedDiscounts.map((row) => (
@@ -1017,7 +1017,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                   {/* Ineffective discounts */}
                   {order.ineffectiveDiscounts && order.ineffectiveDiscounts.length > 0 && (
                     <div className="pt-3 border-t border-m-border space-y-1">
-                      <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
+                      <span className="text-[10px] font-bold text-m-warning-dark uppercase tracking-wider block">
                         Not Applied
                       </span>
                       {order.ineffectiveDiscounts.map((row) => (

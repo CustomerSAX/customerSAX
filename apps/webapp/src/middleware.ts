@@ -14,6 +14,14 @@ const publicPathPrefixes = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  /* ── DEV BYPASS: skip auth when running locally ───────── */
+  if (process.env.NODE_ENV === "development" && process.env.SKIP_AUTH === "1") {
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    return NextResponse.next();
+  }
+
   if (isPublicPath(pathname) || hasPublicFileExtension(pathname)) {
     return NextResponse.next();
   }

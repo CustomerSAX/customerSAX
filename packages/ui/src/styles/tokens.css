@@ -23,14 +23,20 @@
   --csa-yellow-600: #D48B0F;
   --csa-yellow-700: #AA6E0A;
 
-  /* Blue (primary actions, links, active underlines) */
-  --csa-blue-50:  #EEF3FF;
-  --csa-blue-100: #D9E4FE;
-  --csa-blue-200: #B3C8FD;
-  --csa-blue-400: #4F7AF8;
-  --csa-blue-500: #1B4BEB;
-  --csa-blue-600: #1438C8;
-  --csa-blue-700: #0F2BA5;
+  /* Blue (primary actions, links, active underlines) — light/bright royal blue.
+     Single knob for the whole theme: re-value --csa-blue-500 to shift the app's
+     primary color; the sidebar, buttons, links, focus rings and shadcn --primary
+     all cascade from it. */
+  --csa-blue-50:  #EFF6FF;
+  --csa-blue-100: #DBEAFE;
+  --csa-blue-200: #BFDBFE;
+  --csa-blue-300: #93C5FD;
+  --csa-blue-400: #60A5FA;
+  --csa-blue-500: #2563EB;
+  --csa-blue-600: #1D4ED8;
+  --csa-blue-700: #1E40AF;
+  --csa-blue-800: #1E3A8A;
+  --csa-blue-900: #172554;
 
   /* Neutral grays */
   --csa-white:     #FFFFFF;
@@ -58,7 +64,11 @@
   --csa-amber-50:  #FFFBEB;
   --csa-amber-500: #D97706;
   --csa-info-50:   #EFF8FF;
+  --csa-info-200:  #B2DDFF;
   --csa-info-500:  #0284C7;
+  --csa-green-200: #A7F3D0;
+  --csa-amber-200: #FDE68A;
+  --csa-red-200:   #FECACA;
 
   /* ----------------------------------------------------------
      SEMANTIC TOKENS — What UI components actually use.
@@ -96,18 +106,23 @@
   --color-error-bg:   var(--csa-red-50);
   --color-info:       var(--csa-info-500);
   --color-info-bg:    var(--csa-info-50);
+  --color-success-border: var(--csa-green-200);
+  --color-warning-border: var(--csa-amber-200);
+  --color-error-border:   var(--csa-red-200);
+  --color-info-border:    var(--csa-info-200);
 
   /* ----------------------------------------------------------
-     SIDEBAR TOKENS
+     SIDEBAR TOKENS — BLUE SIDEBAR
      ---------------------------------------------------------- */
-  --sidebar-bg:              var(--csa-navy-900);
-  --sidebar-border:          rgba(255, 255, 255, 0.06);
-  --sidebar-text:            rgba(255, 255, 255, 0.50);
-  --sidebar-text-hover:      rgba(255, 255, 255, 0.88);
+  --sidebar-bg:              var(--csa-blue-500);
+  --sidebar-border:          rgba(255, 255, 255, 0.12);
+  --sidebar-text:            rgba(255, 255, 255, 0.60);
+  --sidebar-text-hover:      rgba(255, 255, 255, 0.92);
   --sidebar-text-active:     var(--csa-navy-950);
   --sidebar-item-active-bg:  var(--csa-yellow-500);
-  --sidebar-item-hover:      rgba(255, 255, 255, 0.06);
-  --sidebar-group-label:     rgba(255, 255, 255, 0.28);
+  --sidebar-item-hover:      rgba(255, 255, 255, 0.10);
+  --sidebar-group-label:     rgba(255, 255, 255, 0.35);
+  --sidebar-overlay:         rgba(255, 255, 255, 0.20);
   --sidebar-width:           240px;
   --sidebar-width-collapsed: 64px;
 
@@ -121,6 +136,7 @@
   --topbar-search-bg:    rgba(255, 255, 255, 0.88);
   --topbar-search-border:rgba(255, 255, 255, 0.35);
   --topbar-icon:         var(--csa-navy-950);
+  --topbar-overlay:      rgba(5, 8, 46, 0.18);
   --topbar-height:       52px;
 
   /* ----------------------------------------------------------
@@ -167,9 +183,9 @@
   --shadow-card:  0 1px 2px rgba(10, 16, 32, 0.05), 0 8px 24px -16px rgba(10, 16, 32, 0.12);
   --shadow-panel: 0 1px 2px rgba(10, 16, 32, 0.04), 0 16px 48px -24px rgba(10, 16, 32, 0.16);
   --shadow-modal: 0 20px 60px -16px rgba(10, 16, 32, 0.24), 0 4px 16px rgba(10, 16, 32, 0.08);
-  --shadow-focus-ring:  0 0 0 3px rgba(27, 75, 235, 0.20);
+  --shadow-focus-ring:  0 0 0 3px rgba(37, 99, 235, 0.22);
   --shadow-focus-brand: 0 0 0 3px rgba(245, 166, 36, 0.35);
-  --shadow-primary:     0 6px 18px -8px rgba(27, 75, 235, 0.55);
+  --shadow-primary:     0 6px 18px -8px rgba(37, 99, 235, 0.55);
   --shadow-brand:       0 6px 18px -8px rgba(245, 166, 36, 0.50);
 
   /* ----------------------------------------------------------
@@ -215,7 +231,7 @@
   --radius-card:            var(--radius-xl);
   --radius-panel:           var(--radius-2xl);
   --topbar-bg:              var(--csa-yellow-500);
-  --sidebar-bg:             var(--csa-navy-900);
+  --sidebar-bg:             var(--csa-blue-500);
   --sidebar-width:          240px;
   --topbar-height:          52px;
 

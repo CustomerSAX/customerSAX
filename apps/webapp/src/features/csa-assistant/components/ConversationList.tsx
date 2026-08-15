@@ -59,11 +59,15 @@ function formatRelativeTime(iso?: string): string {
   } catch { return ""; }
 }
 
+// A 5-way hash palette for customer-initial avatars — needs more distinct hues
+// than the semantic status tokens provide (same reasoning as the CSA Assistant
+// quick-actions row), so two entries without a matching semantic token
+// (pink, violet) intentionally stay as literal Tailwind-style hex.
 const AVATAR_COLORS = [
-  { bg: "#e0e7ff", color: "#3730a3", border: "#c7d2fe" },
-  { bg: "#d1fae5", color: "#065f46", border: "#a7f3d0" },
+  { bg: "var(--color-primary-light)", color: "var(--color-primary)", border: "var(--color-primary-border)" },
+  { bg: "var(--color-success-bg)", color: "var(--color-success)", border: "var(--color-success)" },
   { bg: "#fce7f3", color: "#9d174d", border: "#fbcfe8" },
-  { bg: "#fef3c7", color: "#92400e", border: "#fde68a" },
+  { bg: "var(--color-warning-bg)", color: "var(--color-warning)", border: "var(--color-warning)" },
   { bg: "#ede9fe", color: "#5b21b6", border: "#ddd6fe" },
 ];
 
@@ -77,10 +81,10 @@ const CLOSED_STATUSES = new Set(["closed", "resolved", "done"]);
 
 function getSessionStatus(status?: string) {
   const s = (status ?? "").toLowerCase();
-  if (CLOSED_STATUSES.has(s)) return { label: "Resolved", bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb" };
-  if (s === "new") return { label: "New", bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" };
-  if (s === "in_progress") return { label: "In Progress", bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" };
-  return { label: "Open", bg: "#ecfdf5", color: "#065f46", border: "#a7f3d0" };
+  if (CLOSED_STATUSES.has(s)) return { label: "Resolved", bg: "var(--color-surface-3)", color: "var(--color-text-muted)", border: "var(--color-border)" };
+  if (s === "new") return { label: "New", bg: "var(--color-primary-light)", color: "var(--color-primary)", border: "var(--color-primary-border)" };
+  if (s === "in_progress") return { label: "In Progress", bg: "var(--color-warning-bg)", color: "var(--color-warning)", border: "var(--color-warning)" };
+  return { label: "Open", bg: "var(--color-success-bg)", color: "var(--color-success)", border: "var(--color-success)" };
 }
 
 function groupByCustomer(tickets: RawTicket[]): CustomerRow[] {
@@ -267,13 +271,13 @@ export function ConversationList() {
   const openCount = customers.filter((c) => c.openCount > 0).length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#fff" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-surface-1)" }}>
 
       {/* ── Brand header ── */}
       <div style={{
         padding: "16px",
-        borderBottom: "1px solid #e5e7eb",
-        background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)",
+        borderBottom: "1px solid var(--color-border)",
+        background: "linear-gradient(135deg, var(--csa-blue-500) 0%, var(--csa-blue-700) 100%)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
           <div style={{
@@ -282,15 +286,15 @@ export function ConversationList() {
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-              <path d="M10 1 C10.8 5.5 12.5 7.5 18 10 C12.5 12.5 10.8 14.5 10 19 C9.2 14.5 7.5 12.5 2 10 C7.5 7.5 9.2 5.5 10 1 Z" fill="#ffffff" />
+              <path d="M10 1 C10.8 5.5 12.5 7.5 18 10 C12.5 12.5 10.8 14.5 10 19 C9.2 14.5 7.5 12.5 2 10 C7.5 7.5 9.2 5.5 10 1 Z" fill="var(--color-text-inverse)" />
             </svg>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", lineHeight: 1 }}>CSA Assistant</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-inverse)", lineHeight: 1 }}>CSA Assistant</div>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>AI Copilot for Support</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#34d399" }} title="Online" />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-success)" }} title="Online" />
             <button
               onClick={() => void fetchTickets(filter)}
               title="Refresh"
@@ -315,7 +319,7 @@ export function ConversationList() {
             width: "100%", padding: "8px 12px",
             background: "rgba(255,255,255,0.15)",
             border: "1px solid rgba(255,255,255,0.25)",
-            borderRadius: 8, color: "#fff",
+            borderRadius: 8, color: "var(--color-text-inverse)",
             fontSize: 13, fontWeight: 600,
             cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}
@@ -328,7 +332,7 @@ export function ConversationList() {
       </div>
 
       {/* ── Filter tabs ── */}
-      <div style={{ display: "flex", gap: 2, padding: "8px 12px", borderBottom: "1px solid #e5e7eb", background: "#fafafa" }}>
+      <div style={{ display: "flex", gap: 2, padding: "8px 12px", borderBottom: "1px solid var(--color-border)", background: "var(--color-surface-2)" }}>
         {(["assigned_to_me", "open", "closed"] as FilterTab[]).map((tab) => (
           <button
             key={tab}
@@ -336,8 +340,8 @@ export function ConversationList() {
             style={{
               flex: 1, padding: "5px 4px",
               border: "none", borderRadius: 6,
-              background: filter === tab ? "#4f46e5" : "transparent",
-              color: filter === tab ? "#fff" : "#6b7280",
+              background: filter === tab ? "var(--color-primary)" : "transparent",
+              color: filter === tab ? "var(--color-text-inverse)" : "var(--color-text-muted)",
               fontSize: 11, fontWeight: 600, cursor: "pointer",
               transition: "all 0.15s",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
@@ -373,11 +377,11 @@ export function ConversationList() {
           </div>
         ) : error ? (
           <div style={{ padding: 16, textAlign: "center" }}>
-            <p style={{ fontSize: 12, color: "#ef4444", marginBottom: 8 }}>Failed to load tickets</p>
-            <button onClick={() => void fetchTickets(filter)} style={{ fontSize: 11, color: "#4f46e5", background: "none", border: "none", cursor: "pointer" }}>Retry</button>
+            <p style={{ fontSize: 12, color: "var(--color-error)", marginBottom: 8 }}>Failed to load tickets</p>
+            <button onClick={() => void fetchTickets(filter)} style={{ fontSize: 11, color: "var(--color-primary)", background: "none", border: "none", cursor: "pointer" }}>Retry</button>
           </div>
         ) : customers.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: "40px 16px", color: "#9ca3af" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: "40px 16px", color: "var(--color-text-subtle)" }}>
             <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
                 d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -399,14 +403,14 @@ export function ConversationList() {
                 onClick={() => handleSelectCustomer(row)}
                 style={{
                   padding: "12px 14px",
-                  borderBottom: "1px solid #f3f4f6",
-                  background: isActive ? "#f5f3ff" : "#fff",
+                  borderBottom: "1px solid var(--color-border)",
+                  background: isActive ? "var(--color-primary-light)" : "var(--color-surface-1)",
                   cursor: "pointer",
-                  borderLeft: isActive ? "3px solid #4f46e5" : "3px solid transparent",
+                  borderLeft: isActive ? "3px solid var(--color-primary)" : "3px solid transparent",
                   transition: "background 0.1s",
                 }}
-                onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "#fafafa"; }}
-                onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "#fff"; }}
+                onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "var(--color-surface-2)"; }}
+                onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "var(--color-surface-1)"; }}
               >
                 {/* Name + time */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
@@ -420,10 +424,10 @@ export function ConversationList() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "70%" }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "70%" }}>
                         {displayName}
                       </span>
-                      <span style={{ fontSize: 10, color: "#9ca3af", flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, color: "var(--color-text-subtle)", flexShrink: 0 }}>
                         {formatRelativeTime(row.lastActivity)}
                       </span>
                     </div>
@@ -432,7 +436,7 @@ export function ConversationList() {
 
                 {/* Issue preview */}
                 <div style={{
-                  fontSize: 12, color: "#6b7280", lineHeight: 1.4,
+                  fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.4,
                   overflow: "hidden", display: "-webkit-box",
                   WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
                   marginBottom: 6,
@@ -446,8 +450,8 @@ export function ConversationList() {
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   {row.openCount > 1 ? (
                     <span style={{
-                      fontSize: 10, fontWeight: 600, color: "#4f46e5",
-                      backgroundColor: "#eef2ff", border: "1px solid #e0e7ff",
+                      fontSize: 10, fontWeight: 600, color: "var(--color-primary)",
+                      backgroundColor: "var(--color-primary-light)", border: "1px solid var(--color-primary-border)",
                       padding: "1px 7px", borderRadius: "9999px",
                     }}>
                       {row.openCount} open tickets
@@ -473,17 +477,17 @@ export function ConversationList() {
                         onClick={(e) => { e.stopPropagation(); handleSelectCustomer(row, t); }}
                         style={{
                           padding: "6px 8px",
-                          backgroundColor: activeTicketId === t.id ? "#e0e7ff" : "#f9fafb",
-                          border: `1px solid ${activeTicketId === t.id ? "#c7d2fe" : "#e5e7eb"}`,
+                          backgroundColor: activeTicketId === t.id ? "var(--color-primary-light)" : "var(--color-surface-2)",
+                          border: `1px solid ${activeTicketId === t.id ? "var(--color-primary-border)" : "var(--color-border)"}`,
                           borderRadius: 4, fontSize: 11,
-                          color: activeTicketId === t.id ? "#3730a3" : "#374151",
+                          color: activeTicketId === t.id ? "var(--color-primary)" : "var(--color-ink-soft)",
                           cursor: "pointer", display: "flex", flexDirection: "column", gap: 2,
                         }}
                       >
                         <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {t.subject ?? `Ticket #${t.ticketNumber ?? t.id.slice(-6)}`}
                         </div>
-                        <div style={{ fontSize: 9, color: activeTicketId === t.id ? "#4f46e5" : "#6b7280", textTransform: "uppercase", fontWeight: 600 }}>
+                        <div style={{ fontSize: 9, color: activeTicketId === t.id ? "var(--color-primary)" : "var(--color-text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
                           {t.status ?? "Open"}
                         </div>
                       </div>

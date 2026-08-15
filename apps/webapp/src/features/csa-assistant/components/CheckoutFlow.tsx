@@ -11,8 +11,8 @@ import { useConversationStore } from '../store/conversation-store';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const BLUE = '#2563EB';
-const BORDER = '#e8eaf0';
+const BLUE = 'var(--color-primary)';
+const BORDER = 'var(--color-border)';
 
 const COUNTRY_NAMES: Record<string, string> = {
   US: 'United States', GB: 'United Kingdom', IN: 'India', DE: 'Germany', FR: 'France',
@@ -23,7 +23,7 @@ function countryLabel(code: string): string {
   return COUNTRY_NAMES[code] ? `${COUNTRY_NAMES[code]} (${code})` : code;
 }
 
-function Spinner({ color = '#fff' }: { color?: string }) {
+function Spinner({ color = 'var(--color-text-inverse)' }: { color?: string }) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
       style={{ animation: 'spin-co 0.75s linear infinite', display: 'inline-block', verticalAlign: 'middle' }}>
@@ -40,30 +40,30 @@ function StepBadge({ n, label, active, done }: { n: number; label: string; activ
       <span style={{
         width: 18, height: 18, borderRadius: '50%', fontSize: 10, fontWeight: 700,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backgroundColor: done ? '#16a34a' : active ? BLUE : '#d1d5db', color: '#fff',
+        backgroundColor: done ? 'var(--color-success)' : active ? BLUE : 'var(--color-border-strong)', color: 'var(--color-text-inverse)',
       }}>{done ? '✓' : n}</span>
-      <span style={{ fontSize: 11, fontWeight: 600, color: active ? '#010128' : '#6b7280' }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: active ? 'var(--color-ink)' : 'var(--color-text-muted)' }}>{label}</span>
     </div>
   );
 }
 
 const primaryBtn = (disabled?: boolean): React.CSSProperties => ({
   padding: '9px 18px', borderRadius: 8, border: 'none',
-  backgroundColor: disabled ? '#d1d5db' : BLUE,
-  color: '#fff', fontSize: 13, fontWeight: 700,
+  backgroundColor: disabled ? 'var(--color-border-strong)' : BLUE,
+  color: 'var(--color-text-inverse)', fontSize: 13, fontWeight: 700,
   cursor: disabled ? 'not-allowed' : 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
 });
 const ghostBtn: React.CSSProperties = {
   padding: '9px 16px', borderRadius: 8, border: `1px solid ${BORDER}`,
-  backgroundColor: 'transparent', color: '#4b5563', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+  backgroundColor: 'transparent', color: 'var(--color-text-muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
 };
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 10px', border: `1px solid ${BORDER}`, borderRadius: 6,
-  fontSize: 13, color: '#010128', boxSizing: 'border-box', outline: 'none',
+  fontSize: 13, color: 'var(--color-ink)', boxSizing: 'border-box', outline: 'none',
 };
 const labelStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase',
+  fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase',
   letterSpacing: '0.04em', marginBottom: 3, display: 'block',
 };
 
@@ -98,8 +98,8 @@ function manualSummary(m: ManualAddress): string {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-      <span style={{ color: '#6b7280' }}>{label}</span>
-      <span style={{ color: '#010128', fontWeight: 600, textAlign: 'right' }}>{value}</span>
+      <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+      <span style={{ color: 'var(--color-ink)', fontWeight: 600, textAlign: 'right' }}>{value}</span>
     </div>
   );
 }
@@ -165,18 +165,18 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
   return (
     <div style={{
       margin: '10px 16px 16px', border: `1px solid ${BORDER}`, borderRadius: 12,
-      overflow: 'hidden', backgroundColor: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', maxWidth: 560,
+      overflow: 'hidden', backgroundColor: 'var(--color-surface-1)', boxShadow: 'var(--shadow-md)', maxWidth: 560,
     }}>
       {/* Header */}
       <div style={{ backgroundColor: BLUE, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-inverse)' }}>
           {co.step === 'done' ? '✓ Order placed' : '⚡ Checkout'}
         </span>
         {co.step !== 'done' && (
           <button
             onClick={() => co.reset()}
             title="Cancel checkout"
-            style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.35)', background: 'transparent', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}
+            style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.35)', background: 'transparent', color: 'var(--color-text-inverse)', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}
           >×</button>
         )}
       </div>
@@ -195,26 +195,26 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
         {co.error && (
           <div style={{
             marginBottom: 12, fontSize: 12, fontWeight: 600, padding: '8px 10px', borderRadius: 6,
-            backgroundColor: '#fef2f2', color: '#991b1b',
+            backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error)',
           }}>⚠ {co.error}</div>
         )}
 
         {/* ── STEP 1: Customer ── */}
         {co.step === 'customer' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#010128' }}>Who is this order for?</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-ink)' }}>Who is this order for?</div>
 
             {identified && (
               <label style={{
                 display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
                 border: `${customerMode === 'identified' ? 2 : 1}px solid ${customerMode === 'identified' ? BLUE : BORDER}`,
-                cursor: 'pointer', backgroundColor: customerMode === 'identified' ? '#EFF6FF' : '#fff',
+                cursor: 'pointer', backgroundColor: customerMode === 'identified' ? 'var(--color-primary-light)' : 'var(--color-surface-1)',
               }}>
                 <input type="radio" checked={customerMode === 'identified'} onChange={() => setCustomerMode('identified')} style={{ marginTop: 2 }} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#010128' }}>{identified.name ?? 'Identified customer'}</div>
-                  {identified.email && <div style={{ fontSize: 12, color: '#6b7280' }}>{identified.email}</div>}
-                  {identified.id && <div style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace', marginTop: 2 }}>{identified.id.slice(0, 8)}…</div>}
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' }}>{identified.name ?? 'Identified customer'}</div>
+                  {identified.email && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{identified.email}</div>}
+                  {identified.id && <div style={{ fontSize: 10, color: 'var(--color-text-subtle)', fontFamily: 'monospace', marginTop: 2 }}>{identified.id.slice(0, 8)}…</div>}
                 </div>
               </label>
             )}
@@ -222,11 +222,11 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
             <label style={{
               display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
               border: `${customerMode === 'manual' ? 2 : 1}px solid ${customerMode === 'manual' ? BLUE : BORDER}`,
-              cursor: 'pointer', backgroundColor: customerMode === 'manual' ? '#EFF6FF' : '#fff',
+              cursor: 'pointer', backgroundColor: customerMode === 'manual' ? 'var(--color-primary-light)' : 'var(--color-surface-1)',
             }}>
               <input type="radio" checked={customerMode === 'manual'} onChange={() => setCustomerMode('manual')} style={{ marginTop: 2 }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#010128', marginBottom: customerMode === 'manual' ? 8 : 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)', marginBottom: customerMode === 'manual' ? 8 : 0 }}>
                   {identified ? 'Someone else' : 'Find customer'}
                 </div>
                 {customerMode === 'manual' && (
@@ -238,7 +238,7 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
                       placeholder="e.g. John Doe or john@example.com"
                       onChange={(e) => setManualInput(e.target.value)}
                     />
-                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
                       I&apos;ll check if this customer exists and use their saved details.
                     </div>
                   </div>
@@ -268,7 +268,7 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
         {/* ── STEP 2: Address ── */}
         {co.step === 'address' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#010128' }}>Shipping address</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-ink)' }}>Shipping address</div>
 
             {!showManualAddress && co.addresses.length > 0 && (
               <>
@@ -277,11 +277,11 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
                     padding: '10px 12px', borderRadius: 8, border: `1px solid ${BORDER}`,
                   }}>
-                    <div style={{ fontSize: 12.5, color: '#010128' }}>
+                    <div style={{ fontSize: 12.5, color: 'var(--color-ink)' }}>
                       {(addr.firstName || addr.lastName) && (
                         <div style={{ fontWeight: 600 }}>{[addr.firstName, addr.lastName].filter(Boolean).join(' ')}</div>
                       )}
-                      <div style={{ color: '#6b7280' }}>{addressSummary(addr)}</div>
+                      <div style={{ color: 'var(--color-text-muted)' }}>{addressSummary(addr)}</div>
                     </div>
                     <button style={primaryBtn(co.busy)} disabled={co.busy} onClick={() => void co.useSavedAddress(addr)}>
                       {co.busy ? <Spinner /> : 'Use'}
@@ -297,7 +297,7 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
             {(showManualAddress || co.addresses.length === 0) && (
               <>
                 {co.addresses.length === 0 && (
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>No saved addresses — please enter one.</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>No saved addresses — please enter one.</div>
                 )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div><label style={labelStyle}>First name</label><input style={inputStyle} value={manualAddr.firstName} onChange={(e) => setManualAddr({ ...manualAddr, firstName: e.target.value })} /></div>
@@ -338,11 +338,11 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
         {/* ── STEP 3: Shipping ── */}
         {co.step === 'shipping' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#010128' }}>Shipping method</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-ink)' }}>Shipping method</div>
 
             {co.shippingMethods.length === 0 ? (
               <>
-                <div style={{ fontSize: 12.5, color: '#6b7280' }}>No shipping methods are configured. You can continue without one.</div>
+                <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>No shipping methods are configured. You can continue without one.</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                   <button style={ghostBtn} onClick={() => co.goTo('address')} disabled={co.busy}>Back</button>
                   <button style={primaryBtn(co.busy)} disabled={co.busy} onClick={() => void co.skipShipping()}>
@@ -356,10 +356,10 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
                   <label key={m.id} style={{
                     display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', borderRadius: 8,
                     border: `${selectedShip === m.id ? 2 : 1}px solid ${selectedShip === m.id ? BLUE : BORDER}`,
-                    cursor: 'pointer', backgroundColor: selectedShip === m.id ? '#EFF6FF' : '#fff',
+                    cursor: 'pointer', backgroundColor: selectedShip === m.id ? 'var(--color-primary-light)' : 'var(--color-surface-1)',
                   }}>
                     <input type="radio" checked={selectedShip === m.id} onChange={() => setSelectedShip(m.id)} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#010128' }}>{m.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' }}>{m.name}</span>
                   </label>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
@@ -377,7 +377,7 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
         {/* ── STEP 4: Review ── */}
         {co.step === 'review' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#010128' }}>Review &amp; place order</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-ink)' }}>Review &amp; place order</div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12.5 }}>
               <Row label="Customer" value={co.customer?.name ?? co.customer?.email ?? '—'} />
@@ -385,23 +385,23 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
               <Row label="Shipping" value={co.chosenShippingMethodName ?? 'Not specified'} />
               <Row label="Items" value={String(co.itemCount)} />
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#010128' }}>Total</span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: '#010128' }}>{co.totalLabel ?? '—'}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-ink)' }}>Total</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-ink)' }}>{co.totalLabel ?? '—'}</span>
               </div>
             </div>
 
             <label style={{
               display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', borderRadius: 8,
-              backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', cursor: 'pointer',
+              backgroundColor: 'var(--color-success-bg)', border: '1px solid var(--color-success-border)', cursor: 'pointer',
             }}>
               <input type="checkbox" checked={co.markPaid} onChange={(e) => co.setMarkPaid(e.target.checked)} />
-              <span style={{ fontSize: 12.5, fontWeight: 600, color: '#166534' }}>Mark as paid — payment collected offline</span>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--color-success)' }}>Mark as paid — payment collected offline</span>
             </label>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <button style={ghostBtn} onClick={() => co.goTo('shipping')} disabled={co.busy}>Back</button>
               <button
-                style={{ ...primaryBtn(co.busy), backgroundColor: co.busy ? '#d1d5db' : '#16a34a' }}
+                style={{ ...primaryBtn(co.busy), backgroundColor: co.busy ? 'var(--color-border-strong)' : 'var(--color-success)' }}
                 disabled={co.busy}
                 onClick={() => void co.placeOrder()}
               >
@@ -415,26 +415,26 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
         {co.step === 'done' && co.order && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: '6px 0' }}>
             <div style={{
-              width: 46, height: 46, borderRadius: '50%', backgroundColor: '#f0fdf4',
+              width: 46, height: 46, borderRadius: '50%', backgroundColor: 'var(--color-success-bg)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#010128' }}>Order placed successfully</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-ink)' }}>Order placed successfully</div>
             {co.order.orderNumber && (
-              <div style={{ fontSize: 13, color: '#010128' }}>
+              <div style={{ fontSize: 13, color: 'var(--color-ink)' }}>
                 Order <strong>{co.order.orderNumber}</strong>
               </div>
             )}
-            <div style={{ display: 'flex', gap: 16, fontSize: 12.5, color: '#6b7280' }}>
+            <div style={{ display: 'flex', gap: 16, fontSize: 12.5, color: 'var(--color-text-muted)' }}>
               {co.order.total && (
-                <span>Total: <strong style={{ color: '#010128' }}>{co.order.total}</strong></span>
+                <span>Total: <strong style={{ color: 'var(--color-ink)' }}>{co.order.total}</strong></span>
               )}
               <span>
                 Payment:{' '}
-                <strong style={{ color: co.order.paid ? '#166534' : '#92400e' }}>
+                <strong style={{ color: co.order.paid ? 'var(--color-success)' : 'var(--color-warning)' }}>
                   {co.order.paid ? 'Paid' : 'Pending'}
                 </strong>
               </span>

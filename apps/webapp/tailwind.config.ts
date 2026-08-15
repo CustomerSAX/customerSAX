@@ -1,5 +1,5 @@
 import type { Config } from "tailwindcss";
-import { csaTailwindPreset } from "./src/ui/preset";
+import { csaTailwindPreset } from "@csa/ui/preset";
 
 const config: Config = {
   presets: [csaTailwindPreset as any],
@@ -7,9 +7,7 @@ const config: Config = {
   content: [
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  plugins: [
-    require("tailwindcss-animate"),
-  ],
+  plugins: [],
 };
 
 export default config;

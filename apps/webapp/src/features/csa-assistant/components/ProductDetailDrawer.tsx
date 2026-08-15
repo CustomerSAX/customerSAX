@@ -10,7 +10,7 @@ import { mapRawToDetail } from '../../products/utils/product-utils';
 
 // ─── Spinner ──────────────────────────────────────────────────────────────────
 
-function Spinner({ color = '#fff' }: { color?: string }) {
+function Spinner({ color = 'var(--color-text-inverse)' }: { color?: string }) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
       style={{ animation: 'spin-pd 0.75s linear infinite', display: 'inline-block', verticalAlign: 'middle' }}>
@@ -246,8 +246,11 @@ export function ProductDetailDrawer({
   const stockIsOut = activeStock.toLowerCase().includes('out') || activeStock === '0';
   const stockIsLow = activeStock.toLowerCase().includes('low');
   const inStock = !stockIsOut;
+  // NOTE: stockColor stays literal hex (not a var()) because it's concatenated
+  // with a hex alpha suffix below (`${stockColor}40`) for the badge border —
+  // CSS custom properties can't have a hex alpha suffix appended to them.
   const stockColor = stockIsOut ? '#c0392b' : stockIsLow ? '#d97706' : '#16a34a';
-  const stockBg = stockIsOut ? '#fef2f2' : stockIsLow ? '#fffbeb' : '#f0fdf4';
+  const stockBg = stockIsOut ? 'var(--color-error-bg)' : stockIsLow ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
   const stockLabel = stockIsOut ? 'Out of Stock' : stockIsLow ? 'Low Stock' : 'In Stock';
 
   const drawerUi = (
@@ -264,25 +267,25 @@ export function ProductDetailDrawer({
       {/* Drawer */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 600, maxWidth: '95vw',
-        backgroundColor: '#fff', zIndex: 1001, display: 'flex', flexDirection: 'column',
+        backgroundColor: 'var(--color-surface-1)', zIndex: 1001, display: 'flex', flexDirection: 'column',
         boxShadow: '-4px 0 40px rgba(0,0,0,0.14)',
         transform: visible ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.24s cubic-bezier(0.4,0,0.2,1)', overflow: 'hidden',
       }}>
         {/* Blue header */}
-        <div style={{ backgroundColor: '#2563EB', padding: '14px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid hsl(232, 18%, 92%)' }}>
+        <div style={{ backgroundColor: 'var(--color-primary)', padding: '14px 20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <svg width="16" height="16" viewBox="0 0 20 20">
               <path d="M10 1 C10.8 5.5 12.5 7.5 18 10 C12.5 12.5 10.8 14.5 10 19 C9.2 14.5 7.5 12.5 2 10 C7.5 7.5 9.2 5.5 10 1 Z" fill="white" />
               <circle cx="17" cy="3" r="1.2" fill="white" />
             </svg>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#fff', letterSpacing: '0.02em' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-inverse)', letterSpacing: '0.02em' }}>
               Product Details
             </span>
           </div>
           <button
             onClick={handleClose}
-            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.3)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}
+            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.3)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-inverse)' }}
             title="Close (Esc)"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -304,8 +307,8 @@ export function ProductDetailDrawer({
                     onClick={() => setSelectedImage(img)}
                     style={{
                       width: 56, height: 56, borderRadius: 8, overflow: 'hidden', padding: 0, cursor: 'pointer',
-                      border: (selectedImage ?? uniqueImages[0]) === img ? '2px solid #2563EB' : '1px solid hsl(232, 18%, 88%)',
-                      backgroundColor: 'hsl(232, 18%, 97%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      border: (selectedImage ?? uniqueImages[0]) === img ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      backgroundColor: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                     }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -316,12 +319,12 @@ export function ProductDetailDrawer({
             )}
             
             {/* Main hero */}
-            <div style={{ flex: 1, height: 280, backgroundColor: 'hsl(232, 18%, 97%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid hsl(232, 18%, 92%)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ flex: 1, height: 280, backgroundColor: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
               {heroImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={heroImage} alt={displayProduct.name} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', padding: 16 }} />
               ) : (
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="hsl(232,18%,78%)" strokeWidth="1.2">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-subtle)" strokeWidth="1.2">
                   <rect x="3" y="3" width="18" height="18" rx="2" />
                   <circle cx="8.5" cy="8.5" r="1.5" />
                   <polyline points="21 15 16 10 5 21" />
@@ -333,17 +336,17 @@ export function ProductDetailDrawer({
           {/* Details */}
           <div style={{ padding: '20px 24px' }}>
             {displayProduct.category && (
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#2563EB', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-primary)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
                 {displayProduct.category}
               </div>
             )}
-            <h2 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700, color: '#010128', lineHeight: 1.35 }}>
+            <h2 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700, color: 'var(--color-ink)', lineHeight: 1.35 }}>
               {displayProduct.name}
             </h2>
 
             {/* Price + Stock */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 24, fontWeight: 700, color: '#047857' }}>{activePrice}</span>
+              <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-success)' }}>{activePrice}</span>
               <span style={{
                 fontSize: 12, fontWeight: 600, padding: '4px 12px', borderRadius: 20,
                 backgroundColor: stockBg, color: stockColor,
@@ -358,8 +361,8 @@ export function ProductDetailDrawer({
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
                 <span style={{
                   fontSize: 11, padding: '3px 10px', borderRadius: 20,
-                  backgroundColor: 'hsl(232, 18%, 95%)', color: 'hsl(232, 18%, 38%)',
-                  border: '1px solid hsl(232, 18%, 87%)',
+                  backgroundColor: 'var(--color-surface-3)', color: 'var(--color-text-muted)',
+                  border: '1px solid var(--color-border)',
                 }}>
                   {displayProduct.category}
                 </span>
@@ -369,12 +372,12 @@ export function ProductDetailDrawer({
             {/* Description */}
             {displayProduct.description && (
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(232, 18%, 45%)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>Description</div>
-                <p style={{ fontSize: 13.5, color: '#030345', lineHeight: 1.7, margin: 0 }}>{displayProduct.description}</p>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>Description</div>
+                <p style={{ fontSize: 13.5, color: 'var(--color-ink)', lineHeight: 1.7, margin: 0 }}>{displayProduct.description}</p>
               </div>
             )}
 
-            <div style={{ borderTop: '1px solid hsl(232, 18%, 92%)', margin: '4px 0 16px' }} />
+            <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0 16px' }} />
 
             {/* Meta grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 20px', marginBottom: 20 }}>
@@ -389,7 +392,7 @@ export function ProductDetailDrawer({
             {/* Variants List */}
             {displayProduct.variants && displayProduct.variants.length > 0 && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'hsl(232, 18%, 45%)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 10 }}>
                   {displayProduct.variants.length > 1 ? `All Variants (${displayProduct.variants.length}) — select one` : 'Variant'}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -404,29 +407,29 @@ export function ProductDetailDrawer({
                         style={{
                           display: 'flex', alignItems: 'center', gap: 10,
                           padding: '8px 12px', borderRadius: 8,
-                          backgroundColor: isSelected ? '#FFF7ED' : 'hsl(232, 18%, 98%)',
-                          border: `${isSelected ? '2px' : '1px'} solid ${isSelected ? '#E8781F' : 'hsl(232, 18%, 90%)'}`,
+                          backgroundColor: isSelected ? 'var(--color-primary-light)' : 'var(--color-surface-2)',
+                          border: `${isSelected ? '2px' : '1px'} solid ${isSelected ? 'var(--color-primary)' : 'var(--color-border)'}`,
                           cursor: 'pointer', textAlign: 'left', width: '100%',
                           opacity: vStockOut ? 0.55 : 1,
                         }}
                       >
                         {vImage && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={vImage} alt="" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 4, flexShrink: 0, backgroundColor: '#fff', padding: 2, border: '1px solid #eee' }}
+                          <img src={vImage} alt="" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 4, flexShrink: 0, backgroundColor: 'var(--color-surface-1)', padding: 2, border: '1px solid var(--color-border)' }}
                             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#010128', fontFamily: 'monospace' }}>{v.sku}</div>
-                          <div style={{ fontSize: 10, color: 'hsl(232, 18%, 52%)' }}>{v.sku}</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-ink)', fontFamily: 'monospace' }}>{v.sku}</div>
+                          <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{v.sku}</div>
                         </div>
                         {v.price && (
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#047857', flexShrink: 0 }}>{v.price}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-success)', flexShrink: 0 }}>{v.price}</div>
                         )}
-                        <div style={{ fontSize: 10, fontWeight: 600, color: vStockOut ? 'hsl(0, 70%, 40%)' : 'hsl(142, 60%, 28%)', flexShrink: 0 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: vStockOut ? 'var(--color-error)' : 'var(--color-success)', flexShrink: 0 }}>
                           {vStockOut ? 'Out of Stock' : 'In Stock'}
                         </div>
                         {isSelected && (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E8781F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
                         )}
@@ -442,7 +445,7 @@ export function ProductDetailDrawer({
         {/* Footer Bar matching standalone 100% */}
         <div style={{
           padding: '12px 20px',
-          borderTop: '1px solid hsl(232, 18%, 92%)',
+          borderTop: '1px solid var(--color-border)',
           flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
@@ -452,14 +455,14 @@ export function ProductDetailDrawer({
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
               fontSize: 12, fontWeight: 600, padding: '7px 10px', borderRadius: 8,
-              backgroundColor: feedback.type === 'success' ? 'hsl(142, 60%, 95%)' : 'hsl(0, 70%, 96%)',
-              color: feedback.type === 'success' ? 'hsl(142, 60%, 26%)' : 'hsl(0, 70%, 42%)',
+              backgroundColor: feedback.type === 'success' ? 'var(--color-success-bg)' : 'var(--color-error-bg)',
+              color: feedback.type === 'success' ? 'var(--color-success)' : 'var(--color-error)',
             }}>
               <span>{feedback.type === 'success' ? '✓' : '⚠'} {feedback.message}</span>
               {feedback.type === 'success' && (
                 <button
                   onClick={handleViewCart}
-                  style={{ border: 'none', background: 'none', color: '#E8781F', fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', flexShrink: 0 }}
+                  style={{ border: 'none', background: 'none', color: 'var(--color-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', flexShrink: 0 }}
                 >
                   View Cart
                 </button>
@@ -474,7 +477,7 @@ export function ProductDetailDrawer({
                 disabled={busy === 'add'}
                 style={{
                   flex: 1, padding: '10px 0', borderRadius: 8, border: 'none',
-                  backgroundColor: '#E8781F', color: '#ffffff', fontSize: 13, fontWeight: 700,
+                  backgroundColor: 'var(--color-primary)', color: 'var(--color-text-inverse)', fontSize: 13, fontWeight: 700,
                   cursor: busy === 'add' ? 'wait' : 'pointer', opacity: busy === 'add' ? 0.75 : 1,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}
@@ -498,7 +501,7 @@ export function ProductDetailDrawer({
                 disabled
                 style={{
                   flex: 1, padding: '10px 0', borderRadius: 8, border: 'none',
-                  backgroundColor: 'hsl(232, 18%, 80%)', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'not-allowed',
+                  backgroundColor: 'var(--color-border-strong)', color: 'var(--color-text-inverse)', fontSize: 13, fontWeight: 700, cursor: 'not-allowed',
                 }}
               >
                 Out of Stock
@@ -509,30 +512,30 @@ export function ProductDetailDrawer({
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 10,
-                  border: '1px solid hsl(232, 18%, 85%)', borderRadius: 8, padding: '4px 10px',
+                  border: '1px solid var(--color-border)', borderRadius: 8, padding: '4px 10px',
                 }}>
                   <button
                     onClick={handleDecrease}
                     disabled={!!busy}
-                    style={{ border: 'none', background: 'transparent', fontSize: '16px', fontWeight: 700, cursor: busy ? 'wait' : 'pointer', color: '#E8781F', padding: '0 4px', opacity: busy === 'decrease' ? 0.5 : 1 }}
+                    style={{ border: 'none', background: 'transparent', fontSize: '16px', fontWeight: 700, cursor: busy ? 'wait' : 'pointer', color: 'var(--color-primary)', padding: '0 4px', opacity: busy === 'decrease' ? 0.5 : 1 }}
                   >
-                    {busy === 'decrease' ? <Spinner color="#E8781F" /> : '−'}
+                    {busy === 'decrease' ? <Spinner color="var(--color-primary)" /> : '−'}
                   </button>
                   <span style={{ fontSize: '13px', fontWeight: 700, minWidth: '16px', textAlign: 'center' }}>{cartQuantity}</span>
                   <button
                     onClick={handleIncrease}
                     disabled={!!busy}
-                    style={{ border: 'none', background: 'transparent', fontSize: '16px', fontWeight: 700, cursor: busy ? 'wait' : 'pointer', color: '#E8781F', padding: '0 4px', opacity: busy === 'increase' ? 0.5 : 1 }}
+                    style={{ border: 'none', background: 'transparent', fontSize: '16px', fontWeight: 700, cursor: busy ? 'wait' : 'pointer', color: 'var(--color-primary)', padding: '0 4px', opacity: busy === 'increase' ? 0.5 : 1 }}
                   >
-                    {busy === 'increase' ? <Spinner color="#E8781F" /> : '+'}
+                    {busy === 'increase' ? <Spinner color="var(--color-primary)" /> : '+'}
                   </button>
                 </div>
                 <button
                   onClick={handleRemove}
                   disabled={!!busy}
                   style={{
-                    padding: '10px 14px', borderRadius: 8, border: '1px solid hsl(0, 70%, 85%)',
-                    backgroundColor: 'transparent', color: 'hsl(0, 70%, 45%)', fontSize: 13, fontWeight: 600,
+                    padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-error-border)',
+                    backgroundColor: 'transparent', color: 'var(--color-error)', fontSize: 13, fontWeight: 600,
                     cursor: busy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                     opacity: busy === 'remove' ? 0.6 : 1,
                   }}
@@ -546,8 +549,8 @@ export function ProductDetailDrawer({
               <button
                 onClick={handleViewCart}
                 style={{
-                  padding: '10px 16px', borderRadius: 8, border: '1px solid #ffedd5',
-                  backgroundColor: '#FFF7ED', color: '#E8781F', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  padding: '10px 16px', borderRadius: 8, border: '1px solid var(--color-primary-border)',
+                  backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 }}
               >
                 View Cart
@@ -559,9 +562,9 @@ export function ProductDetailDrawer({
               style={{
                 padding: '10px 18px',
                 borderRadius: 8,
-                border: '1px solid hsl(232, 18%, 85%)',
+                border: '1px solid var(--color-border)',
                 backgroundColor: 'transparent',
-                color: 'hsl(232, 18%, 40%)',
+                color: 'var(--color-text-muted)',
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -583,10 +586,10 @@ export function ProductDetailDrawer({
 function MetaRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, color: 'hsl(232, 18%, 52%)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
         {label}
       </div>
-      <div style={{ fontSize: 13, color: '#010128', fontFamily: mono ? 'monospace' : undefined, wordBreak: 'break-all' }}>
+      <div style={{ fontSize: 13, color: 'var(--color-ink)', fontFamily: mono ? 'monospace' : undefined, wordBreak: 'break-all' }}>
         {value}
       </div>
     </div>

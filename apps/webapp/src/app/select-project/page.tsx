@@ -36,31 +36,31 @@ function SelectProjectContent() {
     }
   }
 
-  if (loading) return <main className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Loading your projects…</main>;
-  if (!user) return <main className="flex min-h-screen items-center justify-center bg-slate-50"><a href="/login" className="font-semibold text-blue-600">Return to sign in</a></main>;
+  if (loading) return <main className="flex min-h-screen items-center justify-center bg-m-surface-bg text-sm text-m-text-muted">Loading your projects…</main>;
+  if (!user) return <main className="flex min-h-screen items-center justify-center bg-m-surface-bg"><a href="/login" className="font-semibold text-m-primary">Return to sign in</a></main>;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-16">
+    <main className="min-h-screen bg-m-surface-bg px-6 py-16">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 text-center">
-          <div className="text-sm font-bold uppercase tracking-[0.2em] text-blue-600">CSA Workspace</div>
-          <h1 className="mt-3 text-3xl font-extrabold text-slate-950">Select a project</h1>
-          <p className="mt-2 text-slate-500">Choose the commerce project you want to work in. You can switch again from the top bar.</p>
+          <div className="text-sm font-bold uppercase tracking-[0.2em] text-m-primary">CSA Workspace</div>
+          <h1 className="mt-3 text-3xl font-extrabold text-m-text">Select a project</h1>
+          <p className="mt-2 text-m-text-muted">Choose the commerce project you want to work in. You can switch again from the top bar.</p>
         </div>
-        {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+        {error && <div className="mb-5 rounded-xl border border-m-error-border bg-m-error-light px-4 py-3 text-sm font-semibold text-m-error-dark">{error}</div>}
         {user.projects.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-            <h2 className="font-bold text-slate-900">No project access</h2>
-            <p className="mt-2 text-sm text-slate-500">Ask an administrator to assign at least one project to your account.</p>
+          <div className="rounded-2xl border border-m-border bg-m-surface-1 p-10 text-center shadow-m-sm">
+            <h2 className="font-bold text-m-text">No project access</h2>
+            <p className="mt-2 text-sm text-m-text-muted">Ask an administrator to assign at least one project to your account.</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {user.projects.map((project) => (
-              <button key={`${project.clientId ?? "legacy"}:${project.projectKey}`} type="button" onClick={() => void selectProject(project.projectKey, project.clientId)} disabled={Boolean(submitting)} className="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md disabled:opacity-60">
-                <div className="text-lg font-extrabold text-slate-950">{project.displayName || project.projectKey}</div>
-                <div className="mt-1 font-mono text-xs text-slate-500">{project.projectKey}</div>
-                <div className="mt-5 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{project.role}</div>
-                {submitting === project.projectKey && <div className="mt-3 text-xs font-semibold text-blue-600">Opening workspace…</div>}
+              <button key={`${project.clientId ?? "legacy"}:${project.projectKey}`} type="button" onClick={() => void selectProject(project.projectKey, project.clientId)} disabled={Boolean(submitting)} className="rounded-2xl border border-m-border bg-m-surface-1 p-6 text-left shadow-m-sm transition hover:-translate-y-0.5 hover:border-m-primary hover:shadow-m-md disabled:opacity-60">
+                <div className="text-lg font-extrabold text-m-text">{project.displayName || project.projectKey}</div>
+                <div className="mt-1 font-mono text-xs text-m-text-muted">{project.projectKey}</div>
+                <div className="mt-5 inline-flex rounded-full bg-m-primary-50 px-3 py-1 text-xs font-bold text-m-primary-700">{project.role}</div>
+                {submitting === project.projectKey && <div className="mt-3 text-xs font-semibold text-m-primary">Opening workspace…</div>}
               </button>
             ))}
           </div>
@@ -72,7 +72,7 @@ function SelectProjectContent() {
 
 export default function SelectProjectPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-slate-50" />}>
+    <Suspense fallback={<main className="min-h-screen bg-m-surface-bg" />}>
       <SelectProjectContent />
     </Suspense>
   );

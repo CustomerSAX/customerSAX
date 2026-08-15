@@ -14,11 +14,11 @@ import { ChatHistory } from "./ChatHistory";
 function ConfidenceGauge({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, value));
   const r = 26, c = 2 * Math.PI * r;
-  const color = pct >= 70 ? "#059669" : pct >= 40 ? "#d97706" : "#dc2626";
+  const color = pct >= 70 ? "var(--color-success)" : pct >= 40 ? "var(--color-warning)" : "var(--color-error)";
   return (
     <div style={{ position: "relative", width: 64, height: 64, flexShrink: 0 }}>
       <svg className="csa-gauge" width="64" height="64" viewBox="0 0 64 64">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="#eef2ff" strokeWidth="6" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-primary-light)" strokeWidth="6" />
         <circle
           className="csa-gauge-fill"
           cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="6"
@@ -66,17 +66,17 @@ function useCountUp(target: number, duration = 750): number {
 
 const SENTIMENT_COLORS: Record<string, { color: string; bg: string; border: string }> = {
   // Lowercase keys match the Zod schema values emitted by update_ui_state
-  positive:  { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-  neutral:   { color: "#6b7280", bg: "#f9fafb", border: "#e5e7eb" },
-  concerned: { color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-  frustrated:{ color: "#b91c1c", bg: "#fff1f2", border: "#fecdd3" },
-  resolved:  { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+  positive:  { color: "var(--color-success)", bg: "var(--color-success-bg)", border: "var(--color-success)" },
+  neutral:   { color: "var(--color-text-muted)", bg: "var(--color-surface-2)", border: "var(--color-border)" },
+  concerned: { color: "var(--color-warning)", bg: "var(--color-warning-bg)", border: "var(--color-warning)" },
+  frustrated:{ color: "var(--color-error)", bg: "var(--color-error-bg)", border: "var(--color-error)" },
+  resolved:  { color: "var(--color-success)", bg: "var(--color-success-bg)", border: "var(--color-success)" },
   // Legacy capitalized keys kept for backward-compat with any old messages still in the stream
-  Positive:            { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-  Neutral:             { color: "#6b7280", bg: "#f9fafb", border: "#e5e7eb" },
-  "Slightly Negative": { color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-  Negative:            { color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
-  Frustrated:          { color: "#b91c1c", bg: "#fff1f2", border: "#fecdd3" },
+  Positive:            { color: "var(--color-success)", bg: "var(--color-success-bg)", border: "var(--color-success)" },
+  Neutral:             { color: "var(--color-text-muted)", bg: "var(--color-surface-2)", border: "var(--color-border)" },
+  "Slightly Negative": { color: "var(--color-warning)", bg: "var(--color-warning-bg)", border: "var(--color-warning)" },
+  Negative:            { color: "var(--color-error)", bg: "var(--color-error-bg)", border: "var(--color-error)" },
+  Frustrated:          { color: "var(--color-error)", bg: "var(--color-error-bg)", border: "var(--color-error)" },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -158,19 +158,19 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
   const showCustomerSkeleton = contextLoading && !customer;
 
   return (
-    <div className="sb-container" style={{ display: "flex", flexDirection: "column", height: "100%", background: "#fff" }}>
+    <div className="sb-container" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-surface-1)" }}>
 
       {/* ── Tabs ── */}
       {activeStepper ? (
-        <div className="csa-stepper-tabs" style={{ display: 'flex', borderBottom: '1px solid #e4e7ec', background: '#fff', flexShrink: 0 }}>
+        <div className="csa-stepper-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface-1)', flexShrink: 0 }}>
           <button
             type="button"
             onClick={() => setActiveStepper("order")}
             style={{
               flex: 1, padding: '12px 8px', border: 'none',
-              background: activeStepper === "order" ? '#FFF1E7' : 'none',
-              color: activeStepper === "order" ? '#ea580c' : '#475467',
-              borderBottom: activeStepper === "order" ? '3px solid #ea580c' : 'none',
+              background: activeStepper === "order" ? 'var(--color-warning-bg)' : 'none',
+              color: activeStepper === "order" ? 'var(--color-warning)' : 'var(--color-text-muted)',
+              borderBottom: activeStepper === "order" ? '3px solid var(--color-warning)' : 'none',
               fontWeight: 700, fontSize: '12px', cursor: 'pointer', textAlign: 'center'
             }}
           >
@@ -181,9 +181,9 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
             onClick={() => setActiveStepper("ticket")}
             style={{
               flex: 1, padding: '12px 8px', border: 'none',
-              background: activeStepper === "ticket" ? '#EFF8FF' : 'none',
-              color: activeStepper === "ticket" ? '#175cd3' : '#475467',
-              borderBottom: activeStepper === "ticket" ? '3px solid #175cd3' : 'none',
+              background: activeStepper === "ticket" ? 'var(--color-info-bg)' : 'none',
+              color: activeStepper === "ticket" ? 'var(--color-info)' : 'var(--color-text-muted)',
+              borderBottom: activeStepper === "ticket" ? '3px solid var(--color-info)' : 'none',
               fontWeight: 700, fontSize: '12px', cursor: 'pointer', textAlign: 'center'
             }}
           >
@@ -194,9 +194,9 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
             onClick={() => setActiveStepper("return")}
             style={{
               flex: 1, padding: '12px 8px', border: 'none',
-              background: activeStepper === "return" ? '#F5F3FF' : 'none',
-              color: activeStepper === "return" ? '#6d28d9' : '#475467',
-              borderBottom: activeStepper === "return" ? '3px solid #6d28d9' : 'none',
+              background: activeStepper === "return" ? 'var(--color-primary-light)' : 'none',
+              color: activeStepper === "return" ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              borderBottom: activeStepper === "return" ? '3px solid var(--color-primary)' : 'none',
               fontWeight: 700, fontSize: '12px', cursor: 'pointer', textAlign: 'center'
             }}
           >
@@ -292,9 +292,9 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                       <div className="sb-customer-header">
                         <div className="sb-customer-name">{customer.name}</div>
                         <div style={{
-                          backgroundColor: '#ecfdf5', color: '#065f46',
+                          backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success)',
                           fontSize: '10px', fontWeight: 700, padding: '2px 8px',
-                          borderRadius: '4px', border: '1px solid #a7f3d0',
+                          borderRadius: '4px', border: '1px solid var(--color-success)',
                         }}>
                           Identified
                         </div>
@@ -335,9 +335,9 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                         {customer.status ? (
                           <span style={{
                             display: 'inline-flex', alignItems: 'center',
-                            backgroundColor: '#fef3c7', color: '#b45309',
+                            backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning)',
                             fontSize: '10px', fontWeight: 700, padding: '2px 6px',
-                            borderRadius: '4px', border: '1px solid #fde68a',
+                            borderRadius: '4px', border: '1px solid var(--color-warning)',
                           }}>
                             {customer.status}
                           </span>
@@ -370,17 +370,17 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                     {activeOrder && (
                       <div style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '8px 10px', borderRadius: '8px', backgroundColor: '#f9fafb',
-                        border: '1px solid #f3f4f6',
+                        padding: '8px 10px', borderRadius: '8px', backgroundColor: 'var(--color-surface-2)',
+                        border: '1px solid var(--color-border)',
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#6b7280" strokeWidth="2">
+                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--color-text-muted)" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                           </svg>
-                          <span style={{ fontSize: '12px', color: '#6b7280' }}>Order</span>
+                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Order</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Link href={`/orders/${activeOrder.id}`} style={{ fontSize: '12px', fontWeight: 600, color: '#2563EB', textDecoration: 'none' }}>
+                          <Link href={`/orders/${activeOrder.id}`} style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-primary)', textDecoration: 'none' }}>
                             {(() => {
                               const raw = (activeOrder.orderNumber as string) || (activeOrder.id as string) || '';
                               const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
@@ -390,8 +390,8 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                           </Link>
                           <span style={{
                             fontSize: '10px', fontWeight: 600,
-                            backgroundColor: '#fffbeb', color: '#b45309',
-                            border: '1px solid #fde68a', padding: '1px 6px', borderRadius: '4px',
+                            backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning)',
+                            border: '1px solid var(--color-warning)', padding: '1px 6px', borderRadius: '4px',
                           }}>
                             {(activeOrder.status as string) || 'Complete'}
                           </span>
@@ -402,23 +402,23 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                     {activeTicket && (
                       <div style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '8px 10px', borderRadius: '8px', backgroundColor: '#f9fafb',
-                        border: '1px solid #f3f4f6',
+                        padding: '8px 10px', borderRadius: '8px', backgroundColor: 'var(--color-surface-2)',
+                        border: '1px solid var(--color-border)',
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#6b7280" strokeWidth="2">
+                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--color-text-muted)" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                           </svg>
-                          <span style={{ fontSize: '12px', color: '#6b7280' }}>Ticket</span>
+                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Ticket</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Link href={`/tickets/${activeTicket.id}`} style={{ fontSize: '12px', fontWeight: 600, color: '#2563EB', textDecoration: 'none' }}>
+                          <Link href={`/tickets/${activeTicket.id}`} style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-primary)', textDecoration: 'none' }}>
                             {(activeTicket.ticketNumber as string) || (activeTicket.id as string)}
                           </Link>
                           <span style={{
                             fontSize: '10px', fontWeight: 600,
-                            backgroundColor: '#eef2ff', color: '#4f46e5',
-                            border: '1px solid #e0e7ff', padding: '1px 6px', borderRadius: '4px',
+                            backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)',
+                            border: '1px solid var(--color-primary-border)', padding: '1px 6px', borderRadius: '4px',
                           }}>
                             {(activeTicket.status as string) || 'open'}
                           </span>
@@ -429,16 +429,16 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                     {/* Channel */}
                     <div style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '8px 10px', borderRadius: '8px', backgroundColor: '#f9fafb',
-                      border: '1px solid #f3f4f6',
+                      padding: '8px 10px', borderRadius: '8px', backgroundColor: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-border)',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#6b7280" strokeWidth="2">
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--color-text-muted)" strokeWidth="2">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
                         </svg>
-                        <span style={{ fontSize: '12px', color: '#6b7280' }}>Channel</span>
+                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Channel</span>
                       </div>
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#111827' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-ink)' }}>
                         Web Chat
                       </span>
                     </div>
@@ -456,8 +456,8 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                 {machineState && machineState !== 'OPEN' && (
                   <span style={{
                     fontSize: '10px', fontWeight: 700,
-                    backgroundColor: '#eef2ff', color: '#4338ca',
-                    border: '1px solid #e0e7ff',
+                    backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)',
+                    border: '1px solid var(--color-primary-border)',
                     padding: '2px 8px', borderRadius: '999px',
                     textTransform: 'uppercase', letterSpacing: '0.04em',
                   }}>
@@ -471,11 +471,11 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                   <div className="sb-empty-context">
                     <div style={{
                       width: '28px', height: '28px', borderRadius: '50%',
-                      border: '2px solid #e0e7ff', borderTopColor: '#4f46e5',
+                      border: '2px solid var(--color-primary-light)', borderTopColor: 'var(--color-primary)',
                       animation: 'spin 0.8s linear infinite',
                       margin: '0 auto 8px',
                     }} />
-                    <p style={{ color: '#4338ca' }}>Analyzing session…</p>
+                    <p style={{ color: 'var(--color-primary)' }}>Analyzing session…</p>
                     <span>AI is reading customer profile, orders, and ticket history.</span>
                   </div>
                 ) : (
@@ -494,8 +494,8 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                     {insights.intent && (
                       <span style={{
                         fontSize: '11px', fontWeight: 600,
-                        backgroundColor: '#eef2ff', color: '#4338ca',
-                        border: '1px solid #e0e7ff',
+                        backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)',
+                        border: '1px solid var(--color-primary-border)',
                         padding: '3px 10px', borderRadius: '999px',
                         textTransform: 'capitalize',
                       }}>
@@ -523,10 +523,10 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
                       <ConfidenceGauge value={insights.confidence} />
                       <div>
-                        <div style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
                           Confidence
                         </div>
-                        <div style={{ fontSize: '13px', color: '#374151', lineHeight: 1.4 }}>
+                        <div style={{ fontSize: '13px', color: 'var(--color-ink-soft)', lineHeight: 1.4 }}>
                           {insights.confidence >= 70 ? 'High — ready to act' : insights.confidence >= 40 ? 'Moderate — verifying' : 'Low — gathering info'}
                         </div>
                       </div>
@@ -537,13 +537,13 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                   {resolution?.strategy && (
                     <div style={{
                       marginBottom: '14px', padding: '8px 10px',
-                      backgroundColor: '#f8fafc', borderRadius: '6px',
-                      border: '1px solid #e5e7eb',
+                      backgroundColor: 'var(--color-surface-2)', borderRadius: '6px',
+                      border: '1px solid var(--color-border)',
                     }}>
-                      <div style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--color-text-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
                         Strategy
                       </div>
-                      <div style={{ fontSize: '12px', color: '#374151', lineHeight: '1.5' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--color-ink-soft)', lineHeight: '1.5' }}>
                         {resolution.strategy as string}
                       </div>
                     </div>
@@ -555,7 +555,7 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
               {nextSteps.length > 0 && (
                 <div style={{ marginTop: hasAnalysis ? '4px' : '0' }}>
                   <div style={{
-                    fontSize: '10px', fontWeight: 700, color: '#6b7280',
+                    fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)',
                     textTransform: 'uppercase', letterSpacing: '0.05em',
                     marginBottom: '8px',
                   }}>
@@ -569,21 +569,21 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                         style={{
                           width: '100%', textAlign: 'left',
                           padding: '9px 12px',
-                          border: '1px solid #e0e7ff',
+                          border: '1px solid var(--color-primary-border)',
                           borderRadius: '8px',
-                          backgroundColor: '#f5f7ff',
-                          color: '#3730a3',
+                          backgroundColor: 'var(--color-primary-light)',
+                          color: 'var(--color-primary)',
                           fontSize: '12px', fontWeight: 500,
                           cursor: onSendMessage ? 'pointer' : 'default',
                           display: 'flex', alignItems: 'flex-start', gap: '8px',
                           lineHeight: '1.4',
                           transition: 'background-color 0.12s',
                         }}
-                        onMouseEnter={(e) => { if (onSendMessage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ebe8ff'; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f5f7ff'; }}
+                        onMouseEnter={(e) => { if (onSendMessage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-primary-border)'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-primary-light)'; }}
                       >
                         <svg width="12" height="12" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, marginTop: '1px' }}>
-                          <path d="M10 1 C10.8 5.5 12.5 7.5 18 10 C12.5 12.5 10.8 14.5 10 19 C9.2 14.5 7.5 12.5 2 10 C7.5 7.5 9.2 5.5 10 1 Z" fill="#4f46e5" />
+                          <path d="M10 1 C10.8 5.5 12.5 7.5 18 10 C12.5 12.5 10.8 14.5 10 19 C9.2 14.5 7.5 12.5 2 10 C7.5 7.5 9.2 5.5 10 1 Z" fill="var(--color-primary)" />
                         </svg>
                         {stepText}
                       </button>

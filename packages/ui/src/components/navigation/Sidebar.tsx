@@ -47,7 +47,7 @@ export function Sidebar({
     <aside
       style={{
         width: isCollapsed ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)',
-        background: 'linear-gradient(160deg, var(--csa-navy-900) 0%, var(--csa-navy-950) 100%)',
+        background: 'linear-gradient(160deg, var(--sidebar-bg) 0%, var(--csa-blue-700) 100%)',
         borderRight: '1px solid var(--sidebar-border)',
         transition: 'width var(--duration-base) var(--ease-enterprise)',
       }}
@@ -201,7 +201,7 @@ export function Sidebar({
                           fontWeight: 'var(--weight-semibold)',
                           borderRadius: 'var(--radius-full)',
                           background: isActive
-                            ? 'rgba(5,8,46,0.18)'
+                            ? 'var(--topbar-overlay)'
                             : 'rgba(245,166,36,0.20)',
                           color: isActive
                             ? 'var(--sidebar-text-active)'

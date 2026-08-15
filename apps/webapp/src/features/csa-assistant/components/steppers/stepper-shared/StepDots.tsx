@@ -47,7 +47,7 @@ export function StepDots({
               border: 'none',
               padding: 0,
               cursor: clickable ? 'pointer' : 'not-allowed',
-              backgroundColor: cls === 'active' ? activeColor : cls === 'done' ? doneColor : '#e5e7eb',
+              backgroundColor: cls === 'active' ? activeColor : cls === 'done' ? doneColor : 'var(--color-border)',
               transition: 'all 0.2s ease',
               borderRadius: '2px',
             }}

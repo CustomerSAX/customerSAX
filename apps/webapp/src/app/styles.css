@@ -1,4 +1,4 @@
-@import "../ui/styles/tokens.css";
+@import "@csa/ui/styles/tokens.css";
 @import "../features/csa-assistant/components/steppers/stepper.css";
 
 @tailwind base;
@@ -19,30 +19,30 @@
     --card-foreground:         230 47% 9%;
     --popover:                 0 0% 100%;
     --popover-foreground:      230 47% 9%;
-    --primary:                 37 91% 55%;          /* #F5A624 brand yellow */
-    --primary-foreground:      230 47% 9%;          /* navy on yellow */
+    --primary:                 37 91% 55%;          /* #F5A624 yellow — CTA buttons */
+    --primary-foreground:      230 47% 9%;          /* navy text on yellow */
     --secondary:               216 28% 93%;
     --secondary-foreground:    230 47% 9%;
     --muted:                   216 20% 93%;
     --muted-foreground:        215 16% 47%;
-    --accent:                  230 70% 14%;         /* navy accent */
-    --accent-foreground:       37 91% 55%;          /* yellow on navy */
+    --accent:                  230 47% 9%;          /* #07103D navy — dark surfaces */
+    --accent-foreground:       0 0% 100%;           /* white on navy */
     --destructive:             0 84% 60%;
     --destructive-foreground:  0 0% 100%;
     --border:                  214 20% 87%;
     --input:                   214 20% 87%;
-    --ring:                    37 91% 55%;          /* yellow focus ring */
+    --ring:                    37 91% 55%;           /* yellow focus ring */
     --radius:                  0.625rem;            /* 10px */
 
-    /* shadcn sidebar vars */
-    --sidebar:                  230 70% 14%;        /* #07103D navy */
-    --sidebar-foreground:       0 0% 100%;
-    --sidebar-primary:          37 91% 55%;         /* yellow active */
-    --sidebar-primary-foreground:230 47% 9%;
-    --sidebar-accent:           230 60% 20%;
-    --sidebar-accent-foreground: 0 0% 90%;
-    --sidebar-border:           230 40% 22%;
-    --sidebar-ring:             37 91% 55%;
+    /* shadcn sidebar vars — BLUE sidebar (hue aligned to --csa-blue-500 #2563EB) */
+    --sidebar:                  221 83% 53%;        /* #2563EB blue */
+    --sidebar-foreground:       0 0% 100%;          /* white text */
+    --sidebar-primary:          37 91% 55%;         /* yellow active item (brand accent) */
+    --sidebar-primary-foreground:230 47% 9%;        /* navy text on yellow */
+    --sidebar-accent:           221 83% 45%;        /* darker blue hover */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border:           221 60% 46%;        /* blue border */
+    --sidebar-ring:             37 91% 55%;         /* yellow ring */
 
     /* Base layout */
     color-scheme: light;
@@ -58,8 +58,8 @@
     --card-foreground:         0 0% 95%;
     --popover:                 230 40% 10%;
     --popover-foreground:      0 0% 95%;
-    --primary:                 37 91% 55%;
-    --primary-foreground:      230 47% 9%;
+    --primary:                 217 91% 60%;
+    --primary-foreground:      0 0% 100%;
     --secondary:               230 30% 18%;
     --secondary-foreground:    0 0% 85%;
     --muted:                   230 30% 18%;
@@ -70,7 +70,7 @@
     --destructive-foreground:  0 0% 100%;
     --border:                  230 30% 18%;
     --input:                   230 30% 18%;
-    --ring:                    37 91% 55%;
+    --ring:                    217 91% 60%;
 
     --sidebar:                  230 47% 7%;
     --sidebar-foreground:       0 0% 95%;

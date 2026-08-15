@@ -313,8 +313,8 @@ export function CreateOrderStepper({
           steps: STEP_ORDER,
           visibleCount: 6,
           currentStep: step,
-          activeColor: '#F97316',
-          doneColor: '#ea580c',
+          activeColor: 'var(--color-primary)',
+          doneColor: 'var(--color-success)',
           isStepClickable: (i) => i === 0 || !!workflow?.customer,
           onStepClick: setStep,
         }}
@@ -339,7 +339,7 @@ export function CreateOrderStepper({
             />
 
             {isLoading && (
-              <div style={{ padding: '10px 12px', color: '#6b7280', fontSize: '12px' }}>
+              <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '12px' }}>
                 Confirming this customer…
               </div>
             )}
@@ -362,15 +362,15 @@ export function CreateOrderStepper({
             </div>
             <div className="product-grid">
               {productSearch.trim() === '' ? (
-                <div style={{ padding: '16px', color: '#6b7280', textAlign: 'center', gridColumn: '1 / -1', fontSize: '13px' }}>
+                <div style={{ padding: '16px', color: 'var(--color-text-muted)', textAlign: 'center', gridColumn: '1 / -1', fontSize: '13px' }}>
                   Type a product name or SKU in the search bar above to start adding items...
                 </div>
               ) : isSearchingProducts ? (
-                <div style={{ padding: '16px', color: '#6b7280', textAlign: 'center', gridColumn: '1 / -1', fontSize: '13px' }}>
+                <div style={{ padding: '16px', color: 'var(--color-text-muted)', textAlign: 'center', gridColumn: '1 / -1', fontSize: '13px' }}>
                   Searching products...
                 </div>
               ) : searchedProducts.length === 0 ? (
-                <div style={{ padding: '16px', color: '#6b7280', textAlign: 'center', gridColumn: '1 / -1', fontSize: '13px' }}>
+                <div style={{ padding: '16px', color: 'var(--color-text-muted)', textAlign: 'center', gridColumn: '1 / -1', fontSize: '13px' }}>
                   No products found matching &quot;{productSearch}&quot;.
                 </div>
               ) : (
@@ -585,7 +585,7 @@ export function CreateOrderStepper({
                 <b>{workflow?.customer?.name || 'Customer'}</b>
                 <div className="addr-cols">
                   <div>
-                    <b style={{ color: '#101828' }}>Billing</b>
+                    <b style={{ color: 'var(--color-ink)' }}>Billing</b>
                     <br />
                     {localDraft.billing.name}<br />
                     {localDraft.billing.street}<br />
@@ -593,7 +593,7 @@ export function CreateOrderStepper({
                     {countryName(localDraft.billing.country)}
                   </div>
                   <div>
-                    <b style={{ color: '#101828' }}>Shipping</b>
+                    <b style={{ color: 'var(--color-ink)' }}>Shipping</b>
                     <br />
                     {localDraft.sameAsBilling ? (
                       <>

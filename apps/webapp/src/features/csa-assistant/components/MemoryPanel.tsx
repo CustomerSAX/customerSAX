@@ -18,11 +18,11 @@ interface MemoryPanelProps {
 
 /** Colour tokens for sentiment labels (shared with Sidebar). */
 const SENTIMENT_COLORS: Record<string, { color: string; bg: string; border: string }> = {
-  Positive:            { color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
-  Neutral:             { color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb' },
-  'Slightly Negative': { color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-  Negative:            { color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-  Frustrated:          { color: '#b91c1c', bg: '#fff1f2', border: '#fecdd3' },
+  Positive:            { color: 'var(--color-success)', bg: 'var(--color-success-bg)', border: 'var(--color-success)' },
+  Neutral:             { color: 'var(--color-text-muted)', bg: 'var(--color-surface-2)', border: 'var(--color-border)' },
+  'Slightly Negative': { color: 'var(--color-warning)', bg: 'var(--color-warning-bg)', border: 'var(--color-warning)' },
+  Negative:            { color: 'var(--color-error)', bg: 'var(--color-error-bg)', border: 'var(--color-error)' },
+  Frustrated:          { color: 'var(--color-error)', bg: 'var(--color-error-bg)', border: 'var(--color-error)' },
 };
 
 /** Formats an ISO date as a human-readable relative or absolute string. */
@@ -111,18 +111,18 @@ export function MemoryPanel({ sessionId }: MemoryPanelProps) {
         <div className="sb-section-header" style={{ marginBottom: '10px' }}>
           <h2 className="sb-section-title">Past Interactions</h2>
           {fetchState === 'loading' && (
-            <span style={{ fontSize: '10px', color: '#9ca3af' }}>Loading…</span>
+            <span style={{ fontSize: '10px', color: 'var(--color-text-subtle)' }}>Loading…</span>
           )}
         </div>
 
         {fetchState === 'error' && (
-          <p style={{ fontSize: '11px', color: '#ef4444', margin: 0 }}>
+          <p style={{ fontSize: '11px', color: 'var(--color-error)', margin: 0 }}>
             {fetchError ?? 'Failed to load past interactions.'}
           </p>
         )}
 
         {fetchState !== 'error' && episodic.length === 0 && fetchState !== 'loading' && (
-          <p style={{ fontSize: '12px', color: '#9ca3af', margin: 0, lineHeight: '1.6' }}>
+          <p style={{ fontSize: '12px', color: 'var(--color-text-subtle)', margin: 0, lineHeight: '1.6' }}>
             {!sessionId && !customer?.id
               ? 'Past interactions appear after a customer is identified.'
               : 'No past interactions found for this customer.'}
@@ -136,25 +136,25 @@ export function MemoryPanel({ sessionId }: MemoryPanelProps) {
                 key={idx}
                 style={{
                   padding: '10px 12px',
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #f3f4f6',
+                  backgroundColor: 'var(--color-surface-1)',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '8px',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  boxShadow: 'var(--shadow-xs)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
                   <span style={{
                     fontSize: '9px', fontWeight: 700, textTransform: 'uppercase',
-                    color: '#6b7280', letterSpacing: '0.05em',
-                    backgroundColor: '#f3f4f6', padding: '1px 6px', borderRadius: '4px',
+                    color: 'var(--color-text-muted)', letterSpacing: '0.05em',
+                    backgroundColor: 'var(--color-surface-3)', padding: '1px 6px', borderRadius: '4px',
                   }}>
                     {ENTRY_TYPE_LABELS[entry.type] ?? entry.type}
                   </span>
-                  <span style={{ fontSize: '10px', color: '#9ca3af' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--color-text-subtle)' }}>
                     {formatEntryDate(entry.date)}
                   </span>
                 </div>
-                <p style={{ margin: 0, fontSize: '12px', color: '#374151', lineHeight: '1.55' }}>
+                <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-ink-soft)', lineHeight: '1.55' }}>
                   {entry.summary}
                 </p>
                 {(entry.intent || entry.sentiment) && (
@@ -162,8 +162,8 @@ export function MemoryPanel({ sessionId }: MemoryPanelProps) {
                     {entry.intent && (
                       <span style={{
                         fontSize: '10px', fontWeight: 600,
-                        backgroundColor: '#eef2ff', color: '#4338ca',
-                        border: '1px solid #e0e7ff',
+                        backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)',
+                        border: '1px solid var(--color-primary-border)',
                         padding: '1px 6px', borderRadius: '999px',
                         textTransform: 'capitalize',
                       }}>

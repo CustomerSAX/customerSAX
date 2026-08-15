@@ -42,19 +42,19 @@ export const csaTokens = {
       DEFAULT: '#07103D',
     },
 
-    /** Blue — primary actions, links */
+    /** Blue — primary actions, links (light/bright royal blue) */
     blue: {
-      50:  '#EEF3FF',
-      100: '#D9E4FE',
-      200: '#B3C8FD',
-      300: '#7DA0FB',
-      400: '#4F7AF8',
-      500: '#1B4BEB',   // primary CTA blue
-      600: '#1438C8',
-      700: '#0F2BA5',
-      800: '#0B1F82',
-      900: '#081560',
-      DEFAULT: '#1B4BEB',
+      50:  '#EFF6FF',
+      100: '#DBEAFE',
+      200: '#BFDBFE',
+      300: '#93C5FD',
+      400: '#60A5FA',
+      500: '#2563EB',   // primary action blue — single theme knob
+      600: '#1D4ED8',
+      700: '#1E40AF',
+      800: '#1E3A8A',
+      900: '#172554',
+      DEFAULT: '#2563EB',
     },
 
     /** Neutrals */
@@ -91,8 +91,8 @@ export const csaTokens = {
       cardForeground:     '230 47% 9%',
       popover:            '0 0% 100%',
       popoverForeground:  '230 47% 9%',
-      primary:            '37 91% 55%',         // #F5A624 yellow
-      primaryForeground:  '230 47% 9%',         // dark navy on yellow
+      primary:            '221 83% 53%',        // #2563EB blue — primary action
+      primaryForeground:  '0 0% 100%',          // white on blue
       secondary:          '216 28% 93%',        // light gray
       secondaryForeground:'230 47% 9%',
       muted:              '216 28% 93%',
@@ -103,15 +103,15 @@ export const csaTokens = {
       destructiveForeground: '0 0% 100%',
       border:             '214 20% 86%',
       input:              '214 20% 86%',
-      ring:               '37 91% 55%',         // yellow focus ring
+      ring:               '221 83% 53%',        // blue focus ring
       radius:             '0.625rem',           // 10px
-      sidebar:            '230 70% 14%',        // navy sidebar
+      sidebar:            '221 83% 53%',        // #2563EB blue sidebar
       sidebarForeground:  '0 0% 100%',
-      sidebarPrimary:     '37 91% 55%',         // yellow active
+      sidebarPrimary:     '37 91% 55%',         // yellow active (brand accent)
       sidebarPrimaryForeground: '230 47% 9%',
-      sidebarAccent:      '230 60% 20%',
-      sidebarAccentForeground: '0 0% 90%',
-      sidebarBorder:      '230 40% 22%',
+      sidebarAccent:      '221 83% 45%',        // darker blue hover
+      sidebarAccentForeground: '0 0% 100%',
+      sidebarBorder:      '221 60% 46%',
       sidebarRing:        '37 91% 55%',
     },
   },
@@ -179,9 +179,9 @@ export const csaTokens = {
     card:    '0 1px 2px rgba(10,16,32,0.05), 0 8px 24px -16px rgba(10,16,32,0.12)',
     panel:   '0 1px 2px rgba(10,16,32,0.04), 0 16px 48px -24px rgba(10,16,32,0.16)',
     modal:   '0 20px 60px -16px rgba(10,16,32,0.24), 0 4px 16px rgba(10,16,32,0.08)',
-    focusRing:   '0 0 0 3px rgba(27,75,235,0.20)',
+    focusRing:   '0 0 0 3px rgba(37,99,235,0.22)',
     focusBrand:  '0 0 0 3px rgba(245,166,36,0.35)',
-    primary:     '0 6px 18px -8px rgba(27,75,235,0.55)',
+    primary:     '0 6px 18px -8px rgba(37,99,235,0.55)',
     brand:       '0 6px 18px -8px rgba(245,166,36,0.50)',
   },
 

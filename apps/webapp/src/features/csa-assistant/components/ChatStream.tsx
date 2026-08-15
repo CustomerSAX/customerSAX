@@ -305,8 +305,8 @@ function ProductCardScrollRow({ children }: { children: React.ReactNode }) {
   const arrowBase: React.CSSProperties = {
     position: 'absolute', top: '50%', transform: 'translateY(-50%)',
     zIndex: 10, width: 28, height: 28, borderRadius: '50%',
-    border: '1px solid #dde1ea', backgroundColor: '#fff',
-    boxShadow: '0 1px 6px rgba(0,0,0,0.12)',
+    border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface-1)',
+    boxShadow: 'var(--shadow-md)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     cursor: 'pointer', transition: 'opacity 0.15s, transform 0.15s',
   };
@@ -321,7 +321,7 @@ function ProductCardScrollRow({ children }: { children: React.ReactNode }) {
           onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)')}
           onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1)')}
         >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--color-ink-soft)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
@@ -343,7 +343,7 @@ function ProductCardScrollRow({ children }: { children: React.ReactNode }) {
           onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)')}
           onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(-50%) scale(1)')}
         >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--color-ink-soft)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
@@ -708,26 +708,26 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
     // Without this override, the message list's `overflow-y-auto` below never
     // actually scrolls: the whole grid row just keeps growing as the
     // conversation gets longer, breaking the page layout.
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, backgroundColor: "#ffffff", borderRadius: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, backgroundColor: "var(--color-surface-1)", borderRadius: 0 }}>
       {/* ── Workspace Header ── */}
       <div
         style={{
           height: '56px',
-          borderBottom: '1px solid #e5e7eb',
-          backgroundColor: '#ffffff',
+          borderBottom: '1px solid var(--color-border)',
+          backgroundColor: 'var(--color-surface-1)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 20px',
           flexShrink: 0,
-          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          boxShadow: 'var(--shadow-xs)',
         }}
       >
         {/* Left: Customer name + ticket subject + ticket number + status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
           <span
             style={{
-              fontSize: '15px', fontWeight: 700, color: '#111827', letterSpacing: '-0.01em',
+              fontSize: '15px', fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.01em',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}
           >
@@ -737,8 +737,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           </span>
           {activeTicket?.status && (
             <span style={{
-              fontSize: '11px', fontWeight: 700, color: '#4338ca', backgroundColor: '#eef2ff',
-              border: '1px solid #e0e7ff', padding: '2px 10px', borderRadius: '9999px',
+              fontSize: '11px', fontWeight: 700, color: 'var(--color-primary)', backgroundColor: 'var(--color-primary-light)',
+              border: '1px solid var(--color-primary-border)', padding: '2px 10px', borderRadius: '9999px',
               textTransform: 'capitalize', letterSpacing: '0.02em', flexShrink: 0,
             }}>
               {activeTicket.status}
@@ -761,12 +761,12 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '8px',
                 padding: '5px 12px 5px 10px', borderRadius: '9999px',
-                border: '1px solid #c7d2fe', background: '#eef2ff', color: '#3730a3',
+                border: '1px solid var(--color-primary-border)', background: 'var(--color-primary-light)', color: 'var(--color-primary)',
                 fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
                 transition: 'background 0.14s ease, border-color 0.14s ease',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#e0e7ff'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#eef2ff'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-primary-border)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-primary-light)'; }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
@@ -786,10 +786,10 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             }}
             style={{
               width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent',
-              color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--color-text-subtle)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-3)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -802,10 +802,10 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             onClick={() => setRightPanelOpen(!rightPanelOpen)}
             style={{
               width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent',
-              color: rightPanelOpen ? '#4f46e5' : '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: rightPanelOpen ? 'var(--color-primary)' : 'var(--color-text-subtle)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background 0.15s ease, color 0.15s ease',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-3)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

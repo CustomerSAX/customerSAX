@@ -2,6 +2,11 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Eye, EyeOff, Sparkles, TicketCheck, ShoppingBag, Bot, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 function safeInternalPath(raw: string | null) {
   if (!raw) return "/dashboard";
@@ -13,18 +18,28 @@ function safeInternalPath(raw: string | null) {
   }
 }
 
+const features = [
+  { icon: TicketCheck, label: "Ticket management & SLA tracking" },
+  { icon: ShoppingBag, label: "Live order & cart operations" },
+  { icon: Bot,         label: "AI-powered resolution suggestions" },
+  { icon: BarChart3,   label: "Real-time service analytics" },
+];
+
 export function LoginView() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = useMemo(() => safeInternalPath(searchParams.get("callbackUrl")), [searchParams]);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const callbackUrl = useMemo(
+    () => safeInternalPath(searchParams.get("callbackUrl")),
+    [searchParams]
+  );
+  const [email, setEmail]               = useState("");
+  const [password, setPassword]         = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError]               = useState("");
+  const [isLoading, setIsLoading]       = useState(false);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     setError("");
     if (!email.trim() || !password) {
       setError("Please enter your email and password.");
@@ -32,16 +47,16 @@ export function LoginView() {
     }
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      if (!response.ok) {
+      if (!res.ok) {
         setError("Invalid credentials. Please check your email and password.");
         return;
       }
-      const payload = await response.json().catch(() => ({}));
+      const payload = await res.json().catch(() => ({}));
       router.replace(
         payload.user?.requiresProjectSelection
           ? `/select-project?callbackUrl=${encodeURIComponent(callbackUrl)}`
@@ -56,244 +71,124 @@ export function LoginView() {
   };
 
   return (
-    <main
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        fontFamily: "var(--font-family)",
-        background: "var(--color-bg)",
-        overflow: "hidden",
-      }}
-    >
-      {/* ── Left panel — Navy brand ─────────────────────────── */}
-      <section
-        style={{
-          display: "none",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          width: "45%",
-          minHeight: "100vh",
-          background: "linear-gradient(160deg, var(--csa-navy-900) 0%, var(--csa-navy-950) 100%)",
-          padding: "48px 56px",
-          position: "relative",
-          overflow: "hidden",
-        }}
-        className="lg-flex"
+    <main className="flex min-h-screen overflow-hidden font-sans" style={{ background: "var(--color-bg)" }}>
+
+      {/* ── Left — Blue brand panel ──────────────────────── */}
+      <aside
+        className="hidden lg:flex flex-col justify-between w-[44%] min-h-screen relative overflow-hidden px-14 py-12"
+        style={{ background: "linear-gradient(160deg, var(--csa-blue-500) 0%, var(--csa-blue-700) 100%)" }}
       >
-        {/* Background glow */}
+        {/* Glow blobs */}
         <div
+          className="absolute inset-0 pointer-events-none"
           style={{
-            position: "absolute",
-            inset: 0,
             background:
-              "radial-gradient(ellipse at 20% 20%, rgba(245,166,36,0.08) 0%, transparent 55%), " +
-              "radial-gradient(ellipse at 80% 80%, rgba(27,75,235,0.10) 0%, transparent 55%)",
-            pointerEvents: "none",
+              "radial-gradient(ellipse at 15% 15%, rgba(245,166,36,0.12) 0%, transparent 50%), " +
+              "radial-gradient(ellipse at 85% 85%, rgba(7,16,61,0.20) 0%, transparent 50%)",
           }}
         />
 
-        {/* Brand logo */}
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 64 }}>
+        {/* Brand */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-16">
             <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: "var(--radius-xl)",
-                background: "var(--csa-yellow-500)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "var(--shadow-brand)",
-                flexShrink: 0,
-              }}
+              className="flex items-center justify-center w-10 h-10 rounded-xl shadow-brand flex-shrink-0"
+              style={{ background: "var(--csa-yellow-500)" }}
             >
-              <span style={{ fontSize: 18, fontWeight: 800, color: "var(--csa-navy-950)", lineHeight: 1 }}>C</span>
+              <Sparkles size={18} style={{ color: "var(--csa-navy-950)" }} />
             </div>
             <div>
-              <div
-                style={{
-                  fontSize: "var(--text-lg)",
-                  fontWeight: "var(--weight-bold)",
-                  color: "var(--csa-white)",
-                  letterSpacing: "-0.02em",
-                  lineHeight: 1.1,
-                }}
-              >
+              <div className="text-white font-bold text-lg tracking-tight leading-none">
                 customerSAX
               </div>
-              <div style={{ fontSize: "var(--text-xs)", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.42)" }}>
                 Studio · Enterprise Platform
               </div>
             </div>
           </div>
 
           <h1
-            style={{
-              fontSize: "clamp(28px, 3vw, 40px)",
-              fontWeight: "var(--weight-extrabold)",
-              color: "var(--csa-white)",
-              letterSpacing: "-0.03em",
-              lineHeight: 1.15,
-              marginBottom: 20,
-              maxWidth: 440,
-            }}
+            className="font-extrabold text-white mb-5 leading-tight"
+            style={{ fontSize: "clamp(26px, 2.8vw, 38px)", letterSpacing: "-0.03em", maxWidth: 420 }}
           >
             Unified Customer Service Operations Platform
           </h1>
-          <p
-            style={{
-              fontSize: "var(--text-base)",
-              color: "rgba(255,255,255,0.55)",
-              lineHeight: "var(--leading-relaxed)",
-              maxWidth: 400,
-              marginBottom: 48,
-            }}
-          >
-            Resolve every customer issue faster — with AI-assisted context, real-time commerce data, and governed actions across all channels.
+          <p className="text-base mb-10 leading-relaxed" style={{ color: "rgba(255,255,255,0.52)", maxWidth: 380 }}>
+            Resolve every customer issue faster — with AI-assisted context, real-time commerce data, and governed actions.
           </p>
 
-          {/* Feature pills */}
-          {[
-            "🎫  Ticket management & SLA tracking",
-            "🛒  Live order & cart operations",
-            "🤖  AI-powered resolution suggestions",
-            "📊  Real-time service analytics",
-          ].map((feat) => (
-            <div
-              key={feat}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginBottom: 12,
-                padding: "10px 16px",
-                borderRadius: "var(--radius-lg)",
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                fontSize: "var(--text-sm)",
-                color: "rgba(255,255,255,0.78)",
-                fontWeight: "var(--weight-medium)",
-              }}
-            >
-              {feat}
-            </div>
-          ))}
+          {/* Feature list */}
+          <div className="space-y-2.5">
+            {features.map(({ icon: Icon, label }) => (
+              <div
+                key={label}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "rgba(255,255,255,0.78)",
+                }}
+              >
+                <Icon size={15} style={{ color: "var(--csa-yellow-500)", flexShrink: 0 }} />
+                {label}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Footer */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
-            fontSize: "var(--text-xs)",
-            color: "rgba(255,255,255,0.28)",
-          }}
-        >
+        <p className="relative z-10 text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
           © 2026 customerSAX — Powered by Royal Cyber
-        </div>
-      </section>
+        </p>
+      </aside>
 
-      {/* ── Right panel — Login form ────────────────────────── */}
-      <section
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "48px 32px",
-          background: "var(--color-surface-1)",
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: 400 }}>
-          {/* Mobile-only logo */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 40,
-              justifyContent: "center",
-            }}
-            className="show-mobile"
-          >
+      {/* ── Right — Login form ──────────────────────────── */}
+      <section className="flex flex-1 flex-col items-center justify-center px-8 py-12 bg-card">
+        <div className="w-full max-w-sm">
+
+          {/* Mobile logo */}
+          <div className="flex items-center gap-2.5 mb-10 lg:hidden">
             <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "var(--radius-lg)",
-                background: "var(--csa-yellow-500)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: "var(--csa-yellow-500)" }}
             >
-              <span style={{ fontSize: 16, fontWeight: 800, color: "var(--csa-navy-950)" }}>C</span>
+              <Sparkles size={16} style={{ color: "var(--csa-navy-950)" }} />
             </div>
-            <span style={{ fontSize: "var(--text-xl)", fontWeight: "var(--weight-bold)", color: "var(--color-ink)", letterSpacing: "-0.02em" }}>
+            <span className="font-bold text-xl tracking-tight" style={{ color: "var(--color-ink)" }}>
               customerSAX
             </span>
           </div>
 
           {/* Heading */}
-          <div style={{ marginBottom: 32 }}>
-            <h2
-              style={{
-                fontSize: "var(--text-2xl)",
-                fontWeight: "var(--weight-bold)",
-                color: "var(--color-ink)",
-                letterSpacing: "-0.02em",
-                marginBottom: 6,
-              }}
-            >
-              Sign in to Studio
-            </h2>
-            <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-muted)" }}>
+          <div className="mb-7">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">Sign in to Studio</h2>
+            <p className="text-sm text-muted-foreground mt-1.5">
               Enter your credentials to access the backoffice.
             </p>
           </div>
 
-          {/* Error */}
+          {/* Error alert */}
           {error && (
             <div
               role="alert"
+              className="flex items-start gap-2.5 p-3.5 rounded-xl mb-5 text-sm font-medium"
               style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 10,
-                padding: "12px 14px",
-                borderRadius: "var(--radius-lg)",
                 background: "var(--color-error-bg)",
                 border: "1px solid var(--csa-red-700)",
-                marginBottom: 20,
-                fontSize: "var(--text-sm)",
                 color: "var(--csa-red-700)",
-                fontWeight: "var(--weight-medium)",
               }}
             >
-              <span style={{ flexShrink: 0, marginTop: 1 }}>⚠</span>
+              <span className="shrink-0 mt-0.5">⚠</span>
               {error}
             </div>
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} noValidate style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             {/* Email */}
-            <div>
-              <label
-                htmlFor="login-email"
-                style={{
-                  display: "block",
-                  fontSize: "var(--text-sm)",
-                  fontWeight: "var(--weight-medium)",
-                  color: "var(--color-ink-soft)",
-                  marginBottom: 6,
-                }}
-              >
-                Email address
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label htmlFor="login-email">Email address</Label>
+              <Input
                 id="login-email"
                 type="email"
                 autoComplete="username"
@@ -302,179 +197,69 @@ export function LoginView() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
-                style={{
-                  width: "100%",
-                  height: 42,
-                  padding: "0 14px",
-                  borderRadius: "var(--radius-lg)",
-                  border: "1.5px solid var(--color-border)",
-                  background: "var(--color-surface-1)",
-                  fontSize: "var(--text-md)",
-                  color: "var(--color-ink)",
-                  outline: "none",
-                  transition: "border-color var(--duration-fast), box-shadow var(--duration-fast)",
-                  boxShadow: "var(--shadow-xs)",
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "var(--color-brand)";
-                  e.target.style.boxShadow = "var(--shadow-focus-brand)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "var(--color-border)";
-                  e.target.style.boxShadow = "var(--shadow-xs)";
-                }}
+                error={!!error}
               />
             </div>
 
             {/* Password */}
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <label
-                  htmlFor="login-password"
-                  style={{
-                    fontSize: "var(--text-sm)",
-                    fontWeight: "var(--weight-medium)",
-                    color: "var(--color-ink-soft)",
-                  }}
-                >
-                  Password
-                </label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="login-password">Password</Label>
                 <button
                   type="button"
-                  style={{
-                    fontSize: "var(--text-sm)",
-                    color: "var(--color-primary)",
-                    fontWeight: "var(--weight-medium)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
+                  className="text-xs font-medium hover:underline focus:outline-none"
+                  style={{ color: "var(--color-primary)" }}
                 >
                   Forgot password?
                 </button>
               </div>
-              <div style={{ position: "relative" }}>
-                <input
-                  id="login-password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
-                  style={{
-                    width: "100%",
-                    height: 42,
-                    padding: "0 42px 0 14px",
-                    borderRadius: "var(--radius-lg)",
-                    border: "1.5px solid var(--color-border)",
-                    background: "var(--color-surface-1)",
-                    fontSize: "var(--text-md)",
-                    color: "var(--color-ink)",
-                    outline: "none",
-                    transition: "border-color var(--duration-fast), box-shadow var(--duration-fast)",
-                    boxShadow: "var(--shadow-xs)",
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "var(--color-brand)";
-                    e.target.style.boxShadow = "var(--shadow-focus-brand)";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = "var(--color-border)";
-                    e.target.style.boxShadow = "var(--shadow-xs)";
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  tabIndex={-1}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  style={{
-                    position: "absolute",
-                    right: 12,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--color-text-muted)",
-                    padding: 2,
-                    fontSize: 14,
-                  }}
-                >
-                  {showPassword ? "🙈" : "👁"}
-                </button>
-              </div>
+              <Input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                required
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                error={!!error}
+                rightIcon={
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                }
+              />
             </div>
 
-            {/* Submit */}
-            <button
+            {/* Submit — shadcn Button, variant="default" = yellow */}
+            <Button
               type="submit"
+              className="w-full h-11 text-base font-semibold mt-2"
+              loading={isLoading}
               disabled={isLoading}
-              style={{
-                width: "100%",
-                height: 44,
-                marginTop: 8,
-                borderRadius: "var(--radius-lg)",
-                border: "none",
-                background: isLoading ? "var(--csa-yellow-600)" : "var(--color-brand)",
-                color: "var(--color-brand-text)",
-                fontSize: "var(--text-base)",
-                fontWeight: "var(--weight-semibold)",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                boxShadow: "var(--shadow-brand)",
-                transition: "background var(--duration-fast), box-shadow var(--duration-fast)",
-                letterSpacing: "-0.01em",
-              }}
             >
-              {isLoading ? (
-                <>
-                  <span
-                    style={{
-                      width: 16,
-                      height: 16,
-                      border: "2px solid rgba(5,8,46,0.25)",
-                      borderTopColor: "var(--csa-navy-950)",
-                      borderRadius: "50%",
-                      animation: "spin 0.7s linear infinite",
-                      display: "inline-block",
-                    }}
-                  />
-                  Signing in…
-                </>
-              ) : (
-                "Sign in to Studio"
-              )}
-            </button>
+              {isLoading ? "Signing in…" : "Sign in to Studio"}
+            </Button>
           </form>
 
-          {/* Footer */}
-          <p
-            style={{
-              marginTop: 32,
-              textAlign: "center",
-              fontSize: "var(--text-xs)",
-              color: "var(--color-text-subtle)",
-            }}
-          >
-            Powered by customerSAX Studio · Enterprise Edition
+          <Separator className="my-6" />
+
+          {/* Footer note */}
+          <p className="text-center text-xs text-muted-foreground">
+            Powered by{" "}
+            <span className="font-semibold" style={{ color: "var(--color-ink)" }}>
+              customerSAX Studio
+            </span>{" "}
+            · Enterprise Edition
           </p>
         </div>
       </section>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @media (min-width: 1024px) {
-          .lg-flex { display: flex !important; }
-          .show-mobile { display: none !important; }
-        }
-      `}</style>
     </main>
   );
 }

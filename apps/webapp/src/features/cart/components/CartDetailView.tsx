@@ -501,7 +501,7 @@ export function CartDetailView({ id }: CartDetailViewProps) {
           {/* Applied discounts */}
           {cart.appliedDiscounts && cart.appliedDiscounts.length > 0 && (
             <div className="pt-3 border-t border-m-border space-y-1">
-              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-m-success-dark uppercase tracking-wider block">
                 Applied Discounts
               </span>
               {cart.appliedDiscounts.map((row) => (
@@ -515,7 +515,7 @@ export function CartDetailView({ id }: CartDetailViewProps) {
           {/* Ineffective discounts */}
           {cart.ineffectiveDiscounts && cart.ineffectiveDiscounts.length > 0 && (
             <div className="pt-3 border-t border-m-border space-y-1">
-              <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-m-warning-dark uppercase tracking-wider block">
                 Not Applied
               </span>
               {cart.ineffectiveDiscounts.map((row) => (
