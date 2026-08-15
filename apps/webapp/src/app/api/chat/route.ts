@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { applyCsaHeaders } from '@csa/headers';
 import { getCurrentUser } from '@/lib/get-current-user';
 import { forwardRequestId, requestLogger } from '@/lib/request-logger';
 
@@ -28,9 +29,16 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(`${AI_ASSIST_URL}/chat`);
     url.searchParams.set('sessionId', sessionId);
-    url.searchParams.set('userEmail', user.email);
 
-    const res = await fetch(url.toString(), { cache: 'no-store', headers: forwardRequestId(requestId) });
+    // Identity travels as trusted x-csa-* headers (server-derived), not a query
+    // param — ai-assist reads userEmail from the header to scope the transcript.
+    const headers = applyCsaHeaders(forwardRequestId(requestId), {
+      userEmail: user.email,
+      projectKey: user.activeProjectKey,
+      clientId: user.activeClientId,
+    });
+
+    const res = await fetch(url.toString(), { cache: 'no-store', headers });
     if (!res.ok) {
       log.error('ai-assist returned non-ok', undefined, { status: res.status });
       return NextResponse.json({ messages: [] });

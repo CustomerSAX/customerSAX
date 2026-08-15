@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { applyCsaHeaders } from '@csa/headers';
+import { getCurrentUser } from '@/lib/get-current-user';
 import { forwardRequestId, requestLogger } from '@/lib/request-logger';
 
 /**
@@ -30,9 +32,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const customerName  = searchParams.get('customerName')?.trim()  ?? '';
   const customerEmail = searchParams.get('customerEmail')?.trim() ?? '';
 
-  // We don't have the agent's email/projectKey in the query params, so pass
-  // what we can. In future a proper auth middleware would inject these.
-  const projectKey = process.env.NEXT_PUBLIC_CT_PROJECT_KEY ?? '';
+  // Agent identity is derived server-side from the session and forwarded to
+  // ai-assist as trusted x-csa-* headers — episodic memory is scoped to the
+  // authenticated agent, never a client-supplied userEmail.
+  const user = await getCurrentUser();
+  const projectKey = user?.activeProjectKey || process.env.NEXT_PUBLIC_CT_PROJECT_KEY || '';
 
   // Nothing meaningful to look up — return empty state immediately.
   if (!sessionId && !customerId) {
@@ -48,11 +52,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (customerId)    upstream.searchParams.set('customerId',    customerId);
     if (customerName)  upstream.searchParams.set('customerName',  customerName);
     if (customerEmail) upstream.searchParams.set('customerEmail', customerEmail);
-    if (projectKey)    upstream.searchParams.set('projectKey',    projectKey);
+
+    // Identity (userEmail/projectKey) travels as trusted x-csa-* headers, not
+    // query params — ai-assist scopes episodic memory to the header identity.
+    const headers = applyCsaHeaders(
+      forwardRequestId(requestId, { 'content-type': 'application/json' }),
+      {
+        userEmail: user?.email,
+        projectKey: projectKey || undefined,
+        clientId: user?.activeClientId,
+      }
+    );
 
     const res = await fetch(upstream.toString(), {
       method: 'GET',
-      headers: forwardRequestId(requestId, { 'content-type': 'application/json' }),
+      headers,
       // Short cache — memory should be fresh on every polling cycle.
       cache: 'no-store',
     });

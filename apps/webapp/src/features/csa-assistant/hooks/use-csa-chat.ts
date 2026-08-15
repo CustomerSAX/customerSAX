@@ -6,8 +6,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UIMessage } from "ai";
 import type { SessionContext } from "../types";
 
-const AI_ASSIST_URL =
-  process.env.NEXT_PUBLIC_AI_ASSIST_URL ?? "http://localhost:8080";
+// Same-origin streaming proxy. The browser never talks to ai-assist directly:
+// `/api/chat/stream` resolves the authenticated user server-side and forwards
+// trusted identity + ACL as x-csa-* headers, so identity/permissions can no
+// longer be spoofed from the client body (S1 trust-boundary fix).
+const CHAT_STREAM_API = "/api/chat/stream";
 
 // localStorage key for the current conversation's session ID.
 // Each distinct conversation (new tab, "New Conversation" click) gets
@@ -51,9 +54,18 @@ export function useCsaChat(sessionContext: SessionContext) {
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: `${AI_ASSIST_URL}/chat`,
+        api: CHAT_STREAM_API,
         body: {
-          context: sessionContext,
+          // Identity (userEmail/role/projectKey/clientId) and ACL are NEVER sent
+          // from the browser — the /api/chat/stream proxy derives them from the
+          // httpOnly session and forwards them as trusted x-csa-* headers. Only
+          // benign, non-identity presentation context is carried in the body.
+          context: {
+            businessType: sessionContext.businessType,
+            pageContext: sessionContext.pageContext ?? null,
+            proactiveHint: sessionContext.proactiveHint ?? null,
+            vipThreshold: sessionContext.vipThreshold,
+          },
           // sessionId is read from the ref at call time — changes between
           // "New Conversation" clicks without recreating the transport.
           get sessionId() { return sessionIdRef.current || getOrCreateSessionId(); }

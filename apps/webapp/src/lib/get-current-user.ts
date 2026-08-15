@@ -26,6 +26,27 @@ export type CurrentUser = {
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const token = currentSessionToken();
+
+  // Dev bypass — mirror middleware.ts's SKIP_AUTH gate so server-derived
+  // identity is available for the happy path without a login. Gated exactly
+  // like the middleware (NODE_ENV=development + SKIP_AUTH=1) so it can never
+  // fire in production. Only fires when there is no real session token.
+  if (!token && process.env.NODE_ENV === 'development' && process.env.SKIP_AUTH === '1') {
+    const projectKey =
+      process.env.NEXT_PUBLIC_CT_PROJECT_KEY?.trim() ||
+      process.env.COMMERCETOOLS_PROJECT_KEY?.trim() ||
+      undefined;
+    return {
+      email: 'dev@csa.local',
+      id: 'dev-user',
+      name: 'Dev User',
+      role: 'agent',
+      tenantId: 'dev',
+      activeProjectKey: projectKey,
+      projectKey,
+    };
+  }
+
   if (!token) return null;
 
   try {

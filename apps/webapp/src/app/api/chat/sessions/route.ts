@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { applyCsaHeaders } from '@csa/headers';
 import { getCurrentUser } from '@/lib/get-current-user';
 import { forwardRequestId, requestLogger } from '@/lib/request-logger';
 
@@ -27,12 +28,18 @@ export async function GET(request: NextRequest) {
     const skip = searchParams.get('skip') ?? '0';
 
     const url = new URL(`${AI_ASSIST_URL}/sessions`);
-    url.searchParams.set('userEmail', user.email);
-    url.searchParams.set('projectKey', CT_PROJECT_KEY);
     url.searchParams.set('limit', limit);
     url.searchParams.set('skip', skip);
 
-    const res = await fetch(url.toString(), { cache: 'no-store', headers: forwardRequestId(requestId) });
+    // Identity (userEmail/projectKey) travels as trusted x-csa-* headers, not
+    // query params — ai-assist scopes the session list to the header identity.
+    const headers = applyCsaHeaders(forwardRequestId(requestId), {
+      userEmail: user.email,
+      projectKey: user.activeProjectKey || CT_PROJECT_KEY || undefined,
+      clientId: user.activeClientId,
+    });
+
+    const res = await fetch(url.toString(), { cache: 'no-store', headers });
     if (!res.ok) {
       log.error('ai-assist returned non-ok', undefined, { status: res.status });
       return NextResponse.json({ sessions: [], total: 0 });
