@@ -12,8 +12,11 @@ type GraphqlResponse<TData> = {
 };
 
 import { applyCsaHeaders } from "@csa/headers";
+import { createLogger } from "@csa/logger";
 import { contextStorage } from "../chat/system-prompt.js";
 import { config } from "../config.js";
+
+const log = createLogger("ai-assist").child({ module: "bff-client" });
 
 function getServiceUrl(): string {
   return process.env.AI_COMMERCE_SERVICE_URL ?? "http://localhost:4000/graphql";
@@ -21,6 +24,12 @@ function getServiceUrl(): string {
 
 function getPlatform(): string {
   return process.env.AI_COMMERCE_PLATFORM ?? "commercetools";
+}
+
+/** Best-effort operation name from a GraphQL document, for tracing (no values logged). */
+function operationName(query: string): string {
+  const named = query.match(/\b(?:query|mutation|subscription)\s+([A-Za-z0-9_]+)/);
+  return named?.[1] ?? "anonymous";
 }
 
 export async function bffQuery<TData>(
@@ -47,14 +56,24 @@ export async function bffQuery<TData>(
     }
   );
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query, variables })
-  });
+  const op = operationName(query);
+  const startedAt = Date.now();
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query, variables })
+    });
+  } catch (err) {
+    log.debug("bffQuery", { op, ms: Date.now() - startedAt, ok: false });
+    throw err;
+  }
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
+    log.debug("bffQuery", { op, status: response.status, ms: Date.now() - startedAt, ok: false });
     throw new Error(`BFF returned ${response.status}: ${text.slice(0, config.commerce.errorBodyPreviewChars)}`);
   }
 
@@ -62,13 +81,16 @@ export async function bffQuery<TData>(
 
   if (payload.errors?.length) {
     const msg = payload.errors.map((e) => e.message).join("; ");
+    log.debug("bffQuery", { op, status: response.status, ms: Date.now() - startedAt, ok: false });
     throw new Error(`GraphQL error: ${msg}`);
   }
 
   if (!payload.data) {
+    log.debug("bffQuery", { op, status: response.status, ms: Date.now() - startedAt, ok: false });
     throw new Error("BFF returned no data");
   }
 
+  log.debug("bffQuery", { op, status: response.status, ms: Date.now() - startedAt, ok: true });
   return payload.data;
 }
 

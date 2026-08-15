@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { tool } from "ai";
 import { z } from "zod";
+import { createLogger } from "@csa/logger";
 import { bffQuery } from "../../commerce/graphql-client.js";
 import { getSystemPromptContext } from "../system-prompt.js";
+import { instrumentTools } from "./instrument.js";
+
+const log = createLogger("ai-assist").child({ module: "tools/tickets" });
 
 const TICKET_FIELDS = `
   id ticketNumber projectKey customerName customerEmail customerId source status priority category subject assignee
@@ -221,14 +225,19 @@ export function buildTicketTools(approvalGate?: { pending: boolean }) {
 
         const draft = { ...draftFields, ...(comments ? { comments } : {}) };
 
-        const data = await bffQuery<{ createTicket: unknown }>(
+        const data = await bffQuery<{ createTicket: { id?: string; ticketNumber?: string } | null }>(
           `mutation CreateTicket($draft: TicketDraftInput!) {
             createTicket(draft: $draft) { ${TICKET_FIELDS} }
           }`,
           { draft }
         );
+        log.info("write:create_ticket", {
+          targetId: data.createTicket?.id ?? data.createTicket?.ticketNumber,
+          ok: data.createTicket != null
+        });
         return data.createTicket;
       } catch (err) {
+        log.info("write:create_ticket", { ok: false });
         return { error: String(err) };
       }
     }
@@ -261,14 +270,16 @@ export function buildTicketTools(approvalGate?: { pending: boolean }) {
           }`,
           { id, patch }
         );
+        log.info("write:update_ticket", { targetId: id, ok: data.updateTicket != null });
         return data.updateTicket;
       } catch (err) {
+        log.info("write:update_ticket", { targetId: id, ok: false });
         return { error: String(err) };
       }
     }
   });
 
-  return {
+  return instrumentTools({
     search_tickets: searchTicketsTool,
     get_ticket: getTicketTool,
     create_ticket: createTicketTool,
@@ -276,5 +287,5 @@ export function buildTicketTools(approvalGate?: { pending: boolean }) {
     list_assignees: listAssigneesTool,
     search_knowledge_base: searchKnowledgeBaseTool,
     get_knowledge_base_article: getKnowledgeBaseArticleTool
-  };
+  }, log);
 }

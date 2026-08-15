@@ -12,6 +12,7 @@ import { createLogger } from "@csa/logger";
 import { withIdempotency } from "@csa/mongodb";
 import { bffQuery, formatMoney } from "../../commerce/graphql-client.js";
 import { contextStorage } from "../system-prompt.js";
+import { instrumentTools } from "./instrument.js";
 
 const log = createLogger("ai-assist").child({ module: "tools/commerce" });
 
@@ -587,8 +588,16 @@ export const placeOrderTool = tool({
           return data.placeOrderFromCart;
         }
       });
+      const orderId =
+        (outcome.result && typeof outcome.result === "object"
+          ? (outcome.result as { id?: string }).id
+          : typeof outcome.result === "string"
+            ? outcome.result
+            : undefined) ?? cartId;
+      log.info("write:place_order", { targetId: orderId, cartId, ok: true });
       return outcome.result;
     } catch (err) {
+      log.info("write:place_order", { targetId: cartId, ok: false });
       return { error: String(err) };
     }
   }
@@ -625,8 +634,10 @@ export const cancelOrderTool = tool({
           return { success: true as const, result: data.updateOrder };
         }
       });
+      log.info("write:cancel_order", { targetId: orderId, ok: outcome.result != null });
       return outcome.result ?? { error: "Order cancellation failed" };
     } catch (err) {
+      log.info("write:cancel_order", { targetId: orderId, ok: false });
       return { error: String(err) };
     }
   }
@@ -688,8 +699,10 @@ export const startReturnTool = tool({
           return { success: true as const, returnTrackingId, result: data.updateOrder };
         }
       });
+      log.info("write:start_return", { targetId: orderId, returnTrackingId: outcome.result?.returnTrackingId, ok: outcome.result != null });
       return outcome.result ?? { error: "Return could not be started" };
     } catch (err) {
+      log.info("write:start_return", { targetId: orderId, ok: false });
       return { error: String(err) };
     }
   }
@@ -924,7 +937,7 @@ export const listRegionsTool = tool({
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 export function buildCommerceTools() {
-  return {
+  return instrumentTools({
     find_customer: findCustomerTool,
     find_b2b_customer: findB2bCustomerTool,
     get_order: getOrderTool,
@@ -945,5 +958,5 @@ export function buildCommerceTools() {
     check_return_eligibility: checkReturnEligibilityTool,
     update_order: updateOrderTool,
     list_regions: listRegionsTool
-  };
+  }, log);
 }

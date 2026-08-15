@@ -1,9 +1,12 @@
+import { createLogger } from "@csa/logger";
 import { commercetoolsGraphql } from "../../../commercetools/client.js";
 import { getCartByIdOrKey, listCarts } from "../../../commercetools/api/index.js";
 import { mapCart, mapOrder } from "../../../commercetools/mappers.js";
 import type { CtCart, CtOrder } from "../../../commercetools/types.js";
 import { compactWhere, escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
 import type { CartSearchArgs } from "./cart.types.js";
+
+const log = createLogger("commercetools").child({ module: "cart.resolvers" });
 
 export const resolvers = {
   cart: (_parent: unknown, args: { id?: string; key?: string }) => getCartByIdOrKey(args),
@@ -217,17 +220,23 @@ async function createOrderWithUniqueNumber(cartId: string, cartVersion: number) 
         }
       );
 
-      return mapOrder(data.createOrderFromCart);
+      const order = mapOrder(data.createOrderFromCart);
+      log.info("ct:createOrderFromCart", { id: data.createOrderFromCart?.id ?? cartId, ok: true });
+      return order;
     } catch (error) {
       // A duplicate order number is the only error worth retrying — a fresh
       // number will resolve it. Any other error (invalid cart, version
       // conflict, auth) is real and must surface immediately, unretried.
       // The failed create does not mutate the cart, so the same version is
       // still valid for the next attempt.
-      if (!isDuplicateOrderNumberError(error)) throw error;
+      if (!isDuplicateOrderNumberError(error)) {
+        log.info("ct:createOrderFromCart", { id: cartId, ok: false });
+        throw error;
+      }
       lastError = error;
     }
   }
+  log.info("ct:createOrderFromCart", { id: cartId, ok: false });
   throw lastError ?? new Error("Could not allocate a unique order number");
 }
 

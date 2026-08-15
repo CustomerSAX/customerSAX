@@ -6,6 +6,10 @@
 
 import { tool } from "ai";
 import { z } from "zod";
+import { createLogger } from "@csa/logger";
+import { instrumentTools } from "./instrument.js";
+
+const log = createLogger("ai-assist").child({ module: "tools/ui" });
 
 // ─── Resolution reason codes ──────────────────────────────────────────────────
 
@@ -271,7 +275,7 @@ export function buildUiTools(approvalGate: { pending: boolean }) {
     },
   });
 
-  return {
+  return instrumentTools({
     update_ui_state: updateUiStateTool,
     draft_email: draftEmailTool,
     action_approval: actionApprovalTool,
@@ -283,5 +287,5 @@ export function buildUiTools(approvalGate: { pending: boolean }) {
     render_refund_action: renderRefundActionTool,
     get_resolution_reasons: getResolutionReasonsTool,
     case_briefing_card: caseBriefingCardTool
-  };
+  }, log);
 }

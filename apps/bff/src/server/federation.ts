@@ -66,6 +66,9 @@ export function buildGateway(logger: Logger): ApolloGateway | undefined {
 
   logger.info("composing federated services", { services: services.map((service) => service.name).join(", ") });
 
+  // url -> subgraph name, so each forward is traceable by service (not just url).
+  const serviceNameByUrl = new Map(services.map((service) => [service.url, service.name]));
+
   return new ApolloGateway({
     buildService: ({ url }) =>
       new RemoteGraphQLDataSource({
@@ -76,6 +79,12 @@ export function buildGateway(logger: Logger): ApolloGateway | undefined {
             if (token) request.http?.headers.set("Authorization", `Bearer ${token}`);
           }
           const gatewayContext = context as GatewayContext;
+          // Per-hop trace: which subgraph this request is being forwarded to,
+          // correlated by requestId. Debug-level (one line per subgraph hop).
+          logger.debug("subgraph forward", {
+            service: (url ? serviceNameByUrl.get(url) : undefined) ?? url ?? "unknown",
+            requestId: gatewayContext.requestId
+          });
           if (request.http) {
             // Forward the tenant/user identity + correlation id so a request can
             // be traced (and scoped) across every subgraph hop. Only present
