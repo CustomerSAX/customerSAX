@@ -1,3 +1,19 @@
+/**
+ * Builds the Apollo Gateway that fronts every backend subgraph.
+ *
+ * The load-bearing rule for commerce: the gateway composes exactly ONE commerce
+ * subgraph, never several at once. Each commerce adapter (commercetools,
+ * shopify, ...) intentionally exposes the SAME platform-neutral CSA schema, so
+ * composing two would be a type collision. `selectCommerceService` picks the
+ * single adapter that matches `BFF_COMMERCE_PLATFORM` out of the configured
+ * `FEDERATED_SERVICES` map and drops the rest, while leaving all non-commerce
+ * subgraphs (ticketing, admin, ...) untouched. Switching platforms is therefore
+ * a one-env-var change on the BFF, with no change to any consumer.
+ *
+ * Requests also carry per-tenant/user identity down to the subgraphs via the
+ * `x-csa-*` headers set in `willSendRequest`, plus a GCP identity token when
+ * running on Cloud Run (`getIdentityToken`).
+ */
 import { ApolloGateway, IntrospectAndCompose, RemoteGraphQLDataSource } from "@apollo/gateway";
 import { GoogleAuth } from "google-auth-library";
 
@@ -122,6 +138,16 @@ function stripTrailingCommas(value: string) {
   return value.replace(/,\s*([}\]])/g, "$1");
 }
 
+/**
+ * Reduces the configured service list to at most one commerce subgraph.
+ *
+ * Non-commerce services always pass through. Among the commerce services
+ * (`commerce` or `commerce-*`), keep only the one whose name matches the
+ * selected `BFF_COMMERCE_PLATFORM` (see `getCommerceServiceNameCandidates` for
+ * the `salesforce`/`sfcc` alias), falling back to a bare `commerce` entry if
+ * present. If commerce services are configured but none match the selected
+ * platform, drop them all rather than composing the wrong backend.
+ */
 function selectCommerceService(services: FederatedService[]) {
   const selectedCommerceServiceNames = getCommerceServiceNameCandidates(getCommercePlatform());
   const commerceServices = services.filter((service) => isCommerceService(service.name));
