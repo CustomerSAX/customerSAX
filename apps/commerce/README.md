@@ -2,6 +2,53 @@
 
 `apps/commerce` is a clean grouping folder for commerce microservices. The BFF consumes one stable CSA commerce GraphQL contract by selecting one adapter from `FEDERATED_SERVICES`, while each external commerce platform is isolated in its own runnable adapter service.
 
+## Architecture: the platform-neutral adapter seam
+
+This is the repo's core abstraction — a classic ports-and-adapters (hexagonal) seam that lets the
+backend commerce platform be swapped with **zero change to any caller**:
+
+```
+                       one stable, platform-neutral GraphQL contract
+  contract/  ───────────────────────────────────────────────────────────────►  @csa/commerce-contract
+  (schema.ts + types.ts:                                                         (the "port": schema + types,
+   CommerceProvider port)                                                         incl. the CommerceProvider interface)
+        │  each adapter IMPLEMENTS the same contract, mapping its native backend into these types
+        ▼
+  ┌────────────────┬──────────────┬────────────────┬──────────┐
+  │ commercetools  │   shopify    │  bigcommerce   │   sfcc   │   ◄─ per-platform adapter subgraphs
+  │ (implemented)  │   (stub)     │   (stub)       │  (stub)  │      (same schema, different backend)
+  └────────────────┴──────────────┴────────────────┴──────────┘
+        │  BFF composes exactly ONE of these, chosen by BFF_COMMERCE_PLATFORM
+        ▼
+  bff/  (Apollo Gateway) ─────────────────────────────────────────────────────►  every consumer
+        selectCommerceService() keeps the single matching commerce subgraph        (webapp, ai-assist)
+        + all non-commerce subgraphs (ticketing, admin)
+```
+
+**The three layers:**
+
+1. **Contract (`contract/src/*.graphql.ts`, `types.ts`)** — the platform-neutral schema plus the
+   `CommerceProvider` TypeScript port. This is the fixed target: it never mentions commercetools,
+   Shopify, or any vendor. It is compiled to `dist/`, and every adapter imports the built output
+   (not the source) — so a schema edit is only live after `pnpm --filter @csa/commerce-contract build`.
+
+2. **Adapter subgraphs (`commercetools/`, `shopify/`, ...)** — each is a deployable Apollo subgraph
+   that serves the **same** contract schema but talks to a different backend. The adapter's job is
+   entirely translation: authenticate to the platform, call its native API, and map the native
+   response into the contract types (see `commercetools/src/commercetools/mappers.ts` and
+   `provider.ts`, which implements `CommerceProvider`). commercetools is the only one wired up here;
+   the others are runnable stubs.
+
+3. **BFF federation (`bff/src/server/federation.ts`)** — the Apollo Gateway composes **exactly one**
+   commerce adapter, selected by `BFF_COMMERCE_PLATFORM`, alongside the non-commerce subgraphs.
+   Because every adapter exposes the identical schema, composing more than one would collide;
+   `selectCommerceService()` enforces the "pick one" rule. Switching platforms is a single env-var
+   change on the BFF — no consumer, query, or type changes anywhere upstream.
+
+**The factory in one sentence:** callers depend only on the contract; the BFF chooses which
+concrete adapter fulfills it at runtime, so the whole commerce backend can be swapped by changing
+`BFF_COMMERCE_PLATFORM` (and pointing `FEDERATED_SERVICES` at that adapter's URL).
+
 ## Packages
 
 - `contract`: Shared GraphQL schema and TypeScript types for products, carts, orders, and customers.

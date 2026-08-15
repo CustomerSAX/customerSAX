@@ -103,6 +103,12 @@ export type Customer = {
   lastModifiedAt?: string;
 };
 
+/**
+ * The platform-neutral port every commerce adapter implements (see
+ * `createCommercetoolsProvider`). Callers program against this interface only,
+ * so the backing platform can be swapped with zero caller change. `name`
+ * identifies which platform is wired up at runtime.
+ */
 export type CommerceProvider = {
   getCart(args: { id?: string; key?: string }): Promise<Cart | null>;
   getCustomer(args: { email?: string; id?: string }): Promise<Customer | null>;

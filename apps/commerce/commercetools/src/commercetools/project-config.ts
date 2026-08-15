@@ -1,3 +1,24 @@
+/**
+ * Resolves which commercetools project (tenant) the current request runs
+ * against, and the credentials to reach it. The subgraph is multi-tenant: the
+ * BFF forwards `x-csa-project-key` / `x-csa-client-id` per request (see
+ * `project-context.ts`), and this module turns that into a concrete
+ * `CommercetoolsProjectConfig`.
+ *
+ * Resolution precedence (first match wins) in `resolveCommercetoolsProject`:
+ *   1. No selected project, or it equals COMMERCETOOLS_PROJECT_KEY -> the
+ *      deployment's primary project from env (`environmentProject`). This is
+ *      also the recovery path when a stored record was encrypted with a key
+ *      that isn't available locally.
+ *   2. A stored Superadmin record for (clientId, projectKey), with its secret
+ *      decrypted on read (see `project-store.ts`).
+ *   3. A statically configured project in COMMERCETOOLS_PROJECTS_JSON.
+ *   4. Otherwise: throw — never fall back to a fabricated/placeholder tenant.
+ *
+ * `normalizeProject` is the single choke point that trims URLs and asserts
+ * every required credential is present, so a half-configured tenant fails loudly
+ * at resolution time rather than mid-query.
+ */
 import { currentProjectContext } from "./project-context.js";
 import { findStoredCommercetoolsProject } from "./project-store.js";
 
