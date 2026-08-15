@@ -1,5 +1,5 @@
 /**
- * Per-request structured logger for the webapp's server-side API routes.
+ * Per-request structured logger for the studio app's server-side API routes.
  *
  * Each route seeds a child logger from the inbound `x-request-id` (generating
  * one if absent) so a correlation id set by the browser — or propagated on to
@@ -9,7 +9,7 @@
  * This uses the dependency-free `@csa/logger/client` shim (console-backed, same
  * `Logger` shape) rather than the Winston-backed server logger, so nothing is
  * bundled into the Next.js output that its webpack build can't handle — the
- * shim still emits one structured line per call, carrying `service: "webapp"`
+ * shim still emits one structured line per call, carrying `service: "studio"`
  * plus the `module`/`requestId` bindings.
  */
 import { CSA_HEADERS } from "@csa/headers";
@@ -18,7 +18,7 @@ import { createLogger, type Logger } from "@csa/logger/client";
 /** Header used to carry the correlation id across every service hop. */
 export const REQUEST_ID_HEADER = CSA_HEADERS.requestId;
 
-const base = createLogger("webapp");
+const base = createLogger("studio");
 
 export interface RequestLogger {
   log: Logger;

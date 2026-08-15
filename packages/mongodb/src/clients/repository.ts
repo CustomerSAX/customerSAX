@@ -1,7 +1,7 @@
 /**
- * MongoDB CRUD for CSA client organisations. Moved here from the webapp so
- * the webapp never talks to Mongo directly — see this repo's established
- * pattern (webapp -> BFF -> subgraph -> real backend), the same one
+ * MongoDB CRUD for CSA client organisations. Moved here from the studio so
+ * the studio never talks to Mongo directly — see this repo's established
+ * pattern (studio -> BFF -> subgraph -> real backend), the same one
  * apps/ticketing already follows.
  */
 

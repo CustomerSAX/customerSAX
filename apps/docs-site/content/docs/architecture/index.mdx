@@ -9,7 +9,7 @@ customerSAX is built around a small number of load-bearing ideas. If you hold
 these, the rest of the codebase reads easily:
 
 1. **One tool path, two UIs.** Guided steppers and free-form chat both emit the
-   same tool calls through the same `/chat` endpoint. The webapp reconstructs a
+   same tool calls through the same `/chat` endpoint. The studio reconstructs a
    single state snapshot from the tool-call stream regardless of which drove it.
 2. **A platform-neutral commerce seam.** A GraphQL contract package sits between
    the app and the commerce backend. Swapping commercetools for another engine

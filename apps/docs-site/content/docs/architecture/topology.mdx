@@ -6,13 +6,13 @@ description: The service graph — console, ai-assist, BFF gateway, subgraphs, a
 ## Topology diagram
 
 The diagram below shows the real service graph and the two distinct request
-paths: proxied data calls (browser → webapp server → BFF) and the direct chat
+paths: proxied data calls (browser → studio server → BFF) and the direct chat
 stream (browser → ai-assist).
 
 <Mermaid
   chart={`flowchart TD
   B["Browser · Rep console UI"]
-  WEB["webapp / studio :3000<br/>Next.js + server proxy (app/api/*)"]
+  WEB["studio :3000<br/>Next.js + server proxy (app/api/*)"]
   AI["ai-assist :8080<br/>Express · streamText loop"]
   BFF["BFF gateway :4000<br/>Apollo Gateway (supergraph)"]
   AUTH["auth :4360<br/>node:http · sessions"]
@@ -40,7 +40,7 @@ stream (browser → ai-assist).
 
 ## Reading the graph
 
-- **webapp (studio) — `:3000`.** The rep console plus a **server proxy layer**
+- **studio — `:3000`.** The rep console plus a **server proxy layer**
   (`app/api/*`). Every browser _data_ call goes through a Next.js route that
   injects server-derived session identity the browser can't forge.
 - **ai-assist — `:8080`.** An Express service running the LLM `streamText` loop.

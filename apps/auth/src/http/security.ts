@@ -55,7 +55,7 @@ function allowedOrigins(): Set<string> {
  * Applies conservative CORS headers when the request carries an `Origin` header
  * that is on the env allowlist. Returns the resolved origin (or null).
  *
- * IMPORTANT: the webapp calls this service SERVER-SIDE (Next.js route handlers),
+ * IMPORTANT: the studio calls this service SERVER-SIDE (Next.js route handlers),
  * which send NO `Origin` header — that path is untouched here (we only add
  * headers when an allowlisted Origin is present). Direct browser cross-origin
  * calls from a non-allowlisted origin simply get no CORS headers, so the

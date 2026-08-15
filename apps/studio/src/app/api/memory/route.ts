@@ -10,7 +10,7 @@ import { forwardRequestId, requestLogger } from '@/lib/request-logger';
  *   - workingMemory: Redis-backed active session context (goal/intent/sentiment)
  *   - episodicMemory: MongoDB-backed historical interaction summaries
  *
- * This route proxies through to ai-assist's GET /memory endpoint so the webapp
+ * This route proxies through to ai-assist's GET /memory endpoint so the studio
  * never directly talks to Redis or MongoDB. Working memory is scoped to the
  * sessionId; episodic memory is scoped to the customerId and the authenticated
  * agent's email.

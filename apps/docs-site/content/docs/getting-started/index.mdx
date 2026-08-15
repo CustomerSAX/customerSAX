@@ -13,7 +13,7 @@ description: Prerequisites and the fastest path to a running local stack.
 
 The repository is a **pnpm workspace** (`apps/*`, `apps/commerce/*`,
 `packages/*`, `configs/*`, `infra/*`) orchestrated by **Turborepo**. Package
-names follow `@csa/<dir-name>` — e.g. `apps/webapp` is `@csa/webapp`.
+names follow `@csa/<dir-name>` — e.g. `apps/studio` is `@csa/studio`.
 
 ## Install
 
@@ -30,7 +30,7 @@ pnpm dev          # turbo run dev --parallel — starts every service
 Or run a single app:
 
 ```bash
-pnpm --filter @csa/webapp dev      # just the rep console (port 3000)
+pnpm --filter @csa/studio dev      # just the rep console (port 3000)
 pnpm --filter @csa/docs-site dev   # just this docs portal (port 3001)
 ```
 

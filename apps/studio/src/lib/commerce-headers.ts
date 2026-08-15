@@ -1,8 +1,8 @@
 /**
- * Shared helpers for the webapp API routes' outbound BFF calls.
+ * Shared helpers for the studio API routes' outbound BFF calls.
  *
  * The commerce platform the BFF fronts is a per-deployment env choice
- * (`BFF_COMMERCE_PLATFORM`), never a hardcoded literal — the webapp routes used
+ * (`BFF_COMMERCE_PLATFORM`), never a hardcoded literal — the studio routes used
  * to send a fixed `x-csa-commerce-platform: commercetools`, which silently sent
  * the wrong platform on any non-commercetools deployment. Read it from the env
  * (defaulting to `commercetools`) exactly like `api/tickets/route.ts` does.

@@ -50,7 +50,7 @@ startStandaloneServer(server, {
 ```
 
 Each helper reads an inbound `x-request-id` (or generates one) and echoes /
-forwards it, so a correlation id set at the webapp/BFF edge survives every hop.
+forwards it, so a correlation id set at the studio/BFF edge survives every hop.
 
 ## API
 
@@ -62,7 +62,7 @@ forwards it, so a correlation id set at the webapp/BFF edge survives every hop.
 ## Client shim
 
 `@csa/logger/client` exposes the same `Logger` shape backed by `console`, with
-no Winston / Node imports — safe to import into webapp client components.
+no Winston / Node imports — safe to import into studio client components.
 
 ## PII-safety
 

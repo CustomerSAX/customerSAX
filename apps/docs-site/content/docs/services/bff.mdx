@@ -15,7 +15,7 @@ description: The Apollo Gateway that federates commerce, ticketing and admin int
 ## Responsibilities
 
 - **Federation** — composes the subgraphs into a single supergraph that the
-  webapp and ai-assist both query at `:4000/graphql`.
+  studio and ai-assist both query at `:4000/graphql`.
 - **Commerce platform selection** — `selectCommerceService` keeps all
   non-commerce subgraphs plus **exactly one** commerce subgraph matching
   `BFF_COMMERCE_PLATFORM`, so multiple adapters can be declared without schema

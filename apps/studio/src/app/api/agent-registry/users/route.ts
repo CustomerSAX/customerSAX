@@ -10,9 +10,9 @@ import { bffJsonHeaders } from '@/lib/commerce-headers';
  * objects (container: "mc-user-info") — the same source the standalone
  * reference implementation uses (FETCH_USERS_LIST / CONSTANTS.USER_CONTAINER).
  *
- * Architecture: webapp → BFF GraphQL (port 4000) → CT subgraph agentList
+ * Architecture: studio → BFF GraphQL (port 4000) → CT subgraph agentList
  * resolver → commercetoolsGraphql("customObjects") → CommerceTools API.
- * No direct MongoDB or CT API calls from the webapp.
+ * No direct MongoDB or CT API calls from the studio.
  */
 
 const BFF_URL =

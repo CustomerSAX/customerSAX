@@ -21,7 +21,7 @@ backend commerce platform be swapped with **zero change to any caller**:
         │  BFF composes exactly ONE of these, chosen by BFF_COMMERCE_PLATFORM
         ▼
   bff/  (Apollo Gateway) ─────────────────────────────────────────────────────►  every consumer
-        selectCommerceService() keeps the single matching commerce subgraph        (webapp, ai-assist)
+        selectCommerceService() keeps the single matching commerce subgraph        (studio, ai-assist)
         + all non-commerce subgraphs (ticketing, admin)
 ```
 

@@ -18,7 +18,7 @@ Create these `packages/*` (source-ESM, like `@csa/mongodb`; extend `@csa/config-
 
 1. **`@csa/logger`** — Winston-based structured logger (house style, per Metafy's `@metafy/logger`), but native `AsyncLocalStorage` (not cls-hooked, since not NestJS). Levels via `LOG_LEVEL`, JSON in prod / colorized in dev, `child({module})` bound context, `safeStringify` cycle guard, **PII-safe defaults** (log sizes/keys, never values). Per-server-style helpers for node:http (auth) / Express (ai-assist) / Apollo (bff, subgraphs). `x-request-id` correlation threaded through the existing `x-csa-*` header forwarding. Replaces **95 raw `console.*` calls**. Fix the 2 PII leaks in the same pass (`auth/http/auth.ts:84` raw email; `packages/mongodb` SMTP error bodies). *(Full design: logging audit.)*
 2. **`@csa/config`** (env) — one `loadEnv({extraPaths?})` replacing **5 duplicated `load-env.ts`** (~254 lines) + ai-assist's inline dotenv; absorb `env`/`requiredEnv` (from `@csa/mongodb/connection.ts`) and `envInt` (from `ai-assist/config.ts`).
-3. **`@csa/headers`** — typed `CSA_HEADERS` constants + `readCsaContext(req)` / `applyCsaHeaders(headers, ctx)`, replacing **~30 stringly-typed `x-csa-*` sites** (bff, subgraphs, ai-assist, ~13 webapp routes). Most error-prone duplication in the identity path.
+3. **`@csa/headers`** — typed `CSA_HEADERS` constants + `readCsaContext(req)` / `applyCsaHeaders(headers, ctx)`, replacing **~30 stringly-typed `x-csa-*` sites** (bff, subgraphs, ai-assist, ~13 studio routes). Most error-prone duplication in the identity path.
 4. **`@csa/service-bootstrap`** — `startSubgraph({schema, port, readContext})` + `headerValue()` + a shared `/health` handler, replacing the Apollo bootstrap copy-pasted 4× (bff, ticketing, admin, commercetools) and the `headerValue` copied 3×. Adds `/health` to admin/bff/ticketing (only auth has one today).
 5. **Consolidate ai-assist commerce clients** — merge `graphql-client.ts` + `client.ts` into one; fix the `AI_COMMERCE_SERVICE_URL` fallback mismatch (`""` vs `localhost:4000`); a shared `graphqlFetch()` error-shaping helper (used by ai-assist + `@csa/mongodb` test-connection). Decide if the legacy `/assist` route is still needed.
 
@@ -46,7 +46,7 @@ Also: **the docs app (`apps/documentation`) and marketing must consume `@csa/ui`
 - **`ORD-RC-` order prefix** hardcoded (`cart.resolvers.ts:210`) → project config (per-tenant).
 - **Hardcoded `en-US` locale** in payment query (`order.resolvers.ts:79`) + currency format (`ai-assist/graphql-client.ts:65`) → derive from context.
 - **Magic `limit: 500/50` caps** bypass `paging.ts` constants (`product/customer.resolvers.ts`) → name/document.
-- **~12 webapp routes hardcode `'commercetools'`** instead of `BFF_COMMERCE_PLATFORM`.
+- **~12 studio routes hardcode `'commercetools'`** instead of `BFF_COMMERCE_PLATFORM`.
 
 ---
 
@@ -56,7 +56,7 @@ Also: **the docs app (`apps/documentation`) and marketing must consume `@csa/ui`
 - **Fake multi-env** — everything hardcodes `csa-dev-*` regardless of branch; "prod" deploys to dev resources. Parametrize `NAME_PREFIX="csa-${ENVIRONMENT}"` or document single-env.
 - **`pnpm test` is a green no-op** (no tests exist) — misleading CI signal.
 - **Bitbucket CI is effectively dead** (branch triggers don't match real branches); **no PR validation on GitHub**. Delete `bitbucket-pipelines.yml` (if GitHub is SoT) and add a GitHub `ci.yml` (typecheck+lint+build on PRs).
-- **4 tsconfigs bypass shared config** (`ai-assist`, `bff`, `webapp`, `marketing`) → `extends @csa/config-typescript` + local overrides.
+- **4 tsconfigs bypass shared config** (`ai-assist`, `bff`, `studio`, `marketing`) → `extends @csa/config-typescript` + local overrides.
 - Minor: parametrize region/registry/commercetools-URLs in `scripts/*`; drop unused `firestore.googleapis.com` API; per-app `.dockerignore`.
 
 ---
@@ -84,7 +84,7 @@ Introduce a test runner + coverage, starting with pure logic: `bff selectCommerc
 - **admin `schema.ts` (~480 lines)** — split per domain (clients/projects/smtp/users/roles/ai) to match the repo layout.
 - **marketing** — replace boilerplate README + `CLAUDE.md`; rename package `marketing` → `@csa/marketing`; prune create-next-app dead assets; **adopt `@csa/ui`** instead of its own CSS.
 - Trim irrelevant "ported from ct-csa-standalone" provenance comments (`encrypt.ts:11`, `resolve-send-email-post-url.ts:5`).
-- **`webapp → studio` rename** (owner request) — rename `apps/webapp` → `apps/studio`, package `@csa/webapp` → `@csa/studio`, update all references; verify build. (Wide mechanical rename — do as a discrete verified step.)
+- ~~**`studio → studio` rename** (owner request) — rename `apps/studio` → `apps/studio`, package `@csa/studio` → `@csa/studio`, update all references; verify build.~~ **Done.**
 - Exception-handling consistency pass — ensure every service has uniform try/catch → rep-safe message + structured `logger.error`, and covers malformed input (e.g. auth malformed JSON → 400 not 500), upstream failures, and infra-down degradation.
 
 ---

@@ -1,7 +1,7 @@
 # @csa/ui
 
 The CSA shared design system: foundation tokens, the Tailwind preset, primitives,
-composed components, providers, hooks, and icons. Extracted from the webapp so any
+composed components, providers, hooks, and icons. Extracted from the studio so any
 app in the workspace can reuse the same visual language.
 
 This is a raw-TypeScript workspace package (consumed directly from `src/`, no build

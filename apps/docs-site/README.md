@@ -3,7 +3,7 @@
 The public documentation portal for **customerSAX**, built with
 [Fumadocs](https://fumadocs.dev) on Next.js (App Router).
 
-- **Dev port:** 3001 (the webapp uses 3000)
+- **Dev port:** 3001 (the studio uses 3000)
 - **Intended domain:** `docs.customersax.com`
 - **Content:** MDX under [`content/docs`](./content/docs)
 - **Theme:** the CSA blue/yellow palette, consumed from the shared

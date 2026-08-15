@@ -12,7 +12,7 @@ interface SuperadminTopBarProps {
  * Persistent dark top bar for the superadmin portal — visually matches
  * ct-csa-standalone's app/superadmin/SuperadminTopBar.tsx. That app's
  * tailwind config exposes m-n300/m-n400/m-n800/m-n900/m-n950 as direct
- * utility names; this repo's preset (apps/webapp/src/ui/preset/index.ts)
+ * utility names; this repo's preset (apps/studio/src/ui/preset/index.ts)
  * exposes the identical hex scale as m-neutral-300/400/800/900/950
  * instead — same colors, different utility name, so the classes below
  * are translated accordingly. Sign-out calls this repo's real

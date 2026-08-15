@@ -16,7 +16,7 @@ not a preference:
   now" on a real failure — never synthesize a plausible-looking placeholder value instead.
 - Distinguish "real, reachable backend legitimately returned nothing" (e.g. `{ ok: true, orders: [] }`) from
   "the backend call itself failed" (e.g. `{ ok: false, reason: ... }`) — collapsing these into one generic
-  empty state hides real outages. See the `BffResult` pattern in `apps/webapp/src/app/api/orders/route.ts`.
+  empty state hides real outages. See the `BffResult` pattern in `apps/studio/src/app/api/orders/route.ts`.
 - When adding an eligibility/validation check (return eligibility, cart shipping, order cancellation), gate
   it on the actual current state of the actual resource (`paymentState`, `shipmentState`, real dates) — never
   on an assumption derived only from a coarser field like `orderState`. See [[commercetools]] for the

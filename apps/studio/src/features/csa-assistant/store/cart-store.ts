@@ -149,7 +149,7 @@ interface CartState {
   clear: () => void;
 }
 
-// ─── BFF call helpers (calls webapp's own API routes, never BFF directly) ────
+// ─── BFF call helpers (calls studio's own API routes, never BFF directly) ────
 
 /** Read the error message from a non-2xx response body, or fall back to a generic message. */
 async function readErrorBody(res: Response, fallback: string): Promise<string> {

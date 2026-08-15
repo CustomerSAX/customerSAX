@@ -4,7 +4,7 @@ Monorepo scaffold for the CSA architecture on GCP.
 
 ## What Is Included
 
-- `apps/webapp`: Next.js + React frontend, deployed to Vercel.
+- `apps/studio`: Next.js + React frontend, deployed to Vercel.
 - `apps/bff`: Node.js GraphQL BFF / Apollo gateway facade.
 - `apps/commerce`: Commerce service group with a shared contract and platform adapters.
 - `apps/ticketing`: MongoDB-backed ticketing subgraph.
@@ -29,7 +29,7 @@ pnpm dev
 
 App-specific env examples live with each app:
 
-- `apps/webapp/.env.example`
+- `apps/studio/.env.example`
 - `apps/bff/.env.example`
 - `apps/ai-assist/.env.example`
 - `apps/commerce/commercetools/.env.example`
@@ -37,7 +37,7 @@ App-specific env examples live with each app:
 
 Default local URLs:
 
-- Webapp: `http://localhost:3000`
+- Studio: `http://localhost:3000`
 - BFF GraphQL: `http://localhost:4000/graphql`
 - commercetools Adapter GraphQL: `http://localhost:4310/graphql`
 - Ticketing GraphQL: `http://localhost:4350/graphql`
@@ -45,7 +45,7 @@ Default local URLs:
 
 ## Federated BFF
 
-The webapp uses Apollo Client and reads `NEXT_PUBLIC_GRAPHQL_URL` to call the BFF.
+The studio app uses Apollo Client and reads `NEXT_PUBLIC_GRAPHQL_URL` to call the BFF.
 
 `apps/bff` runs as a local hello-world GraphQL server by default. When `FEDERATED_SERVICES` is set, it starts as an Apollo Federation gateway and introspects the configured subgraphs.
 
@@ -73,10 +73,10 @@ Supported values are `commercetools`, `shopify`, `bigcommerce`, and `sfcc`. `sal
 
 ## Ticketing Service
 
-`apps/ticketing` is a standalone MongoDB-backed Apollo subgraph. The webapp calls ticket queries through the BFF gateway:
+`apps/ticketing` is a standalone MongoDB-backed Apollo subgraph. The studio app calls ticket queries through the BFF gateway:
 
 ```text
-webapp -> BFF GraphQL -> ticketing subgraph -> MongoDB
+studio -> BFF GraphQL -> ticketing subgraph -> MongoDB
 ```
 
 Configure it from `apps/ticketing/.env.example`:
@@ -122,7 +122,7 @@ pnpm typecheck  # run TypeScript checks
 Workspace shortcuts:
 
 ```bash
-pnpm app:webapp
+pnpm app:studio
 pnpm app:bff
 pnpm app:commerce-commercetools
 pnpm app:commerce-shopify
@@ -155,7 +155,7 @@ The repository also includes component-owned Terraform boilerplate beside each d
 - `apps/ticketing/terraform`
 - `apps/auth/terraform`
 - `apps/admin/terraform`
-- `apps/webapp/terraform`
+- `apps/studio/terraform`
 - `apps/commerce/commercetools/terraform`
 - `apps/commerce/shopify/terraform`
 - `apps/commerce/bigcommerce/terraform`

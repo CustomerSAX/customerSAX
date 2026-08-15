@@ -6,7 +6,7 @@
  *   - `apolloContext` + `apolloLoggingPlugin` — Apollo subgraphs / gateway.
  *
  * All three read an inbound `x-request-id` (or generate one), so a correlation
- * id set at the webapp/BFF edge flows through every downstream hop.
+ * id set at the studio/BFF edge flows through every downstream hop.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { CSA_HEADERS, readCsaContext } from "@csa/headers";

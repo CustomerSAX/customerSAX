@@ -7,7 +7,7 @@ description: Every service in the platform, its package name, port and framework
 
 | App | Package | Port | Framework | Role |
 | --- | --- | --- | --- | --- |
-| webapp (studio) | `@csa/webapp` | 3000 | Next.js App Router | Rep console + server proxy layer |
+| studio | `@csa/studio` | 3000 | Next.js App Router | Rep console + server proxy layer |
 | docs-site | `@csa/docs-site` | 3001 | Next.js (Fumadocs) | This documentation portal |
 | ai-assist | `@csa/ai-assist` | 8080 | Express | LLM chat orchestration, tools, memory |
 | bff | `@csa/bff` | 4000 | Apollo Gateway | Federated GraphQL supergraph |
@@ -32,8 +32,8 @@ wired up and implemented today.
 
 ## Request entry points
 
-- Browsers load the **webapp** at `:3000`.
-- The webapp's server proxy layer (`app/api/*`) talks to the **BFF** at `:4000`.
+- Browsers load the **studio** at `:3000`.
+- The studio's server proxy layer (`app/api/*`) talks to the **BFF** at `:4000`.
 - The chat stream posts **directly** from the browser to **ai-assist** at
   `:8080` (see [Resolution Flow](/docs/architecture/resolution-flow) for why
   that asymmetry matters).

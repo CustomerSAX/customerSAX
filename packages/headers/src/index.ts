@@ -2,11 +2,11 @@
  * `@csa/headers` — the single source of truth for the CSA cross-service HTTP
  * header contract.
  *
- * Every hop in the platform (webapp → BFF → subgraphs, ai-assist → BFF) carries
+ * Every hop in the platform (studio → BFF → subgraphs, ai-assist → BFF) carries
  * per-tenant/user identity and a correlation id as a fixed set of `x-csa-*`
  * (plus `x-request-id`) headers. Historically the literal header names were
  * copy-pasted across ~30 sites (bff/admin/ticketing/commercetools `index.ts`,
- * the webapp route handlers, ai-assist's clients, `@csa/logger`), each with its
+ * the studio route handlers, ai-assist's clients, `@csa/logger`), each with its
  * own hand-rolled `headerValue` normalizer. This package owns the contract in
  * ONE place so a rename or a new header is a single edit.
  *

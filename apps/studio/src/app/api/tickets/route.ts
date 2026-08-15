@@ -38,7 +38,7 @@ async function gql(query: string, variables: Record<string, unknown>, requestId:
     // consistent and future-proofs header requirements.
     headers: bffJsonHeaders(),
     body: JSON.stringify({ query, variables }),
-    // Short timeout so the webapp doesn't hang if ticketing is down
+    // Short timeout so the studio doesn't hang if ticketing is down
     signal: AbortSignal.timeout(5000),
   }, requestId);
   if (!res.ok) throw new Error(`Ticketing ${res.status}`);

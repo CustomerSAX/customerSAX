@@ -1,6 +1,6 @@
 /**
  * `@csa/logger/client` — a tiny, dependency-free `Logger` shim for browser /
- * client-component code (the webapp). Same shape as the server `Logger`, but
+ * client-component code (the studio). Same shape as the server `Logger`, but
  * backed by `console` and with NO Winston, NO `AsyncLocalStorage`, and no
  * Node-only imports — so it is safe to bundle into a client component.
  *

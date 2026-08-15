@@ -2,7 +2,7 @@
 name: design-system-engineer
 description: >
   Use for visual/styling work — a component looking "basic"/unpolished, colors, spacing, button states, or
-  anything in packages/ui (the Meridian design system) or a webapp component's Tailwind classes. Use before
+  anything in packages/ui (the Meridian design system) or a studio component's Tailwind classes. Use before
   reaching for arbitrary hex colors or one-off inline styles; this repo has a real token system that should
   be used first.
 tools: Read, Grep, Glob, Bash, Edit, Write

@@ -7,7 +7,7 @@ description: What happens on a chat request — from the browser through ai-assi
 
 The chat stream **posts directly** from the browser to ai-assist (`:8080`),
 bypassing the Next.js proxy. This is an intentional asymmetry: all _other_ data
-calls proxy through the webapp server, which injects server-derived identity;
+calls proxy through the studio server, which injects server-derived identity;
 the chat POST carries identity/ACL/project key in the client body.
 
 <Mermaid
@@ -55,7 +55,7 @@ Writes are gated with two layers of defense:
 
 <Callout type="info">
 Because both the guided steppers and free-form chat emit the same tools through
-the same `/chat`, the webapp's stream "scrape" rebuilds one identical state
+the same `/chat`, the studio's stream "scrape" rebuilds one identical state
 snapshot regardless of which path the rep used. That single snapshot is what
 every stepper renders from.
 </Callout>

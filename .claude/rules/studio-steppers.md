@@ -1,9 +1,9 @@
 ---
 paths:
-  - "apps/webapp/src/features/csa-assistant/**"
+  - "apps/studio/src/features/csa-assistant/**"
 ---
 
-# CSA Assistant webapp — chat/stepper parity architecture
+# CSA Assistant studio — chat/stepper parity architecture
 
 The chat panel and the stepper panels (`CreateOrderStepper`, `CreateTicketStepper`, `ReturnStepper`) are two
 views onto the same underlying conversation — never two separate data paths. Get this wrong and the two UIs
@@ -54,7 +54,7 @@ sure its literal text still matches those filters.
 
 ## `/api/*` route response shapes (read before wiring a new UI list)
 
-Routes under `apps/webapp/src/app/api/` intentionally pre-format data for direct rendering — they are not
+Routes under `apps/studio/src/app/api/` intentionally pre-format data for direct rendering — they are not
 raw BFF passthroughs:
 
 - `/api/orders` → `totalPrice` is a formatted string (`"$9000.00"`), not a `{centAmount}` Money object;

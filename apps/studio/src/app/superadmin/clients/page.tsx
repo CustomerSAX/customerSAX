@@ -34,7 +34,7 @@ interface ClientRow {
  * Superadmin client-organisation list — the entry point for the whole
  * superadmin console. Real data via the BFF's GraphQL API (apps/admin
  * subgraph) — this page never talks to MongoDB directly, matching the
- * rest of this repo's webapp -> BFF -> subgraph -> real backend pattern.
+ * rest of this repo's studio -> BFF -> subgraph -> real backend pattern.
  * Visually mirrors ct-csa-standalone's app/superadmin/clients/page.tsx
  * (same Meridian design tokens).
  */

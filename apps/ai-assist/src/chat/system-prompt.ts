@@ -12,7 +12,7 @@ export interface SystemPromptContext {
   userRole: string;
   projectKey: string;
   /**
-   * Tenant/organisation id. Flows alongside `projectKey` from the webapp
+   * Tenant/organisation id. Flows alongside `projectKey` from the studio
    * session so the commerce path can resolve a provisioned multi-tenant
    * project (which is keyed on (clientId, projectKey)). Absent for the
    * single-tenant/env path, which must keep working unchanged.
@@ -129,7 +129,7 @@ function buildPermissionsBlock(ctx: SystemPromptContext): string {
   const canViewProducts  = ctx.canViewProducts  ?? true;
 
   // Write permissions — default false (deny writes; allow only when explicitly true).
-  // The webapp sends explicit flags from the authenticated user's role — these
+  // The studio sends explicit flags from the authenticated user's role — these
   // defaults only fire if a flag is omitted, which should not happen in prod.
   const canCreateTickets   = ctx.canCreateTickets   ?? false;
   const canUpdateTickets   = ctx.canUpdateTickets   ?? false;

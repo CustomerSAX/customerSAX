@@ -31,11 +31,11 @@ fully token-driven so a parent-level change cascades across the whole app. Verif
 ## Live verification
 - **Dashboard** (via `SKIP_AUTH`): blue sidebar, yellow active-nav + topbar, white cards, green/red semantic status badges — all correct.
 - **Login**: CTA + links now blue, logo amber. *(The login CTA went yellow→blue for consistency; see decision #2 below — one-line revert if you want it yellow.)*
-- **Typecheck**: `pnpm --filter @csa/webapp typecheck` → pass, zero errors.
+- **Typecheck**: `pnpm --filter @csa/studio typecheck` → pass, zero errors.
 - **Not visually QA'd**: the CSA-Assistant chat surface itself (needs a live backend/conversation to render) — it's token-migrated + typecheck-clean, using the same tokens that render correctly elsewhere.
 
 ## Decisions I made autonomously (all easily reversible)
-1. **Blue = `#2563EB`.** If you want it lighter or darker, change **one line**: `--csa-blue-500` in `apps/webapp/src/ui/styles/tokens.css` (and mirror in `foundation/tokens.ts`). Everything cascades.
+1. **Blue = `#2563EB`.** If you want it lighter or darker, change **one line**: `--csa-blue-500` in `apps/studio/src/ui/styles/tokens.css` (and mirror in `foundation/tokens.ts`). Everything cascades.
 2. **Login CTA is now blue** (was yellow) — for consistency (blue = primary action). To restore yellow, we add a `brand` button variant; say the word.
 3. **`select-project` "purple" status → mapped to `info` (blue-ish)**; there's no violet brand token.
 
@@ -47,7 +47,7 @@ fully token-driven so a parent-level change cascades across the whole app. Verif
 
 ## How to tune the blue (the one knob)
 ```
-apps/webapp/src/ui/styles/tokens.css →  --csa-blue-500: #2563EB;
-apps/webapp/src/ui/foundation/tokens.ts →  blue.500: '#2563EB'
+apps/studio/src/ui/styles/tokens.css →  --csa-blue-500: #2563EB;
+apps/studio/src/ui/foundation/tokens.ts →  blue.500: '#2563EB'
 ```
 Lighter option: `#3B82F6` (note: reduces white-text contrast on the sidebar). Darker: `#1D4ED8`.

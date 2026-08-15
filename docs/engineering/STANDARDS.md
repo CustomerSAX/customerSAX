@@ -15,7 +15,7 @@ The codebase is **two disjoint worlds**. All new work lives in — and moves the
 
 | | **Disciplined world** (follow this) | **Fabricated world** (do not extend; migrate off) |
 |---|---|---|
-| Where | `ai-assist` + BFF-backed `webapp/src/app/api/*` routes + commercetools subgraph | `webapp/src/features/*` admin slices (employees, companies, quotes, customers, orders, cart, reports) |
+| Where | `ai-assist` + BFF-backed `studio/src/app/api/*` routes + commercetools subgraph | `studio/src/features/*` admin slices (employees, companies, quotes, customers, orders, cart, reports) |
 | Data | Real, via `bffQuery` / BFF; honest null fallbacks | Hardcoded `mock-*.ts` arrays, `Math.random()` business values, Unsplash stock images |
 | Rule | This is the reference pattern | Every value here violates the first law — replace with the A3/A5 real-data path |
 
@@ -32,7 +32,7 @@ A package's `name` equals `@csa/` + its directory name. Exemplar: root `package.
 Platform-neutral GraphQL type defs live in `apps/commerce/contract/src/**/*.graphql.ts`; **every subgraph imports the built `dist/`**, never the source (`typeDefs.ts:1` re-exports `@csa/commerce-contract`).
 **Rule:** after editing `contract/src`, run `pnpm --filter @csa/commerce-contract build` and confirm the field exists in `apps/commerce/contract/dist/graphql/*.js` before assuming it is live. (CLAUDE.md gotcha #2 — mechanical root: subgraph serves `dist/`, not `src/`.)
 
-### A3 — The "ok vs error" discriminated union in webapp API routes *(gold standard)*
+### A3 — The "ok vs error" discriminated union in studio API routes *(gold standard)*
 Every BFF-backed route distinguishes *"backend reachable, genuinely empty"* from *"backend down."*
 - Exemplar: `api/orders/route.ts:9` — `type BffResult = {ok:true; orders:any[]} | {ok:false; reason:string}`; genuine-empty → `{ok:true, orders:[]}`, unreachable → HTTP 502 + rep-safe message.
 - Exemplar: `api/customers/search/route.ts` — with the doc comment: a caller must always tell *"doesn't exist"* apart from *"couldn't answer right now."*
@@ -61,7 +61,7 @@ Steppers and free-form chat both emit the **same tool calls** through the same `
 **Rule:** terminal fields (`placedOrder`/`createdTicket`/`completed`) are deliberately never auto-cleared by the scrape. Any "start another X" control **must** call `useConversationStore.getState().set<X>Workflow(null)` before resetting local step (CLAUDE.md gotcha #5). *Known inconsistency: `CreateOrderStepper.startNew` delegates this reset to a parent handler instead of doing it locally like the ticket/return steppers — do not copy that; do it locally.*
 
 ### A10 — Meridian `m-*` design tokens
-The design system lives at `apps/webapp/src/ui/*` (aliased `@csa/ui`) — **not** a `packages/ui` (that doesn't exist; CLAUDE.md is wrong). UI uses `m-*` tokens (`m-primary`, `m-surface`, `m-text-muted`), never ad-hoc hex/Tailwind color literals.
+The design system lives at `apps/studio/src/ui/*` (aliased `@csa/ui`) — **not** a `packages/ui` (that doesn't exist; CLAUDE.md is wrong). UI uses `m-*` tokens (`m-primary`, `m-surface`, `m-text-muted`), never ad-hoc hex/Tailwind color literals.
 
 ### A11 — Shared strict TypeScript base
 `configs/typescript/base.json`: `strict`, `noUnusedLocals`, `noUnusedParameters`, `isolatedModules`. Consumed as `@csa/config-typescript`.
@@ -94,7 +94,7 @@ Callers speak one GraphQL contract; the backing commerce platform is selected pu
 
 **SEV-2 — Dev encryption key is a source-committed constant** (`Buffer.alloc(32,'dev-default-not-for-production-!')`), used when `NODE_ENV!=="production"`. Any non-prod deploy that forgets `NODE_ENV=production` "encrypts" with a public value. SSO OIDC secrets and SAML certs are stored **plaintext**.
 
-**SEV-3 — Type erosion in webapp** (~68 `any`; other packages ~0). **Lint is uneven** — `next lint` only in webapp; for 11/12 packages "lint" == a second `tsc`. No shared ESLint ruleset.
+**SEV-3 — Type erosion in studio** (~68 `any`; other packages ~0). **Lint is uneven** — `next lint` only in studio; for 11/12 packages "lint" == a second `tsc`. No shared ESLint ruleset.
 
 **SEV-3 — No structured logging / tracing.** All `console.*`; no correlation id, no levels, no error sink (Sentry/OTel), no cross-hop tracing.
 
@@ -120,7 +120,7 @@ Three different constructions exist across the portfolio: (1) **metafy/journeyAX
 
 | Your house rule | customerSAX mechanism (honour the principle here) |
 |---|---|
-| HR-6 `{success,data,error}` envelope (REST) | GraphQL already carries `data`/`errors`; keep the webapp API-route **`ok`/`error` discriminated union** (A3) as the envelope analog. Don't bolt a REST envelope onto GraphQL. |
+| HR-6 `{success,data,error}` envelope (REST) | GraphQL already carries `data`/`errors`; keep the studio API-route **`ok`/`error` discriminated union** (A3) as the envelope analog. Don't bolt a REST envelope onto GraphQL. |
 | HR-23/25 mechanical tenant enforcement in `BaseRepository` (`orgId+projectId`, thrown if missing) | customerSAX uses **`clientId+projectKey`**. Enforce it mechanically at the data/subgraph layer, **derived from session, never the request body** (fixes S1/S3/S7). *Recommendation: keep `clientId/projectKey` naming (already threaded end-to-end); treat as the exact analog of `orgId/projectId`. Flag if you'd rather rename.* |
 | HR-16/17 OpenAI-protocol provider registry, project→platform key fallback, BYO-key white-label | `ai-assist/src/llm` already does openai+anthropic; **extend to the registry shape** (per-project key → platform fallback, cache by `provider|baseURL|sha256(key)`), and add providers via the same interface. |
 | HR-24 server-authoritative pricing ("LLM/client NEVER decides price"; rehydrate from source of record; `sourceOfPrice` marker) | Enforce via BFF/subgraph: money comes from commercetools, tax/discount from **project config**; unpriced SKU → `unavailable`, never guessed. (This is also A4.) |

@@ -20,10 +20,10 @@ const log = createLogger("ai-assist").child({ module: "chat" });
 export const chatRouter = Router();
 
 // ---------------------------------------------------------------------------
-// Trusted identity — derived from x-csa-* headers set by the webapp proxy
+// Trusted identity — derived from x-csa-* headers set by the studio proxy
 // ---------------------------------------------------------------------------
 //
-// The browser no longer talks to ai-assist directly. The webapp's
+// The browser no longer talks to ai-assist directly. The studio's
 // /api/chat/stream proxy validates the httpOnly session and forwards the
 // authenticated identity as trusted x-csa-* headers. This service therefore
 // derives userEmail / role / projectKey / clientId AND the ACL from those
@@ -90,7 +90,7 @@ function extractText(message: UIMessage): string {
  * POST /chat
  *
  * Identity + ACL (userEmail/role/projectKey/clientId + can* flags) are derived
- * ONLY from the trusted x-csa-* headers set by the webapp proxy — never from the
+ * ONLY from the trusted x-csa-* headers set by the studio proxy — never from the
  * body. The body's `context` may still carry BENIGN presentation fields.
  *
  * Body:
@@ -114,7 +114,7 @@ chatRouter.post("/chat", async (request, response, next) => {
     };
 
     // ── Trusted identity + ACL — from headers ONLY, never the body ─────────
-    // The webapp proxy validated the session and set these x-csa-* headers.
+    // The studio proxy validated the session and set these x-csa-* headers.
     // The body's `context` may still carry BENIGN presentation fields
     // (pageContext / businessType / proactiveHint / vipThreshold), but any
     // identity/ACL it contains is deliberately ignored — the client cannot be
@@ -354,7 +354,7 @@ chatRouter.get("/chat", async (request, response, next) => {
   try {
     const sessionId = (request.query.sessionId as string | undefined)?.trim();
     // IDOR fix: userEmail is derived from the TRUSTED x-csa-user-email header
-    // (set by the webapp proxy after validating the session), NOT a
+    // (set by the studio proxy after validating the session), NOT a
     // client-supplied query param. A caller can no longer read another user's
     // transcript by passing ?userEmail=victim@x.com.
     const userEmail = readCsaContext(request).userEmail?.trim() ?? "";
@@ -378,7 +378,7 @@ chatRouter.get("/chat", async (request, response, next) => {
 chatRouter.get("/sessions", async (request, response, next) => {
   try {
     // IDOR fix: identity comes from the TRUSTED x-csa-* headers set by the
-    // webapp proxy, not client-supplied query params. A caller cannot list
+    // studio proxy, not client-supplied query params. A caller cannot list
     // another user's sessions by passing ?userEmail=victim@x.com.
     const trusted = readCsaContext(request);
     const userEmail = trusted.userEmail?.trim() ?? "";
@@ -415,7 +415,7 @@ chatRouter.get("/sessions", async (request, response, next) => {
 chatRouter.get("/memory", async (request, response, next) => {
   try {
     // Identity (userEmail/projectKey) is derived from the TRUSTED x-csa-*
-    // headers set by the webapp proxy, not client-supplied query params, so a
+    // headers set by the studio proxy, not client-supplied query params, so a
     // caller cannot read another agent's episodic memory via ?userEmail=.
     const trusted     = readCsaContext(request);
     const sessionId   = (request.query.sessionId   as string | undefined)?.trim() ?? "";

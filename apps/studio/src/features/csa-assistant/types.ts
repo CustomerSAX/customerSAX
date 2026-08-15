@@ -15,7 +15,7 @@ export interface SessionContext {
   businessType?: BusinessType;
   pageContext?: PageContext | null;
   proactiveHint?: string | null;
-  // ACL — sent by the webapp based on the authenticated user's role.
+  // ACL — sent by the studio based on the authenticated user's role.
   // ai-assist defaults writes to false when these are absent.
   canViewTickets?: boolean;
   canCreateTickets?: boolean;

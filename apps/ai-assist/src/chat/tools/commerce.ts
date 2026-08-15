@@ -547,7 +547,7 @@ export const removeFromCartTool = tool({
 
 // ─── Idempotency helpers for write tools ────────────────────────────────────
 //
-// The webapp's approval flow only tracks an in-memory boolean, so a
+// The studio's approval flow only tracks an in-memory boolean, so a
 // double-submit (double-click "Place order", a client retry of a slow request)
 // could execute the same money-moving write twice. `withIdempotency` (durable
 // in Mongo, unique index on the key) collapses duplicates to a single execution

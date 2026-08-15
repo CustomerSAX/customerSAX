@@ -30,7 +30,7 @@ const server = createServer(withHttpContext(log, async (request, response) => {
 
     // Attach CORS headers to actual responses for allowlisted browser origins.
     // No-op (no headers) for server-side calls with no Origin — that path is
-    // deliberately unaffected so the webapp's Next route handlers keep working.
+    // deliberately unaffected so the studio's Next route handlers keep working.
     applyCors(request, response);
 
     if (request.method === "GET" && url.pathname === "/health") {

@@ -1,6 +1,6 @@
-# CSA Webapp
+# CSA Studio
 
-Standalone Next.js webapp using Apollo Client and Tailwind.
+Standalone Next.js app (the CSA Studio back-office) using Apollo Client and Tailwind.
 
 ## Run Independently
 
