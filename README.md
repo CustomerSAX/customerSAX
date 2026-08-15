@@ -4,7 +4,7 @@ Monorepo scaffold for the CSA architecture on GCP.
 
 ## What Is Included
 
-- `apps/webapp`: Next.js + React frontend, intended for Firebase Hosting.
+- `apps/webapp`: Next.js + React frontend, deployed to Vercel.
 - `apps/bff`: Node.js GraphQL BFF / Apollo gateway facade.
 - `apps/commerce`: Commerce service group with a shared contract and platform adapters.
 - `apps/ticketing`: MongoDB-backed ticketing subgraph.

@@ -88,7 +88,7 @@ Browser (@ai-sdk/react useChat)
 ## 8. Deployment & infra
 
 - **CI (`bitbucket-pipelines.yml`):** node:20, install → parallel `test / typecheck / lint / build`. Triggers: all PRs + pushes to `main`/`develop`. **No deploy stage. `test` runs nothing (see STANDARDS §B).** Branch names in the pipeline don't match the actual working branches — gate coverage is suspect.
-- **Hosting:** webapp on **Firebase Hosting** (Next SSR, `us-central1`). Backends on **Cloud Run** (each has its own `Dockerfile` + `terraform/`). `infra/gcp` Terraform declares Cloud Run, Secret Manager, Cloud SQL, Firestore, Cloud Storage, BigQuery (starter-grade). Commerce adapters deploy as separate Cloud Run services.
+- **Hosting:** webapp + marketing frontends on **Vercel** (via GitHub Actions). Backends on **Cloud Run** (each has its own `Dockerfile` + `terraform/`). `infra/gcp` Terraform declares Cloud Run, Secret Manager, Cloud SQL, Firestore, Cloud Storage, BigQuery (starter-grade). Commerce adapters deploy as separate Cloud Run services.
 - **Data:** MongoDB (`csa-admin`, `csa-agents`, `csa-tickets`, chat/memory), Redis (working memory), commercetools SaaS.
 
 ## 9. Assessment

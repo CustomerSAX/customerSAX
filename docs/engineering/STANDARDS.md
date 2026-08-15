@@ -138,7 +138,7 @@ Three different constructions exist across the portfolio: (1) **metafy/journeyAX
 - **HR: Comment the WHY with a war-story.** Every non-obvious decision opens with a purpose+rationale block; inline gotchas flagged `⚡ CRITICAL:` / `MANDATORY` / `NON-NEGOTIABLE`; config fields get trailing enum comments. This is your strongest fingerprint — keep it.
 - **HR: PII discipline in logs.** Production logs tool **names + arg keys/result sizes only**, never values (they persist in Cloud Logging). Full values in dev only.
 - **HR: Behavioral eval harness over classic unit tests for AI.** Verify agent behaviour end-to-end against running services (intent/capabilities/grounding/safety), env-configurable, CI-runnable — *this is how you "test" LLM code.* (Also addresses SEV-2's zero-coverage — start here for the agent.)
-- **HR: Deploy = Cloud Run via `Dockerfile.template` + `cloudbuild.yaml`, Terraform IaC, GCP Secret Manager; frontends may go to Vercel/Firebase. `.env` at repo root wins over inherited env (`override:true`).**
+- **HR: Deploy = Cloud Run via `Dockerfile.template` + `cloudbuild.yaml`, Terraform IaC, GCP Secret Manager; frontends deploy to Vercel. `.env` at repo root wins over inherited env (`override:true`).**
 
 ---
 
