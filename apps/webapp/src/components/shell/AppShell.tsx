@@ -61,12 +61,17 @@ const b2bSidebarGroup: SidebarGroup = {
   ]
 };
 
+// FAIL-CLOSED: when /api/auth/me hasn't resolved (or failed), we must NOT render
+// the console as an administrator. This fallback is a NON-privileged identity —
+// role "agent", no projects — so a failed/absent session never exposes admin-only
+// navigation (Admin Settings, Superadmin). The real authenticated user, when it
+// loads, replaces this entirely; the middleware still gates page access by cookie.
 const fallbackUser: CurrentUser = {
-  email: "agent@csa.local",
-  id: "local-agent",
+  email: "",
+  id: "unauthenticated",
   name: "CSA Agent",
-  role: "admin",
-  tenantId: "default",
+  role: "agent",
+  tenantId: "",
   projects: [],
   requiresProjectSelection: false
 };

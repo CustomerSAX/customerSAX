@@ -264,3 +264,13 @@ export function bffIdentityToken(audience: string): string {
 export function aiChatRateLimit(userKey: string): string {
   return `ai:chat:ratelimit:${userKey}`;
 }
+
+/** auth failed-login fixed-window counter, per client IP. */
+export function authLoginFailByIp(ip: string): string {
+  return `auth:login:fail:ip:${ip}`;
+}
+
+/** auth failed-login fixed-window counter, per normalized account email. */
+export function authLoginFailByEmail(email: string): string {
+  return `auth:login:fail:email:${email}`;
+}

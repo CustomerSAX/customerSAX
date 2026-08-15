@@ -44,22 +44,29 @@ export const contextStorage = new AsyncLocalStorage<SystemPromptContext>();
 export function getSystemPromptContext(): SystemPromptContext {
   const ctx = contextStorage.getStore();
   if (!ctx) {
+    // FAIL-CLOSED least-privilege fallback: when no authenticated context was
+    // supplied, do NOT imply an admin/privileged identity and default every
+    // WRITE to false. Reads may stay allowed (they surface no capability to
+    // mutate real data). The legitimate path always supplies an explicit
+    // context (see routes/chat.ts, which also defaults writes=false), so this
+    // fallback only fires for an unauthenticated/misconfigured caller — it must
+    // never hand out create/update permissions by default.
     return {
-      userEmail: "agent@csa.local",
+      userEmail: "unknown@csa.local",
       userRole: "Support Agent",
       projectKey: process.env.COMMERCETOOLS_PROJECT_KEY ?? "default",
       canViewTickets: true,
-      canCreateTickets: true,
-      canUpdateTickets: true,
+      canCreateTickets: false,
+      canUpdateTickets: false,
       canViewOrders: true,
-      canCreateOrders: true,
-      canUpdateOrders: true,
+      canCreateOrders: false,
+      canUpdateOrders: false,
       canViewCustomers: true,
-      canCreateCustomers: true,
-      canUpdateCustomers: true,
+      canCreateCustomers: false,
+      canUpdateCustomers: false,
       canViewCarts: true,
-      canCreateCarts: true,
-      canUpdateCarts: true,
+      canCreateCarts: false,
+      canUpdateCarts: false,
       canViewProducts: true,
     };
   }
