@@ -3,6 +3,7 @@ import { Readable } from "stream";
 import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage, SystemModelMessage } from "ai";
 import { getLanguageModel } from "../llm/index.js";
+import { config } from "../config.js";
 import { buildDynamicPrompt, STATIC_SYSTEM_PROMPT, contextStorage } from "../chat/system-prompt.js";
 import { buildChatTools } from "../chat/tools/index.js";
 import type { SystemPromptContext } from "../chat/system-prompt.js";
@@ -17,8 +18,8 @@ export const chatRouter = Router();
 // Per-session rate limiter — sliding window, in-process
 // ---------------------------------------------------------------------------
 
-const RATE_LIMIT_MAX = Number(process.env.CHAT_RATE_LIMIT_MAX) || 60;
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1_000; // 1 hour
+const RATE_LIMIT_MAX = config.chat.rateLimitMax;
+const RATE_LIMIT_WINDOW_MS = config.chat.rateLimitWindowMs; // 1 hour
 const rateLimitStore = new Map<string, number[]>();
 
 function isRateLimited(key: string): boolean {
@@ -175,7 +176,7 @@ chatRouter.post("/chat", async (request, response, next) => {
         messages: modelMessages,
         tools: chatTools,
         stopWhen: [
-          stepCountIs(20),
+          stepCountIs(config.chat.maxAgenticSteps),
           // Defence-in-depth: stop the multi-step loop after any step that
           // contained an action_approval tool call, so the model cannot call a
           // write tool in the *following* step of the same request.
@@ -188,7 +189,7 @@ chatRouter.post("/chat", async (request, response, next) => {
             return results.some((tr) => tr.toolName === "action_approval");
           },
         ],
-        temperature: 0.3,
+        temperature: config.llm.chatTemperature,
         onError: (event) => {
           console.error("[chat] streamText error:", event.error);
         },

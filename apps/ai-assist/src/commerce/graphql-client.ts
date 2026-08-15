@@ -12,6 +12,7 @@ type GraphqlResponse<TData> = {
 };
 
 import { contextStorage } from "../chat/system-prompt.js";
+import { config } from "../config.js";
 
 function getServiceUrl(): string {
   return process.env.AI_COMMERCE_SERVICE_URL ?? "http://localhost:4000/graphql";
@@ -39,7 +40,7 @@ export async function bffQuery<TData>(
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`BFF returned ${response.status}: ${text.slice(0, 200)}`);
+    throw new Error(`BFF returned ${response.status}: ${text.slice(0, config.commerce.errorBodyPreviewChars)}`);
   }
 
   const payload = (await response.json()) as GraphqlResponse<TData>;
