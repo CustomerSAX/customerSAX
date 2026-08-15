@@ -8,6 +8,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
+import { requestLogger } from "@/lib/request-logger";
 
 const BFF_URL =
   process.env.AI_COMMERCE_SERVICE_URL ?? "http://localhost:4000/graphql";
@@ -19,9 +20,10 @@ const PRODUCT_DETAIL_QUERY = `
 `;
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  const { log, requestId } = requestLogger(request, 'api/products/[id]');
   const { id } = await params;
 
   if (!id) {
@@ -42,10 +44,10 @@ export async function GET(
         query: PRODUCT_DETAIL_QUERY,
         variables: { id },
       }),
-    });
+    }, requestId);
 
     if (!res.ok) {
-      console.error(`[api/products/${id}] BFF returned HTTP ${res.status}`);
+      log.error('BFF returned non-ok', undefined, { status: res.status, productId: id });
       return NextResponse.json(
         { error: `Commerce backend unavailable (HTTP ${res.status})` },
         { status: 502 }
@@ -62,7 +64,7 @@ export async function GET(
         .map((e) => e.message)
         .filter(Boolean)
         .join("; ");
-      console.error(`[api/products/${id}] GraphQL errors: ${msg}`);
+      log.error('GraphQL errors', undefined, { productId: id, message: msg });
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
@@ -71,7 +73,7 @@ export async function GET(
       headers: { "Cache-Control": "no-store" },
     });
   } catch (err) {
-    console.error(`[api/products/${id}] Fetch failed:`, err);
+    log.error('fetch failed', err, { productId: id });
     return NextResponse.json(
       { error: "Failed to load product." },
       { status: 500 }

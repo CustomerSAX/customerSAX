@@ -7,7 +7,10 @@
 
 import { tool } from "ai";
 import { z } from "zod";
+import { createLogger } from "@csa/logger";
 import { bffQuery, formatMoney } from "../../commerce/graphql-client.js";
+
+const log = createLogger("ai-assist").child({ module: "tools/commerce" });
 
 // ─── Fragments shared across tools ───────────────────────────────────────────
 
@@ -834,7 +837,7 @@ export const listRegionsTool = tool({
           return parsed as typeof DEFAULT_REGIONS;
         }
       } catch {
-        console.warn("[list_regions] CSA_REGIONS_JSON is invalid JSON — falling back to defaults");
+        log.child({ tool: "list_regions" }).warn("CSA_REGIONS_JSON is invalid JSON — falling back to defaults");
       }
     }
 

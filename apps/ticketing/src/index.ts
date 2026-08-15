@@ -2,25 +2,21 @@ import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
 import { buildSubgraphSchema } from "@apollo/subgraph";
 import "./load-env.js";
+import { apolloContext, apolloLoggingPlugin, createLogger } from "@csa/logger";
 import { resolvers, typeDefs } from "./schema.js";
 
+const log = createLogger("ticketing");
 const port = Number(process.env.TICKETING_PORT ?? process.env.PORT ?? 4350);
 const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
 
 const server = new ApolloServer({
-  schema: buildSubgraphSchema({ resolvers, typeDefs })
+  schema: buildSubgraphSchema({ resolvers, typeDefs }),
+  plugins: [apolloLoggingPlugin(log)]
 });
 
 const { url } = await startStandaloneServer(server, {
   listen: { host, port },
-  context: async ({ req }) => ({
-    projectKey: headerValue(req.headers["x-csa-project-key"]),
-    clientId: headerValue(req.headers["x-csa-client-id"])
-  })
+  context: async ({ req }) => apolloContext(req)
 });
 
-console.log(`CSA ticketing service ready at ${url}`);
-
-function headerValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
+log.info("service ready", { url });

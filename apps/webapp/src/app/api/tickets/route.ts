@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
+import { requestLogger } from "@/lib/request-logger";
 
 // Route all ticketing queries through the BFF (Apollo Federation gateway) —
 // the ticketing service is a federated subgraph and must not be called directly.
@@ -28,7 +29,7 @@ const LIST_QUERY = `
   }
 `;
 
-async function gql(query: string, variables: Record<string, unknown>) {
+async function gql(query: string, variables: Record<string, unknown>, requestId: string) {
   const res = await projectScopedBffFetch(BFF_URL, {
     method: "POST",
     headers: {
@@ -40,7 +41,7 @@ async function gql(query: string, variables: Record<string, unknown>) {
     body: JSON.stringify({ query, variables }),
     // Short timeout so the webapp doesn't hang if ticketing is down
     signal: AbortSignal.timeout(5000),
-  });
+  }, requestId);
   if (!res.ok) throw new Error(`Ticketing ${res.status}`);
   const { data, errors } = (await res.json()) as {
     data?: Record<string, unknown>;
@@ -61,6 +62,7 @@ async function gql(query: string, variables: Record<string, unknown>) {
  *   offset   — pagination offset (default 0)
  */
 export async function GET(req: NextRequest) {
+  const { log, requestId } = requestLogger(req, 'api/tickets');
   const { searchParams } = req.nextUrl;
   const status = searchParams.get("status") ?? "";
   const assigneeParam = searchParams.get("assignee") ?? null;
@@ -95,7 +97,7 @@ export async function GET(req: NextRequest) {
       offset,
       assignee,
       customerEmail,
-    });
+    }, requestId);
 
     const page = (data as { ticketPage: { total: number; results: unknown[] } }).ticketPage;
 
@@ -104,7 +106,7 @@ export async function GET(req: NextRequest) {
       total: page.total,
     });
   } catch (err) {
-    console.error("[api/tickets] error:", err);
+    log.error("error", err);
     return NextResponse.json(
       { error: "Failed to fetch tickets", results: [], total: 0 },
       { status: 502 }

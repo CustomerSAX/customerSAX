@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { forwardRequestId, requestLogger } from '@/lib/request-logger';
 
 /**
  * GET /api/agent-registry/users[?q=partial+name]
@@ -40,13 +41,14 @@ interface AgentUserGql {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const { log, requestId } = requestLogger(request, 'api/agent-registry/users');
   try {
     const res = await fetch(BFF_URL, {
       method: 'POST',
-      headers: {
+      headers: forwardRequestId(requestId, {
         'content-type': 'application/json',
         'x-csa-commerce-platform': 'commercetools',
-      },
+      }),
       body: JSON.stringify({
         query: AGENT_LIST_QUERY,
         variables: { container: AGENT_CONTAINER },
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
 
     if (!res.ok) {
-      console.warn('[agent-registry/users] BFF returned', res.status);
+      log.warn('BFF returned non-ok', { status: res.status });
       return NextResponse.json({ users: [], total: 0 });
     }
 
@@ -65,7 +67,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     };
 
     if (payload.errors?.length) {
-      console.warn('[agent-registry/users] BFF GraphQL errors:', payload.errors);
+      log.warn('BFF GraphQL errors', { count: payload.errors?.length });
       return NextResponse.json({ users: [], total: 0 });
     }
 
@@ -91,7 +93,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (err) {
-    console.error('[agent-registry/users] failed:', err);
+    log.error('failed', err);
     return NextResponse.json({ users: [], total: 0 });
   }
 }

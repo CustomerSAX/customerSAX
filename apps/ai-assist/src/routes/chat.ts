@@ -11,6 +11,9 @@ import { loadOrCreateSession, appendSessionMessages, getSessionMessages, listSes
 import type { StoredMessage } from "../db/mongo-chat.js";
 import { getWorkingMemory, setWorkingMemory, formatWorkingMemoryForPrompt } from "../memory/working-memory.js";
 import { getEpisodicMemory, getCustomerMemory } from "../memory/episodic-memory.js";
+import { createLogger } from "@csa/logger";
+
+const log = createLogger("ai-assist").child({ module: "chat" });
 
 export const chatRouter = Router();
 
@@ -126,7 +129,7 @@ chatRouter.post("/chat", async (request, response, next) => {
       );
       sessionId = session.sessionId; // use what the store returned (same UUID)
     } catch (err) {
-      console.error("[chat] Session load/create failed (non-fatal):", err);
+      log.error("session load/create failed (non-fatal)", err);
     }
 
     // ── Working memory — inject previous turn's context ────────────────────
@@ -191,7 +194,7 @@ chatRouter.post("/chat", async (request, response, next) => {
         ],
         temperature: config.llm.chatTemperature,
         onError: (event) => {
-          console.error("[chat] streamText error:", event.error);
+          log.error("streamText error", event.error);
         },
         onFinish: async ({ steps }) => {
           // Persist this turn to MongoDB so the History panel can display it.
@@ -220,7 +223,7 @@ chatRouter.post("/chat", async (request, response, next) => {
               }
             }
           } catch (err) {
-            console.warn("[chat] Working memory persist failed (non-fatal):", err);
+            log.warn("working memory persist failed (non-fatal)", { reason: (err as Error).message });
           }
 
           // ── Session persistence — append messages to MongoDB ───────────
@@ -261,7 +264,7 @@ chatRouter.post("/chat", async (request, response, next) => {
               await appendSessionMessages(session!.sessionId, newMessages);
             }
           } catch (err) {
-            console.error("[chat] onFinish persistence failed (non-fatal):", err);
+            log.error("onFinish persistence failed (non-fatal)", err);
           }
         }
       });

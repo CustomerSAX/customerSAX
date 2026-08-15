@@ -2,16 +2,18 @@ import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
 import { buildSubgraphSchema } from "@apollo/subgraph";
 import "./load-env.js";
+import { apolloContext, apolloLoggingPlugin, createLogger } from "@csa/logger";
 import { resolvers, typeDefs } from "./schema.js";
 import { ensureClientsIndex, ensureProjectsIndex, ensureSmtpProfilesIndex, ensureUsersIndex } from "@csa/mongodb";
 import { recordAdminAudit } from "./audit/repository.js";
 
+const log = createLogger("admin");
 const port = Number(process.env.ADMIN_PORT ?? process.env.PORT ?? 4370);
 const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
 
 await Promise.all([ensureClientsIndex(), ensureProjectsIndex(), ensureSmtpProfilesIndex(), ensureUsersIndex()]).catch(
   (error) => {
-    console.warn("[admin] index setup warning (non-fatal):", error);
+    log.warn("index setup warning (non-fatal)", { reason: error instanceof Error ? error.message : String(error) });
   }
 );
 
@@ -21,23 +23,15 @@ const securedResolvers = secureAdminResolvers(resolvers);
 
 const server = new ApolloServer({
   schema: buildSubgraphSchema({ resolvers: securedResolvers, typeDefs }),
+  plugins: [apolloLoggingPlugin(log)],
 });
 
 const { url } = await startStandaloneServer(server, {
   listen: { host, port },
-  context: async ({ req }) => ({
-    clientId: headerValue(req.headers["x-csa-client-id"]),
-    projectKey: headerValue(req.headers["x-csa-project-key"]),
-    userRole: headerValue(req.headers["x-csa-user-role"]),
-    userEmail: headerValue(req.headers["x-csa-user-email"]),
-  }),
+  context: async ({ req }) => apolloContext(req),
 });
 
-console.log(`CSA admin (superadmin) service ready at ${url}`);
-
-function headerValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
+log.info("service ready", { url });
 
 function secureAdminResolvers<T extends Record<string, Record<string, unknown>>>(source: T): T {
   const secured = { ...source } as Record<string, Record<string, unknown>>;

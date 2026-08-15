@@ -23,8 +23,11 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import { createRequire } from "node:module";
+import { createLogger } from "@csa/logger";
 import { config } from "../config.js";
 import type { LlmProviderDefinition } from "./types.js";
+
+const log = createLogger("ai-assist").child({ module: "llm" });
 
 /**
  * ESM-safe synchronous require. Used only to optionally load the Anthropic SDK
@@ -91,7 +94,7 @@ const anthropicProvider: LlmProviderDefinition = {
       const model = stripPrefix(modelId ?? config.llm.anthropicModel, "anthropic");
       return client(model);
     } catch {
-      console.warn("[llm] @ai-sdk/anthropic not available, falling back to OpenAI");
+      log.warn("@ai-sdk/anthropic not available, falling back to OpenAI");
       return openaiProvider.createModel();
     }
   },

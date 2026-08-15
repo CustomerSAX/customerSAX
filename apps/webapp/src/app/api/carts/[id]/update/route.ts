@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
+import { requestLogger } from '@/lib/request-logger';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
@@ -15,12 +16,12 @@ const CART_FIELDS = `
   lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
 `;
 
-async function bff(query: string, variables?: Record<string, unknown>) {
+async function bffRaw(query: string, variables: Record<string, unknown> | undefined, requestId: string) {
   const res = await projectScopedBffFetch(BFF_URL, {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({ query, variables }),
-  });
+  }, requestId);
   if (!res.ok) throw new Error(`BFF HTTP ${res.status}`);
   const data = await res.json();
   if (data?.errors?.length)
@@ -50,7 +51,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { log, requestId } = requestLogger(request, 'api/carts/[id]/update');
   const { id } = await params;
+  // Request-scoped wrapper so every bff() call forwards the correlation id.
+  const bff = (query: string, variables?: Record<string, unknown>) => bffRaw(query, variables, requestId);
   try {
     const body = await request.json().catch(() => ({ actions: [] })) as { actions: CartUpdateAction[] };
     const actions: CartUpdateAction[] = Array.isArray(body.actions) ? body.actions : [];
@@ -170,7 +174,7 @@ export async function POST(
     return NextResponse.json(cartData?.cart ?? { id });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[POST /api/carts/${id}/update]`, msg);
+    log.error('cart update failed', err, { cartId: id });
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

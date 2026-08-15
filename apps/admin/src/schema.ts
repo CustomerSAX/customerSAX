@@ -12,8 +12,11 @@ import {
   usersRepo,
 } from "@csa/mongodb";
 import type { ClientSsoConfigStored, CsaUser } from "@csa/mongodb";
+import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
 import * as aiSettingsRepo from "./ai-settings/repository.js";
+
+const log = createLogger("admin").child({ module: "schema" });
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -566,7 +569,7 @@ export const resolvers = {
     },
 
     adminTestProjectConnection: async (_p: unknown, args: { id: string }) => {
-      return testProjectConnection(args.id);
+      return testProjectConnection(args.id, log);
     },
 
     adminTestProjectCredentials: async (
@@ -588,7 +591,7 @@ export const resolvers = {
         };
       }
     ) => {
-      return testCredentials(args.input);
+      return testCredentials(args.input, log);
     },
 
     // ── SMTP profiles ────────────────────────────────────────────────────
@@ -654,7 +657,7 @@ export const resolvers = {
     },
 
     adminTestSmtpProfile: async (_p: unknown, args: { id: string; clientId: string; to?: string }) => {
-      return testSmtpProfile(args.id, args.clientId, args.to ?? "");
+      return testSmtpProfile(args.id, args.clientId, args.to ?? "", log);
     },
 
     // ── Users ────────────────────────────────────────────────────────────

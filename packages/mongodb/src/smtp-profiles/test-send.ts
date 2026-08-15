@@ -6,6 +6,7 @@
  */
 
 import { findClientById } from "../clients/repository.js";
+import { noopLogger, type InjectedLogger } from "../observability.js";
 import { findSmtpProfileByIdForClient } from "./repository.js";
 import { resolveSendEmailPostUrl } from "./resolve-send-email-post-url.js";
 
@@ -15,7 +16,12 @@ export interface EmailTestResult {
   message: string;
 }
 
-export async function testSmtpProfile(profileId: string, clientId: string, to: string): Promise<EmailTestResult> {
+export async function testSmtpProfile(
+  profileId: string,
+  clientId: string,
+  to: string,
+  logger: InjectedLogger = noopLogger
+): Promise<EmailTestResult> {
   const client = await findClientById(clientId);
   if (!client) {
     return { ok: false, message: "Client not found" };
@@ -47,7 +53,13 @@ export async function testSmtpProfile(profileId: string, clientId: string, to: s
 
     if (!emailRes.ok) {
       const text = await emailRes.text().catch(() => "");
-      console.error("[admin/testSmtpProfile] email API error", emailRes.status, text);
+      // PII-safe: log only the status + profile/client ids, never the recipient
+      // address or the raw response body (may echo the address / message).
+      logger.error("test email API error", undefined, {
+        status: emailRes.status,
+        clientId,
+        smtpProfileId: profileId,
+      });
       let msg = `Email service returned ${emailRes.status}`;
       try {
         const parsed = JSON.parse(text) as { result?: string; message?: string };
@@ -61,7 +73,9 @@ export async function testSmtpProfile(profileId: string, clientId: string, to: s
 
     return { ok: true, to, message: "Test email sent" };
   } catch (error) {
-    console.error("[admin/testSmtpProfile]", error);
+    // PII-safe: pass the error (normalized to name/message/stack) but no
+    // recipient address.
+    logger.error("test email send failed", error, { clientId, smtpProfileId: profileId });
     return { ok: false, message: "Failed to send test email" };
   }
 }

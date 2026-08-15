@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
+import { requestLogger } from '@/lib/request-logger';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
@@ -17,12 +18,12 @@ const CART_FIELDS = `
   lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
 `;
 
-async function bff<T = unknown>(query: string, variables?: Record<string, unknown>): Promise<T> {
+async function bff<T = unknown>(query: string, variables: Record<string, unknown> | undefined, requestId: string): Promise<T> {
   const res = await projectScopedBffFetch(BFF_URL, {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({ query, variables }),
-  });
+  }, requestId);
   if (!res.ok) throw new Error(`BFF HTTP ${res.status}`);
   const data = await res.json();
   if (data?.errors?.length)
@@ -32,6 +33,7 @@ async function bff<T = unknown>(query: string, variables?: Record<string, unknow
 
 /** POST /api/carts — create a new cart */
 export async function POST(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/carts');
   try {
     const body = await request.json().catch(() => ({}));
     const { currency, customerId, customerEmail } = body as {
@@ -47,6 +49,7 @@ export async function POST(request: NextRequest) {
         }
       }`,
       { currency: currency ?? 'USD', customerId: customerId ?? null, customerEmail: customerEmail ?? null },
+      requestId,
     );
 
     const cart = data?.createB2bCart;
@@ -56,13 +59,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(cart);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('[POST /api/carts]', msg);
+    log.error('create cart failed', err);
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }
 
 /** GET /api/carts?customerEmail=… — search active carts for a customer */
 export async function GET(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/carts');
   try {
     const url = new URL(request.url);
     const customerEmail = url.searchParams.get('customerEmail');
@@ -77,13 +81,14 @@ export async function GET(request: NextRequest) {
         }
       }`,
       { option: 'customerEmail', text: customerEmail },
+      requestId,
     );
 
     const results = data?.searchCarts?.results ?? [];
     return NextResponse.json({ results });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('[GET /api/carts]', msg);
+    log.error('search carts failed', err);
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

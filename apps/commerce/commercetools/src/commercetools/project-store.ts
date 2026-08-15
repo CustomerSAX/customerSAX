@@ -15,6 +15,9 @@
  * Superadmin documents keep resolving.
  */
 import { decrypt, env, getMongoCollection, type Document } from "@csa/mongodb";
+import { createLogger } from "@csa/logger";
+
+const log = createLogger("commercetools").child({ module: "project-store" });
 
 type StoredProject = Document & {
   clientId: string;
@@ -71,7 +74,7 @@ function decryptProjectSecret(ciphertext: string, projectKey: string) {
   const parts = ciphertext.split(":");
   if (parts.length !== 3) throw new Error("Stored project secret has an invalid encrypted format");
   try {
-    return decrypt(ciphertext);
+    return decrypt(ciphertext, log);
   } catch {
     throw new Error(`Cannot decrypt credentials for '${projectKey}'. Configure the commerce service with the same SUPERADMIN_ENCRYPTION_KEY used by the Admin service.`);
   }

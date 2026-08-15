@@ -1,15 +1,17 @@
 import { createServer } from "node:http";
 import "./load-env.js";
+import { createLogger, withHttpContext } from "@csa/logger";
 import { getCurrentSession, loginWithPassword, logout, selectSessionProject } from "./http/auth.js";
 import { readJsonBody, sendJson, sendNoContent } from "./http/json.js";
 import { ensureAuthIndexes } from "./users/repository.js";
 
+const log = createLogger("auth");
 const port = Number(process.env.AUTH_PORT ?? process.env.PORT ?? 4360);
 const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
 
 await ensureAuthIndexes();
 
-const server = createServer(async (request, response) => {
+const server = createServer(withHttpContext(log, async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
 
@@ -76,11 +78,11 @@ const server = createServer(async (request, response) => {
 
     sendJson(response, 404, { error: "not found" });
   } catch (error) {
-    console.error("[auth]", error);
+    log.error("request failed", error);
     sendJson(response, 500, { error: "internal server error" });
   }
-});
+}));
 
 server.listen(port, host, () => {
-  console.log(`CSA auth service ready at http://${host}:${port}`);
+  log.info("service ready", { host, port });
 });

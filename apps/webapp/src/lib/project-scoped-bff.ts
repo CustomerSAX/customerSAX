@@ -19,7 +19,7 @@ export class ProjectSessionError extends Error {
  * Calls the federated BFF with project identity derived from the server-side
  * session. Callers cannot override these headers with browser-supplied values.
  */
-export async function projectScopedBffFetch(url: string, init: RequestInit = {}) {
+export async function projectScopedBffFetch(url: string, init: RequestInit = {}, requestId?: string) {
   const token = currentSessionToken();
   if (!token) throw new ProjectSessionError("Authentication required", 401);
 
@@ -39,6 +39,8 @@ export async function projectScopedBffFetch(url: string, init: RequestInit = {})
   const headers = new Headers(init.headers);
   if (user.activeProjectKey) headers.set("x-csa-project-key", user.activeProjectKey);
   if (user.activeClientId) headers.set("x-csa-client-id", user.activeClientId);
+  // Forward the correlation id so the request can be traced through the BFF and subgraphs.
+  if (requestId) headers.set("x-request-id", requestId);
 
   return fetch(url, { ...init, headers, cache: "no-store" });
 }

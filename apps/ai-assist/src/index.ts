@@ -8,8 +8,10 @@ loadEnv({ path: resolve(__dirname, "..", ".env") });
 
 import express from "express";
 import cors from "cors";
+import { createLogger, expressContext } from "@csa/logger";
 import { routes } from "./routes/index.js";
 
+const log = createLogger("ai-assist");
 const app = express();
 const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
 const port = Number(process.env.AI_ASSIST_PORT ?? process.env.PORT ?? 8080);
@@ -25,6 +27,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: "2mb" }));
+app.use(expressContext(log));
 app.use(routes);
 
 app.use(
@@ -34,7 +37,7 @@ app.use(
     response: express.Response,
     _next: express.NextFunction
   ) => {
-    console.error("[ai-assist] Unhandled error:", error);
+    log.error("unhandled error", error);
     response.status(500).json({
       error: error.message,
       service: "ai-assist"
@@ -43,8 +46,11 @@ app.use(
 );
 
 app.listen(port, host, () => {
-  console.log(`CSA AI Assist listening on ${host}:${port}`);
-  console.log(`  Commerce platform : ${process.env.AI_COMMERCE_PLATFORM ?? "not set"}`);
-  console.log(`  LLM provider      : ${process.env.DEFAULT_LLM_PROVIDER ?? "openai"}`);
-  console.log(`  Tickets MCP       : ${process.env.TICKETS_MCP_URL ? "configured" : "not configured"}`);
+  log.info("service ready", {
+    host,
+    port,
+    commercePlatform: process.env.AI_COMMERCE_PLATFORM ?? "not set",
+    llmProvider: process.env.DEFAULT_LLM_PROVIDER ?? "openai",
+    ticketsMcp: process.env.TICKETS_MCP_URL ? "configured" : "not configured"
+  });
 });

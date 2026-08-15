@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
+import { requestLogger } from '@/lib/request-logger';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
@@ -41,17 +42,17 @@ function mapOrder(ord: any) {
 // which meant a customerId-only lookup always sent `order(id: undefined,
 // orderNumber: undefined)` and could never return a real result. Listing a
 // customer's orders has to go through `orderPage(customerId: ...)` instead.
-async function queryBffOrder(orderNumber?: string | null, customerId?: string | null): Promise<BffResult> {
+async function queryBffOrder(orderNumber: string | null | undefined, customerId: string | null | undefined, requestId: string): Promise<BffResult> {
   if (orderNumber) {
-    return queryBffOrderByNumber(orderNumber);
+    return queryBffOrderByNumber(orderNumber, requestId);
   }
   if (customerId) {
-    return queryBffOrdersByCustomer(customerId);
+    return queryBffOrdersByCustomer(customerId, requestId);
   }
   return { ok: false, reason: 'No orderNumber or customerId provided' };
 }
 
-async function queryBffOrderByNumber(orderNumber: string): Promise<BffResult> {
+async function queryBffOrderByNumber(orderNumber: string, requestId: string): Promise<BffResult> {
   try {
     const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
@@ -66,7 +67,7 @@ async function queryBffOrderByNumber(orderNumber: string): Promise<BffResult> {
         }`,
         variables: { orderNumber },
       }),
-    });
+    }, requestId);
     if (!res.ok) return { ok: false, reason: `BFF returned HTTP ${res.status}` };
     const data = await res.json();
     if (data?.errors?.length) return { ok: false, reason: data.errors.map((e: any) => e.message).join('; ') };
@@ -80,7 +81,7 @@ async function queryBffOrderByNumber(orderNumber: string): Promise<BffResult> {
   }
 }
 
-async function queryBffOrdersByCustomer(customerId: string): Promise<BffResult> {
+async function queryBffOrdersByCustomer(customerId: string, requestId: string): Promise<BffResult> {
   try {
     const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
@@ -97,7 +98,7 @@ async function queryBffOrdersByCustomer(customerId: string): Promise<BffResult> 
         }`,
         variables: { customerId },
       }),
-    });
+    }, requestId);
     if (!res.ok) return { ok: false, reason: `BFF returned HTTP ${res.status}` };
     const data = await res.json();
     if (data?.errors?.length) return { ok: false, reason: data.errors.map((e: any) => e.message).join('; ') };
@@ -111,14 +112,15 @@ async function queryBffOrdersByCustomer(customerId: string): Promise<BffResult> 
 }
 
 export async function GET(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/orders');
   const url = new URL(request.url);
   const customerId = url.searchParams.get('customerId');
   const orderNumber = url.searchParams.get('orderNumber');
 
-  const bff = await queryBffOrder(orderNumber, customerId);
+  const bff = await queryBffOrder(orderNumber, customerId, requestId);
 
   if (!bff.ok) {
-    console.error(`[orders] commerce backend unavailable: ${bff.reason}`);
+    log.error('commerce backend unavailable', undefined, { reason: bff.reason });
     return NextResponse.json(
       { error: 'Unable to reach the commerce backend right now.', orders: [], total: 0 },
       { status: 502 }

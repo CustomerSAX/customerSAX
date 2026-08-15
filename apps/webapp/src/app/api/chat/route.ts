@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/get-current-user';
+import { forwardRequestId, requestLogger } from '@/lib/request-logger';
 
 const AI_ASSIST_URL = process.env.AI_ASSIST_URL ?? 'http://localhost:8080';
 
@@ -12,6 +13,7 @@ const AI_ASSIST_URL = process.env.AI_ASSIST_URL ?? 'http://localhost:8080';
  * Returns { messages: StoredMessage[] } where each message has { id, role, content, createdAt }.
  */
 export async function GET(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/chat');
   try {
     const user = await getCurrentUser();
     if (!user?.email) {
@@ -28,16 +30,16 @@ export async function GET(request: NextRequest) {
     url.searchParams.set('sessionId', sessionId);
     url.searchParams.set('userEmail', user.email);
 
-    const res = await fetch(url.toString(), { cache: 'no-store' });
+    const res = await fetch(url.toString(), { cache: 'no-store', headers: forwardRequestId(requestId) });
     if (!res.ok) {
-      console.error(`[api/chat] ai-assist returned ${res.status}`);
+      log.error('ai-assist returned non-ok', undefined, { status: res.status });
       return NextResponse.json({ messages: [] });
     }
 
     const data = await res.json();
     return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
-    console.error('[api/chat] GET failed:', err);
+    log.error('GET failed', err);
     return NextResponse.json({ messages: [] });
   }
 }

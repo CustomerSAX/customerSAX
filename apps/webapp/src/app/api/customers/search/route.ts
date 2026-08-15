@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
+import { requestLogger } from '@/lib/request-logger';
+import type { Logger } from '@csa/logger/client';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
@@ -11,7 +13,7 @@ type BffResult = { ok: true; results: any[] } | { ok: false; reason: string };
 // customers). A caller — human agent or the AI assistant — must always be
 // able to tell "this customer doesn't exist" apart from "our system couldn't
 // answer that right now."
-async function queryBffCustomers(query: string): Promise<BffResult> {
+async function queryBffCustomers(query: string, requestId: string): Promise<BffResult> {
   try {
     const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
@@ -24,7 +26,7 @@ async function queryBffCustomers(query: string): Promise<BffResult> {
         }`,
         variables: { text: query || undefined },
       }),
-    });
+    }, requestId);
     if (!res.ok) return { ok: false, reason: `BFF returned HTTP ${res.status}` };
     const data = await res.json();
     if (data?.errors?.length) return { ok: false, reason: data.errors.map((e: any) => e.message).join('; ') };
@@ -53,11 +55,11 @@ async function queryBffCustomers(query: string): Promise<BffResult> {
   }
 }
 
-async function handle(query: string) {
-  const bff = await queryBffCustomers(query);
+async function handle(query: string, log: Logger, requestId: string) {
+  const bff = await queryBffCustomers(query, requestId);
 
   if (!bff.ok) {
-    console.error(`[customers/search] commerce backend unavailable: ${bff.reason}`);
+    log.error('commerce backend unavailable', undefined, { reason: bff.reason });
     return NextResponse.json(
       { error: 'Unable to reach the commerce backend right now.', results: [], total: 0 },
       { status: 502 }
@@ -68,15 +70,17 @@ async function handle(query: string) {
 }
 
 export async function POST(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/customers/search');
   const body = await request.json().catch(() => ({}));
   const query = (body.query || body.search || body.text || '').toLowerCase().trim();
 
-  return handle(query);
+  return handle(query, log, requestId);
 }
 
 export async function GET(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/customers/search');
   const url = new URL(request.url);
   const query = (url.searchParams.get('query') || url.searchParams.get('q') || '').toLowerCase().trim();
 
-  return handle(query);
+  return handle(query, log, requestId);
 }

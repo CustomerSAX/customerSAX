@@ -1,5 +1,8 @@
+import { createLogger } from "@csa/logger";
 import { getCommercetoolsToken } from "./auth.js";
 import { resolveCommercetoolsProject } from "./project-config.js";
+
+const log = createLogger("commercetools").child({ module: "client" });
 
 type GraphqlResponse<TData> = {
   data?: TData;
@@ -67,9 +70,7 @@ export async function commercetoolsLookup<TData>(
   try {
     return await fn();
   } catch (error) {
-    console.error(
-      `[commercetools] ${context} failed: ${error instanceof Error ? error.message : String(error)}`
-    );
+    log.error("lookup failed", error, { context });
 
     return null;
   }

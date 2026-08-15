@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
+import { requestLogger } from "@/lib/request-logger";
 
 const BFF_URL =
   process.env.AI_COMMERCE_SERVICE_URL ?? "http://localhost:4000/graphql";
@@ -53,7 +54,7 @@ const QUICK_SEARCH_QUERY = `
   }
 `;
 
-async function bffPost(query: string, variables: Record<string, unknown>) {
+async function bffPost(query: string, variables: Record<string, unknown>, requestId: string) {
   const res = await projectScopedBffFetch(BFF_URL, {
     method: "POST",
     headers: {
@@ -61,7 +62,7 @@ async function bffPost(query: string, variables: Record<string, unknown>) {
       "x-csa-commerce-platform": "commercetools",
     },
     body: JSON.stringify({ query, variables }),
-  });
+  }, requestId);
   if (!res.ok) {
     return { ok: false as const, reason: `BFF returned HTTP ${res.status}` };
   }
@@ -79,6 +80,7 @@ async function bffPost(query: string, variables: Record<string, unknown>) {
 }
 
 export async function POST(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/product-search');
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -124,13 +126,13 @@ export async function POST(request: NextRequest) {
     offset,
     sortKey,
     sortOrder,
-  }).catch((err) => ({
+  }, requestId).catch((err) => ({
     ok: false as const,
     reason: err instanceof Error ? err.message : String(err),
   }));
 
   if (!result.ok) {
-    console.error(`[product-search] BFF unavailable: ${result.reason}`);
+    log.error('BFF unavailable', undefined, { reason: result.reason });
     return NextResponse.json(
       { error: "Product search temporarily unavailable", results: [], total: 0 },
       { status: 200 } // Soft-fail: return 200 so the list shows empty state not error
@@ -153,6 +155,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/product-search');
   const url = new URL(request.url);
   const query = (
     url.searchParams.get("query") ||
@@ -169,13 +172,13 @@ export async function GET(request: NextRequest) {
   const result = await bffPost(QUICK_SEARCH_QUERY, {
     q: query,
     limit: 10,
-  }).catch((err) => ({
+  }, requestId).catch((err) => ({
     ok: false as const,
     reason: err instanceof Error ? err.message : String(err),
   }));
 
   if (!result.ok) {
-    console.error(`[product-search GET] BFF unavailable: ${result.reason}`);
+    log.error('BFF unavailable', undefined, { reason: result.reason });
     return NextResponse.json(
       { error: "Unable to reach the commerce backend right now.", results: [], total: 0 },
       { status: 502 }

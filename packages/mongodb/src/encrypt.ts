@@ -15,6 +15,7 @@
  */
 
 import crypto from 'crypto';
+import { noopLogger, type InjectedLogger } from './observability.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_BYTES = 16;
@@ -23,7 +24,7 @@ const IV_BYTES = 16;
  * Derives a 32-byte Buffer key from the SUPERADMIN_ENCRYPTION_KEY env var.
  * Accepts a 64-char hex string (preferred) or any UTF-8 string (padded to 32 bytes).
  */
-function getKey(): Buffer {
+function getKey(logger: InjectedLogger = noopLogger): Buffer {
   const keyStr = process.env.SUPERADMIN_ENCRYPTION_KEY?.trim();
 
   if (!keyStr) {
@@ -34,9 +35,8 @@ function getKey(): Buffer {
       );
     }
     // Dev fallback — intentionally weak and clearly labeled.
-    console.warn(
-      '[encrypt] SUPERADMIN_ENCRYPTION_KEY is not set. ' +
-        'Using insecure development default. Set it before going to production.'
+    logger.warn(
+      'SUPERADMIN_ENCRYPTION_KEY is not set — using insecure development default; set it before production'
     );
     return Buffer.alloc(32, 'dev-default-not-for-production-!');
   }
@@ -60,8 +60,8 @@ function getKey(): Buffer {
  * @param plaintext - The string to encrypt
  * @returns Encrypted string in `iv:authTag:ciphertext` format
  */
-export function encrypt(plaintext: string): string {
-  const key = getKey();
+export function encrypt(plaintext: string, logger: InjectedLogger = noopLogger): string {
+  const key = getKey(logger);
   const iv = crypto.randomBytes(IV_BYTES);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
@@ -81,8 +81,8 @@ export function encrypt(plaintext: string): string {
  * @returns Original plaintext
  * @throws {Error} If the format is invalid or authentication fails
  */
-export function decrypt(ciphertext: string): string {
-  const key = getKey();
+export function decrypt(ciphertext: string, logger: InjectedLogger = noopLogger): string {
+  const key = getKey(logger);
   const parts = ciphertext.split(':');
 
   if (parts.length !== 3) {

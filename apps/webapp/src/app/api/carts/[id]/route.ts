@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
+import { requestLogger } from '@/lib/request-logger';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
@@ -15,12 +16,12 @@ const CART_FIELDS = `
   lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
 `;
 
-async function bff(query: string, variables?: Record<string, unknown>) {
+async function bff(query: string, variables: Record<string, unknown> | undefined, requestId: string) {
   const res = await projectScopedBffFetch(BFF_URL, {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({ query, variables }),
-  });
+  }, requestId);
   if (!res.ok) throw new Error(`BFF HTTP ${res.status}`);
   const data = await res.json();
   if (data?.errors?.length)
@@ -30,9 +31,10 @@ async function bff(query: string, variables?: Record<string, unknown>) {
 
 /** GET /api/carts/[id] — fetch a cart by id */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { log, requestId } = requestLogger(request, 'api/carts/[id]');
   const { id } = await params;
   try {
     const data = await bff(
@@ -40,6 +42,7 @@ export async function GET(
         cart(id: $id) { ${CART_FIELDS} }
       }`,
       { id },
+      requestId,
     );
 
     const cart = data?.cart;
@@ -49,7 +52,7 @@ export async function GET(
     return NextResponse.json(cart);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[GET /api/carts/${id}]`, msg);
+    log.error('get cart failed', err, { cartId: id });
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

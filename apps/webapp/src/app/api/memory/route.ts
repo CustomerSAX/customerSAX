@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { forwardRequestId, requestLogger } from '@/lib/request-logger';
 
 /**
  * GET /api/memory?sessionId=<id>&customerId=<id>&customerName=<name>&customerEmail=<email>
@@ -22,6 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const AI_ASSIST_URL = process.env.AI_ASSIST_URL ?? 'http://localhost:8080';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const { log, requestId } = requestLogger(request, 'api/memory');
   const { searchParams } = new URL(request.url);
   const sessionId     = searchParams.get('sessionId')?.trim()     ?? '';
   const customerId    = searchParams.get('customerId')?.trim()    ?? '';
@@ -50,13 +52,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const res = await fetch(upstream.toString(), {
       method: 'GET',
-      headers: { 'content-type': 'application/json' },
+      headers: forwardRequestId(requestId, { 'content-type': 'application/json' }),
       // Short cache — memory should be fresh on every polling cycle.
       cache: 'no-store',
     });
 
     if (!res.ok) {
-      console.warn('[api/memory] ai-assist returned', res.status, '— returning empty state');
+      log.warn('ai-assist returned non-ok — returning empty state', { status: res.status });
       return NextResponse.json(
         { workingMemory: null, episodicMemory: [] },
         { headers: { 'Cache-Control': 'no-store' } }
@@ -71,7 +73,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     // ai-assist unreachable — degrade gracefully, same as Redis/MongoDB unavailable.
-    console.warn('[api/memory] ai-assist unreachable (non-fatal):', (err as Error).message);
+    log.warn('ai-assist unreachable (non-fatal)', { reason: (err as Error).message });
     return NextResponse.json(
       { workingMemory: null, episodicMemory: [] },
       { headers: { 'Cache-Control': 'no-store' } }

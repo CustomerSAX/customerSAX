@@ -18,6 +18,9 @@
  */
 
 import { createClient } from "redis";
+import { createLogger } from "@csa/logger";
+
+const log = createLogger("ai-assist").child({ module: "memory/working" });
 
 // The redis package's createClient() returns a narrow generic type that doesn't
 // assign cleanly to a module-level variable typed with the broader default generics.
@@ -65,14 +68,14 @@ async function getClient(): Promise<RedisClientAny | null> {
     _connecting = true;
     const client = createClient({ url });
     client.on("error", (err: Error) => {
-      console.warn("[memory/working] Redis error — working memory disabled:", err.message);
+      log.warn("Redis error — working memory disabled", { reason: err.message });
       _client = null;
     });
     await client.connect();
     _client = client;
     return _client;
   } catch (err) {
-    console.warn("[memory/working] Redis connect failed (non-fatal):", (err as Error).message);
+    log.warn("Redis connect failed (non-fatal)", { reason: (err as Error).message });
     _client = null;
     return null;
   } finally {
@@ -103,7 +106,7 @@ export async function getWorkingMemory(
       lastUpdated: data.lastUpdated ?? null,
     };
   } catch (err) {
-    console.warn("[memory/working] getWorkingMemory error (non-fatal):", (err as Error).message);
+    log.warn("getWorkingMemory error (non-fatal)", { reason: (err as Error).message });
     return null;
   }
 }
@@ -136,7 +139,7 @@ export async function setWorkingMemory(
     await client.hSet(key, fields);
     await client.expire(key, ttlSeconds);
   } catch (err) {
-    console.warn("[memory/working] setWorkingMemory error (non-fatal):", (err as Error).message);
+    log.warn("setWorkingMemory error (non-fatal)", { reason: (err as Error).message });
   }
 }
 
@@ -150,7 +153,7 @@ export async function clearWorkingMemory(sessionId: string): Promise<void> {
     if (!client) return;
     await client.del(`${HASH_PREFIX}${sessionId}`);
   } catch (err) {
-    console.warn("[memory/working] clearWorkingMemory error (non-fatal):", (err as Error).message);
+    log.warn("clearWorkingMemory error (non-fatal)", { reason: (err as Error).message });
   }
 }
 

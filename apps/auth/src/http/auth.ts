@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
+import { createLogger } from "@csa/logger";
 import { createSessionToken, hashSessionToken } from "../security/tokens.js";
 import { verifyPassword } from "../security/passwords.js";
 import {
@@ -11,6 +12,8 @@ import {
   ,setSessionProject
 } from "../users/repository.js";
 import { projectsForUser, toPublicUser } from "../users/types.js";
+
+const log = createLogger("auth");
 
 export async function loginWithPassword(email: string, password: string) {
   const user = await findUserByEmail(email);
@@ -81,8 +84,8 @@ export async function selectSessionProject(request: IncomingMessage, projectKey:
     : matchingProjects.length === 1 ? matchingProjects[0] : undefined;
   if (!project) return { forbidden: true as const };
   await setSessionProject(tokenHash, project.projectKey, project.clientId);
-  console.info("[auth] active project changed", {
-    userId: user.id || String(user._id ?? user.email),
+  log.child({ module: "auth" }).info("active project changed", {
+    userId: user.id || String(user._id),
     projectKey: project.projectKey,
     clientId: project.clientId
   });

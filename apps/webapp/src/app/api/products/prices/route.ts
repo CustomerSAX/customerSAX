@@ -8,6 +8,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
+import { requestLogger } from "@/lib/request-logger";
 
 const BFF_URL =
   process.env.AI_COMMERCE_SERVICE_URL ?? "http://localhost:4000/graphql";
@@ -19,6 +20,7 @@ const STANDALONE_PRICES_QUERY = `
 `;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const { log, requestId } = requestLogger(request, 'api/products/prices');
   let body: { sku?: unknown };
   try {
     body = (await request.json()) as { sku?: unknown };
@@ -47,12 +49,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         query: STANDALONE_PRICES_QUERY,
         variables: { sku },
       }),
-    });
+    }, requestId);
 
     if (!res.ok) {
-      console.error(
-        `[api/products/prices] BFF returned HTTP ${res.status} for SKU: ${sku}`
-      );
+      log.error('BFF returned non-ok', undefined, { status: res.status, sku });
       return NextResponse.json({ results: [] });
     }
 
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .map((e) => e.message)
         .filter(Boolean)
         .join("; ");
-      console.error(`[api/products/prices] GraphQL errors for SKU ${sku}: ${msg}`);
+      log.error('GraphQL errors', undefined, { sku, message: msg });
       return NextResponse.json({ results: [] });
     }
 
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {
-    console.error(`[api/products/prices] Fetch failed for SKU ${sku}:`, err);
+    log.error('fetch failed', err, { sku });
     return NextResponse.json({ results: [] });
   }
 }

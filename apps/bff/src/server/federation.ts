@@ -16,6 +16,7 @@
  */
 import { ApolloGateway, IntrospectAndCompose, RemoteGraphQLDataSource } from "@apollo/gateway";
 import { GoogleAuth } from "google-auth-library";
+import { REQUEST_ID_HEADER, type Logger, type RequestContext } from "@csa/logger";
 
 type FederatedServices = Record<string, string>;
 type FederatedService = {
@@ -23,7 +24,7 @@ type FederatedService = {
   url: string;
 };
 
-export type GatewayContext = { clientId?: string; projectKey?: string; userEmail?: string; userRole?: string };
+export type GatewayContext = RequestContext;
 
 export function getCommercePlatform() {
   return process.env.BFF_COMMERCE_PLATFORM ?? "commercetools";
@@ -32,22 +33,22 @@ export function getCommercePlatform() {
 const auth = new GoogleAuth();
 const tokenCache = new Map<string, string>();
 
-async function getIdentityToken(targetUrl: string): Promise<string | undefined> {
+async function getIdentityToken(targetUrl: string, logger?: Logger): Promise<string | undefined> {
   // Only attempt GCP authentication if we're in production (running on Cloud Run)
   if (process.env.NODE_ENV !== "production") return undefined;
 
   const audience = new URL(targetUrl).origin;
-  
+
   if (!tokenCache.has(audience)) {
     try {
       const client = await auth.getIdTokenClient(audience);
       const token = await client.idTokenProvider.fetchIdToken(audience);
       tokenCache.set(audience, token);
-      
+
       // Auto-refresh token cache (Google tokens expire in ~1h)
       setTimeout(() => tokenCache.delete(audience), 50 * 60 * 1000);
     } catch (e) {
-      console.error(`Failed to get identity token for ${audience}:`, e);
+      logger?.error("failed to get identity token", e, { audience });
       return undefined;
     }
   }
@@ -55,17 +56,17 @@ async function getIdentityToken(targetUrl: string): Promise<string | undefined> 
   return tokenCache.get(audience);
 }
 
-export function buildGateway(): ApolloGateway | undefined {
+export function buildGateway(logger: Logger): ApolloGateway | undefined {
   const services = parseFederatedServices(
     process.env.FEDERATED_SERVICES ?? defaultLocalFederatedServices()
   );
 
   if (services.length === 0) {
-    console.warn("BFF running with local fallback schema. FEDERATED_SERVICES is not configured.");
+    logger.warn("running with local fallback schema — FEDERATED_SERVICES is not configured");
     return undefined;
   }
 
-  console.log(`BFF composing federated services: ${services.map((service) => service.name).join(", ")}`);
+  logger.info("composing federated services", { services: services.map((service) => service.name).join(", ") });
 
   return new ApolloGateway({
     buildService: ({ url }) =>
@@ -73,11 +74,13 @@ export function buildGateway(): ApolloGateway | undefined {
         url,
         async willSendRequest({ request, context }) {
           if (url) {
-            const token = await getIdentityToken(url);
+            const token = await getIdentityToken(url, logger);
             if (token) request.http?.headers.set("Authorization", `Bearer ${token}`);
           }
           request.http?.headers.set("x-csa-commerce-platform", getCommercePlatform());
           const gatewayContext = context as GatewayContext;
+          // Forward the correlation id so a request can be traced across every subgraph hop.
+          if (gatewayContext.requestId) request.http?.headers.set(REQUEST_ID_HEADER, gatewayContext.requestId);
           if (gatewayContext.projectKey) request.http?.headers.set("x-csa-project-key", gatewayContext.projectKey);
           if (gatewayContext.clientId) request.http?.headers.set("x-csa-client-id", gatewayContext.clientId);
           if (gatewayContext.userRole) request.http?.headers.set("x-csa-user-role", gatewayContext.userRole);
@@ -99,7 +102,7 @@ export function buildGateway(): ApolloGateway | undefined {
       async introspectionHeaders(service) {
         const headers: Record<string, string> = {};
         if (!service.url) return headers;
-        const token = await getIdentityToken(service.url);
+        const token = await getIdentityToken(service.url, logger);
         if (token) headers.Authorization = `Bearer ${token}`;
         return headers;
       }
