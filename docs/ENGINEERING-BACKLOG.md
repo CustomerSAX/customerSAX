@@ -67,6 +67,18 @@ Introduce a test runner + coverage, starting with pure logic: `bff selectCommerc
 
 ---
 
+## P0/P1 — Caching, concurrency & performance
+
+**Guardrail:** cache PLUMBING/CONFIG only (tokens, tenant config, rate-limit counters, idempotency keys) — **never** rep-facing business data (prices, order/cart/status, eligibility, customer, tickets). Already-good: CT OAuth token cache (`commercetools/auth.ts`), BFF identity token (`federation.ts`), Mongo pooling, ai-assist's 3 cache layers. No N+1 found.
+
+- **P0 (correctness) — `place_order` has NO idempotency.** The confirmation-token single-use flow does **not** exist here (only an in-memory per-request `approvalGate` boolean, `ai-assist/chat/tools/ui-tools.ts:247`); a double-submit places two orders. Add **idempotency keys** (Mongo unique index) to `place_order`/`start_return`/`cancel_order` (`ai-assist/chat/tools/commerce.ts:547,615`). This is the concrete build behind SECURITY-TENANCY.md's S5/D1.
+- **P0 (correctness) — `ticketNumber` collisions.** No unique index, no retry (`ticketing/tickets/ticket-number.ts`, `repository.ts:86`, `ticketing/db/mongodb.ts`). Add a **unique partial index** on `{projectKey, ticketNumber}` + switch to an atomic **Mongo counter sequence** (`findOneAndUpdate $inc`), giving collision-free sequential numbers.
+- **P1 (perf) — cache decrypted tenant project config.** `resolveCommercetoolsProject` (`commercetools/project-config.ts:49` → `project-store.ts:46`) hits Mongo + AES-decrypts on every CT query in the multi-tenant path (19 call sites). Wrap in `@csa/cache.getOrSet(ctProjectConfig(clientId,projectKey), 300s, …)`; invalidate on admin project update. **SAFE** (credentials, not business data).
+- **P1 (enabler) — build `@csa/cache`.** Source-ESM package: Redis (reuse `REDIS_URL`) + in-memory `Map` fallback + graceful degradation (mirror `ai-assist/memory/working-memory.ts`), typed `get/set/del/getOrSet` with **single-flight** loader (collapses concurrent misses — also fixes token stampede). Namespaced keys; README guardrail = plumbing-only.
+- **P1 (scale) — move ai-assist rate limiter to Redis.** In-process `Map` (`routes/chat.ts:21`) → per-instance limit under horizontal scaling; use a Redis counter via `@csa/cache`, degrade-open.
+- **P2 (reliability) — `orderNumber` retry-on-duplicate** instead of the TOCTOU pre-check loop (`cart.resolvers.ts:210`); rely on CT's uniqueness + retry the create on the duplicate error (1 query vs up to 6).
+- **P2 (polish)** — refactor CT token + BFF identity token onto `@csa/cache.getOrSet` for single-flight; (optional) short auth-session cache (security-sensitive, defer unless profiled); (optional) APQ on BFF (caches query text, not responses).
+
 ## P2 — Structure / docs / consistency
 
 - **admin `schema.ts` (~480 lines)** — split per domain (clients/projects/smtp/users/roles/ai) to match the repo layout.
