@@ -130,16 +130,19 @@ export function MemoryPanel({ sessionId }: MemoryPanelProps) {
         )}
 
         {episodic.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              borderTop: '1px solid var(--color-border)',
+            }}
+          >
             {episodic.map((entry, idx) => (
               <div
                 key={idx}
                 style={{
-                  padding: '10px 12px',
-                  backgroundColor: 'var(--color-surface-1)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '8px',
-                  boxShadow: 'var(--shadow-xs)',
+                  padding: '12px 2px',
+                  borderBottom: '1px solid var(--color-border)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>

@@ -147,10 +147,10 @@ export function Dashboard() {
             <CardHeader>
               <CardTitle>Core Service Health</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="p-0 divide-y divide-m-border/60">
               {gateway.services.map((service) => (
                 <div
-                  className="flex items-center justify-between rounded-m-md border border-m-border bg-m-surface-2 p-3"
+                  className="flex items-center justify-between px-5 py-3"
                   key={service.name}
                 >
                   <span className="text-xs font-medium text-m-text">{service.name}</span>

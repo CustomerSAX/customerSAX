@@ -366,12 +366,11 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                     <h2 className="sb-section-title">Active Context</h2>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--color-border)' }}>
                     {activeOrder && (
                       <div style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '8px 10px', borderRadius: '8px', backgroundColor: 'var(--color-surface-2)',
-                        border: '1px solid var(--color-border)',
+                        padding: '10px 2px', borderBottom: '1px solid var(--color-border)',
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--color-text-muted)" strokeWidth="2">
@@ -402,8 +401,7 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
                     {activeTicket && (
                       <div style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '8px 10px', borderRadius: '8px', backgroundColor: 'var(--color-surface-2)',
-                        border: '1px solid var(--color-border)',
+                        padding: '10px 2px', borderBottom: '1px solid var(--color-border)',
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--color-text-muted)" strokeWidth="2">
@@ -535,11 +533,7 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
 
                   {/* Strategy */}
                   {resolution?.strategy && (
-                    <div style={{
-                      marginBottom: '14px', padding: '8px 10px',
-                      backgroundColor: 'var(--color-surface-2)', borderRadius: '6px',
-                      border: '1px solid var(--color-border)',
-                    }}>
+                    <div style={{ marginBottom: '14px' }}>
                       <div style={{ fontSize: '10px', color: 'var(--color-text-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
                         Strategy
                       </div>
