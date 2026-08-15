@@ -1,12 +1,15 @@
 import type { Config } from "tailwindcss";
-import { meridianTailwindPreset } from "./src/ui/preset";
+import { csaTailwindPreset } from "./src/ui/preset";
 
 const config: Config = {
-  presets: [meridianTailwindPreset as any],
+  presets: [csaTailwindPreset as any],
+  darkMode: ["class"],
   content: [
-    "./src/**/*.{js,ts,jsx,tsx,mdx}"
+    "./src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  plugins: []
+  plugins: [
+    require("tailwindcss-animate"),
+  ],
 };
 
 export default config;
