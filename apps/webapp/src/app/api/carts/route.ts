@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
 import { requestLogger } from '@/lib/request-logger';
+import { bffJsonHeaders } from '@/lib/commerce-headers';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
-const HEADERS = {
-  'content-type': 'application/json',
-  'x-csa-commerce-platform': 'commercetools',
-};
+const HEADERS = bffJsonHeaders();
 
 // Only fields exposed by the BFF's Cart / CartLineItem schema.
 // Cart: id, version, key, customerId, currencyCode, totalPrice, lineItems

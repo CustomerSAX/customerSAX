@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
+import { bffJsonHeaders } from '@/lib/commerce-headers';
 
 /**
  * GET /api/context/resolve?email=<email>&customerId=<id>&ticketId=<id>
@@ -21,7 +22,7 @@ async function bffQuery<T>(query: string, variables: Record<string, unknown>): P
   try {
     const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-csa-commerce-platform': 'commercetools' },
+      headers: bffJsonHeaders(),
       body: JSON.stringify({ query, variables }),
     });
     if (!res.ok) return null;

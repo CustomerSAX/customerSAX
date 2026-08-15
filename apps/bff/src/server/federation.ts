@@ -16,7 +16,8 @@
  */
 import { ApolloGateway, IntrospectAndCompose, RemoteGraphQLDataSource } from "@apollo/gateway";
 import { GoogleAuth } from "google-auth-library";
-import { REQUEST_ID_HEADER, type Logger, type RequestContext } from "@csa/logger";
+import { applyCsaHeaders } from "@csa/headers";
+import { type Logger, type RequestContext } from "@csa/logger";
 
 type FederatedServices = Record<string, string>;
 type FederatedService = {
@@ -77,14 +78,20 @@ export function buildGateway(logger: Logger): ApolloGateway | undefined {
             const token = await getIdentityToken(url, logger);
             if (token) request.http?.headers.set("Authorization", `Bearer ${token}`);
           }
-          request.http?.headers.set("x-csa-commerce-platform", getCommercePlatform());
           const gatewayContext = context as GatewayContext;
-          // Forward the correlation id so a request can be traced across every subgraph hop.
-          if (gatewayContext.requestId) request.http?.headers.set(REQUEST_ID_HEADER, gatewayContext.requestId);
-          if (gatewayContext.projectKey) request.http?.headers.set("x-csa-project-key", gatewayContext.projectKey);
-          if (gatewayContext.clientId) request.http?.headers.set("x-csa-client-id", gatewayContext.clientId);
-          if (gatewayContext.userRole) request.http?.headers.set("x-csa-user-role", gatewayContext.userRole);
-          if (gatewayContext.userEmail) request.http?.headers.set("x-csa-user-email", gatewayContext.userEmail);
+          if (request.http) {
+            // Forward the tenant/user identity + correlation id so a request can
+            // be traced (and scoped) across every subgraph hop. Only present
+            // fields are written — see `applyCsaHeaders`.
+            applyCsaHeaders(request.http.headers, {
+              commercePlatform: getCommercePlatform(),
+              requestId: gatewayContext.requestId,
+              projectKey: gatewayContext.projectKey,
+              clientId: gatewayContext.clientId,
+              userRole: gatewayContext.userRole,
+              userEmail: gatewayContext.userEmail,
+            });
+          }
         }
       }),
     supergraphSdl: new IntrospectAndCompose({

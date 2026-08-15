@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { forwardRequestId, requestLogger } from '@/lib/request-logger';
+import { bffJsonHeaders } from '@/lib/commerce-headers';
 
 /**
  * GET /api/agent-registry/users[?q=partial+name]
@@ -45,10 +46,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const res = await fetch(BFF_URL, {
       method: 'POST',
-      headers: forwardRequestId(requestId, {
-        'content-type': 'application/json',
-        'x-csa-commerce-platform': 'commercetools',
-      }),
+      headers: forwardRequestId(requestId, bffJsonHeaders()),
       body: JSON.stringify({
         query: AGENT_LIST_QUERY,
         variables: { container: AGENT_CONTAINER },

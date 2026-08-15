@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
+import { bffJsonHeaders } from "@/lib/commerce-headers";
 import { requestLogger } from "@/lib/request-logger";
 
 // Route all ticketing queries through the BFF (Apollo Federation gateway) —
@@ -32,12 +33,10 @@ const LIST_QUERY = `
 async function gql(query: string, variables: Record<string, unknown>, requestId: string) {
   const res = await projectScopedBffFetch(BFF_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // BFF uses this header to route commerce queries; ticketing subgraph ignores it.
-      // Including it keeps all BFF callers consistent and future-proofs header requirements.
-      "x-csa-commerce-platform": process.env.BFF_COMMERCE_PLATFORM ?? "commercetools",
-    },
+    // BFF uses the commerce-platform header to route commerce queries; the
+    // ticketing subgraph ignores it. Including it keeps all BFF callers
+    // consistent and future-proofs header requirements.
+    headers: bffJsonHeaders(),
     body: JSON.stringify({ query, variables }),
     // Short timeout so the webapp doesn't hang if ticketing is down
     signal: AbortSignal.timeout(5000),

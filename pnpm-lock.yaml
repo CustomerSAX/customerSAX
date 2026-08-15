@@ -66,6 +66,9 @@ importers:
       '@csa/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@csa/headers':
+        specifier: workspace:*
+        version: link:../../packages/headers
       '@csa/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -143,6 +146,9 @@ importers:
       '@csa/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@csa/headers':
+        specifier: workspace:*
+        version: link:../../packages/headers
       '@csa/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -455,6 +461,9 @@ importers:
       '@apollo/client':
         specifier: ^3.11.8
         version: 3.14.1(@types/react@18.3.31)(graphql@16.14.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@csa/headers':
+        specifier: workspace:*
+        version: link:../../packages/headers
       '@csa/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -603,8 +612,23 @@ importers:
         specifier: ^5.5.4
         version: 5.9.3
 
+  packages/headers:
+    devDependencies:
+      '@csa/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@types/node':
+        specifier: ^20.14.11
+        version: 20.19.43
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
   packages/logger:
     dependencies:
+      '@csa/headers':
+        specifier: workspace:*
+        version: link:../headers
       winston:
         specifier: ^3.17.0
         version: 3.19.0

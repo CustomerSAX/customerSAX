@@ -8,6 +8,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
+import { bffJsonHeaders } from "@/lib/commerce-headers";
 import { requestLogger } from "@/lib/request-logger";
 
 const BFF_URL =
@@ -36,10 +37,7 @@ export async function GET(
   try {
     const res = await projectScopedBffFetch(BFF_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-csa-commerce-platform": "commercetools",
-      },
+      headers: bffJsonHeaders(),
       body: JSON.stringify({
         query: PRODUCT_DETAIL_QUERY,
         variables: { id },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
+import { bffJsonHeaders } from '@/lib/commerce-headers';
 import { requestLogger } from '@/lib/request-logger';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
@@ -56,7 +57,7 @@ async function queryBffOrderByNumber(orderNumber: string, requestId: string): Pr
   try {
     const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-csa-commerce-platform': 'commercetools' },
+      headers: bffJsonHeaders(),
       body: JSON.stringify({
         query: `query GetOrder($orderNumber: String) {
           order(orderNumber: $orderNumber) {
@@ -85,7 +86,7 @@ async function queryBffOrdersByCustomer(customerId: string, requestId: string): 
   try {
     const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-csa-commerce-platform': 'commercetools' },
+      headers: bffJsonHeaders(),
       body: JSON.stringify({
         query: `query GetCustomerOrders($customerId: ID) {
           orderPage(customerId: $customerId, limit: 20, sortKey: "createdAt", sortOrder: "desc") {

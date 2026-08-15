@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
+import { bffJsonHeaders } from '@/lib/commerce-headers';
 import { requestLogger } from '@/lib/request-logger';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-csa-commerce-platform': 'commercetools' },
+      headers: bffJsonHeaders(),
       body: JSON.stringify({
         query: `query ShippingMethods($limit: Int) {
           shippingMethods(limit: $limit) { id key name }

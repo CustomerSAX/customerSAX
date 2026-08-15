@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
+import { bffJsonHeaders } from '@/lib/commerce-headers';
 import { requestLogger } from '@/lib/request-logger';
 import type { Logger } from '@csa/logger/client';
 
@@ -17,7 +18,7 @@ async function queryBffCustomers(query: string, requestId: string): Promise<BffR
   try {
     const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-csa-commerce-platform': 'commercetools' },
+      headers: bffJsonHeaders(),
       body: JSON.stringify({
         query: `query SearchCustomers($text: String) {
           searchCustomers(text: $text, limit: 10) {

@@ -9,18 +9,19 @@
  * id set at the webapp/BFF edge flows through every downstream hop.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { CSA_HEADERS, readCsaContext } from "@csa/headers";
 import { enterContext, newRequestId, runWithContext, type RequestContext } from "./context.js";
 import type { Logger } from "./logger.js";
 
-/** The header services echo/forward so a correlation id survives every hop. */
-export const REQUEST_ID_HEADER = "x-request-id";
-
-function headerValue(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
+/**
+ * The header services echo/forward so a correlation id survives every hop.
+ * Re-exported from the shared `@csa/headers` contract so there is one source of
+ * truth for the header name (kept here for backwards compatibility).
+ */
+export const REQUEST_ID_HEADER = CSA_HEADERS.requestId;
 
 function inboundRequestId(headers: IncomingMessage["headers"]): string {
-  return headerValue(headers[REQUEST_ID_HEADER])?.trim() || newRequestId();
+  return readCsaContext({ headers }).requestId?.trim() || newRequestId();
 }
 
 /**
@@ -84,13 +85,13 @@ export function expressContext(logger: Logger) {
  * logger picks it up.
  */
 export function apolloContext(req: { headers: IncomingMessage["headers"] }): RequestContext {
-  const headers = req.headers;
+  const csa = readCsaContext(req);
   return {
-    requestId: inboundRequestId(headers),
-    projectKey: headerValue(headers["x-csa-project-key"]),
-    clientId: headerValue(headers["x-csa-client-id"]),
-    userRole: headerValue(headers["x-csa-user-role"]),
-    userEmail: headerValue(headers["x-csa-user-email"]),
+    requestId: csa.requestId?.trim() || newRequestId(),
+    projectKey: csa.projectKey,
+    clientId: csa.clientId,
+    userRole: csa.userRole,
+    userEmail: csa.userEmail,
     method: "POST",
     path: "/graphql",
   };

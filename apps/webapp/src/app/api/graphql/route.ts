@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { applyCsaHeaders } from "@csa/headers";
 import { authServiceUrl, currentSessionToken } from "../auth/shared";
 
 const bffUrl = process.env.AI_COMMERCE_SERVICE_URL?.trim() || "http://localhost:4000/graphql";
@@ -14,15 +15,15 @@ export async function POST(request: Request) {
   if (session.user?.requiresProjectSelection) {
     return NextResponse.json({ errors: [{ message: "project selection required" }] }, { status: 409 });
   }
+  const headers = applyCsaHeaders({ "content-type": "application/json" } as Record<string, string>, {
+    projectKey: session.user.activeProjectKey,
+    clientId: session.user.activeClientId,
+    userRole: session.user.role,
+    userEmail: session.user.email
+  });
   const response = await fetch(bffUrl, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(session.user.activeProjectKey ? { "x-csa-project-key": session.user.activeProjectKey } : {}),
-      ...(session.user.activeClientId ? { "x-csa-client-id": session.user.activeClientId } : {}),
-      ...(session.user.role ? { "x-csa-user-role": session.user.role } : {}),
-      ...(session.user.email ? { "x-csa-user-email": session.user.email } : {})
-    },
+    headers,
     body: await request.text(),
     cache: "no-store"
   });

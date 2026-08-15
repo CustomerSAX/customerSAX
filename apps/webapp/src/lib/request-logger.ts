@@ -12,10 +12,11 @@
  * shim still emits one structured line per call, carrying `service: "webapp"`
  * plus the `module`/`requestId` bindings.
  */
+import { CSA_HEADERS } from "@csa/headers";
 import { createLogger, type Logger } from "@csa/logger/client";
 
 /** Header used to carry the correlation id across every service hop. */
-export const REQUEST_ID_HEADER = "x-request-id";
+export const REQUEST_ID_HEADER = CSA_HEADERS.requestId;
 
 const base = createLogger("webapp");
 

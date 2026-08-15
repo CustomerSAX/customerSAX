@@ -16,6 +16,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^4.0.33",
     "@csa/config": "workspace:*",
+    "@csa/headers": "workspace:*",
     "@csa/logger": "workspace:*",
     "ai": "^7.0.55",
     "cors": "^2.8.5",

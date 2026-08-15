@@ -1,3 +1,4 @@
+import { applyCsaHeaders } from "@csa/headers";
 import { getCommercePlatform, getCommerceServiceUrl } from "./platform.js";
 
 type GraphqlResponse<TData> = {
@@ -37,10 +38,10 @@ export async function getCommerceContext(): Promise<CommerceContext> {
 async function graphql<TData>(url: string, query: string): Promise<TData> {
   const response = await fetch(url, {
     body: JSON.stringify({ query }),
-    headers: {
-      "content-type": "application/json",
-      "x-csa-commerce-platform": getCommercePlatform()
-    },
+    headers: applyCsaHeaders(
+      { "content-type": "application/json" } as Record<string, string>,
+      { commercePlatform: getCommercePlatform() }
+    ),
     method: "POST"
   });
 

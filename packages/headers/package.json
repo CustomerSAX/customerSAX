@@ -1,5 +1,5 @@
 {
-  "name": "@csa/logger",
+  "name": "@csa/headers",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,10 +9,6 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    },
-    "./client": {
-      "types": "./src/client.ts",
-      "default": "./src/client.ts"
     }
   },
   "scripts": {
@@ -20,10 +16,6 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@csa/headers": "workspace:*",
-    "winston": "^3.17.0"
   },
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",

@@ -1,3 +1,4 @@
+import { applyCsaHeaders } from "@csa/headers";
 import { authServiceUrl, currentSessionToken } from "@/app/api/auth/shared";
 
 type SessionPayload = {
@@ -37,10 +38,13 @@ export async function projectScopedBffFetch(url: string, init: RequestInit = {},
   }
 
   const headers = new Headers(init.headers);
-  if (user.activeProjectKey) headers.set("x-csa-project-key", user.activeProjectKey);
-  if (user.activeClientId) headers.set("x-csa-client-id", user.activeClientId);
-  // Forward the correlation id so the request can be traced through the BFF and subgraphs.
-  if (requestId) headers.set("x-request-id", requestId);
+  // Forward the tenant/user identity + correlation id so the request can be
+  // scoped and traced through the BFF and subgraphs. Only present fields are set.
+  applyCsaHeaders(headers, {
+    projectKey: user.activeProjectKey,
+    clientId: user.activeClientId,
+    requestId
+  });
 
   return fetch(url, { ...init, headers, cache: "no-store" });
 }

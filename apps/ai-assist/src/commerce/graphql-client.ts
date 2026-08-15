@@ -11,6 +11,7 @@ type GraphqlResponse<TData> = {
   errors?: Array<{ message: string; locations?: unknown; path?: unknown }>;
 };
 
+import { applyCsaHeaders } from "@csa/headers";
 import { contextStorage } from "../chat/system-prompt.js";
 import { config } from "../config.js";
 
@@ -28,13 +29,17 @@ export async function bffQuery<TData>(
 ): Promise<TData> {
   const url = getServiceUrl();
 
+  const headers = applyCsaHeaders(
+    { "content-type": "application/json" } as Record<string, string>,
+    {
+      commercePlatform: getPlatform(),
+      projectKey: contextStorage.getStore()?.projectKey
+    }
+  );
+
   const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-csa-commerce-platform": getPlatform(),
-      ...(contextStorage.getStore()?.projectKey ? { "x-csa-project-key": contextStorage.getStore()!.projectKey } : {})
-    },
+    headers,
     body: JSON.stringify({ query, variables })
   });
 
