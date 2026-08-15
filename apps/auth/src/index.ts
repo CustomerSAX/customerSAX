@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import "./load-env.js";
+import "./env.js";
 import { createLogger, withHttpContext } from "@csa/logger";
 import { getCurrentSession, loginWithPassword, logout, selectSessionProject } from "./http/auth.js";
 import { readJsonBody, sendJson, sendNoContent } from "./http/json.js";

@@ -1,6 +1,6 @@
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
-import "./server/load-env.js";
+import "./server/env.js";
 import { apolloContext, apolloLoggingPlugin, createLogger } from "@csa/logger";
 import { buildGateway, type GatewayContext } from "./server/federation.js";
 import { localSchema } from "./server/local-schema.js";

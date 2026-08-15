@@ -21,11 +21,7 @@
  * used to be inlined. Changing a default changes production behaviour.
  */
 
-/** Parse a positive integer env var, falling back to `fallback` when unset/invalid. */
-function envInt(name: string, fallback: number): number {
-  const parsed = Number(process.env[name]);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
+import { envInt } from "@csa/config";
 
 export const config = {
   /** Language-model provider and generation settings. */

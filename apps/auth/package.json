@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@csa/config": "workspace:*",
     "@csa/logger": "workspace:*",
     "@csa/mongodb": "workspace:*",
     "bcryptjs": "^3.0.3"

@@ -1,10 +1,6 @@
-// Load .env before anything else — dotenv won't override vars already in process.env
-import { config as loadEnv } from "dotenv";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-loadEnv({ path: resolve(__dirname, "..", ".env") });
+// Load .env before anything else — this side-effect import must stay first so it
+// runs ahead of every module that reads process.env (config.js, commerce client).
+import "./env.js";
 
 import express from "express";
 import cors from "cors";

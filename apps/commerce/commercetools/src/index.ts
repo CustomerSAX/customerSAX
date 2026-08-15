@@ -1,7 +1,7 @@
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
 import { buildSubgraphSchema } from "@apollo/subgraph";
-import "./load-env.js";
+import "./env.js";
 import { apolloContext, apolloLoggingPlugin, createLogger } from "@csa/logger";
 import { resolvers, typeDefs } from "./schema.js";
 import { activateProjectContext } from "./commercetools/project-context.js";

@@ -12,7 +12,13 @@
  *  - `MONGO_DB_NAME` selects the default database (`csa` when unset).
  */
 
+import { env, requiredEnv } from "@csa/config";
 import { MongoClient, type Collection, type Document } from "mongodb";
+
+// `env`/`requiredEnv` now live in the lower-level `@csa/config` package; they are
+// re-exported here so existing `@csa/mongodb` consumers keep importing them
+// unchanged (the barrel `export * from "./connection.js"` forwards these).
+export { env, requiredEnv };
 
 let clientPromise: Promise<MongoClient> | undefined;
 
@@ -44,22 +50,6 @@ export async function getMongoCollection<TSchema extends Document = Document>(
   const db = await getMongoDb(options.dbName);
 
   return db.collection<TSchema>(collectionName);
-}
-
-/** Reads and trims an env var, returning `undefined` when empty/unset. */
-export function env(name: string) {
-  return process.env[name]?.trim() || undefined;
-}
-
-/** Like {@link env} but throws when the variable is missing. */
-export function requiredEnv(name: string) {
-  const value = env(name);
-
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-
-  return value;
 }
 
 /**

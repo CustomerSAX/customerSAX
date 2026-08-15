@@ -1,5 +1,5 @@
 {
-  "name": "@csa/mongodb",
+  "name": "@csa/config",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,14 +17,8 @@
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@csa/config": "workspace:*",
-    "bcryptjs": "^3.0.3",
-    "mongodb": "^7.1.1"
-  },
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",
-    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20.14.11",
     "typescript": "^5.5.4"
   }
