@@ -1,0 +1,38 @@
+---
+title: bff
+description: The Apollo Gateway that federates commerce, ticketing and admin into one supergraph.
+---
+
+## At a glance
+
+| | |
+| --- | --- |
+| **Package** | `@csa/bff` |
+| **Port** | 4000 |
+| **Framework** | Apollo Gateway (`IntrospectAndCompose`) |
+| **Subgraphs** | commercetools · ticketing · admin |
+
+## Responsibilities
+
+- **Federation** — composes the subgraphs into a single supergraph that the
+  webapp and ai-assist both query at `:4000/graphql`.
+- **Commerce platform selection** — `selectCommerceService` keeps all
+  non-commerce subgraphs plus **exactly one** commerce subgraph matching
+  `BFF_COMMERCE_PLATFORM`, so multiple adapters can be declared without schema
+  collisions.
+- **Header propagation** — stamps `x-csa-commerce-platform`, `x-csa-project-key`,
+  `x-csa-client-id`, `x-csa-user-role` and `x-csa-user-email` onto every subgraph
+  request from the gateway context.
+
+## Schema freshness
+
+The gateway is configured with `IntrospectAndCompose({ pollIntervalInMs: 10_000 })`.
+Without this poll, a new subgraph field would be unreachable through the gateway
+until a restart. **Keep the poll** — it's the reason new fields become reachable
+within ~10 seconds of a subgraph change.
+
+<Callout type="warn">
+Everything should go **through** the BFF. Calling a subgraph directly bypasses
+federation (and its header propagation) and only appears to work because the
+commercetools subgraph happens to serve the same field names.
+</Callout>

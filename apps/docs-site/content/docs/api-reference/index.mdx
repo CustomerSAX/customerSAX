@@ -1,0 +1,30 @@
+---
+title: API Reference
+description: The three surfaces you integrate against — the GraphQL BFF, the ai-assist chat endpoint, and auth REST.
+---
+
+## Surfaces
+
+customerSAX exposes three API surfaces:
+
+| Surface | Transport | Base | Purpose |
+| --- | --- | --- | --- |
+| [GraphQL BFF](/docs/api-reference/graphql-bff) | GraphQL (POST) | `:4000/graphql` | The federated supergraph — commerce + ticketing + admin |
+| [ai-assist `/chat`](/docs/api-reference/ai-assist-chat) | HTTP streaming (POST) | `:8080/chat` | The AI assistant chat stream |
+| [Auth REST](/docs/api-reference/auth-rest) | REST (JSON) | `:4360` | Sessions and project selection |
+
+<Callout type="warn">
+Field names below are transcribed from the real contract allowlist and service
+code. This reference documents **operations that exist**; it does not invent
+fields. Where a shape is intentionally summarized, it says so.
+</Callout>
+
+## Conventions
+
+- **Never call a subgraph directly.** Always go through the BFF (`:4000`). The
+  subgraph ports are internal.
+- **Headers.** The BFF derives `x-csa-commerce-platform`, `x-csa-project-key`,
+  `x-csa-client-id`, `x-csa-user-role` and `x-csa-user-email` from the gateway
+  context and forwards them to subgraphs.
+- **Access control.** Reads default open, writes default closed. Destructive
+  operations are gated behind an approval step.

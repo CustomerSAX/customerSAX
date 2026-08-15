@@ -1,0 +1,30 @@
+---
+title: admin
+description: The superadmin subgraph — clients, projects, roles, AI settings and audit.
+---
+
+## At a glance
+
+| | |
+| --- | --- |
+| **Package** | `@csa/admin` |
+| **Port** | 4370 |
+| **Framework** | Apollo subgraph |
+| **Data** | MongoDB |
+
+## Responsibilities
+
+- **Tenancy** — clients and projects that scope everything else in the platform.
+- **Roles** — the role definitions that back the ACL flags the assistant and the
+  webapp enforce.
+- **AI settings** — per-tenant configuration for the assistant.
+- **Audit** — audit records for administrative actions.
+
+## Federation
+
+admin is a federated subgraph reached through the BFF. Its data underpins the
+identity headers the gateway stamps onto every subgraph request
+(`x-csa-client-id`, `x-csa-project-key`, `x-csa-user-role`).
+
+<Callout>🚧 Expanding — the admin schema (client / project / role / AI-settings
+types) and the audit-record shape will be documented here.</Callout>

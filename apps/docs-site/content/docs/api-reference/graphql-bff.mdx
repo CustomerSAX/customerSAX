@@ -1,0 +1,141 @@
+---
+title: GraphQL BFF
+description: The federated supergraph — real commerce queries and mutations, with per-operation examples.
+---
+
+## Endpoint
+
+```
+POST http://localhost:4000/graphql
+Content-Type: application/json
+```
+
+The BFF is an Apollo Gateway. It federates the commerce (commercetools),
+ticketing and admin subgraphs. **Always query the BFF — never a subgraph
+directly.** The gateway forwards project/client/role headers to subgraphs.
+
+The operations below are transcribed from the commerce contract SDL and the
+subgraph's resolver allowlist. Types like `Json` are the contract's JSON scalar
+(used where a payload is passed through verbatim).
+
+---
+
+## Per-operation template
+
+Each operation is documented as: **signature**, **description**, **example**.
+
+### `order`
+
+```graphql
+order(id: ID, orderNumber: String): Order
+```
+
+Fetch a single order by its commercetools id **or** its human order number.
+
+```graphql
+query GetOrder($id: ID) {
+  order(id: $id) {
+    id
+    orderNumber
+    orderState
+    totalPrice { centAmount currencyCode }
+  }
+}
+```
+
+### `orderPage`
+
+```graphql
+orderPage(
+  limit: Int = 20, offset: Int = 0,
+  customerId: ID, customerEmail: String, orderRef: String,
+  sortKey: String, sortOrder: String
+): OrderPage!
+```
+
+Paginated order listing, filterable by customer or order reference. Companion
+queries: `orders`, `b2bOrders`, `orderCount(customerId: ID!, states: [String!])`,
+`orderPayments(id: ID!)`, `orderReturns(id: ID!)`, and
+`searchOrders(text: String!, ...)`.
+
+### `placeOrderFromCart`
+
+```graphql
+placeOrderFromCart(id: ID!): Json!
+```
+
+Convert a cart into a placed order. This is a **state-changing** operation and,
+through the assistant, is gated behind the approval step.
+
+```graphql
+mutation PlaceOrder($id: ID!) {
+  placeOrderFromCart(id: $id)
+}
+```
+
+### `createB2bCart`
+
+```graphql
+createB2bCart(
+  currency: String!, businessUnitKey: String,
+  customerId: ID, customerEmail: String
+): Cart
+```
+
+Create a B2B cart for a customer / business unit. Line-item mutations then
+build it up: `addCartLineItem(id, sku, quantity)`,
+`changeCartLineItemQuantity(id, lineItemId, quantity)`,
+`removeCartLineItem(id, lineItemId)`.
+
+### `shippingMethods` / `setCartShippingMethod`
+
+```graphql
+shippingMethods(limit: Int = 20): [ShippingMethod!]!
+setCartShippingMethod(id: ID!, shippingMethodId: ID!): Cart
+```
+
+List available shipping methods and set one on a cart.
+
+### `customer` / `searchCustomers`
+
+```graphql
+customer(id: ID, email: String): Customer
+searchCustomers(
+  option: String = "allFields", text: String, groupId: ID,
+  excludeGroupId: ID, filters: Json, limit: Int = 20, offset: Int = 0,
+  sortKey: String, sortOrder: String
+): CustomerPage!
+```
+
+Look up a customer by id/email, or search. Companion:
+`customersByEmails(emails: [String!]!)`, `customerPage(...)`,
+`customerAddresses(id: ID!)`, `customerPromotions`, `customerShoppingLists`.
+
+---
+
+## Full operation index
+
+### Queries
+
+`agentList` · `activeCartCount` · `b2bCarts` · `b2bCustomers` · `b2bOrders` ·
+`cart` · `cartPage` · `carts` · `customer` · `customerAddresses` ·
+`customerPage` · `customerPromotions` · `customerShoppingLists` · `customers` ·
+`customersByEmails` · `order` · `orderCount` · `orderPage` · `orderPayments` ·
+`orderReturns` · `orders` · `product` · `productBySlug` · `productPage` ·
+`productSearch` · `products` · `quickSearchProducts` · `searchCarts` ·
+`searchCustomers` · `searchOrders` · `shippingMethods` · `standalonePrices`
+
+### Mutations
+
+`addCartLineItem` · `addCustomerAddress` · `changeCartLineItemQuantity` ·
+`createB2bCart` · `createCustomer` · `placeOrderFromCart` · `removeCartLineItem`
+· `removeCustomerAddress` · `replicateOrder` · `setCartShippingMethod` ·
+`setDefaultCustomerAddress` · `updateCartAddresses` · `updateCustomer` ·
+`updateCustomerAddress` · `updateCustomerProfile` · `updateOrder`
+
+<Callout type="info">
+This index mirrors the subgraph's manual resolver allowlist
+(`commercetools/src/http/graphql/resolvers.ts`). The ticketing and admin
+subgraphs contribute their own operations to the same supergraph — see their
+[service pages](/docs/services).
+</Callout>

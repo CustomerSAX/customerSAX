@@ -1,0 +1,73 @@
+---
+title: Add a GraphQL field
+description: Wire a new commerce query or mutation through the contract, subgraph, allowlist and gateway.
+---
+
+Adding a commerce field is a **propagation** task. Miss a step and it fails in a
+way that looks like a data bug rather than a wiring omission.
+
+## The checklist
+
+<Steps>
+
+<Step>
+### Add the field to the contract SDL
+
+Edit the relevant `apps/commerce/contract/src/graphql/*.graphql.ts` file and add
+your `Query`/`Mutation` field with its arguments and return type.
+</Step>
+
+<Step>
+### Rebuild the contract's `dist/`
+
+```bash
+pnpm --filter @csa/commerce-contract build
+```
+
+Subgraphs serve the built `dist/`, not `src/`. If a watcher was already running,
+it keeps serving the **old** schema until you rebuild. Confirm the new field name
+is present:
+
+```bash
+grep -R "yourNewField" apps/commerce/contract/dist/graphql/
+```
+</Step>
+
+<Step>
+### Implement the resolver
+
+Add the resolver in the subgraph's domain `*.resolvers.ts`
+(e.g. `commercetools/.../order/order.resolvers.ts`).
+</Step>
+
+<Step>
+### Add it to the resolver allowlist
+
+Open `apps/commerce/commercetools/src/http/graphql/resolvers.ts` and add the
+field name to the `Query` or `Mutation` object (keep it alphabetical). **This is
+the step that silently breaks things if skipped** — an unlisted resolver never
+binds.
+</Step>
+
+<Step>
+### Let the BFF re-poll
+
+The gateway polls subgraph schemas every 10 seconds. Wait for the next poll (or
+restart the BFF) before the field is reachable at `:4000/graphql`.
+</Step>
+
+</Steps>
+
+## Then, downstream
+
+If the assistant or a stepper needs the field:
+
+- Add the GraphQL string to the relevant **ai-assist tool**.
+- Update the **webapp** proxy mapper / stream scrape if the field feeds a
+  stepper's state snapshot.
+
+<Callout type="warn">
+Three failure modes here are silent: a stale `dist/` (step 2), an unlisted
+resolver (step 4), and querying before the gateway re-polls (step 5). If a field
+"doesn't exist" despite the source looking right, walk these three first.
+</Callout>

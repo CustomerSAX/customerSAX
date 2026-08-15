@@ -1,0 +1,57 @@
+---
+title: Introduction
+description: What customerSAX is, who it's for, and how the platform is put together.
+---
+
+## What is customerSAX?
+
+**customerSAX (CSA)** is an **AI-native commerce customer-service resolution
+platform**. It gives a support representative a single console to resolve real
+commerce work — orders, carts, returns, refunds, shipping and support tickets —
+against a live commerce backend, with an AI assistant that can do the same work
+the rep can.
+
+The defining idea is **one execution path for two experiences**:
+
+- A rep can drive a task through a **guided stepper** in the UI (Create Order,
+  Create Ticket, Return / Refund), _or_
+- A rep can ask for the same thing in **free-form chat** with the AI assistant.
+
+Both paths call the **same backend tools**, so they always produce identical,
+real results. There is no "demo mode" branch that behaves differently from the
+real one.
+
+## The value proposition
+
+- **Real work, not suggestions.** Every value shown to a rep — price, order
+  number, return eligibility, ticket status — comes from a real backend call.
+  Nothing is mocked, hardcoded, or fabricated. If an upstream field is genuinely
+  missing, the UI says so honestly instead of inventing a placeholder.
+- **AI that shares the rep's guardrails.** The assistant uses the same tools,
+  the same access-control rules, and a defense-in-depth approval gate before any
+  state-changing action (place order, cancel order, start return, create
+  ticket).
+- **Platform-neutral commerce.** The commerce layer is a swappable adapter. The
+  assistant never learns the name of the backend; a platform-neutral GraphQL
+  contract sits between the app and whichever commerce engine is wired up
+  (commercetools is the one implemented today).
+
+## How the platform is shaped
+
+customerSAX is a **pnpm workspace** driven by **Turborepo** (Node 20, pnpm
+9.6.0). At a glance:
+
+- A **Next.js rep console** (the webapp / "studio") for the human UI.
+- An **Express AI-assist service** that orchestrates the LLM, the tools, and
+  memory.
+- An **Apollo Gateway (BFF)** that federates the commerce and ticketing
+  subgraphs into one GraphQL supergraph.
+- A set of **backend subgraphs / services**: commercetools, ticketing, admin,
+  plus a standalone auth service.
+
+The [Architecture & Flows](/docs/architecture) section walks the full topology,
+and [Service Documentation](/docs/services) has a page per service.
+
+> New here? Start with [Getting Started](/docs/getting-started) to run the whole
+> thing locally, then read [Architecture & Flows](/docs/architecture) for the
+> mental model.

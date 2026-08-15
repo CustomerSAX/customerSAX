@@ -1,0 +1,36 @@
+---
+title: auth
+description: Login, sessions and project selection — the platform's identity source.
+---
+
+## At a glance
+
+| | |
+| --- | --- |
+| **Package** | `@csa/auth` |
+| **Port** | 4360 |
+| **Framework** | plain `node:http` (not federated) |
+| **Data** | MongoDB (users, sessions) |
+
+## Responsibilities
+
+- **Login & sessions** — create and read sessions; the webapp stores the session
+  in the `csa_session` cookie.
+- **Project selection** — set the active project/client for a session, which the
+  webapp injects into downstream BFF calls.
+- **Identity source of truth** — `GET /sessions/current` is what the webapp's
+  proxy layer trusts when stamping project/client/role headers.
+
+## Interface
+
+REST over JSON (see [Auth REST](/docs/api-reference/auth-rest)):
+
+- `POST /sessions` — create a session
+- `GET /sessions/current` — current session
+- `POST /sessions/current/project` — select active project
+
+## Why it's separate
+
+Auth is intentionally **not** a GraphQL subgraph. It sits beside the federation,
+so session resolution is a simple, synchronous REST call the webapp server makes
+before any proxied data request.

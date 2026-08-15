@@ -1,0 +1,52 @@
+---
+title: Commerce Adapter Seam
+description: The platform-neutral GraphQL contract and how a change propagates through the stack.
+---
+
+## The platform-neutral seam
+
+The commerce layer is deliberately swappable. Between the app and the commerce
+backend sits **`@csa/commerce-contract`** — a package of platform-neutral,
+federation-annotated GraphQL SDL (`gql`-tagged `*.graphql.ts` files) plus its TS
+types.
+
+- The contract is **build-only**: `src/graphql/*.graphql.ts` compiles with `tsc`
+  into `dist/`.
+- Every commerce subgraph **imports the built `dist/`**, never the source
+  directly. So a subgraph serves whatever is in `dist/` — which is the
+  mechanical root of the staleness gotcha below.
+- Because the assistant only ever sees contract-shaped types, it **never learns
+  the name of the backend**. commercetools is the implemented adapter;
+  shopify / bigcommerce / sfcc are schema-only placeholders.
+
+## Federation & platform selection
+
+The BFF's `buildGateway` parses `FEDERATED_SERVICES` (default: commercetools +
+ticketing + admin). `selectCommerceService` keeps all non-commerce subgraphs
+plus **exactly one** commerce subgraph matching `BFF_COMMERCE_PLATFORM`, so
+multiple adapters can be declared without schema collisions. Every subgraph call
+is stamped with `x-csa-commerce-platform`, `x-csa-project-key`,
+`x-csa-client-id`, `x-csa-user-role` and `x-csa-user-email`.
+
+## A new root field touches five places
+
+Adding one `Query` or `Mutation` field is a propagation problem, not just an
+implementation one. In order:
+
+1. **Contract SDL** — add the field in `contract/src/graphql/*.graphql.ts`.
+2. **Rebuild `dist/`** — `pnpm --filter @csa/commerce-contract build`.
+3. **Domain resolver** — implement it in the subgraph's `*.resolvers.ts`.
+4. **Resolver allowlist** — add the field name to
+   `commercetools/src/http/graphql/resolvers.ts` (a manual allowlist).
+5. **BFF re-poll** — the gateway picks it up on its next 10s poll (or restart).
+
+Then, downstream: the ai-assist tool's GraphQL string, and the webapp proxy
+mapper / stream scrape.
+
+<Callout type="warn">
+Three of these steps fail **silently** if skipped: an unlisted resolver (step 4)
+never binds, a stale `dist/` (step 2) serves the old schema, and the gateway
+(step 5) 404s the field until it polls. None of them raises an obvious "you
+forgot X" error. See the [Add a GraphQL field](/docs/guides/add-a-graphql-field)
+guide for the full checklist.
+</Callout>

@@ -1,0 +1,50 @@
+---
+title: Getting Started
+description: Prerequisites and the fastest path to a running local stack.
+---
+
+## Prerequisites
+
+| Tool | Version | Notes |
+| --- | --- | --- |
+| Node.js | 20.x | The whole workspace targets Node 20. |
+| pnpm | 9.6.0 | Package manager for the workspace. |
+| Turborepo | via `pnpm` | Task runner; invoked through `pnpm` scripts. |
+
+The repository is a **pnpm workspace** (`apps/*`, `apps/commerce/*`,
+`packages/*`, `configs/*`, `infra/*`) orchestrated by **Turborepo**. Package
+names follow `@csa/<dir-name>` — e.g. `apps/webapp` is `@csa/webapp`.
+
+## Install
+
+```bash
+pnpm install
+```
+
+## Run everything
+
+```bash
+pnpm dev          # turbo run dev --parallel — starts every service
+```
+
+Or run a single app:
+
+```bash
+pnpm --filter @csa/webapp dev      # just the rep console (port 3000)
+pnpm --filter @csa/docs-site dev   # just this docs portal (port 3001)
+```
+
+## Common workspace commands
+
+```bash
+pnpm --filter @csa/commerce-contract build   # rebuild the shared GraphQL contract
+pnpm --filter <pkg> typecheck                # tsc --noEmit for one package
+pnpm typecheck                               # typecheck all packages
+```
+
+## Where to go next
+
+- [Local Development](/docs/getting-started/local-development) — environment
+  variables and the moving parts you'll actually touch.
+- [Service Map](/docs/getting-started/service-map) — every service and its port
+  in one table.

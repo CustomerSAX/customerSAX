@@ -1,0 +1,39 @@
+---
+title: Service Map
+description: Every service in the platform, its package name, port and framework.
+---
+
+## Services and ports
+
+| App | Package | Port | Framework | Role |
+| --- | --- | --- | --- | --- |
+| webapp (studio) | `@csa/webapp` | 3000 | Next.js App Router | Rep console + server proxy layer |
+| docs-site | `@csa/docs-site` | 3001 | Next.js (Fumadocs) | This documentation portal |
+| ai-assist | `@csa/ai-assist` | 8080 | Express | LLM chat orchestration, tools, memory |
+| bff | `@csa/bff` | 4000 | Apollo Gateway | Federated GraphQL supergraph |
+| auth | `@csa/auth` | 4360 | `node:http` | Login, sessions, project selection (REST) |
+| admin | `@csa/admin` | 4370 | Apollo subgraph | Superadmin: clients, projects, roles, AI settings, audit |
+| ticketing | `@csa/ticketing` | 4350 | Apollo subgraph | MongoDB-backed tickets |
+| commerce / commercetools | `@csa/commerce-commercetools` | 4310 | Apollo subgraph | The implemented commerce adapter |
+| commerce / contract | `@csa/commerce-contract` | — (library) | `tsc` → `dist/` | Platform-neutral GraphQL contract |
+
+<Callout type="info">
+The commerce adapters for **shopify**, **bigcommerce** and **sfcc** exist as
+schema-only placeholders (ports 4320 / 4330 / 4340). Only **commercetools** is
+wired up and implemented today.
+</Callout>
+
+## Data stores
+
+- **MongoDB** — admin data, tickets, chat sessions and episodic memory.
+- **Redis** — working (short-term) memory for the assistant; degrades to a no-op
+  when `REDIS_URL` is absent.
+- **commercetools** — the live commerce backend (SaaS).
+
+## Request entry points
+
+- Browsers load the **webapp** at `:3000`.
+- The webapp's server proxy layer (`app/api/*`) talks to the **BFF** at `:4000`.
+- The chat stream posts **directly** from the browser to **ai-assist** at
+  `:8080` (see [Resolution Flow](/docs/architecture/resolution-flow) for why
+  that asymmetry matters).

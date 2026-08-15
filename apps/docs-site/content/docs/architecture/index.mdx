@@ -1,0 +1,36 @@
+---
+title: Architecture & Flows
+description: The system mental model — services, the commerce seam, and the resolution flow.
+---
+
+## The mental model
+
+customerSAX is built around a small number of load-bearing ideas. If you hold
+these, the rest of the codebase reads easily:
+
+1. **One tool path, two UIs.** Guided steppers and free-form chat both emit the
+   same tool calls through the same `/chat` endpoint. The webapp reconstructs a
+   single state snapshot from the tool-call stream regardless of which drove it.
+2. **A platform-neutral commerce seam.** A GraphQL contract package sits between
+   the app and the commerce backend. Swapping commercetools for another engine
+   is an adapter change, not an app rewrite.
+3. **Federation at the edge.** One Apollo Gateway (the BFF) stitches the
+   commerce, ticketing and admin subgraphs into a single supergraph the rest of
+   the platform queries.
+4. **Defense-in-depth on writes.** Reads default open; writes default closed.
+   State-changing actions pass an approval gate before they execute.
+
+## In this section
+
+- [Service Topology](/docs/architecture/topology) — the full service graph, with
+  a Mermaid diagram.
+- [Commerce Adapter Seam](/docs/architecture/commerce-adapter) — the
+  platform-neutral contract and its propagation rules.
+- [Resolution Flow](/docs/architecture/resolution-flow) — what actually happens
+  on a chat request, end to end.
+
+<Callout type="info">
+This section is distilled from the repository's authoritative
+`docs/architecture/ARCHITECTURE.md`, which is verified against source rather
+than older docs.
+</Callout>

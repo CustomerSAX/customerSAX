@@ -1,0 +1,49 @@
+---
+title: Auth REST
+description: The standalone auth service — sessions and project selection over REST.
+---
+
+## Endpoint
+
+```
+Base: http://localhost:4360
+```
+
+`@csa/auth` is a plain `node:http` service (not part of the GraphQL federation).
+It owns login, sessions and project selection. The webapp's server proxy layer
+calls it to resolve the current session before every proxied data request.
+
+## Session endpoints
+
+### `POST /sessions`
+
+Create a session (login). Returns a session the webapp stores in the
+`csa_session` cookie (name configurable via `AUTH_COOKIE_NAME`).
+
+### `GET /sessions/current`
+
+Return the currently authenticated session — the identity the webapp proxy
+injects into downstream BFF calls (project, client, role, user). A request
+without an active session is unauthenticated.
+
+### `POST /sessions/current/project`
+
+Select / switch the **active project** for the current session. Several proxied
+routes require an active project to be set before they will call the BFF.
+
+<Callout type="info">
+These are the auth routes wired in `apps/auth/src/http/auth.ts`
+(`/sessions`, `/sessions/current`, `/sessions/current/project`). Request/response
+JSON shapes are defined alongside them in the service.
+</Callout>
+
+## How the webapp uses it
+
+Every browser data call goes through a Next.js proxy route that first resolves
+`GET /sessions/current`, requires an active project, and stamps
+project/client/role headers onto the BFF request. This is why the webapp can
+trust identity on proxied paths — and why the direct chat stream is the notable
+exception (see [ai-assist /chat](/docs/api-reference/ai-assist-chat)).
+
+<Callout>🚧 Expanding — exact request/response JSON bodies and error codes per
+route will be documented here.</Callout>
