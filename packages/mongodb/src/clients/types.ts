@@ -1,3 +1,10 @@
+/**
+ * Document + SSO-config types for CSA client organisations (the `csa_clients`
+ * collection). The `*Stored` SSO shapes are what actually persists (secrets
+ * included); the repository's `clientView`/`ssoConfigView` project these into
+ * the secret-free views exposed over GraphQL.
+ */
+
 import type { ObjectId } from "@csa/mongodb";
 
 export type ClientStatus = "active" | "blocked";

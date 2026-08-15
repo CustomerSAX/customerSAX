@@ -7,15 +7,11 @@
 
 import { ObjectId } from "mongodb";
 import { getClientsCollection } from "../admin/db.js";
+import { createCollectionAccessor } from "../collection-accessor.js";
 import type { CsaClient, ClientStatus, ClientSsoConfigStored } from "./types.js";
 
-function toObjectId(id: string): ObjectId | null {
-  try {
-    return new ObjectId(id);
-  } catch {
-    return null;
-  }
-}
+/** Shared id-keyed helpers over the `csa_clients` collection. */
+const clients = createCollectionAccessor(getClientsCollection);
 
 function ssoConfigView(cfg: ClientSsoConfigStored | undefined) {
   if (!cfg || cfg.provider === "none") {
@@ -46,10 +42,7 @@ export function clientView(doc: CsaClient) {
 }
 
 export async function findClientByIdRaw(id: string): Promise<CsaClient | null> {
-  const col = await getClientsCollection();
-  const oid = toObjectId(id);
-  if (!oid) return null;
-  return (await col.findOne({ _id: oid })) as CsaClient | null;
+  return (await clients.findById(id)) as CsaClient | null;
 }
 
 export async function listClients(): Promise<CsaClient[]> {
@@ -96,10 +89,6 @@ export async function updateClient(
   id: string,
   updates: { name?: string; contactEmail?: string; ssoConfig?: ClientSsoConfigStored | null }
 ): Promise<boolean> {
-  const col = await getClientsCollection();
-  const oid = toObjectId(id);
-  if (!oid) return false;
-
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (updates.name !== undefined) set.name = updates.name.trim();
   if (updates.contactEmail !== undefined) set.contactEmail = updates.contactEmail.trim().toLowerCase();
@@ -107,24 +96,15 @@ export async function updateClient(
     set.ssoConfig = updates.ssoConfig === null ? { provider: "none" as const } : updates.ssoConfig;
   }
 
-  const result = await col.updateOne({ _id: oid }, { $set: set });
-  return result.matchedCount > 0;
+  return clients.updateById(id, { $set: set });
 }
 
 export async function setClientStatus(id: string, status: ClientStatus): Promise<boolean> {
-  const col = await getClientsCollection();
-  const oid = toObjectId(id);
-  if (!oid) return false;
-  const result = await col.updateOne({ _id: oid }, { $set: { status, updatedAt: new Date() } });
-  return result.matchedCount > 0;
+  return clients.updateById(id, { $set: { status, updatedAt: new Date() } });
 }
 
 export async function deleteClient(id: string): Promise<boolean> {
-  const col = await getClientsCollection();
-  const oid = toObjectId(id);
-  if (!oid) return false;
-  const result = await col.deleteOne({ _id: oid });
-  return result.deletedCount > 0;
+  return clients.deleteById(id);
 }
 
 export async function ensureClientsIndex(): Promise<void> {

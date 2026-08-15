@@ -15,17 +15,13 @@
 import bcrypt from "bcryptjs";
 import { ObjectId } from "mongodb";
 import { getUsersCollection } from "../admin/db.js";
+import { createCollectionAccessor } from "../collection-accessor.js";
 import type { CsaUser, CsaUserProject } from "./types.js";
 
 const BCRYPT_ROUNDS = 12;
 
-function toObjectId(id: string): ObjectId | null {
-  try {
-    return new ObjectId(id);
-  } catch {
-    return null;
-  }
-}
+/** Shared id-keyed helpers over the `csa_users` collection. */
+const users = createCollectionAccessor(getUsersCollection);
 
 function projectKeysEqual(a: string, b: string): boolean {
   if (!a?.trim() || !b?.trim()) return false;
@@ -54,10 +50,7 @@ export async function findUserByEmail(email: string): Promise<CsaUser | null> {
 }
 
 export async function findUserById(id: string): Promise<CsaUser | null> {
-  const col = await getUsersCollection();
-  const oid = toObjectId(id);
-  if (!oid) return null;
-  return (await col.findOne({ _id: oid })) as CsaUser | null;
+  return (await users.findById(id)) as CsaUser | null;
 }
 
 /** Every user with at least one projects[] entry for this client (plus legacy top-level clientId rows). */

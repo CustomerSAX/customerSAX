@@ -1,3 +1,11 @@
+/**
+ * Document types for CSA users (the `csa_users` collection) — the exact,
+ * already-live shape shared by the Admin console and the `apps/auth` login
+ * flow. `projects[]` is the source of truth for client/project membership;
+ * the legacy top-level `role`/`projectKey` fields are kept in sync for
+ * `apps/auth`'s narrower session claims (see the CsaUser doc comment below).
+ */
+
 import type { ObjectId } from "@csa/mongodb";
 
 /** Per-project role membership for a user. */
