@@ -23,7 +23,7 @@
     "format": "prettier --write --ignore-path=.gitignore .",
     "infra:gcp": "pnpm --filter @csa/infra-gcp",
     "lint": "turbo run lint",
-    "test": "pnpm -r --if-present test",
+    "test": "vitest run",
     "tf:check": "turbo run tf:check",
     "tf:format": "turbo run tf:format",
     "typecheck": "turbo run typecheck"
@@ -32,7 +32,8 @@
     "concurrently": "^10.0.4",
     "prettier": "^3.3.3",
     "turbo": "^2.0.11",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=20.0.0",
