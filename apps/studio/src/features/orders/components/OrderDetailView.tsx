@@ -1,22 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
-  PageHeader,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
   Button,
   Icon,
   Input,
   Select,
   FormField,
   Label,
-  Badge,
-  Tabs,
   Table,
   TableHeader,
   TableBody,
@@ -24,8 +16,32 @@ import {
   TableHead,
   TableCell,
   Drawer,
-  Panel,
 } from "@csa/ui";
+import {
+  DetailPage,
+  BackLink,
+  EntityHeader,
+  EntityTabs,
+  type EntityTab,
+  SummaryGrid,
+  SummaryCard,
+  ContentGrid,
+  MainColumn,
+  SideColumn,
+  SectionCard,
+  CardAction,
+  InfoList,
+  InfoRow,
+  StatusPill,
+  type StatusTone,
+  Timeline,
+  type TimelineItem,
+  type TimelineState,
+  QuickActions,
+  QuickAction,
+  PrimaryButton,
+  CardEmpty,
+} from "@/components/detail";
 import { useOrderStore, MOCK_SHIPPING_METHODS, MOCK_CATALOG_PRODUCTS, MOCK_AVAILABLE_DISCOUNTS } from "../hooks/use-orders";
 import type {
   Order,
@@ -112,11 +128,50 @@ const PAYMENT_STATE_OPTIONS = [
   { value: "CreditOwed", label: "Credit Owed" },
 ];
 
+/** Shared status → tone map (spec): Open/Confirmed→info, Paid/Complete/Delivered/Shipped→success,
+ * Pending/BalanceDue/Ready→warning, Failed/Cancelled→error, else neutral. */
+function statusTone(status?: string | null): StatusTone {
+  switch (status) {
+    case "Open":
+    case "Confirmed":
+      return "info";
+    case "Paid":
+    case "Complete":
+    case "Delivered":
+    case "Shipped":
+      return "success";
+    case "Pending":
+    case "BalanceDue":
+    case "Ready":
+      return "warning";
+    case "Failed":
+    case "Cancelled":
+      return "error";
+    default:
+      return "neutral";
+  }
+}
+
+function toTimelineState(tone: StatusTone): TimelineState {
+  switch (tone) {
+    case "success":
+      return "complete";
+    case "error":
+      return "exception";
+    case "info":
+    case "primary":
+    case "warning":
+      return "current";
+    default:
+      return "waiting";
+  }
+}
+
 function ProductThumbnail({ src }: { src?: string }) {
   const [failed, setFailed] = useState(false);
   if (!src || failed) {
     return (
-      <div className="w-12 h-12 bg-m-bg border border-m-border rounded flex items-center justify-center text-[10px] font-bold text-m-text-muted shrink-0">
+      <div className="w-12 h-12 bg-m-surface-2 border border-m-border rounded flex items-center justify-center text-[10px] font-bold text-m-text-muted shrink-0">
         NO IMG
       </div>
     );
@@ -162,9 +217,18 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   const fallbackOrder = useMemo(() => createEmptyOrder(id), [id]);
   const order = getOrderById(id) || orders[0] || fallbackOrder;
 
-  const B2C_TABS = ["General", "Shipping & Delivery", "Returns", "Payments", "Comments"] as const;
-  const B2B_TABS = ["General", "Custom Attributes", "Shipping & Delivery", "Returns", "Payments"] as const;
-  const tabs = isB2b ? B2B_TABS : B2C_TABS;
+  // Identical tab set across B2C and B2B — Custom Attributes content is folded
+  // into the General tab below instead of living behind its own tab.
+  const TABS: EntityTab[] = useMemo(
+    () => [
+      { id: "General", label: "General", icon: "layout-grid" },
+      { id: "Shipping & Delivery", label: "Shipping & Delivery", icon: "truck" },
+      { id: "Returns", label: "Returns", icon: "rotate-ccw", count: order.returnInfo?.length || 0 },
+      { id: "Payments", label: "Payments", icon: "credit-card", count: order.payments?.length || 0 },
+      { id: "Comments", label: "Comments", icon: "message-square", count: order.comments?.length || 0 },
+    ],
+    [order.returnInfo, order.payments, order.comments]
+  );
 
   const [activeTab, setActiveTab] = useState<string>("General");
 
@@ -430,48 +494,12 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     setShowCommentForm(false);
   };
 
-  // ── Render Helpers ──────────────────────────────────────────────────────
-
-  const renderOrderStateBadge = (s: OrderState) => {
-    switch (s) {
-      case "Open":
-        return <Badge variant="primary" size="sm" dot>Open</Badge>;
-      case "Confirmed":
-        return <Badge variant="warning" size="sm">Confirmed</Badge>;
-      case "Complete":
-        return <Badge variant="success" size="sm">Complete</Badge>;
-      case "Cancelled":
-        return <Badge variant="error" size="sm">Cancelled</Badge>;
-      default:
-        return <Badge variant="neutral" size="sm">{s}</Badge>;
-    }
+  const handleDuplicateOrder = () => {
+    const cartId = duplicateOrder(order.id);
+    router.push(`/cart/${cartId}`);
   };
 
-  const renderShipmentBadge = (s: ShipmentState) => {
-    switch (s) {
-      case "Shipped":
-        return <Badge variant="success" size="sm">Shipped</Badge>;
-      case "Ready":
-        return <Badge variant="info" size="sm">Ready</Badge>;
-      case "Pending":
-        return <Badge variant="warning" size="sm">Pending</Badge>;
-      default:
-        return <Badge variant="neutral" size="sm">{s}</Badge>;
-    }
-  };
-
-  const renderPaymentBadge = (s: PaymentState) => {
-    switch (s) {
-      case "Paid":
-        return <Badge variant="success" size="sm">Paid</Badge>;
-      case "Pending":
-        return <Badge variant="warning" size="sm">Pending</Badge>;
-      case "BalanceDue":
-        return <Badge variant="error" size="sm">Balance Due</Badge>;
-      default:
-        return <Badge variant="neutral" size="sm">{s}</Badge>;
-    }
-  };
+  // ── Derived view data ───────────────────────────────────────────────────
 
   const selectedPayment = selectedPaymentId
     ? order.payments.find((p) => p.id === selectedPaymentId)
@@ -479,632 +507,667 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
 
   const returnTrackingIdPreview = `RTN-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${order.orderNumber}-${(order.returnInfo?.length || 0) + 1}`;
 
-  return (
-    <div className="space-y-6">
-      {/* Header & Navigation */}
-      <div>
-        <Link
-          href={customerIdParam ? `/customers/${customerIdParam}` : (isB2b ? "/b2b/orders" : "/orders")}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-m-primary hover:text-m-primary-600 mb-3"
-        >
-          <Icon name="arrow-left" size="xs" />
-          {customerIdParam ? "Go back to customer" : (isB2b ? "To order list" : "Back to Orders")}
-        </Link>
+  // Real-data-driven fulfillment overview — derived purely from orderState /
+  // paymentState / shipmentState, never fabricated.
+  const orderTimeline: TimelineItem[] = useMemo(
+    () => [
+      {
+        label: "Order Placed",
+        meta: order.createdAt ? new Date(order.createdAt).toLocaleDateString() : undefined,
+        state: order.orderState === "Cancelled" ? "exception" : "complete",
+      },
+      {
+        label: "Payment",
+        meta: order.paymentState,
+        state: toTimelineState(statusTone(order.paymentState)),
+      },
+      {
+        label: "Shipment",
+        meta: order.shipmentState,
+        detail:
+          order.shippingInfo.parcels.length > 0
+            ? `${order.shippingInfo.parcels.length} parcel(s) dispatched`
+            : undefined,
+        state: toTimelineState(statusTone(order.shipmentState)),
+      },
+    ],
+    [order.createdAt, order.orderState, order.paymentState, order.shipmentState, order.shippingInfo.parcels.length]
+  );
 
-        <PageHeader
-          title={order?.orderNumber ? `Order #${order.orderNumber}` : "Order Detail"}
-          subtitle={`Inspect order fulfillment, payment state, line items, and shipping progress. Created ${
-            order.createdAt ? new Date(order.createdAt).toLocaleString() : "--"
-          }`}
-          badge={renderOrderStateBadge(order.orderState)}
-          actions={
-            <div className="flex items-center gap-2">
-              {renderShipmentBadge(order.shipmentState)}
-              {renderPaymentBadge(order.paymentState)}
-              <Button
-                variant="secondary"
-                size="md"
-                leftIcon={<Icon name="copy" size="xs" />}
-                onClick={() => {
-                  const cartId = duplicateOrder(order.id);
-                  router.push(`/cart/${cartId}`);
-                }}
-              >
-                {isB2b ? "Copy Order" : "Duplicate Order"}
-              </Button>
-            </div>
-          }
-        />
-      </div>
+  const backHref = customerIdParam ? `/customers/${customerIdParam}` : isB2b ? "/b2b/orders" : "/orders";
+  const backLabel = customerIdParam ? "Go back to customer" : isB2b ? "To order list" : "Back to Orders";
+
+  return (
+    <DetailPage>
+      <BackLink href={backHref}>{backLabel}</BackLink>
+
+      <EntityHeader
+        title={order?.orderNumber ? `Order #${order.orderNumber}` : "Order Detail"}
+        status={<StatusPill tone={statusTone(order.orderState)}>{order.orderState}</StatusPill>}
+        meta={`Placed ${order.createdAt ? new Date(order.createdAt).toLocaleString() : "—"} • ${
+          order.store && order.store !== "--" ? order.store : "—"
+        }${order.companyName ? ` • ${order.companyName}` : ""}`}
+        actions={
+          <PrimaryButton icon="copy" onClick={handleDuplicateOrder}>
+            {isB2b ? "Copy Order" : "Duplicate Order"}
+          </PrimaryButton>
+        }
+      />
 
       {(loading || error) && (
-        <Panel
-          className={`p-3 rounded-lg border text-xs font-semibold ${
+        <div
+          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${
             error
-              ? "border-m-danger/30 bg-m-danger-surface text-m-danger"
-              : "border-m-border bg-m-bg-surface text-m-text-muted"
+              ? "border-m-error-border bg-m-error-light text-m-error"
+              : "border-m-border bg-m-surface-2 text-m-text-muted"
           }`}
         >
           {error
             ? "Unable to load this order from the BFF. Showing available local order state."
             : "Loading order data from the BFF..."}
-        </Panel>
+        </div>
       )}
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)} variant="underline">
-        <Tabs.List>
-          {tabs.map((t) => (
-            <Tabs.Trigger key={t} value={t}>
-              {t}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
+      <EntityTabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
-        {/* ── Tab 1: General ── */}
-        <Tabs.Content value="General" className="space-y-6">
-          {/* Send Payment Notification Panel (B2C) */}
-          {!isB2b && (
-            <Card variant="default">
-              <CardHeader>
-                <CardTitle>Send Payment Notification</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-xs text-m-text-muted">
-                  Send an automated payment link reminder to the customer&apos;s registered email address.
-                </p>
-                {paymentReminderFeedback && (
-                  <div className="p-2.5 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
-                    {paymentReminderFeedback}
-                  </div>
-                )}
-                <div className="flex flex-col sm:flex-row items-end gap-3">
-                  <div className="flex-1 w-full">
-                    <FormField>
-                      <Label>Alternate Email</Label>
-                      <Input
-                        value={altEmail}
-                        onChange={(e) => setAltEmail(e.target.value)}
-                        placeholder="Enter email address..."
-                      />
-                    </FormField>
-                  </div>
-                  <Button type="button" variant="primary" size="md" onClick={handleSendPaymentReminder}>
-                    Send Payment Reminder
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+      {/* ── Tab 1: General ── */}
+      {activeTab === "General" && (
+        <>
+          <SummaryGrid>
+            <SummaryCard
+              icon="calendar"
+              label="Order Date"
+              value={order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "--"}
+              sub={order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : undefined}
+            />
+            <SummaryCard icon="hash" label="Order Number" value={order.orderNumber} />
+            <SummaryCard icon="shopping-bag" label="Sales Channel" value={order.store} />
+            <SummaryCard icon="user" label="Customer" value={order.customerName} sub={order.customerEmail} />
+            <SummaryCard
+              icon="dollar-sign"
+              label="Total Amount"
+              value={`$${order.grandTotal.toFixed(2)}`}
+              tone="primary"
+            />
+            <SummaryCard
+              icon="credit-card"
+              label="Payment Status"
+              value={<StatusPill tone={statusTone(order.paymentState)}>{order.paymentState}</StatusPill>}
+            />
+          </SummaryGrid>
 
-          {/* Grid: Order Summary + Financial Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-            {/* Order Summary Panel */}
-            <Card variant="default">
-              <CardHeader>
-                <CardTitle>Order Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSaveStates} className="space-y-4">
-                  {stateSaveMsg && (
-                    <div className="p-2.5 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
-                      {stateSaveMsg}
-                    </div>
-                  )}
-
-                  <FormField>
-                    <Label>Order Number</Label>
-                    <Input value={order.orderNumber} readOnly className="bg-m-bg" />
-                  </FormField>
-
-                  <FormField>
-                    <Label>Order Status</Label>
-                    <Select
-                      value={orderState}
-                      onChange={(e) => setOrderState(e.target.value as OrderState)}
-                      options={ORDER_STATE_OPTIONS}
-                    />
-                  </FormField>
-
-                  <FormField>
-                    <Label>Payment Status</Label>
-                    <Select
-                      value={paymentState}
-                      onChange={(e) => setPaymentState(e.target.value as PaymentState)}
-                      options={PAYMENT_STATE_OPTIONS}
-                    />
-                  </FormField>
-
-                  <FormField>
-                    <Label>Shipment Status</Label>
-                    <Select
-                      value={shipmentState}
-                      onChange={(e) => setShipmentState(e.target.value as ShipmentState)}
-                      options={SHIPMENT_STATE_OPTIONS}
-                    />
-                  </FormField>
-
-                  <div className="flex items-center gap-3 pt-2">
-                    <Button type="submit" variant="primary" size="md">
-                      Save Changes
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="md"
-                      onClick={() => {
-                        setOrderState(order.orderState);
-                        setShipmentState(order.shipmentState);
-                        setPaymentState(order.paymentState);
-                      }}
-                    >
-                      Reset
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-
-            {/* Order Financial Breakdown Panel */}
-            <Card variant="default">
-              <CardHeader>
-                <CardTitle>Order Financial Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col justify-between h-full space-y-4">
-                <div className="divide-y divide-m-border text-xs">
-                  <div className="flex justify-between items-center py-2.5">
-                    <span className="text-m-text-muted font-medium">Order original subtotal</span>
-                    <span className="font-semibold text-m-text">${order.netTotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2.5">
-                    <span className="text-m-text-muted font-medium">Tax (merchandise)</span>
-                    <span className="font-semibold text-m-text">+${order.taxTotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2.5">
-                    <span className="text-m-text font-semibold">Merchandise total (gross)</span>
-                    <span className="font-bold text-m-text">${(order.netTotal + order.taxTotal).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2.5">
-                    <span className="text-m-text-muted font-medium">+ Shipping cost</span>
-                    <span className="font-semibold text-m-text">${order.shippingTotal.toFixed(2)}</span>
-                  </div>
-                  {order.discountTotal > 0 && (
-                    <div className="flex justify-between items-center py-2.5 text-m-success">
-                      <span className="font-medium">- Applied discounts</span>
-                      <span className="font-bold">-${order.discountTotal.toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t-2 border-m-border mt-auto">
-                  <span className="text-sm font-bold text-m-text">Order final total</span>
-                  <span className="text-xl font-extrabold text-m-primary">${order.grandTotal.toFixed(2)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Redeem Loyalty Points (B2C) */}
-          {!isB2b && (
-            <Card variant="default">
-              <CardHeader>
-                <CardTitle>Redeem Loyalty Points</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-xs font-semibold text-m-text-muted">
-                  Total Loyalty Points Available: <span className="font-bold text-m-primary font-mono">1,434,321</span>
-                </div>
-                <div className="flex flex-col sm:flex-row items-end gap-3">
-                  <div className="flex-1 w-full">
-                    <FormField>
-                      <Label>Points to Redeem</Label>
-                      <Input
-                        value={loyaltyPointsInput}
-                        onChange={(e) => setLoyaltyPointsInput(e.target.value)}
-                        placeholder="Enter points to Redeem (e.g. 1000)"
-                      />
-                    </FormField>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Button type="button" variant="primary" size="md" onClick={handleCalculateLoyalty}>
-                      Calculate
-                    </Button>
-                    {loyaltySavedDollars !== null && (
-                      <div className="px-3 py-2 bg-m-success-light text-m-success-dark font-bold rounded-md border border-m-success-border text-xs">
-                        Amount Saved: ${loyaltySavedDollars.toFixed(2)}
+          <ContentGrid>
+            <MainColumn>
+              {!isB2b && (
+                <SectionCard title="Send Payment Notification" icon="mail">
+                  <div className="space-y-3">
+                    <p className="text-xs text-m-text-muted">
+                      Send an automated payment link reminder to the customer&apos;s registered email address.
+                    </p>
+                    {paymentReminderFeedback && (
+                      <div className="p-2.5 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
+                        {paymentReminderFeedback}
                       </div>
                     )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Customer & Addresses */}
-          <Card variant="default">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{isB2b ? "Customer Details" : "Customer & Addresses"}</CardTitle>
-              {order.customerId && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => router.push(`/customers/${order.customerId}`)}
-                >
-                  View Customer Profile →
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-3 bg-m-bg rounded-lg border border-m-border flex items-center gap-2 text-xs">
-                <Icon name="mail" size="xs" />
-                <span className="font-semibold text-m-text">Customer email:</span>
-                <span className="font-bold text-m-primary">{order.customerEmail}</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-4 rounded-lg border border-m-border bg-white space-y-2 text-xs">
-                  <div className="flex items-center gap-2 pb-2 border-b border-m-border text-m-primary font-bold">
-                    <Icon name="home" size="xs" />
-                    <span>Shipping Address</span>
-                  </div>
-                  <p className="font-bold text-m-text">{order.customerName}</p>
-                  <p className="text-m-text">
-                    {order.shippingAddress.streetNumber} {order.shippingAddress.streetName} {order.shippingAddress.building}
-                  </p>
-                  <p className="text-m-text">
-                    {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}
-                  </p>
-                  <p className="font-semibold text-m-text-muted">{order.shippingAddress.country}</p>
-                </div>
-
-                <div className="p-4 rounded-lg border border-m-border bg-white space-y-2 text-xs">
-                  <div className="flex items-center gap-2 pb-2 border-b border-m-border text-m-primary font-bold">
-                    <Icon name="file-text" size="xs" />
-                    <span>Billing Address</span>
-                  </div>
-                  <p className="font-bold text-m-text">{order.customerName}</p>
-                  <p className="text-m-text">
-                    {order.billingAddress.streetNumber} {order.billingAddress.streetName} {order.billingAddress.building}
-                  </p>
-                  <p className="text-m-text">
-                    {order.billingAddress.city}, {order.billingAddress.state} {order.billingAddress.postalCode}
-                  </p>
-                  <p className="font-semibold text-m-text-muted">{order.billingAddress.country}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Order Items Table */}
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Order Items ({order.lineItems.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Unit Price</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead></TableHead>
-                    <TableHead>Sub Total</TableHead>
-                    <TableHead>Tax</TableHead>
-                    <TableHead className="text-right">Total Gross</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {order.lineItems.map((item: OrderLineItem) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="flex items-center gap-3">
-                        <ProductThumbnail src={item.imageUrl} />
-                        <div>
-                          <div className="font-bold text-xs text-m-text">{item.name}</div>
-                          <div className="text-[10px] text-m-text-muted font-mono">
-                            SKU: {item.sku} {item.key ? `· Key: ${item.key}` : ""}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-m-text">${item.unitPrice.toFixed(2)}</TableCell>
-                      <TableCell>
-                        <div className="w-20">
+                    <div className="flex flex-col sm:flex-row items-end gap-3">
+                      <div className="flex-1 w-full">
+                        <FormField>
+                          <Label>Alternate Email</Label>
                           <Input
-                            type="number"
-                            min={1}
-                            value={stagedLineQuantities[item.id] ?? item.quantity}
-                            onChange={(e) =>
-                              setStagedLineQuantities((prev) => ({
-                                ...prev,
-                                [item.id]: Number(e.target.value),
-                              }))
-                            }
-                            className="text-xs text-center"
+                            value={altEmail}
+                            onChange={(e) => setAltEmail(e.target.value)}
+                            placeholder="Enter email address..."
                           />
+                        </FormField>
+                      </div>
+                      <Button type="button" variant="primary" size="md" onClick={handleSendPaymentReminder}>
+                        Send Payment Reminder
+                      </Button>
+                    </div>
+                  </div>
+                </SectionCard>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <SectionCard title="Order Status Management" icon="settings">
+                  <form onSubmit={handleSaveStates} className="space-y-4">
+                    {stateSaveMsg && (
+                      <div className="p-2.5 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
+                        {stateSaveMsg}
+                      </div>
+                    )}
+
+                    <FormField>
+                      <Label>Order Number</Label>
+                      <Input value={order.orderNumber} readOnly className="bg-m-surface-2" />
+                    </FormField>
+
+                    <FormField>
+                      <Label>Order Status</Label>
+                      <Select
+                        value={orderState}
+                        onChange={(e) => setOrderState(e.target.value as OrderState)}
+                        options={ORDER_STATE_OPTIONS}
+                      />
+                    </FormField>
+
+                    <FormField>
+                      <Label>Payment Status</Label>
+                      <Select
+                        value={paymentState}
+                        onChange={(e) => setPaymentState(e.target.value as PaymentState)}
+                        options={PAYMENT_STATE_OPTIONS}
+                      />
+                    </FormField>
+
+                    <FormField>
+                      <Label>Shipment Status</Label>
+                      <Select
+                        value={shipmentState}
+                        onChange={(e) => setShipmentState(e.target.value as ShipmentState)}
+                        options={SHIPMENT_STATE_OPTIONS}
+                      />
+                    </FormField>
+
+                    <div className="flex items-center gap-3 pt-2">
+                      <Button type="submit" variant="primary" size="md">
+                        Save Changes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="md"
+                        onClick={() => {
+                          setOrderState(order.orderState);
+                          setShipmentState(order.shipmentState);
+                          setPaymentState(order.paymentState);
+                        }}
+                      >
+                        Reset
+                      </Button>
+                    </div>
+                  </form>
+                </SectionCard>
+
+                <SectionCard title="Financial Breakdown" icon="receipt">
+                  <div className="flex flex-col justify-between h-full space-y-4">
+                    <div className="divide-y divide-m-border text-xs">
+                      <div className="flex justify-between items-center py-2.5">
+                        <span className="text-m-text-muted font-medium">Order original subtotal</span>
+                        <span className="font-semibold text-m-text">${order.netTotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2.5">
+                        <span className="text-m-text-muted font-medium">Tax (merchandise)</span>
+                        <span className="font-semibold text-m-text">+${order.taxTotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2.5">
+                        <span className="text-m-text font-semibold">Merchandise total (gross)</span>
+                        <span className="font-bold text-m-text">${(order.netTotal + order.taxTotal).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2.5">
+                        <span className="text-m-text-muted font-medium">+ Shipping cost</span>
+                        <span className="font-semibold text-m-text">${order.shippingTotal.toFixed(2)}</span>
+                      </div>
+                      {order.discountTotal > 0 && (
+                        <div className="flex justify-between items-center py-2.5 text-m-success">
+                          <span className="font-medium">- Applied discounts</span>
+                          <span className="font-bold">-${order.discountTotal.toFixed(2)}</span>
                         </div>
-                      </TableCell>
-                      <TableCell>
+                      )}
+                    </div>
+
+                    <div className="flex justify-between items-center pt-4 border-t-2 border-m-border mt-auto">
+                      <span className="text-sm font-bold text-m-text">Order final total</span>
+                      <span className="text-xl font-extrabold text-m-primary">${order.grandTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </SectionCard>
+              </div>
+
+              {!isB2b && (
+                <SectionCard title="Redeem Loyalty Points" icon="star">
+                  <div className="space-y-3">
+                    <div className="text-xs font-semibold text-m-text-muted">
+                      Total Loyalty Points Available: <span className="font-bold text-m-primary font-mono">1,434,321</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-end gap-3">
+                      <div className="flex-1 w-full">
+                        <FormField>
+                          <Label>Points to Redeem</Label>
+                          <Input
+                            value={loyaltyPointsInput}
+                            onChange={(e) => setLoyaltyPointsInput(e.target.value)}
+                            placeholder="Enter points to Redeem (e.g. 1000)"
+                          />
+                        </FormField>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button type="button" variant="primary" size="md" onClick={handleCalculateLoyalty}>
+                          Calculate
+                        </Button>
+                        {loyaltySavedDollars !== null && (
+                          <div className="px-3 py-2 bg-m-success-light text-m-success-dark font-bold rounded-m-md border border-m-success-border text-xs">
+                            Amount Saved: ${loyaltySavedDollars.toFixed(2)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </SectionCard>
+              )}
+
+              <SectionCard
+                title={isB2b ? "Customer Details" : "Customer & Addresses"}
+                icon="user"
+                action={
+                  order.customerId && (
+                    <CardAction onClick={() => router.push(`/customers/${order.customerId}`)}>
+                      View Profile →
+                    </CardAction>
+                  )
+                }
+              >
+                <div className="space-y-4">
+                  <div className="p-3 bg-m-surface-2 rounded-m-lg border border-m-border flex items-center gap-2 text-xs">
+                    <Icon name="mail" size="xs" />
+                    <span className="font-semibold text-m-text">Customer email:</span>
+                    <span className="font-bold text-m-primary">{order.customerEmail || "—"}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center gap-2 text-m-primary font-bold text-xs">
+                        <Icon name="home" size="xs" />
+                        <span>Shipping Address</span>
+                      </div>
+                      <InfoList>
+                        <InfoRow label="Name" value={order.customerName} />
+                        <InfoRow
+                          label="Street"
+                          value={[order.shippingAddress.streetNumber, order.shippingAddress.streetName, order.shippingAddress.building]
+                            .filter(Boolean)
+                            .join(" ")}
+                        />
+                        <InfoRow
+                          label="City / State / ZIP"
+                          value={[order.shippingAddress.city, order.shippingAddress.state, order.shippingAddress.postalCode]
+                            .filter((v) => v && v !== "--")
+                            .join(", ")}
+                        />
+                        <InfoRow label="Country" value={order.shippingAddress.country} />
+                      </InfoList>
+                    </div>
+
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center gap-2 text-m-primary font-bold text-xs">
+                        <Icon name="file-text" size="xs" />
+                        <span>Billing Address</span>
+                      </div>
+                      <InfoList>
+                        <InfoRow label="Name" value={order.customerName} />
+                        <InfoRow
+                          label="Street"
+                          value={[order.billingAddress.streetNumber, order.billingAddress.streetName, order.billingAddress.building]
+                            .filter(Boolean)
+                            .join(" ")}
+                        />
+                        <InfoRow
+                          label="City / State / ZIP"
+                          value={[order.billingAddress.city, order.billingAddress.state, order.billingAddress.postalCode]
+                            .filter((v) => v && v !== "--")
+                            .join(", ")}
+                        />
+                        <InfoRow label="Country" value={order.billingAddress.country} />
+                      </InfoList>
+                    </div>
+                  </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard title={`Order Items (${order.lineItems.length})`} icon="package" bodyClassName="p-0">
+                {order.lineItems.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Unit Price</TableHead>
+                        <TableHead>Qty</TableHead>
+                        <TableHead></TableHead>
+                        <TableHead>Sub Total</TableHead>
+                        <TableHead>Tax</TableHead>
+                        <TableHead className="text-right">Total Gross</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {order.lineItems.map((item: OrderLineItem) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="flex items-center gap-3">
+                            <ProductThumbnail src={item.imageUrl} />
+                            <div>
+                              <div className="font-bold text-xs text-m-text">{item.name}</div>
+                              <div className="text-[10px] text-m-text-muted font-mono">
+                                SKU: {item.sku} {item.key ? `· Key: ${item.key}` : ""}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-m-text">${item.unitPrice.toFixed(2)}</TableCell>
+                          <TableCell>
+                            <div className="w-20">
+                              <Input
+                                type="number"
+                                min={1}
+                                value={stagedLineQuantities[item.id] ?? item.quantity}
+                                onChange={(e) =>
+                                  setStagedLineQuantities((prev) => ({
+                                    ...prev,
+                                    [item.id]: Number(e.target.value),
+                                  }))
+                                }
+                                className="text-xs text-center"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={(stagedLineQuantities[item.id] ?? item.quantity) === item.quantity}
+                              onClick={() => handleUpdateLineItem(item.id)}
+                            >
+                              Update
+                            </Button>
+                          </TableCell>
+                          <TableCell className="text-xs font-medium">${item.subtotal.toFixed(2)}</TableCell>
+                          <TableCell className="text-xs text-m-text-muted">${item.tax.toFixed(2)}</TableCell>
+                          <TableCell className="text-xs font-bold text-m-text text-right">
+                            ${item.totalGross.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <CardEmpty
+                    icon="package"
+                    title="No line items on this order"
+                    hint="The commerce backend did not return any line items for this order."
+                  />
+                )}
+              </SectionCard>
+
+              <SectionCard title="Add Line Items" icon="plus-circle">
+                <div className="space-y-4">
+                  {catalogFeedback && (
+                    <div className="p-2.5 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
+                      {catalogFeedback}
+                    </div>
+                  )}
+                  <form onSubmit={handleCatalogSearch} className="space-y-2">
+                    <Label>Search products by name or SKU</Label>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <Input
+                          value={searchCatalogText}
+                          onChange={(e) => setSearchCatalogText(e.target.value)}
+                          placeholder="Type product name (e.g. Chair, Headphones, Keyboard)..."
+                        />
+                      </div>
+                      <Button type="submit" variant="primary" size="md">
+                        Search
+                      </Button>
+                    </div>
+                  </form>
+
+                  {searchCatalogResults.length > 0 && (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Unit Price</TableHead>
+                          <TableHead>Qty</TableHead>
+                          <TableHead className="text-right">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {searchCatalogResults.map((prod) => (
+                          <TableRow key={prod.productId}>
+                            <TableCell className="flex items-center gap-3">
+                              <ProductThumbnail src={prod.imageUrl} />
+                              <div>
+                                <div className="font-bold text-xs text-m-text">{prod.name}</div>
+                                <div className="text-[10px] text-m-text-muted font-mono">
+                                  SKU: {prod.sku} · Key: {prod.key}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs font-semibold">${prod.unitPrice.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <div className="w-20">
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={searchSelectedQty[prod.productId] || 1}
+                                  onChange={(e) =>
+                                    setSearchSelectedQty((prev) => ({
+                                      ...prev,
+                                      [prod.productId]: Number(e.target.value),
+                                    }))
+                                  }
+                                  className="text-xs text-center"
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleAddCatalogItemToOrder(prod)}
+                              >
+                                + Add
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              </SectionCard>
+
+              {!isB2b && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <SectionCard title="Gift Message" icon="gift">
+                    <div className="space-y-3">
+                      {giftMsgFeedback && (
+                        <div className="p-2 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
+                          {giftMsgFeedback}
+                        </div>
+                      )}
+                      <FormField>
+                        <textarea
+                          className="w-full p-2.5 border border-m-border rounded-m-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
+                          rows={3}
+                          value={giftMessageInput}
+                          onChange={(e) => setGiftMessageInput(e.target.value)}
+                          placeholder="Enter special gift note for recipient..."
+                        />
+                      </FormField>
+                      <Button type="button" variant="primary" size="sm" onClick={handleSaveGiftMessage}>
+                        Save Gift Message
+                      </Button>
+                    </div>
+                  </SectionCard>
+
+                  <SectionCard title="Add Discount Codes" icon="tag">
+                    <div className="space-y-4">
+                      {discountFeedback && (
+                        <div className="p-2 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
+                          {discountFeedback}
+                        </div>
+                      )}
+                      <FormField>
+                        <Label>Select Discount Code</Label>
+                        <Select
+                          value={selectedDiscountCode}
+                          onChange={(e) => setSelectedDiscountCode(e.target.value)}
+                          options={[
+                            { value: "", label: "Select discount code..." },
+                            ...MOCK_AVAILABLE_DISCOUNTS.map((d) => ({
+                              value: d.code,
+                              label: `${d.code} — ${d.name} (${d.value})`,
+                            })),
+                          ]}
+                        />
+                      </FormField>
+
+                      <div className="flex items-center gap-3">
                         <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          disabled={!selectedDiscountCode}
+                          onClick={handleApplyDiscountCode}
+                        >
+                          Apply Discount Code
+                        </Button>
+                        <Button
+                          type="button"
                           variant="secondary"
                           size="sm"
-                          disabled={(stagedLineQuantities[item.id] ?? item.quantity) === item.quantity}
-                          onClick={() => handleUpdateLineItem(item.id)}
+                          onClick={() => setSelectedDiscountCode("")}
                         >
-                          Update
+                          Reset
                         </Button>
-                      </TableCell>
-                      <TableCell className="text-xs font-medium">${item.subtotal.toFixed(2)}</TableCell>
-                      <TableCell className="text-xs text-m-text-muted">${item.tax.toFixed(2)}</TableCell>
-                      <TableCell className="text-xs font-bold text-m-text text-right">
-                        ${item.totalGross.toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* Add Line Items Panel */}
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Add Line Items</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {catalogFeedback && (
-                <div className="p-2.5 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
-                  {catalogFeedback}
-                </div>
-              )}
-              <form onSubmit={handleCatalogSearch} className="space-y-2">
-                <Label>Search products by name or SKU</Label>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <Input
-                      value={searchCatalogText}
-                      onChange={(e) => setSearchCatalogText(e.target.value)}
-                      placeholder="Type product name (e.g. Chair, Headphones, Keyboard)..."
-                    />
-                  </div>
-                  <Button type="submit" variant="primary" size="md">
-                    Search
-                  </Button>
-                </div>
-              </form>
-
-              {searchCatalogResults.length > 0 && (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Unit Price</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {searchCatalogResults.map((prod) => (
-                      <TableRow key={prod.productId}>
-                        <TableCell className="flex items-center gap-3">
-                          <ProductThumbnail src={prod.imageUrl} />
-                          <div>
-                            <div className="font-bold text-xs text-m-text">{prod.name}</div>
-                            <div className="text-[10px] text-m-text-muted font-mono">
-                              SKU: {prod.sku} · Key: {prod.key}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs font-semibold">${prod.unitPrice.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <div className="w-20">
-                            <Input
-                              type="number"
-                              min={1}
-                              value={searchSelectedQty[prod.productId] || 1}
-                              onChange={(e) =>
-                                setSearchSelectedQty((prev) => ({
-                                  ...prev,
-                                  [prod.productId]: Number(e.target.value),
-                                }))
-                              }
-                              className="text-xs text-center"
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleAddCatalogItemToOrder(prod)}
-                          >
-                            + Add
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Gift Message & Discount Codes (B2C) */}
-          {!isB2b && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card variant="default">
-                <CardHeader>
-                  <CardTitle>Gift Message</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {giftMsgFeedback && (
-                    <div className="p-2 bg-m-success-surface text-m-success text-xs font-semibold rounded">
-                      {giftMsgFeedback}
-                    </div>
-                  )}
-                  <FormField>
-                    <textarea
-                      className="w-full p-2.5 border border-m-border rounded-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
-                      rows={3}
-                      value={giftMessageInput}
-                      onChange={(e) => setGiftMessageInput(e.target.value)}
-                      placeholder="Enter special gift note for recipient..."
-                    />
-                  </FormField>
-                  <Button type="button" variant="primary" size="sm" onClick={handleSaveGiftMessage}>
-                    Save Gift Message
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card variant="default">
-                <CardHeader>
-                  <CardTitle>Add Discount Codes</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {discountFeedback && (
-                    <div className="p-2 bg-m-success-surface text-m-success text-xs font-semibold rounded">
-                      {discountFeedback}
-                    </div>
-                  )}
-                  <FormField>
-                    <Label>Select Discount Code</Label>
-                    <Select
-                      value={selectedDiscountCode}
-                      onChange={(e) => setSelectedDiscountCode(e.target.value)}
-                      options={[
-                        { value: "", label: "Select discount code..." },
-                        ...MOCK_AVAILABLE_DISCOUNTS.map((d) => ({
-                          value: d.code,
-                          label: `${d.code} — ${d.name} (${d.value})`,
-                        })),
-                      ]}
-                    />
-                  </FormField>
-
-                  <div className="flex items-center gap-3">
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="sm"
-                      disabled={!selectedDiscountCode}
-                      onClick={handleApplyDiscountCode}
-                    >
-                      Apply Discount Code
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setSelectedDiscountCode("")}
-                    >
-                      Reset
-                    </Button>
-                  </div>
-
-                  {/* Applied discounts */}
-                  {order.appliedDiscounts && order.appliedDiscounts.length > 0 && (
-                    <div className="pt-3 border-t border-m-border space-y-1">
-                      <span className="text-[10px] font-bold text-m-success-dark uppercase tracking-wider block">
-                        Applied Discounts
-                      </span>
-                      {order.appliedDiscounts.map((row) => (
-                        <div key={row.code} className="text-xs font-semibold text-m-text">
-                          🏷️ {row.code} {row.name ? `— ${row.name}` : ""} ({row.savings} saved)
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Ineffective discounts */}
-                  {order.ineffectiveDiscounts && order.ineffectiveDiscounts.length > 0 && (
-                    <div className="pt-3 border-t border-m-border space-y-1">
-                      <span className="text-[10px] font-bold text-m-warning-dark uppercase tracking-wider block">
-                        Not Applied
-                      </span>
-                      {order.ineffectiveDiscounts.map((row) => (
-                        <div key={row.code} className="text-xs text-m-text-muted">
-                          <span className="font-bold text-m-text">{row.code}:</span> {row.message}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          )}
-        </Tabs.Content>
-
-        {/* ── Tab 2: Custom Attributes (B2B) ── */}
-        {isB2b && (
-          <Tabs.Content value="Custom Attributes" className="space-y-6">
-            <Card variant="default">
-              <CardHeader>
-                <CardTitle>Order Custom Fields & Metadata</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {order.customFields && order.customFields.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {order.customFields.map((field) => (
-                      <div key={field.name} className="p-3 bg-m-bg rounded-md border border-m-border flex flex-col gap-1">
-                        <span className="text-[10px] font-bold text-m-text-muted uppercase tracking-wider">{field.name}</span>
-                        <span className="text-xs font-semibold text-m-text">{String(field.value)}</span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-m-text-muted italic">There are no custom fields attached to this order.</p>
-                )}
-              </CardContent>
-            </Card>
-          </Tabs.Content>
-        )}
 
-        {/* ── Tab 3: Shipping & Delivery ── */}
-        <Tabs.Content value="Shipping & Delivery" className="space-y-6">
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Shipping Method</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {shippingMethodFeedback && (
-                <div className="p-2.5 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
-                  {shippingMethodFeedback}
+                      {/* Applied discounts */}
+                      {order.appliedDiscounts && order.appliedDiscounts.length > 0 && (
+                        <div className="pt-3 border-t border-m-border space-y-1">
+                          <span className="text-[10px] font-bold text-m-success-dark uppercase tracking-wider block">
+                            Applied Discounts
+                          </span>
+                          {order.appliedDiscounts.map((row) => (
+                            <div key={row.code} className="text-xs font-semibold text-m-text">
+                              {row.code} {row.name ? `— ${row.name}` : ""} ({row.savings} saved)
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Ineffective discounts */}
+                      {order.ineffectiveDiscounts && order.ineffectiveDiscounts.length > 0 && (
+                        <div className="pt-3 border-t border-m-border space-y-1">
+                          <span className="text-[10px] font-bold text-m-warning-dark uppercase tracking-wider block">
+                            Not Applied
+                          </span>
+                          {order.ineffectiveDiscounts.map((row) => (
+                            <div key={row.code} className="text-xs text-m-text-muted">
+                              <span className="font-bold text-m-text">{row.code}:</span> {row.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </SectionCard>
                 </div>
               )}
-              <FormField>
-                <Label>Select Shipping Method</Label>
-                <Select
-                  value={selectedShippingMethodId}
-                  onChange={(e) => setSelectedShippingMethodId(e.target.value)}
-                  options={MOCK_SHIPPING_METHODS.map((m) => ({
-                    value: m.id,
-                    label: `${m.name} — $${m.price.toFixed(2)} (${m.carrier})`,
-                  }))}
-                />
-              </FormField>
-              <div className="flex items-center gap-3">
-                <Button type="button" variant="primary" size="md" onClick={handleSaveShippingMethod}>
-                  Save Shipping Method
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="md"
-                  onClick={() => setSelectedShippingMethodId(order.shippingInfo.shippingMethodId || MOCK_SHIPPING_METHODS[0].id)}
-                >
-                  Reset
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Shipping Details & Address</CardTitle>
-            </CardHeader>
-            <CardContent>
+              {isB2b && (
+                <SectionCard title="Custom Fields & Metadata" icon="list">
+                  {order.customFields && order.customFields.length > 0 ? (
+                    <InfoList columns={2}>
+                      {order.customFields.map((field) => (
+                        <InfoRow key={field.name} label={field.name} value={String(field.value)} />
+                      ))}
+                    </InfoList>
+                  ) : (
+                    <CardEmpty
+                      icon="list"
+                      title="No custom fields"
+                      hint="There are no custom fields attached to this order."
+                    />
+                  )}
+                </SectionCard>
+              )}
+            </MainColumn>
+
+            <SideColumn>
+              <QuickActions>
+                <QuickAction icon="copy" label={isB2b ? "Copy Order" : "Duplicate Order"} onClick={handleDuplicateOrder} />
+                <QuickAction
+                  icon="user"
+                  label="View Customer"
+                  disabled={!order.customerId}
+                  onClick={() => order.customerId && router.push(`/customers/${order.customerId}`)}
+                />
+                <QuickAction
+                  icon="rotate-ccw"
+                  label="Create Return"
+                  onClick={() => {
+                    setActiveTab("Returns");
+                    handleOpenReturnDrawer();
+                  }}
+                />
+                <QuickAction
+                  icon="message-square"
+                  label="Add Comment"
+                  onClick={() => {
+                    setActiveTab("Comments");
+                    setShowCommentForm(true);
+                  }}
+                />
+              </QuickActions>
+
+              <SectionCard title="Fulfillment Timeline" icon="activity">
+                <Timeline items={orderTimeline} />
+              </SectionCard>
+            </SideColumn>
+          </ContentGrid>
+        </>
+      )}
+
+      {/* ── Tab 2: Shipping & Delivery ── */}
+      {activeTab === "Shipping & Delivery" && (
+        <ContentGrid>
+          <MainColumn>
+            <SectionCard title="Shipping Method" icon="truck">
+              <div className="space-y-4">
+                {shippingMethodFeedback && (
+                  <div className="p-2.5 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
+                    {shippingMethodFeedback}
+                  </div>
+                )}
+                <FormField>
+                  <Label>Select Shipping Method</Label>
+                  <Select
+                    value={selectedShippingMethodId}
+                    onChange={(e) => setSelectedShippingMethodId(e.target.value)}
+                    options={MOCK_SHIPPING_METHODS.map((m) => ({
+                      value: m.id,
+                      label: `${m.name} — $${m.price.toFixed(2)} (${m.carrier})`,
+                    }))}
+                  />
+                </FormField>
+                <div className="flex items-center gap-3">
+                  <Button type="button" variant="primary" size="md" onClick={handleSaveShippingMethod}>
+                    Save Shipping Method
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    onClick={() => setSelectedShippingMethodId(order.shippingInfo.shippingMethodId || MOCK_SHIPPING_METHODS[0].id)}
+                  >
+                    Reset
+                  </Button>
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Shipping Details & Address" icon="map-pin">
               <form onSubmit={handleSaveShippingAddress} className="space-y-4">
                 {addressFeedback && (
-                  <div className="p-2.5 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
+                  <div className="p-2.5 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
                     {addressFeedback}
                   </div>
                 )}
@@ -1115,12 +1178,12 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                     <Input
                       value={String(order.lineItems.reduce((acc, li) => acc + li.quantity, 0))}
                       readOnly
-                      className="bg-m-bg"
+                      className="bg-m-surface-2"
                     />
                   </FormField>
                   <FormField>
                     <Label>Shipping Tax</Label>
-                    <Input value={`$${(order.shippingInfo.price * 0.08).toFixed(2)}`} readOnly className="bg-m-bg" />
+                    <Input value={`$${(order.shippingInfo.price * 0.08).toFixed(2)}`} readOnly className="bg-m-surface-2" />
                   </FormField>
                 </div>
 
@@ -1194,111 +1257,127 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                   </Button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
+            </SectionCard>
 
-          {order.shippingInfo.parcels && order.shippingInfo.parcels.length > 0 && (
-            <Card variant="default">
-              <CardHeader>
-                <CardTitle>Deliveries ({order.shippingInfo.parcels.length})</CardTitle>
-              </CardHeader>
-              <CardContent className="divide-y divide-m-border text-xs">
-                {order.shippingInfo.parcels.map((parcel, idx) => (
-                  <div key={parcel.id} className="py-3 space-y-1">
-                    <span className="font-bold text-m-text">Delivery #{idx + 1} (ID: {parcel.id})</span>
-                    <div className="text-m-text-muted">Items Shipped: {parcel.itemsCount}</div>
-                    <div className="text-m-primary font-mono font-bold pt-1">
-                      Tracking ID:{" "}
-                      <a
-                        href={`https://www.fedex.com/fedextrack/?trknbr=${parcel.trackingId}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:underline"
-                      >
-                        {parcel.trackingId}
-                      </a>{" "}
-                      ({parcel.carrier})
+            <SectionCard title={`Deliveries (${order.shippingInfo.parcels.length})`} icon="box">
+              {order.shippingInfo.parcels.length > 0 ? (
+                <div className="divide-y divide-m-border text-xs">
+                  {order.shippingInfo.parcels.map((parcel, idx) => (
+                    <div key={parcel.id} className="py-3 space-y-1">
+                      <span className="font-bold text-m-text">Delivery #{idx + 1} (ID: {parcel.id})</span>
+                      <div className="text-m-text-muted">Items Shipped: {parcel.itemsCount}</div>
+                      <div className="text-m-primary font-mono font-bold pt-1">
+                        Tracking ID:{" "}
+                        <a
+                          href={`https://www.fedex.com/fedextrack/?trknbr=${parcel.trackingId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:underline"
+                        >
+                          {parcel.trackingId}
+                        </a>{" "}
+                        ({parcel.carrier})
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </Tabs.Content>
+                  ))}
+                </div>
+              ) : (
+                <CardEmpty
+                  icon="box"
+                  title="No deliveries yet"
+                  hint="Parcel tracking information will appear here once a shipment is dispatched."
+                />
+              )}
+            </SectionCard>
+          </MainColumn>
 
-        {/* ── Tab 4: Returns ── */}
-        <Tabs.Content value="Returns" className="space-y-6">
+          <SideColumn>
+            <SectionCard title="Shipment Status" icon="activity">
+              <Timeline items={orderTimeline} />
+            </SectionCard>
+
+            <SectionCard title="Shipping Summary" icon="info">
+              <InfoList>
+                <InfoRow label="Method" value={order.shippingInfo.shippingMethodName} />
+                <InfoRow label="Carrier" value={order.shippingInfo.carrier} />
+                <InfoRow label="Tax Rate" value={order.shippingInfo.taxRate} />
+                <InfoRow label="Shipping Cost" value={`$${order.shippingInfo.price.toFixed(2)}`} />
+              </InfoList>
+            </SectionCard>
+          </SideColumn>
+        </ContentGrid>
+      )}
+
+      {/* ── Tab 3: Returns ── */}
+      {activeTab === "Returns" && (
+        <div className="flex flex-col gap-5">
           <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              leftIcon={<Icon name="plus" size="xs" />}
-              onClick={handleOpenReturnDrawer}
-            >
-              + Create Order Return
-            </Button>
+            <PrimaryButton icon="plus" onClick={handleOpenReturnDrawer}>
+              Create Order Return
+            </PrimaryButton>
           </div>
 
-          {/* Existing Returns List */}
           {order.returnInfo && order.returnInfo.length > 0 ? (
-            <div className="space-y-4">
-              {order.returnInfo.map((ret, idx) => (
-                <Card key={ret.returnTrackingId || idx} variant="default">
-                  <CardHeader>
-                    <CardTitle className="text-xs font-mono">
-                      Return Request #{idx + 1} • Tracking ID: {ret.returnTrackingId} • Date: {new Date(ret.returnDate).toLocaleString()}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Item</TableHead>
-                          <TableHead>Quantity</TableHead>
-                          <TableHead>Shipment State</TableHead>
-                          <TableHead>Payment State</TableHead>
-                          <TableHead>Date Created</TableHead>
-                          <TableHead>Comment</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {ret.items.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell className="flex items-center gap-3">
-                              <ProductThumbnail src={item.imageUrl} />
-                              <div>
-                                <div className="font-bold text-xs text-m-text">{item.name}</div>
-                                <div className="text-[10px] text-m-text-muted font-mono">
-                                  SKU: {item.sku} {item.key ? `· Key: ${item.key}` : ""}
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-bold">{item.quantity}</TableCell>
-                            <TableCell>
-                              <Badge variant="warning" size="sm">{item.shipmentState}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="success" size="sm">{item.paymentState}</Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-m-text-muted">
-                              {new Date(item.createdAt).toLocaleString()}
-                            </TableCell>
-                            <TableCell className="text-xs text-m-text-muted">{item.comment || "--"}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            order.returnInfo.map((ret, idx) => (
+              <SectionCard
+                key={ret.returnTrackingId || idx}
+                title={`Return Request #${idx + 1}`}
+                icon="rotate-ccw"
+                action={
+                  <span className="text-[11px] font-mono text-m-text-muted">
+                    {ret.returnTrackingId} • {new Date(ret.returnDate).toLocaleString()}
+                  </span>
+                }
+                bodyClassName="p-0"
+              >
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Shipment State</TableHead>
+                      <TableHead>Payment State</TableHead>
+                      <TableHead>Date Created</TableHead>
+                      <TableHead>Comment</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ret.items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="flex items-center gap-3">
+                          <ProductThumbnail src={item.imageUrl} />
+                          <div>
+                            <div className="font-bold text-xs text-m-text">{item.name}</div>
+                            <div className="text-[10px] text-m-text-muted font-mono">
+                              SKU: {item.sku} {item.key ? `· Key: ${item.key}` : ""}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-bold">{item.quantity}</TableCell>
+                        <TableCell>
+                          <StatusPill tone={statusTone(item.shipmentState)}>{item.shipmentState}</StatusPill>
+                        </TableCell>
+                        <TableCell>
+                          <StatusPill tone={statusTone(item.paymentState)}>{item.paymentState}</StatusPill>
+                        </TableCell>
+                        <TableCell className="text-xs text-m-text-muted">
+                          {new Date(item.createdAt).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-xs text-m-text-muted">{item.comment || "--"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </SectionCard>
+            ))
           ) : (
-            <Card variant="default" className="p-8">
-              <p className="text-xs text-m-text-muted text-center italic">
-                No return records recorded for this order. Click &quot;Create Order Return&quot; to initiate an RMA.
-              </p>
-            </Card>
+            <SectionCard title="Returns" icon="rotate-ccw">
+              <CardEmpty
+                icon="rotate-ccw"
+                title="No return records"
+                hint='No return records recorded for this order. Click "Create Order Return" to initiate an RMA.'
+              />
+            </SectionCard>
           )}
 
           {/* Create Return Side Drawer */}
@@ -1315,14 +1394,14 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
             />
             <Drawer.Content className="space-y-4">
               {returnDrawerError && (
-                <div className="p-2.5 bg-m-error-surface text-m-error text-xs font-semibold rounded-md">
+                <div className="p-2.5 bg-m-error-light text-m-error border border-m-error-border text-xs font-semibold rounded-m-md">
                   {returnDrawerError}
                 </div>
               )}
 
               <FormField>
                 <Label>Return Tracking Id</Label>
-                <Input value={returnTrackingIdPreview} readOnly className="bg-m-bg font-mono text-xs" />
+                <Input value={returnTrackingIdPreview} readOnly className="bg-m-surface-2 font-mono text-xs" />
               </FormField>
 
               <FormField>
@@ -1406,7 +1485,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
               <FormField>
                 <Label>Comment</Label>
                 <textarea
-                  className="w-full p-2.5 border border-m-border rounded-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
+                  className="w-full p-2.5 border border-m-border rounded-m-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
                   rows={2}
                   value={returnComment}
                   onChange={(e) => setReturnComment(e.target.value)}
@@ -1423,86 +1502,76 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
               </Button>
             </Drawer.Footer>
           </Drawer>
-        </Tabs.Content>
+        </div>
+      )}
 
-        {/* ── Tab 5: Payments ── */}
-        <Tabs.Content value="Payments" className="space-y-6">
+      {/* ── Tab 4: Payments ── */}
+      {activeTab === "Payments" && (
+        <div className="flex flex-col gap-5">
           {paymentActionFeedback && (
-            <div className="p-2.5 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
+            <div className="p-2.5 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
               {paymentActionFeedback}
             </div>
           )}
 
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Payment Transactions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {order.payments && order.payments.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Id</TableHead>
-                      <TableHead>Interface Id</TableHead>
-                      <TableHead>Amount planned</TableHead>
-                      <TableHead>Payment method info</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Modified</TableHead>
+          <SectionCard title="Payment Transactions" icon="credit-card" bodyClassName={order.payments && order.payments.length > 0 ? "p-0" : undefined}>
+            {order.payments && order.payments.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Id</TableHead>
+                    <TableHead>Interface Id</TableHead>
+                    <TableHead>Amount planned</TableHead>
+                    <TableHead>Payment method info</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Modified</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {order.payments.map((p: OrderPayment) => (
+                    <TableRow
+                      key={p.id}
+                      clickable
+                      onClick={() => setSelectedPaymentId(selectedPaymentId === p.id ? null : p.id)}
+                    >
+                      <TableCell className="font-mono text-xs font-bold text-m-primary">{p.id}</TableCell>
+                      <TableCell className="font-mono text-xs text-m-text-muted">{p.interfaceId}</TableCell>
+                      <TableCell className="font-bold text-xs">${p.amountPlanned.toFixed(2)}</TableCell>
+                      <TableCell className="text-xs text-m-text">
+                        <div>Name: {p.method}</div>
+                        <div>PSP: {p.psp}</div>
+                      </TableCell>
+                      <TableCell className="text-xs text-m-text-muted">
+                        {new Date(p.createdAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs text-m-text-muted">
+                        {new Date(p.lastModifiedAt || p.createdAt).toLocaleString()}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {order.payments.map((p: OrderPayment) => (
-                      <TableRow
-                        key={p.id}
-                        clickable
-                        onClick={() => setSelectedPaymentId(selectedPaymentId === p.id ? null : p.id)}
-                      >
-                        <TableCell className="font-mono text-xs font-bold text-m-primary">{p.id}</TableCell>
-                        <TableCell className="font-mono text-xs text-m-text-muted">{p.interfaceId}</TableCell>
-                        <TableCell className="font-bold text-xs">${p.amountPlanned.toFixed(2)}</TableCell>
-                        <TableCell className="text-xs text-m-text">
-                          <div>Name: {p.method}</div>
-                          <div>PSP: {p.psp}</div>
-                        </TableCell>
-                        <TableCell className="text-xs text-m-text-muted">
-                          {new Date(p.createdAt).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-xs text-m-text-muted">
-                          {new Date(p.lastModifiedAt || p.createdAt).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-xs text-m-text-muted italic">There are no payment records associated with this order.</p>
-              )}
-            </CardContent>
-          </Card>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <CardEmpty
+                icon="credit-card"
+                title="No payment records"
+                hint="There are no payment records associated with this order."
+              />
+            )}
+          </SectionCard>
 
           {/* Payment Detail Panel (Expandable) */}
           {selectedPayment && (
-            <Card variant="default" className="border-l-4 border-l-m-primary">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-xs font-mono">Payment ID: {selectedPayment.id}</CardTitle>
-                  <span className="text-[11px] text-m-text-muted">
-                    Created: {new Date(selectedPayment.createdAt).toLocaleString()}
-                  </span>
-                </div>
+            <SectionCard
+              title={`Payment ID: ${selectedPayment.id}`}
+              icon="receipt"
+              className="border-l-4 border-l-m-primary"
+              action={
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setSelectedPaymentId(null)}
-                  >
+                  <Button variant="secondary" size="sm" onClick={() => setSelectedPaymentId(null)}>
                     Close
                   </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleGetLatestPspStatus(selectedPayment.id)}
-                  >
+                  <Button variant="secondary" size="sm" onClick={() => handleGetLatestPspStatus(selectedPayment.id)}>
                     Get latest status
                   </Button>
                   <Button
@@ -1514,8 +1583,13 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                     Send payment link
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              }
+            >
+              <div className="space-y-4">
+                <span className="text-[11px] text-m-text-muted block -mt-2">
+                  Created: {new Date(selectedPayment.createdAt).toLocaleString()}
+                </span>
+
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
                   <div>
                     <span className="text-m-text-muted block">Payment Method Name</span>
@@ -1535,7 +1609,9 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                   </div>
                   <div>
                     <span className="text-m-text-muted block">PSP Payment Status</span>
-                    <Badge variant="success" size="sm">{selectedPayment.pspPaymentStatus}</Badge>
+                    <StatusPill tone={statusTone(selectedPayment.pspPaymentStatus)}>
+                      {selectedPayment.pspPaymentStatus}
+                    </StatusPill>
                   </div>
                 </div>
 
@@ -1560,7 +1636,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                           </TableCell>
                           <TableCell className="font-semibold text-xs">{txn.type}</TableCell>
                           <TableCell>
-                            <Badge variant="success" size="sm">{txn.state}</Badge>
+                            <StatusPill tone={statusTone(txn.state)}>{txn.state}</StatusPill>
                           </TableCell>
                           <TableCell className="font-bold text-xs">${txn.amount.toFixed(2)}</TableCell>
                           <TableCell className="font-mono text-xs text-m-text-muted">{txn.interactionId}</TableCell>
@@ -1570,33 +1646,27 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                     </TableBody>
                   </Table>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
           )}
-        </Tabs.Content>
+        </div>
+      )}
 
-        {/* ── Tab 6: Comments ── */}
-        <Tabs.Content value="Comments" className="space-y-6">
+      {/* ── Tab 5: Comments ── */}
+      {activeTab === "Comments" && (
+        <div className="flex flex-col gap-5">
           <div className="flex justify-end">
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={<Icon name="plus" size="xs" />}
-              onClick={() => setShowCommentForm(!showCommentForm)}
-            >
-              {showCommentForm ? "Cancel Comment" : "+ Add Comment"}
-            </Button>
+            <PrimaryButton icon={showCommentForm ? "x" : "plus"} onClick={() => setShowCommentForm(!showCommentForm)}>
+              {showCommentForm ? "Cancel Comment" : "Add Comment"}
+            </PrimaryButton>
           </div>
 
           {showCommentForm && (
-            <Card variant="default">
-              <CardHeader>
-                <CardTitle>Add New Order Comment</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <SectionCard title="Add New Order Comment" icon="message-square">
+              <div className="space-y-3">
                 <FormField>
                   <textarea
-                    className="w-full p-3 border border-m-border rounded-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
+                    className="w-full p-3 border border-m-border rounded-m-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
                     rows={3}
                     value={commentInput}
                     onChange={(e) => setCommentInput(e.target.value)}
@@ -1611,34 +1681,33 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                     Cancel
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
           )}
 
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Order Notes & History ({order.comments?.length || 0})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {order.comments && order.comments.length > 0 ? (
-                <div className="space-y-3">
-                  {order.comments.map((c) => (
-                    <div key={c.id} className="p-3 bg-m-bg border border-m-border rounded-md text-xs space-y-1">
-                      <div className="flex items-center justify-between text-m-text-muted">
-                        <span className="font-bold text-m-text">{c.author}</span>
-                        <span>{new Date(c.createdAt).toLocaleString()}</span>
-                      </div>
-                      <p className="text-m-text leading-relaxed">{c.text}</p>
+          <SectionCard title={`Order Notes & History (${order.comments?.length || 0})`} icon="message-square">
+            {order.comments && order.comments.length > 0 ? (
+              <div className="space-y-3">
+                {order.comments.map((c) => (
+                  <div key={c.id} className="p-3 bg-m-surface-2 border border-m-border rounded-m-md text-xs space-y-1">
+                    <div className="flex items-center justify-between text-m-text-muted">
+                      <span className="font-bold text-m-text">{c.author}</span>
+                      <span>{new Date(c.createdAt).toLocaleString()}</span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-m-text-muted italic">There are no comments attached to this order yet.</p>
-              )}
-            </CardContent>
-          </Card>
-        </Tabs.Content>
-      </Tabs>
-    </div>
+                    <p className="text-m-text leading-relaxed">{c.text}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <CardEmpty
+                icon="message-square"
+                title="No comments yet"
+                hint="There are no comments attached to this order yet."
+              />
+            )}
+          </SectionCard>
+        </div>
+      )}
+    </DetailPage>
   );
 }

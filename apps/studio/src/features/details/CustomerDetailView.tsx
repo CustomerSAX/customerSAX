@@ -6,17 +6,9 @@ import { CUSTOMER_ORDERS_QUERY, CUSTOMER_CARTS_QUERY, CUSTOMER_ADDRESSES_QUERY }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  PageHeader,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardMetric,
-  Badge,
   Button,
   Avatar,
   Icon,
-  Tabs,
   Table,
   TableHeader,
   TableBody,
@@ -26,11 +18,33 @@ import {
   Input,
   Select,
   SearchBar,
-  Panel,
   Modal,
   FormField,
   Label,
 } from "@csa/ui";
+import {
+  DetailPage,
+  BackLink,
+  EntityHeader,
+  EntityTabs,
+  type EntityTab,
+  SummaryGrid,
+  SummaryCard,
+  ContentGrid,
+  MainColumn,
+  SideColumn,
+  SectionCard,
+  CardAction,
+  InfoList,
+  InfoRow,
+  StatusPill,
+  type StatusTone,
+  QuickActions,
+  QuickAction,
+  PrimaryButton,
+  SecondaryButton,
+  CardEmpty,
+} from "@/components/detail";
 import { useCustomerStore } from "../customers/hooks/use-customers";
 import type {
   CustomerAddress,
@@ -68,10 +82,77 @@ const CURRENCY_OPTIONS = [
   { value: "JPY", label: "JPY - Japanese Yen" },
 ];
 
+const CUSTOMER_TABS: EntityTab[] = [
+  { id: "overview", label: "Overview", icon: "user" },
+  { id: "orders", label: "Orders", icon: "shopping-bag" },
+  { id: "returns", label: "Returns", icon: "rotate-ccw" },
+  { id: "payments", label: "Payments", icon: "credit-card" },
+  { id: "conversations", label: "Conversations", icon: "message-square" },
+  { id: "notes", label: "Notes", icon: "file-text" },
+];
+
+function orderStateTone(state: string): StatusTone {
+  switch (state) {
+    case "Complete":
+    case "Delivered":
+      return "success";
+    case "Confirmed":
+    case "Processing":
+      return "warning";
+    case "Cancelled":
+      return "error";
+    case "Open":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+function paymentStateTone(state: string): StatusTone {
+  switch (state) {
+    case "Paid":
+    case "Success":
+      return "success";
+    case "Pending":
+      return "warning";
+    case "BalanceDue":
+    case "Failed":
+      return "error";
+    default:
+      return "neutral";
+  }
+}
+
+function ticketStatusTone(status: string): StatusTone {
+  switch (status) {
+    case "Resolved":
+    case "Closed":
+      return "success";
+    case "In Progress":
+      return "info";
+    case "Open":
+      return "warning";
+    default:
+      return "neutral";
+  }
+}
+
+function ticketPriorityTone(priority: string): StatusTone {
+  switch (priority) {
+    case "Urgent":
+    case "High":
+      return "error";
+    case "Medium":
+      return "warning";
+    default:
+      return "neutral";
+  }
+}
+
 export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") || "summary";
+  const initialTab = searchParams.get("tab") || "overview";
 
   const { customers, groups, getCustomerById, updateCustomerProfile, loading, error } = useCustomerStore();
 
@@ -561,391 +642,406 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
   const customerFullName = customer?.firstName
     ? `${customer.firstName} ${customer.lastName}`
-    : "Mia Johnson";
+    : customer?.email || "Customer";
+
+  const customerSince = customer?.createdAt ? new Date(customer.createdAt).toLocaleDateString("en-US") : null;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <Link
-          href="/customers"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-m-primary hover:text-m-primary-600 mb-3"
-        >
-          <Icon name="arrow-left" size="xs" />
-          Back to Customer Directory
-        </Link>
+    <DetailPage>
+      <BackLink href="/customers">Back to Customers</BackLink>
 
-        <PageHeader
-          title={
-            <div className="flex items-center gap-3">
-              <Avatar name={customerFullName} size="lg" status="online" />
-              <div className="flex flex-col">
-                <span className="text-xl font-bold text-m-text">{customerFullName}</span>
-                <span className="text-xs text-m-text-muted">
-                  ID: {customer?.id || id} • {customer?.companyName || "Northwind Retail"}
-                </span>
-              </div>
-            </div>
-          }
-          subtitle={`Customer No: ${customer?.customerNumber || "CN-90412"} • Primary Email: ${customer?.email || "mia.johnson@example.com"}`}
-          badge={
-            <Badge variant="primary" appearance="solid" size="md">
-              {customer?.customerGroup?.name || "VIP Gold Tier"}
-            </Badge>
-          }
-          actions={
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="md"
-                leftIcon={<Icon name="mail" size="xs" />}
-                onClick={() => alert(`Opening email client for ${customer?.email}`)}
-              >
-                Email Customer
-              </Button>
-              <Button
-                variant="primary"
-                size="md"
-                leftIcon={<Icon name="plus" size="xs" />}
-                onClick={() =>
-                  router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email}`)
-                }
-              >
-                Create Ticket
-              </Button>
-            </div>
-          }
-        />
-      </div>
+      <EntityHeader
+        title={
+          <div className="flex items-center gap-3">
+            <Avatar name={customerFullName} size="lg" />
+            <span>{customerFullName}</span>
+          </div>
+        }
+        status={
+          customer?.customerGroup?.name ? (
+            <StatusPill tone="primary">{customer.customerGroup.name}</StatusPill>
+          ) : undefined
+        }
+        meta={
+          <>
+            {customerSince ? `Customer since ${customerSince}` : "Customer since —"} • ID: {customer?.id || id}
+            {customer?.customerNumber ? ` • Customer No: ${customer.customerNumber}` : ""}
+          </>
+        }
+        actions={
+          <>
+            <SecondaryButton
+              trailingIcon="chevron-down"
+              onClick={() => alert(`Opening email client for ${customer?.email}`)}
+            >
+              More actions
+            </SecondaryButton>
+            <PrimaryButton icon="pencil" onClick={() => setActiveTab("overview")}>
+              Edit Customer
+            </PrimaryButton>
+          </>
+        }
+      />
 
       {(loading || error) && (
-        <Panel
-          className={`p-3 rounded-lg border text-xs font-semibold ${
+        <div
+          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${
             error
-              ? "border-m-danger/30 bg-m-danger-surface text-m-danger"
-              : "border-m-border bg-m-bg-surface text-m-text-muted"
+              ? "border-m-error-border bg-m-error-light text-m-error"
+              : "border-m-border bg-m-surface-2 text-m-text-muted"
           }`}
         >
           {error
             ? "Unable to load this customer from the BFF. Showing available local customer state."
             : "Loading customer data from the BFF..."}
-        </Panel>
+        </div>
       )}
 
-      {/* Overview Metric Row */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <CardMetric
-          title="Total Orders"
-          value={ordersLoading ? "…" : totalOrderCount.toString()}
-          subtitle="Lifetime customer orders"
-        />
-        <CardMetric
-          title="Total Spend"
-          value={ordersLoading ? "…" : totalSpend}
-          subtitle={totalOrderCount > 100 ? `From first 100 of ${totalOrderCount} orders` : "Across all fetched orders"}
-        />
-        <CardMetric
-          title="Support Tickets"
-          value={ticketsLoading ? "…" : tickets.length.toString()}
-          subtitle={tickets.length > 0 ? `${tickets.filter((t) => t.priority === "High" || t.priority === "Urgent").length} high/urgent` : "No open tickets"}
-        />
-        <CardMetric title="Saved Carts" value={totalCartsCount.toString()} subtitle="Active checkout carts" />
-      </section>
+      <EntityTabs tabs={CUSTOMER_TABS} active={activeTab} onChange={setActiveTab} />
 
-      {/* Customer 360 Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">
-        <Tabs.List className="overflow-x-auto">
-          <Tabs.Trigger value="summary" icon={<Icon name="user" size="xs" />}>Summary</Tabs.Trigger>
-          <Tabs.Trigger value="profile" icon={<Icon name="edit" size="xs" />}>Profile</Tabs.Trigger>
-          <Tabs.Trigger value="carts" icon={<Icon name="shopping-cart" size="xs" />}>Carts ({totalCartsCount})</Tabs.Trigger>
-          <Tabs.Trigger value="orders" icon={<Icon name="shopping-bag" size="xs" />}>Orders ({totalOrderCount})</Tabs.Trigger>
-          <Tabs.Trigger value="returns" icon={<Icon name="rotate-ccw" size="xs" />}>Returns ({returns.length})</Tabs.Trigger>
-          <Tabs.Trigger value="quotes" icon={<Icon name="file-text" size="xs" />}>Quotes ({quotes.length})</Tabs.Trigger>
-          <Tabs.Trigger value="payments" icon={<Icon name="credit-card" size="xs" />}>Payments ({payments.length})</Tabs.Trigger>
-          <Tabs.Trigger value="addresses" icon={<Icon name="map-pin" size="xs" />}>Addresses ({addresses.length})</Tabs.Trigger>
-          <Tabs.Trigger value="tickets" icon={<Icon name="life-buoy" size="xs" />}>Tickets ({tickets.length})</Tabs.Trigger>
-          <Tabs.Trigger value="messages" icon={<Icon name="message-square" size="xs" />}>Messages ({messages.length})</Tabs.Trigger>
-          <Tabs.Trigger value="password" icon={<Icon name="lock" size="xs" />}>Password</Tabs.Trigger>
-          <Tabs.Trigger value="promotions" icon={<Icon name="tag" size="xs" />}>Promotions ({assignedPromotions.length})</Tabs.Trigger>
-        </Tabs.List>
+      {/* ── Overview ─────────────────────────────────────────────────────── */}
+      {activeTab === "overview" && (
+        <>
+          <SummaryGrid>
+            <SummaryCard icon="shopping-bag" label="Total Orders" value={ordersLoading ? "…" : totalOrderCount.toString()} sub="Lifetime orders" />
+            <SummaryCard
+              icon="dollar-sign"
+              label="Total Spend"
+              value={ordersLoading ? "…" : totalSpend}
+              sub={totalOrderCount > 100 ? `From first 100 of ${totalOrderCount}` : "Across fetched orders"}
+            />
+            <SummaryCard icon="mail" label="Email" value={customer?.email || ""} />
+            <SummaryCard icon="phone" label="Phone" value={customer?.phone || ""} />
+            <SummaryCard icon="calendar" label="Customer Since" value={customerSince || ""} />
+            <SummaryCard icon="shopping-cart" label="Active Carts" value={totalCartsCount.toString()} tone="primary" />
+          </SummaryGrid>
 
-        {/* 1. Summary Tab */}
-        <Tabs.Content value="summary" className="space-y-6">
-          <Panel className="p-4 bg-m-bg-surface rounded-lg border border-m-border">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-m-text-muted mb-3">Customer Identifiers</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <span className="text-xs text-m-text-muted block">Full Name</span>
-                <span className="text-sm font-bold text-m-text">{customerFullName}</span>
-              </div>
-              <div>
-                <span className="text-xs text-m-text-muted block">Customer Number</span>
-                <span className="text-sm font-mono font-bold text-m-primary">{customer?.customerNumber || "CN-90412"}</span>
-              </div>
-              <div>
-                <span className="text-xs text-m-text-muted block">External ID</span>
-                <span className="text-sm font-mono text-m-text-muted">{customer?.externalId || "EXT-88219"}</span>
-              </div>
-            </div>
-          </Panel>
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <Card variant="default">
-              <CardHeader>
-                <CardTitle>Default Shipping Address</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1.5 text-xs leading-relaxed">
-                {defaultShippingAddress ? (
-                  <>
-                    <p className="font-semibold text-m-text">{customerFullName}</p>
-                    <p className="text-m-text-muted">
-                      {defaultShippingAddress.streetNumber} {defaultShippingAddress.streetName}
-                    </p>
-                    <p className="text-m-text-muted">
-                      {defaultShippingAddress.city}, {defaultShippingAddress.state} {defaultShippingAddress.postalCode}
-                    </p>
-                    <p className="text-m-text-muted">{defaultShippingAddress.country}</p>
-                  </>
-                ) : (
-                  <p className="text-m-text-muted italic">No shipping address recorded.</p>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card variant="default">
-              <CardHeader>
-                <CardTitle>Default Billing Address</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1.5 text-xs leading-relaxed">
-                {defaultBillingAddress ? (
-                  <>
-                    <p className="font-semibold text-m-text">{customerFullName}</p>
-                    <p className="text-m-text-muted">
-                      {defaultBillingAddress.streetNumber} {defaultBillingAddress.streetName}
-                    </p>
-                    <p className="text-m-text-muted">
-                      {defaultBillingAddress.city}, {defaultBillingAddress.state} {defaultBillingAddress.postalCode}
-                    </p>
-                    <p className="text-m-text-muted">{defaultBillingAddress.country}</p>
-                  </>
-                ) : (
-                  <p className="text-m-text-muted italic">No billing address recorded.</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </Tabs.Content>
-
-        {/* 2. Profile Tab */}
-        <Tabs.Content value="profile">
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Customer General Profile</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSaveProfile} className="space-y-4 max-w-2xl">
-                {profileSavedMsg && (
-                  <div className="p-3 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
-                    {profileSavedMsg}
+          <ContentGrid>
+            <MainColumn>
+              <SectionCard title="Profile" icon="user">
+                <form onSubmit={handleSaveProfile} className="space-y-4">
+                  {profileSavedMsg && (
+                    <div className="rounded-m-md bg-m-success-light px-3 py-2 text-[12.5px] font-semibold text-m-success">
+                      {profileSavedMsg}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField>
+                      <Label required>First Name</Label>
+                      <Input value={profileFirstName} onChange={(e) => setProfileFirstName(e.target.value)} />
+                    </FormField>
+                    <FormField>
+                      <Label required>Last Name</Label>
+                      <Input value={profileLastName} onChange={(e) => setProfileLastName(e.target.value)} />
+                    </FormField>
                   </div>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField>
-                    <Label required>First Name</Label>
-                    <Input value={profileFirstName} onChange={(e) => setProfileFirstName(e.target.value)} />
-                  </FormField>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField>
+                      <Label required>Email</Label>
+                      <Input value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} />
+                    </FormField>
+                    <FormField>
+                      <Label>Phone Number</Label>
+                      <Input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} />
+                    </FormField>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField>
+                      <Label>Company Name</Label>
+                      <Input value={profileCompany} onChange={(e) => setProfileCompany(e.target.value)} />
+                    </FormField>
+                    <FormField>
+                      <Label>Customer Group</Label>
+                      <Select
+                        value={profileGroup}
+                        onChange={(e) => setProfileGroup(e.target.value)}
+                        options={groups.map((g) => ({ value: g.id, label: g.name }))}
+                      />
+                    </FormField>
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <Button type="submit" variant="primary" size="md">
+                      Save Profile Changes
+                    </Button>
+                  </div>
+                </form>
+              </SectionCard>
 
-                  <FormField>
-                    <Label required>Last Name</Label>
-                    <Input value={profileLastName} onChange={(e) => setProfileLastName(e.target.value)} />
-                  </FormField>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField>
-                    <Label required>Email</Label>
-                    <Input value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} />
-                  </FormField>
-
-                  <FormField>
-                    <Label>Phone Number</Label>
-                    <Input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} />
-                  </FormField>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField>
-                    <Label>Company Name</Label>
-                    <Input value={profileCompany} onChange={(e) => setProfileCompany(e.target.value)} />
-                  </FormField>
-
-                  <FormField>
-                    <Label>Customer Group</Label>
-                    <Select
-                      value={profileGroup}
-                      onChange={(e) => setProfileGroup(e.target.value)}
-                      options={groups.map((g) => ({ value: g.id, label: g.name }))}
-                    />
-                  </FormField>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <Button type="submit" variant="primary" size="md">
-                    Save Profile Changes
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </Tabs.Content>
-
-        {/* 3. Carts Tab */}
-        <Tabs.Content value="carts" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-m-text">Active & Saved Carts</h3>
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={<Icon name="plus" size="xs" />}
-              onClick={() => setShowOrderBehalfPanel((prev) => !prev)}
-            >
-              Order on behalf of customer
-            </Button>
-          </div>
-
-          {showOrderBehalfPanel && (
-            <Panel className="p-4 bg-m-bg-surface space-y-3 rounded-lg border border-m-border">
-              <h4 className="text-xs font-bold text-m-text">Create Cart for Customer</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
-                <FormField>
-                  <Label>Country</Label>
-                  <Select
-                    value={cartCountry}
-                    onChange={(e) => setCartCountry(e.target.value)}
-                    options={COUNTRY_OPTIONS}
-                  />
-                </FormField>
-                <FormField>
-                  <Label>Currency</Label>
-                  <Select
-                    value={cartCurrency}
-                    onChange={(e) => setCartCurrency(e.target.value)}
-                    options={CURRENCY_OPTIONS}
-                  />
-                </FormField>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setShowOrderBehalfPanel(false)}>
-                  Cancel
-                </Button>
-                <Button variant="primary" size="sm" onClick={handleCreateCart}>
-                  Create Cart
-                </Button>
-              </div>
-            </Panel>
-          )}
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cart ID</TableHead>
-                <TableHead>Order Number</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Items</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {carts.map((row) => (
-                <TableRow key={row.id} clickable onClick={() => router.push(`/cart/${row.id}`)}>
-                  <TableCell className="font-bold text-m-primary">
-                    <Link href={`/cart/${row.id}`}>{row.id}</Link>
-                  </TableCell>
-                  <TableCell>{row.orderNumber}</TableCell>
-                  <TableCell className="font-semibold">{row.totalPrice}</TableCell>
-                  <TableCell>{row.lineItemsCount}</TableCell>
-                  <TableCell>
-                    <Badge variant="warning" size="sm" dot>
-                      {row.cartState}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{row.createdAt}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Tabs.Content>
-
-        {/* 4. Orders Tab */}
-        <Tabs.Content value="orders" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="w-full max-w-sm">
-              <SearchBar
-                value={ordersSearch}
-                onChange={(val) => setOrdersSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
-                onClear={() => setOrdersSearch("")}
-                placeholder="Filter orders by number, status, total..."
-              />
-            </div>
-            {totalOrderCount > 0 && (
-              <span className="text-xs text-m-text-muted whitespace-nowrap ml-4">
-                {totalOrderCount} total orders
-              </span>
-            )}
-          </div>
-
-          {ordersLoading ? (
-            <p className="text-xs text-m-text-muted py-6 text-center">Loading orders from commerce platform…</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order Number</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-xs text-m-text-muted py-6">
-                      No orders found for this customer.
-                    </TableCell>
-                  </TableRow>
+              <SectionCard
+                title="Saved Addresses"
+                icon="map-pin"
+                action={
+                  <CardAction onClick={handleOpenAddAddress}>
+                    <Icon name="plus" size={12} /> Add Address
+                  </CardAction>
+                }
+                bodyClassName="p-0"
+              >
+                {addresses.length === 0 ? (
+                  <CardEmpty icon="map-pin" title="No addresses on file" hint="Add a shipping or billing address for this customer." />
                 ) : (
-                  filteredOrders.map((row) => (
-                    <TableRow key={row.id} clickable onClick={() => router.push(`/orders/${row.orderNumber}`)}>
-                      <TableCell className="font-bold text-m-primary">
-                        <Link href={`/orders/${row.orderNumber}`}>{row.orderNumber}</Link>
-                      </TableCell>
-                      <TableCell className="font-semibold">{row.totalPrice}</TableCell>
-                      <TableCell>{row.itemsCount}</TableCell>
-                      <TableCell>
-                        <Badge variant="success" size="sm" dot>
-                          {row.orderState}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="primary" size="sm">
-                          {row.paymentState}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{row.createdAt}</TableCell>
-                    </TableRow>
-                  ))
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Street</TableHead>
+                        <TableHead>City</TableHead>
+                        <TableHead>State</TableHead>
+                        <TableHead>Postal Code</TableHead>
+                        <TableHead>Country</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {addresses.map((addr) => (
+                        <TableRow key={addr.id}>
+                          <TableCell className="font-semibold text-m-text">
+                            {addr.streetNumber} {addr.streetName}
+                          </TableCell>
+                          <TableCell>{addr.city}</TableCell>
+                          <TableCell>{addr.state}</TableCell>
+                          <TableCell className="font-mono text-xs">{addr.postalCode}</TableCell>
+                          <TableCell>{addr.country}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {addr.isDefaultShipping && <StatusPill tone="primary" dot={false}>Default Ship</StatusPill>}
+                              {addr.isDefaultBilling && <StatusPill tone="neutral" dot={false}>Default Bill</StatusPill>}
+                              {!addr.isDefaultShipping && addr.isShipping && <StatusPill tone="neutral" dot={false}>Shipping</StatusPill>}
+                              {!addr.isDefaultBilling && addr.isBilling && <StatusPill tone="neutral" dot={false}>Billing</StatusPill>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => handleOpenEditAddress(addr)}>
+                                Edit
+                              </Button>
+                              {!addr.isDefaultShipping && (
+                                <Button variant="ghost" size="sm" onClick={() => handleSetDefaultShipping(addr.id)}>
+                                  Set Def Ship
+                                </Button>
+                              )}
+                              {!addr.isDefaultBilling && (
+                                <Button variant="ghost" size="sm" onClick={() => handleSetDefaultBilling(addr.id)}>
+                                  Set Def Bill
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmAddrId(addr.id)}>
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )}
-              </TableBody>
-            </Table>
-          )}
-        </Tabs.Content>
+              </SectionCard>
+            </MainColumn>
 
-        {/* 5. Returns Tab */}
-        <Tabs.Content value="returns" className="space-y-4">
-          <div className="w-full max-w-sm">
+            <SideColumn>
+              <SectionCard title="Customer Identifiers" icon="id-card">
+                <InfoList>
+                  <InfoRow label="Customer Number" value={customer?.customerNumber} mono />
+                  <InfoRow label="External ID" value={customer?.externalId} mono />
+                  <InfoRow label="Company" value={customer?.companyName} />
+                  <InfoRow label="Customer Group" value={customer?.customerGroup?.name} />
+                  <InfoRow
+                    label="Default Shipping"
+                    value={
+                      defaultShippingAddress
+                        ? `${defaultShippingAddress.city || ""}${defaultShippingAddress.city && defaultShippingAddress.country ? ", " : ""}${defaultShippingAddress.country || ""}`.trim()
+                        : undefined
+                    }
+                  />
+                  <InfoRow
+                    label="Default Billing"
+                    value={
+                      defaultBillingAddress
+                        ? `${defaultBillingAddress.city || ""}${defaultBillingAddress.city && defaultBillingAddress.country ? ", " : ""}${defaultBillingAddress.country || ""}`.trim()
+                        : undefined
+                    }
+                  />
+                </InfoList>
+              </SectionCard>
+
+              <QuickActions>
+                <QuickAction
+                  icon="plus-circle"
+                  label="Create Ticket"
+                  onClick={() => router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email}`)}
+                />
+                <QuickAction icon="message-square" label="Send Message" onClick={() => setActiveTab("conversations")} />
+                <QuickAction
+                  icon="key-round"
+                  label="Send Password Reset"
+                  onClick={() => {
+                    setActiveTab("notes");
+                    handleSendPasswordReset();
+                  }}
+                  disabled={passwordResetStatus === "sending"}
+                />
+              </QuickActions>
+            </SideColumn>
+          </ContentGrid>
+        </>
+      )}
+
+      {/* ── Orders ───────────────────────────────────────────────────────── */}
+      {activeTab === "orders" && (
+        <ContentGrid>
+          <MainColumn>
+            <SectionCard
+              title="Recent Orders"
+              icon="shopping-bag"
+              action={totalOrderCount > 0 ? <span className="text-[12px] text-m-text-muted">{totalOrderCount} total</span> : undefined}
+              bodyClassName="p-0"
+            >
+              <div className="border-b border-m-border/70 p-3">
+                <SearchBar
+                  value={ordersSearch}
+                  onChange={(val) => setOrdersSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
+                  onClear={() => setOrdersSearch("")}
+                  placeholder="Filter orders by number, status, total..."
+                />
+              </div>
+              {ordersLoading ? (
+                <p className="py-6 text-center text-xs text-m-text-muted">Loading orders from commerce platform…</p>
+              ) : filteredOrders.length === 0 ? (
+                <CardEmpty icon="shopping-bag" title="No orders found" hint="This customer has not placed any orders yet." />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order Number</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredOrders.map((row) => (
+                      <TableRow key={row.id} clickable onClick={() => router.push(`/orders/${row.orderNumber}`)}>
+                        <TableCell className="font-bold text-m-primary">
+                          <Link href={`/orders/${row.orderNumber}`}>{row.orderNumber}</Link>
+                        </TableCell>
+                        <TableCell className="font-semibold">{row.totalPrice}</TableCell>
+                        <TableCell>{row.itemsCount}</TableCell>
+                        <TableCell>
+                          <StatusPill tone={orderStateTone(row.orderState)}>{row.orderState}</StatusPill>
+                        </TableCell>
+                        <TableCell>
+                          <StatusPill tone={paymentStateTone(row.paymentState)}>{row.paymentState}</StatusPill>
+                        </TableCell>
+                        <TableCell>{row.createdAt}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </SectionCard>
+
+            <SectionCard title="Quotes" icon="file-text">
+              {quotes.length === 0 ? (
+                <CardEmpty icon="file-text" title="No quotes on file" hint="Customer-level quotes aren't wired to a backend yet." />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Quote ID</TableHead>
+                      <TableHead>Quote Key</TableHead>
+                      <TableHead>Total Price</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Valid Until</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {quotes.map((q) => (
+                      <TableRow key={q.id}>
+                        <TableCell className="font-bold text-m-primary">{q.id}</TableCell>
+                        <TableCell className="font-mono text-xs">{q.quoteKey}</TableCell>
+                        <TableCell className="font-semibold">{q.totalPrice}</TableCell>
+                        <TableCell>
+                          <StatusPill tone="success">{q.quoteState}</StatusPill>
+                        </TableCell>
+                        <TableCell>{q.validUntil}</TableCell>
+                        <TableCell>{q.createdAt}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </SectionCard>
+          </MainColumn>
+
+          <SideColumn>
+            <SectionCard
+              title="Active & Saved Carts"
+              icon="shopping-cart"
+              action={
+                <CardAction onClick={() => setShowOrderBehalfPanel((prev) => !prev)}>
+                  <Icon name="plus" size={12} /> New Cart
+                </CardAction>
+              }
+              bodyClassName="p-0"
+            >
+              {showOrderBehalfPanel && (
+                <div className="space-y-3 border-b border-m-border/70 p-3.5">
+                  <p className="text-[12px] font-semibold text-m-text">Create cart for customer</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <FormField>
+                      <Label>Country</Label>
+                      <Select value={cartCountry} onChange={(e) => setCartCountry(e.target.value)} options={COUNTRY_OPTIONS} />
+                    </FormField>
+                    <FormField>
+                      <Label>Currency</Label>
+                      <Select value={cartCurrency} onChange={(e) => setCartCurrency(e.target.value)} options={CURRENCY_OPTIONS} />
+                    </FormField>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setShowOrderBehalfPanel(false)}>
+                      Cancel
+                    </Button>
+                    <Button variant="primary" size="sm" onClick={handleCreateCart}>
+                      Create Cart
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {carts.length === 0 ? (
+                <CardEmpty icon="shopping-cart" title="No active carts" />
+              ) : (
+                <ul className="divide-y divide-m-border/70">
+                  {carts.map((row) => (
+                    <li key={row.id}>
+                      <Link
+                        href={`/cart/${row.id}`}
+                        className="flex items-center justify-between gap-2 px-3.5 py-2.5 text-[12.5px] hover:bg-m-surface-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-m-primary">{row.id}</div>
+                          <div className="text-[11.5px] text-m-text-muted">{row.lineItemsCount} items</div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="font-semibold text-m-text">{row.totalPrice}</span>
+                          <StatusPill tone="warning">{row.cartState}</StatusPill>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
+          </SideColumn>
+        </ContentGrid>
+      )}
+
+      {/* ── Returns ──────────────────────────────────────────────────────── */}
+      {activeTab === "returns" && (
+        <SectionCard title="Return History" icon="rotate-ccw" bodyClassName="p-0">
+          <div className="border-b border-m-border/70 p-3">
             <SearchBar
               value={returnsSearch}
               onChange={(val) => setReturnsSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
@@ -953,38 +1049,41 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
               placeholder="Filter returns by Order No, Tracking ID..."
             />
           </div>
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order Number</TableHead>
-                <TableHead>Return Tracking ID</TableHead>
-                <TableHead>Return Date</TableHead>
-                <TableHead>Items Count</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredReturns.map((row) => (
-                <TableRow key={row.id} clickable onClick={() => setSelectedReturn(row)}>
-                  <TableCell className="font-bold text-m-primary">{row.orderNumber}</TableCell>
-                  <TableCell className="font-mono text-xs font-semibold">{row.returnTrackingId}</TableCell>
-                  <TableCell>{row.returnDate}</TableCell>
-                  <TableCell>{row.itemsCount}</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedReturn(row)}>
-                      View Items Breakdown
-                    </Button>
-                  </TableCell>
+          {filteredReturns.length === 0 ? (
+            <CardEmpty icon="rotate-ccw" title="No returns found" hint="No return activity is recorded for this customer's orders." />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order Number</TableHead>
+                  <TableHead>Return Tracking ID</TableHead>
+                  <TableHead>Return Date</TableHead>
+                  <TableHead>Items Count</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredReturns.map((row) => (
+                  <TableRow key={row.id} clickable onClick={() => setSelectedReturn(row)}>
+                    <TableCell className="font-bold text-m-primary">{row.orderNumber}</TableCell>
+                    <TableCell className="font-mono text-xs font-semibold">{row.returnTrackingId}</TableCell>
+                    <TableCell>{row.returnDate}</TableCell>
+                    <TableCell>{row.itemsCount}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedReturn(row)}>
+                        View Items Breakdown
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
 
           {/* Return Details Modal */}
           {selectedReturn && (
             <Modal isOpen={Boolean(selectedReturn)} onClose={() => setSelectedReturn(null)}>
-              <div className="p-6 space-y-4">
+              <div className="space-y-4 p-6">
                 <div className="flex items-center justify-between border-b border-m-border pb-3">
                   <h3 className="text-base font-bold text-m-text">
                     Return Details: {selectedReturn.returnTrackingId}
@@ -994,23 +1093,14 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 text-xs">
-                  <div>
-                    <span className="text-m-text-muted block">Order Number</span>
-                    <span className="font-bold text-m-primary">{selectedReturn.orderNumber}</span>
-                  </div>
-                  <div>
-                    <span className="text-m-text-muted block">Return Date</span>
-                    <span className="font-semibold text-m-text">{selectedReturn.returnDate}</span>
-                  </div>
-                  <div>
-                    <span className="text-m-text-muted block">Items</span>
-                    <span className="font-semibold text-m-text">{selectedReturn.itemsCount}</span>
-                  </div>
-                </div>
+                <InfoList columns={2}>
+                  <InfoRow label="Order Number" value={selectedReturn.orderNumber} />
+                  <InfoRow label="Return Date" value={selectedReturn.returnDate} />
+                  <InfoRow label="Items" value={selectedReturn.itemsCount} />
+                </InfoList>
 
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-m-text uppercase tracking-wider">Line Items Breakdown</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-m-text">Line Items Breakdown</h4>
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1025,10 +1115,10 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                         <TableRow key={item.id}>
                           <TableCell className="font-bold">{item.quantity}</TableCell>
                           <TableCell>
-                            <Badge variant="warning" size="sm">{item.shipmentState}</Badge>
+                            <StatusPill tone="warning">{item.shipmentState}</StatusPill>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="success" size="sm">{item.paymentState}</Badge>
+                            <StatusPill tone="success">{item.paymentState}</StatusPill>
                           </TableCell>
                           <TableCell className="text-xs text-m-text-muted">{item.comment || "--"}</TableCell>
                         </TableRow>
@@ -1039,330 +1129,134 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
               </div>
             </Modal>
           )}
-        </Tabs.Content>
+        </SectionCard>
+      )}
 
-        {/* 6. Quotes Tab */}
-        <Tabs.Content value="quotes">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Quote ID</TableHead>
-                <TableHead>Quote Key</TableHead>
-                <TableHead>Total Price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Valid Until</TableHead>
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {quotes.map((q) => (
-                <TableRow key={q.id}>
-                  <TableCell className="font-bold text-m-primary">{q.id}</TableCell>
-                  <TableCell className="font-mono text-xs">{q.quoteKey}</TableCell>
-                  <TableCell className="font-semibold">{q.totalPrice}</TableCell>
-                  <TableCell>
-                    <Badge variant="success" size="sm">{q.quoteState}</Badge>
-                  </TableCell>
-                  <TableCell>{q.validUntil}</TableCell>
-                  <TableCell>{q.createdAt}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Tabs.Content>
-
-        {/* 7. Payments Tab */}
-        <Tabs.Content value="payments">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Payment ID</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payments.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-bold text-m-primary">{p.id}</TableCell>
-                  <TableCell className="font-medium text-m-text">{p.method}</TableCell>
-                  <TableCell className="font-semibold">{p.amount}</TableCell>
-                  <TableCell>
-                    <Badge variant="success" size="sm">{p.status}</Badge>
-                  </TableCell>
-                  <TableCell>{p.createdAt}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Tabs.Content>
-
-        {/* 8. Addresses Tab */}
-        <Tabs.Content value="addresses" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-m-text">Customer Addresses</h3>
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<Icon name="plus" size="xs" />}
-              onClick={handleOpenAddAddress}
-            >
-              Add Address
-            </Button>
-          </div>
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Street</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead>Postal Code</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>Badges / Type</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {addresses.map((addr) => (
-                <TableRow key={addr.id}>
-                  <TableCell className="font-semibold text-m-text">
-                    {addr.streetNumber} {addr.streetName}
-                  </TableCell>
-                  <TableCell>{addr.city}</TableCell>
-                  <TableCell>{addr.state}</TableCell>
-                  <TableCell className="font-mono text-xs">{addr.postalCode}</TableCell>
-                  <TableCell>{addr.country}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {addr.isDefaultShipping && <Badge variant="primary" size="sm">Default Ship</Badge>}
-                      {addr.isDefaultBilling && <Badge variant="neutral" size="sm">Default Bill</Badge>}
-                      {!addr.isDefaultShipping && addr.isShipping && <Badge variant="neutral" size="sm">Shipping</Badge>}
-                      {!addr.isDefaultBilling && addr.isBilling && <Badge variant="neutral" size="sm">Billing</Badge>}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleOpenEditAddress(addr)}>
-                        Edit
-                      </Button>
-                      {!addr.isDefaultShipping && (
-                        <Button variant="ghost" size="sm" onClick={() => handleSetDefaultShipping(addr.id)}>
-                          Set Def Ship
-                        </Button>
-                      )}
-                      {!addr.isDefaultBilling && (
-                        <Button variant="ghost" size="sm" onClick={() => handleSetDefaultBilling(addr.id)}>
-                          Set Def Bill
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmAddrId(addr.id)}>
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-
-          {/* Add / Edit Address Modal */}
-          {showAddressModal && (
-            <Modal isOpen={showAddressModal} onClose={() => setShowAddressModal(false)}>
-              <form onSubmit={handleSaveAddress} className="p-6 space-y-4">
-                <h3 className="text-base font-bold text-m-text">
-                  {editingAddrId ? "Edit Address" : "Add New Address"}
-                </h3>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField>
-                    <Label>Street Name</Label>
-                    <Input value={addrStreetName} onChange={(e) => setAddrStreetName(e.target.value)} />
-                  </FormField>
-                  <FormField>
-                    <Label>Street Number</Label>
-                    <Input value={addrStreetNumber} onChange={(e) => setAddrStreetNumber(e.target.value)} />
-                  </FormField>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField>
-                    <Label>City</Label>
-                    <Input value={addrCity} onChange={(e) => setAddrCity(e.target.value)} />
-                  </FormField>
-                  <FormField>
-                    <Label>State</Label>
-                    <Input value={addrState} onChange={(e) => setAddrState(e.target.value)} />
-                  </FormField>
-                  <FormField>
-                    <Label>Postal Code</Label>
-                    <Input value={addrPostalCode} onChange={(e) => setAddrPostalCode(e.target.value)} />
-                  </FormField>
-                </div>
-
-                <FormField>
-                  <Label>Country</Label>
-                  <Select
-                    value={addrCountry}
-                    onChange={(e) => setAddrCountry(e.target.value)}
-                    options={COUNTRY_OPTIONS}
-                  />
-                </FormField>
-
-                <div className="flex flex-col gap-2 pt-2 border-t border-m-border">
-                  <label className="flex items-center gap-2 text-xs font-semibold text-m-text cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={addrIsDefaultShip}
-                      onChange={(e) => setAddrIsDefaultShip(e.target.checked)}
-                    />
-                    Use as Default Shipping Address
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-semibold text-m-text cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={addrIsDefaultBill}
-                      onChange={(e) => setAddrIsDefaultBill(e.target.checked)}
-                    />
-                    Use as Default Billing Address
-                  </label>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-3">
-                  <Button variant="ghost" size="sm" type="button" onClick={() => setShowAddressModal(false)}>
-                    Cancel
-                  </Button>
-                  <Button variant="primary" size="sm" type="submit">
-                    Save Address
-                  </Button>
-                </div>
-              </form>
-            </Modal>
-          )}
-
-          {/* Delete Confirm Modal */}
-          {deleteConfirmAddrId && (
-            <Modal isOpen={Boolean(deleteConfirmAddrId)} onClose={() => setDeleteConfirmAddrId(null)}>
-              <div className="p-6 space-y-4 max-w-md">
-                <h3 className="text-base font-bold text-m-text">Delete Address</h3>
-                <p className="text-xs text-m-text-muted">
-                  Are you sure you want to delete this address from the customer&apos;s record?
-                </p>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmAddrId(null)}>
-                    Cancel
-                  </Button>
-                  <Button variant="danger" size="sm" onClick={() => handleDeleteAddress(deleteConfirmAddrId)}>
-                    Delete Address
-                  </Button>
-                </div>
-              </div>
-            </Modal>
-          )}
-        </Tabs.Content>
-
-        {/* 9. Tickets Tab */}
-        <Tabs.Content value="tickets" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="w-full max-w-sm">
-              <SearchBar
-                value={ticketsSearch}
-                onChange={(val) => setTicketsSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
-                onClear={() => setTicketsSearch("")}
-                placeholder="Search tickets by number, subject..."
-              />
-            </div>
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<Icon name="plus" size="xs" />}
-              onClick={() =>
-                router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email}`)
-              }
-            >
-              Create Ticket
-            </Button>
-          </div>
-
-          {ticketsLoading ? (
-            <p className="text-xs text-m-text-muted py-6 text-center">Loading tickets for this customer…</p>
+      {/* ── Payments ─────────────────────────────────────────────────────── */}
+      {activeTab === "payments" && (
+        <SectionCard title="Payments" icon="credit-card">
+          {payments.length === 0 ? (
+            <CardEmpty icon="credit-card" title="No payments on file" hint="Customer-level payment history isn't wired to a backend yet." />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ticket Number</TableHead>
-                  <TableHead>Subject</TableHead>
+                  <TableHead>Payment ID</TableHead>
+                  <TableHead>Method</TableHead>
+                  <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTickets.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-xs text-m-text-muted py-6">
-                      {customer?.email ? "No tickets found for this customer." : "Customer email required to load tickets."}
+                {payments.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-bold text-m-primary">{p.id}</TableCell>
+                    <TableCell className="font-medium text-m-text">{p.method}</TableCell>
+                    <TableCell className="font-semibold">{p.amount}</TableCell>
+                    <TableCell>
+                      <StatusPill tone={paymentStateTone(p.status)}>{p.status}</StatusPill>
                     </TableCell>
+                    <TableCell>{p.createdAt}</TableCell>
                   </TableRow>
-                ) : (
-                  filteredTickets.map((t) => (
-                    <TableRow key={t.id} clickable onClick={() => router.push(`/tickets/${t.id}`)}>
-                      <TableCell className="font-bold text-m-primary">{t.ticketNumber}</TableCell>
-                      <TableCell className="font-medium text-m-text">{t.subject}</TableCell>
-                      <TableCell>
-                        <Badge variant="warning" size="sm">{t.status}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="error" size="sm">{t.priority}</Badge>
-                      </TableCell>
-                      <TableCell>{t.createdAt}</TableCell>
-                    </TableRow>
-                  ))
-                )}
+                ))}
               </TableBody>
             </Table>
           )}
-        </Tabs.Content>
+        </SectionCard>
+      )}
 
-        {/* 10. Messages Tab */}
-        <Tabs.Content value="messages" className="space-y-6">
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Customer Communication Timeline</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      {/* ── Conversations ────────────────────────────────────────────────── */}
+      {activeTab === "conversations" && (
+        <ContentGrid>
+          <MainColumn>
+            <SectionCard
+              title="Support Tickets"
+              icon="life-buoy"
+              action={
+                <CardAction
+                  onClick={() => router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email}`)}
+                >
+                  <Icon name="plus" size={12} /> Create Ticket
+                </CardAction>
+              }
+              bodyClassName="p-0"
+            >
+              <div className="border-b border-m-border/70 p-3">
+                <SearchBar
+                  value={ticketsSearch}
+                  onChange={(val) => setTicketsSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
+                  onClear={() => setTicketsSearch("")}
+                  placeholder="Search tickets by number, subject..."
+                />
+              </div>
+              {ticketsLoading ? (
+                <p className="py-6 text-center text-xs text-m-text-muted">Loading tickets for this customer…</p>
+              ) : filteredTickets.length === 0 ? (
+                <CardEmpty
+                  icon="life-buoy"
+                  title="No tickets found"
+                  hint={customer?.email ? "No tickets found for this customer." : "Customer email required to load tickets."}
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ticket Number</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTickets.map((t) => (
+                      <TableRow key={t.id} clickable onClick={() => router.push(`/tickets/${t.id}`)}>
+                        <TableCell className="font-bold text-m-primary">{t.ticketNumber}</TableCell>
+                        <TableCell className="font-medium text-m-text">{t.subject}</TableCell>
+                        <TableCell>
+                          <StatusPill tone={ticketStatusTone(t.status)}>{t.status}</StatusPill>
+                        </TableCell>
+                        <TableCell>
+                          <StatusPill tone={ticketPriorityTone(t.priority)}>{t.priority}</StatusPill>
+                        </TableCell>
+                        <TableCell>{t.createdAt}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </SectionCard>
+
+            <SectionCard title="Messages" icon="message-square">
               <div className="space-y-3">
-                {messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`p-4 rounded-lg border text-xs space-y-1.5 ${
-                      m.sender === "customer"
-                        ? "bg-m-bg-surface border-m-border"
-                        : "bg-m-primary-surface border-m-primary/30"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-m-text">{m.senderName}</span>
-                        {m.orderNumber && (
-                          <Badge variant="neutral" size="sm">
-                            {m.orderNumber}
-                          </Badge>
-                        )}
+                {messages.length === 0 ? (
+                  <CardEmpty icon="message-square" title="No messages yet" hint="Send a reply below to start the conversation record." />
+                ) : (
+                  messages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`space-y-1.5 rounded-m-lg border p-3.5 text-xs ${
+                        m.sender === "customer" ? "border-m-border bg-m-surface-2" : "border-m-primary-200 bg-m-primary-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-m-text">{m.senderName}</span>
+                          {m.orderNumber && <StatusPill tone="neutral" dot={false}>{m.orderNumber}</StatusPill>}
+                        </div>
+                        <span className="text-[11px] text-m-text-muted">{m.createdAt}</span>
                       </div>
-                      <span className="text-m-text-muted text-[11px]">{m.createdAt}</span>
+                      <p className="leading-relaxed text-m-text">{m.content}</p>
                     </div>
-                    <p className="text-m-text leading-relaxed">{m.content}</p>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
 
-              <form onSubmit={handleSendMessage} className="space-y-3 pt-4 border-t border-m-border">
+              <form onSubmit={handleSendMessage} className="mt-4 space-y-3 border-t border-m-border/70 pt-4">
                 <Label>Send Message / Reply</Label>
                 <textarea
-                  className="w-full p-3 border border-m-border rounded-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
+                  className="w-full rounded-m-md border border-m-border bg-transparent p-3 text-xs text-m-text focus:outline-none focus:ring-1 focus:ring-m-primary"
                   rows={3}
                   value={newMessageText}
                   onChange={(e) => setNewMessageText(e.target.value)}
@@ -1374,147 +1268,261 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   </Button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-        </Tabs.Content>
+            </SectionCard>
+          </MainColumn>
 
-        {/* 11. Password Tab */}
-        <Tabs.Content value="password">
-          <Card variant="default" className="max-w-xl">
-            <CardHeader>
-              <CardTitle>Password Reset</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-xs text-m-text leading-relaxed">
-                Send a secure password reset link to customer email:{" "}
-                <strong>{customer?.email || "mia.johnson@example.com"}</strong>
-              </p>
-              <p className="text-xs text-m-text-muted">
-                The customer will receive an automated email containing a single-use secure link to generate a new password.
-              </p>
+          <SideColumn>
+            <QuickActions>
+              <QuickAction
+                icon="plus-circle"
+                label="Create Ticket"
+                onClick={() => router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email}`)}
+              />
+              <QuickAction
+                icon="mail"
+                label="Email Customer"
+                onClick={() => alert(`Opening email client for ${customer?.email}`)}
+              />
+            </QuickActions>
+          </SideColumn>
+        </ContentGrid>
+      )}
 
-              {passwordResetStatus === "sent" && (
-                <div className="p-3 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
-                  Password reset link sent successfully!
-                </div>
-              )}
+      {/* ── Notes ────────────────────────────────────────────────────────── */}
+      {activeTab === "notes" && (
+        <ContentGrid>
+          <MainColumn>
+            <SectionCard title="Password Reset" icon="lock">
+              <div className="max-w-xl space-y-4">
+                <p className="text-xs leading-relaxed text-m-text">
+                  Send a secure password reset link to customer email:{" "}
+                  <strong>{customer?.email || "—"}</strong>
+                </p>
+                <p className="text-xs text-m-text-muted">
+                  The customer will receive an automated email containing a single-use secure link to generate a new password.
+                </p>
 
-              <Button
-                variant="primary"
-                size="md"
-                loading={passwordResetStatus === "sending"}
-                disabled={passwordResetStatus === "sent"}
-                onClick={handleSendPasswordReset}
-              >
-                {passwordResetStatus === "sent" ? "Reset Link Sent" : "Send Password Reset Link"}
-              </Button>
-            </CardContent>
-          </Card>
-        </Tabs.Content>
+                {passwordResetStatus === "sent" && (
+                  <div className="rounded-m-md bg-m-success-light px-3 py-2 text-[12.5px] font-semibold text-m-success">
+                    Password reset link sent successfully!
+                  </div>
+                )}
 
-        {/* 12. Promotions Tab */}
-        <Tabs.Content value="promotions" className="space-y-6">
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Coupon Code Application & Validation</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-3 max-w-md">
-                <Input
-                  value={couponCodeInput}
-                  onChange={(e) => setCouponCodeInput(e.target.value)}
-                  placeholder="Enter coupon code (e.g. SUMMER15)..."
-                />
-                <Button variant="primary" size="md" onClick={handleValidateCoupon}>
-                  Validate & Apply
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={passwordResetStatus === "sending"}
+                  disabled={passwordResetStatus === "sent"}
+                  onClick={handleSendPasswordReset}
+                >
+                  {passwordResetStatus === "sent" ? "Reset Link Sent" : "Send Password Reset Link"}
                 </Button>
               </div>
+            </SectionCard>
 
-              {couponFeedback && (
-                <p
-                  className={`text-xs font-semibold ${
-                    couponFeedback.type === "success"
-                      ? "text-m-success"
-                      : couponFeedback.type === "error"
-                      ? "text-m-danger"
-                      : "text-m-primary"
-                  }`}
-                >
-                  {couponFeedback.msg}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+            <SectionCard title="Promotions & Coupons" icon="tag">
+              <div className="space-y-3">
+                <div className="flex max-w-md items-center gap-3">
+                  <Input
+                    value={couponCodeInput}
+                    onChange={(e) => setCouponCodeInput(e.target.value)}
+                    placeholder="Enter coupon code (e.g. SUMMER15)..."
+                  />
+                  <Button variant="primary" size="md" onClick={handleValidateCoupon}>
+                    Validate & Apply
+                  </Button>
+                </div>
 
-          {/* Assigned Promotions */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold text-m-text uppercase tracking-wider">Assigned Promotions</h4>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Promotion</TableHead>
-                  <TableHead>Coupon / Key</TableHead>
-                  <TableHead>Discount</TableHead>
-                  <TableHead>Coupon Required</TableHead>
-                  <TableHead>Valid Until</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {assignedPromotions.map((promo) => (
-                  <TableRow key={promo.id}>
-                    <TableCell className="font-semibold text-m-text">{promo.name}</TableCell>
-                    <TableCell className="font-mono text-xs">{promo.key}</TableCell>
-                    <TableCell className="font-bold text-m-primary">{promo.discount}</TableCell>
-                    <TableCell>{promo.requiresDiscountCode ? "Yes" : "No"}</TableCell>
-                    <TableCell>{promo.validUntil}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setAssignedPromotions((prev) => prev.filter((p) => p.id !== promo.id))
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                {couponFeedback && (
+                  <p
+                    className={`text-xs font-semibold ${
+                      couponFeedback.type === "success"
+                        ? "text-m-success"
+                        : couponFeedback.type === "error"
+                        ? "text-m-error"
+                        : "text-m-primary"
+                    }`}
+                  >
+                    {couponFeedback.msg}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-5 space-y-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-m-text-muted">Assigned Promotions</h4>
+                {assignedPromotions.length === 0 ? (
+                  <CardEmpty icon="tag" title="No promotions assigned" hint="Validate a coupon code above to assign a promotion." />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Promotion</TableHead>
+                        <TableHead>Coupon / Key</TableHead>
+                        <TableHead>Discount</TableHead>
+                        <TableHead>Coupon Required</TableHead>
+                        <TableHead>Valid Until</TableHead>
+                        <TableHead>Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {assignedPromotions.map((promo) => (
+                        <TableRow key={promo.id}>
+                          <TableCell className="font-semibold text-m-text">{promo.name}</TableCell>
+                          <TableCell className="font-mono text-xs">{promo.key}</TableCell>
+                          <TableCell className="font-bold text-m-primary">{promo.discount}</TableCell>
+                          <TableCell>{promo.requiresDiscountCode ? "Yes" : "No"}</TableCell>
+                          <TableCell>{promo.validUntil}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setAssignedPromotions((prev) => prev.filter((p) => p.id !== promo.id))}
+                            >
+                              Remove
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+
+              <div className="mt-5 space-y-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-m-text-muted">Promotion Usage History</h4>
+                {promotionUsages.length === 0 ? (
+                  <CardEmpty icon="history" title="No promotion usage recorded" />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Order #</TableHead>
+                        <TableHead>Coupon Code</TableHead>
+                        <TableHead>Promotion Name</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Used On</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {promotionUsages.map((u) => (
+                        <TableRow key={u.id}>
+                          <TableCell className="font-bold text-m-primary">{u.orderNumber}</TableCell>
+                          <TableCell className="font-mono text-xs">{u.couponCode}</TableCell>
+                          <TableCell>{u.promotionName}</TableCell>
+                          <TableCell>
+                            <StatusPill tone="success">{u.state}</StatusPill>
+                          </TableCell>
+                          <TableCell>{u.usedAt}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </SectionCard>
+          </MainColumn>
+
+          <SideColumn>
+            <SectionCard title="Account Notes" icon="file-text">
+              <CardEmpty
+                icon="file-text"
+                title="No internal notes yet"
+                hint="Free-form rep notes aren't wired to a backend yet — nothing fabricated here."
+              />
+            </SectionCard>
+          </SideColumn>
+        </ContentGrid>
+      )}
+
+      {/* Add / Edit Address Modal */}
+      {showAddressModal && (
+        <Modal isOpen={showAddressModal} onClose={() => setShowAddressModal(false)}>
+          <form onSubmit={handleSaveAddress} className="space-y-4 p-6">
+            <h3 className="text-base font-bold text-m-text">
+              {editingAddrId ? "Edit Address" : "Add New Address"}
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField>
+                <Label>Street Name</Label>
+                <Input value={addrStreetName} onChange={(e) => setAddrStreetName(e.target.value)} />
+              </FormField>
+              <FormField>
+                <Label>Street Number</Label>
+                <Input value={addrStreetNumber} onChange={(e) => setAddrStreetNumber(e.target.value)} />
+              </FormField>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <FormField>
+                <Label>City</Label>
+                <Input value={addrCity} onChange={(e) => setAddrCity(e.target.value)} />
+              </FormField>
+              <FormField>
+                <Label>State</Label>
+                <Input value={addrState} onChange={(e) => setAddrState(e.target.value)} />
+              </FormField>
+              <FormField>
+                <Label>Postal Code</Label>
+                <Input value={addrPostalCode} onChange={(e) => setAddrPostalCode(e.target.value)} />
+              </FormField>
+            </div>
+
+            <FormField>
+              <Label>Country</Label>
+              <Select value={addrCountry} onChange={(e) => setAddrCountry(e.target.value)} options={COUNTRY_OPTIONS} />
+            </FormField>
+
+            <div className="flex flex-col gap-2 border-t border-m-border pt-2">
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-m-text">
+                <input
+                  type="checkbox"
+                  checked={addrIsDefaultShip}
+                  onChange={(e) => setAddrIsDefaultShip(e.target.checked)}
+                />
+                Use as Default Shipping Address
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-m-text">
+                <input
+                  type="checkbox"
+                  checked={addrIsDefaultBill}
+                  onChange={(e) => setAddrIsDefaultBill(e.target.checked)}
+                />
+                Use as Default Billing Address
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3">
+              <Button variant="ghost" size="sm" type="button" onClick={() => setShowAddressModal(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" type="submit">
+                Save Address
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteConfirmAddrId && (
+        <Modal isOpen={Boolean(deleteConfirmAddrId)} onClose={() => setDeleteConfirmAddrId(null)}>
+          <div className="max-w-md space-y-4 p-6">
+            <h3 className="text-base font-bold text-m-text">Delete Address</h3>
+            <p className="text-xs text-m-text-muted">
+              Are you sure you want to delete this address from the customer&apos;s record?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmAddrId(null)}>
+                Cancel
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => handleDeleteAddress(deleteConfirmAddrId)}>
+                Delete Address
+              </Button>
+            </div>
           </div>
-
-          {/* Promotion Usage History */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold text-m-text uppercase tracking-wider">Promotion Usage History</h4>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order #</TableHead>
-                  <TableHead>Coupon Code</TableHead>
-                  <TableHead>Promotion Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Used On</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {promotionUsages.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-bold text-m-primary">{u.orderNumber}</TableCell>
-                    <TableCell className="font-mono text-xs">{u.couponCode}</TableCell>
-                    <TableCell>{u.promotionName}</TableCell>
-                    <TableCell>
-                      <Badge variant="success" size="sm">{u.state}</Badge>
-                    </TableCell>
-                    <TableCell>{u.usedAt}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Tabs.Content>
-      </Tabs>
-    </div>
+        </Modal>
+      )}
+    </DetailPage>
   );
 }

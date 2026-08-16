@@ -1,30 +1,28 @@
 "use client";
 
 /**
- * ProductDetailView — Product Detail Page (100% parity with CT-CSA-Standalone product-detail.tsx)
+ * ProductDetailView — Product Detail Page
  *
- * Features:
- * - PageHeader: eyebrow="Catalog Details", product name title, description (name | key | id)
- * - "← Back to Products" secondary action button
- * - Loading state: skeleton card
- * - Error state: EmptyState with 🛍️ icon + back button
- * - Not-found state: EmptyState with back button
- * - General Information collapsible Panel:
- *   - Product Name (read-only display)
- *   - Product Description (read-only display)
- *   - Product Key (read-only display)
- *   - Categories with ancestor > breadcrumb rendering (last name bold)
- *   - Price Mode
- *   - Tax Category
- * - Variants collapsible Panel ("Variants (N)" header):
- *   - Table columns: Variant ID, SKU, Key, Image (50×50 thumbnail + error fallback), Price, Inventory/Quantity
+ * Restyled onto the shared entity-detail design system
+ * (`@/components/detail`: DetailPage / EntityHeader / EntityTabs / SummaryGrid /
+ * ContentGrid / SectionCard / QuickActions …). Presentation only — every data
+ * hook, field, and behavior below is unchanged from the previous implementation:
+ *
+ * - useProductDetail(id) drives loading / error / not-found / loaded states.
+ * - General: product name, key, id, description, price mode, tax category,
+ *   categories (ancestor breadcrumb, last segment bold).
+ * - Variants: table of variant id / sku / key / image (with error fallback) /
+ *   price / inventory quantity.
+ *
+ * No field is fabricated: anything the mock design shows but the backend does
+ * not return (multi-warehouse inventory split, margin %, compare-at price,
+ * discounts, service-insight analytics, comments) renders an honest
+ * <CardEmpty/> instead of invented numbers.
  */
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-  PageHeader,
-  Panel,
   Button,
   Icon,
   Skeleton,
@@ -36,50 +34,53 @@ import {
   TableHead,
   TableCell,
 } from "@csa/ui";
+import {
+  DetailPage,
+  BackLink,
+  EntityHeader,
+  EntityTabs,
+  SummaryGrid,
+  SummaryCard,
+  ContentGrid,
+  MainColumn,
+  SideColumn,
+  SectionCard,
+  InfoList,
+  InfoRow,
+  QuickActions,
+  QuickAction,
+  PrimaryButton,
+  SecondaryButton,
+  CardEmpty,
+  type EntityTab,
+} from "@/components/detail";
 import { useProductDetail } from "../hooks/use-products";
 import type { VariantDetailRow, CategoryBreadcrumb } from "../types/product-types";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Normalizes a value that may be "", null, or the legacy "--" sentinel to `null`
+ *  so downstream components can render a single, honest "—" empty state. */
+function dash(value: string | null | undefined): string | null {
+  if (value == null || value === "" || value === "--") return null;
+  return value;
+}
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-/** Renders a single read-only field label + value pair. */
-function ReadOnlyField({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-m-text-muted">
-        {label}
-      </span>
-      <span className="text-sm text-m-text break-words">
-        {value || "--"}
-      </span>
-    </div>
-  );
-}
-
 /** Renders a category with its full ancestor breadcrumb. */
 function CategoryCrumb({ category }: { category: CategoryBreadcrumb }) {
   const allParts = [...category.ancestors, category.name];
   return (
-    <div className="flex items-center flex-wrap gap-1 text-xs text-m-text-muted">
+    <div className="flex flex-wrap items-center gap-1 text-xs text-m-text-muted">
       {allParts.map((part, i) => (
         <span key={i} className="flex items-center gap-1">
-          {i > 0 && (
-            <Icon name="chevron-right" size="xs" className="text-m-text-muted/50" />
-          )}
-          <span
-            className={
-              i === allParts.length - 1
-                ? "font-semibold text-m-text"
-                : undefined
-            }
-          >
+          {i > 0 && <Icon name="chevron-right" size="xs" className="text-m-text-muted/50" />}
+          <span className={i === allParts.length - 1 ? "font-semibold text-m-text" : undefined}>
             {part}
           </span>
         </span>
@@ -94,8 +95,8 @@ function VariantImage({ url, alt }: { url: string; alt: string }) {
 
   if (!url || failed) {
     return (
-      <div className="h-[50px] w-[50px] rounded border border-m-border bg-m-surface-2 flex items-center justify-center shrink-0">
-        <span className="text-[9px] text-m-text-muted text-center leading-tight px-1">
+      <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-m-md border border-m-border bg-m-surface-2">
+        <span className="px-1 text-center text-[9px] leading-tight text-m-text-muted">
           No image
         </span>
       </div>
@@ -109,7 +110,7 @@ function VariantImage({ url, alt }: { url: string; alt: string }) {
       alt={alt}
       width={50}
       height={50}
-      className="h-[50px] w-[50px] rounded border border-m-border object-contain bg-m-surface-2 shrink-0"
+      className="h-[50px] w-[50px] shrink-0 rounded-m-md border border-m-border bg-m-surface-2 object-contain"
       onError={() => setFailed(true)}
     />
   );
@@ -161,6 +162,19 @@ function VariantsTable({ variants }: { variants: VariantDetailRow[] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+
+const TABS: EntityTab[] = [
+  { id: "general", label: "General", icon: "info" },
+  { id: "inventory", label: "Inventory", icon: "warehouse" },
+  { id: "variants", label: "Variants", icon: "layers" },
+  { id: "pricing", label: "Pricing", icon: "dollar-sign" },
+  { id: "insights", label: "Service Insights", icon: "bar-chart-2" },
+  { id: "comments", label: "Comments", icon: "message-square" },
+];
+
+// ---------------------------------------------------------------------------
 // ProductDetailView
 // ---------------------------------------------------------------------------
 
@@ -171,6 +185,7 @@ export interface ProductDetailViewProps {
 export function ProductDetailView({ id }: ProductDetailViewProps) {
   const router = useRouter();
   const { product, loading, error } = useProductDetail(id);
+  const [activeTab, setActiveTab] = useState<string>("general");
 
   const handleBack = () => router.push("/products");
 
@@ -187,19 +202,11 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          title={<Skeleton width={300} height={28} />}
-          subtitle={<Skeleton width={420} height={16} />}
-          breadcrumbs={
-            <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
-              Catalog Details
-            </span>
-          }
-          actions={BackButton}
-        />
-        <Panel title="General Information" collapsible defaultExpanded>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 px-5 py-4">
+      <DetailPage>
+        <BackLink href="/products">Back to Products</BackLink>
+        <EntityHeader title={<Skeleton width={280} height={26} />} meta={<Skeleton width={320} height={14} />} />
+        <SectionCard title="Product Information" icon="info">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="flex flex-col gap-1.5">
                 <Skeleton width={80} height={12} />
@@ -207,13 +214,11 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
               </div>
             ))}
           </div>
-        </Panel>
-        <Panel title="Variants" collapsible defaultExpanded>
-          <div className="px-5 py-6">
-            <Skeleton width="100%" height={120} />
-          </div>
-        </Panel>
-      </div>
+        </SectionCard>
+        <SectionCard title="Variants" icon="layers">
+          <Skeleton width="100%" height={120} />
+        </SectionCard>
+      </DetailPage>
     );
   }
 
@@ -223,27 +228,13 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
 
   if (error) {
     return (
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          title="Product Details"
-          breadcrumbs={
-            <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
-              Catalog Details
-            </span>
-          }
-          actions={BackButton}
-        />
-        <Panel>
-          <div className="py-16 px-5">
-            <EmptyState
-              icon="package"
-              title="Failed to Load Product"
-              description={error}
-              action={BackButton}
-            />
-          </div>
-        </Panel>
-      </div>
+      <DetailPage>
+        <BackLink href="/products">Back to Products</BackLink>
+        <EntityHeader title="Product Details" />
+        <SectionCard>
+          <EmptyState icon="package" title="Failed to Load Product" description={error} action={BackButton} />
+        </SectionCard>
+      </DetailPage>
     );
   }
 
@@ -253,27 +244,18 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
 
   if (!product) {
     return (
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          title="Product Not Found"
-          breadcrumbs={
-            <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
-              Catalog Details
-            </span>
-          }
-          actions={BackButton}
-        />
-        <Panel>
-          <div className="py-16 px-5">
-            <EmptyState
-              icon="package"
-              title="Product Not Found"
-              description={`No product was found with ID: ${id}`}
-              action={BackButton}
-            />
-          </div>
-        </Panel>
-      </div>
+      <DetailPage>
+        <BackLink href="/products">Back to Products</BackLink>
+        <EntityHeader title="Product Not Found" />
+        <SectionCard>
+          <EmptyState
+            icon="package"
+            title="Product Not Found"
+            description={`No product was found with ID: ${id}`}
+            action={BackButton}
+          />
+        </SectionCard>
+      </DetailPage>
     );
   }
 
@@ -281,62 +263,150 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
   // Loaded state
   // -------------------------------------------------------------------------
 
+  const firstVariant = product.variants[0];
+  const summarySku = dash(firstVariant?.sku);
+  const summaryCategory = dash(product.categories[0]?.name);
+  const summaryPrice = dash(firstVariant?.unitPrice);
+
+  const description = dash(product.productDescription);
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* Page Header */}
-      <PageHeader
-        title={product.productName}
-        subtitle={`${product.productName} | ${product.key} | ${product.id}`}
-        breadcrumbs={
-          <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
-            Catalog Details
-          </span>
+    <DetailPage>
+      <BackLink href="/products">Back to Products</BackLink>
+
+      <EntityHeader
+        title={`Product: ${product.productName}`}
+        meta={`Key: ${product.key} • ID: ${product.id}`}
+        actions={
+          <>
+            <SecondaryButton trailingIcon="chevron-down">More actions</SecondaryButton>
+            <PrimaryButton icon="pencil">Edit product</PrimaryButton>
+          </>
         }
-        actions={BackButton}
       />
 
-      {/* General Information */}
-      <Panel title="General Information" collapsible defaultExpanded>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 px-5 py-5">
-          <ReadOnlyField label="Product Name" value={product.productName} />
-          <ReadOnlyField label="Product Key" value={product.key} />
-          <div className="sm:col-span-2">
-            <ReadOnlyField
-              label="Product Description"
-              value={product.productDescription}
-            />
-          </div>
-          <ReadOnlyField label="Price Mode" value={product.priceMode} />
-          <ReadOnlyField label="Tax Category" value={product.taxCategory} />
+      <EntityTabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
-          {/* Categories */}
-          <div className="sm:col-span-2 flex flex-col gap-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-m-text-muted">
-              Categories
-            </span>
-            {product.categories.length === 0 ? (
-              <span className="text-sm text-m-text">--</span>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {product.categories.map((cat: CategoryBreadcrumb) => (
-                  <CategoryCrumb key={cat.id} category={cat} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </Panel>
+      <SummaryGrid>
+        <SummaryCard icon="tag" label="SKU" value={summarySku ?? "—"} />
+        <SummaryCard icon="folder" label="Category" value={summaryCategory ?? "—"} />
+        <SummaryCard icon="dollar-sign" label="Price" value={summaryPrice ?? "—"} />
+        <SummaryCard icon="layers" label="Variants" value={product.variants.length} />
+        <SummaryCard icon="check-circle" label="Publish Status" value="—" />
+      </SummaryGrid>
 
-      {/* Variants */}
-      <Panel
-        title={`Variants (${product.variants.length})`}
-        collapsible
-        defaultExpanded
-      >
-        <div className="px-5 py-4">
-          <VariantsTable variants={product.variants} />
-        </div>
-      </Panel>
-    </div>
+      <ContentGrid>
+        <MainColumn span={8}>
+          {activeTab === "general" && (
+            <>
+              <SectionCard title="Product Information" icon="info">
+                <InfoList columns={2}>
+                  <InfoRow label="Product Name" value={dash(product.productName)} />
+                  <InfoRow label="Product Key" value={dash(product.key)} />
+                  <InfoRow label="Product ID" value={dash(product.id)} mono />
+                  <InfoRow label="Price Mode" value={dash(product.priceMode)} />
+                  <InfoRow label="Tax Category" value={dash(product.taxCategory)} />
+                </InfoList>
+                <div className="mt-4 flex flex-col gap-0.5">
+                  <span className="text-[12px] font-medium text-m-text-muted">Product Description</span>
+                  <p className={`text-[13.5px] leading-snug ${description ? "text-m-text" : "text-m-text-subtle"}`}>
+                    {description ?? "—"}
+                  </p>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Categories" icon="folder">
+                {product.categories.length === 0 ? (
+                  <CardEmpty icon="folder" title="No categories assigned" />
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {product.categories.map((cat) => (
+                      <CategoryCrumb key={cat.id} category={cat} />
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
+            </>
+          )}
+
+          {activeTab === "inventory" && (
+            <SectionCard title="Inventory" icon="warehouse">
+              <CardEmpty
+                icon="warehouse"
+                title="Multi-warehouse breakdown unavailable"
+                hint="The connected commercetools backend does not return a per-warehouse inventory split — only total available quantity per variant, shown on the Variants tab."
+              />
+            </SectionCard>
+          )}
+
+          {activeTab === "variants" && (
+            <SectionCard title={`Variants (${product.variants.length})`} icon="layers">
+              <VariantsTable variants={product.variants} />
+            </SectionCard>
+          )}
+
+          {activeTab === "pricing" && (
+            <>
+              <SectionCard title="Pricing" icon="dollar-sign">
+                <InfoList>
+                  <InfoRow label="Price Mode" value={dash(product.priceMode)} />
+                </InfoList>
+                {product.variants.length > 0 && (
+                  <div className="mt-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>SKU</TableHead>
+                          <TableHead>Price</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {product.variants.map((v) => (
+                          <TableRow key={v.id}>
+                            <TableCell>{v.sku}</TableCell>
+                            <TableCell>{v.unitPrice}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </SectionCard>
+              <SectionCard title="Margin & Discounts" icon="trending-up">
+                <CardEmpty
+                  icon="trending-up"
+                  title="Margin and discount data unavailable"
+                  hint="Margin %, compare-at price, and discount data aren't returned by the connected backend."
+                />
+              </SectionCard>
+            </>
+          )}
+
+          {activeTab === "insights" && (
+            <SectionCard title="Service Insights" icon="bar-chart-2">
+              <CardEmpty
+                icon="bar-chart-2"
+                title="No service insights available"
+                hint="Top support issues, return reasons, and knowledge-base suggestions for this product aren't provided by the connected backend."
+              />
+            </SectionCard>
+          )}
+
+          {activeTab === "comments" && (
+            <SectionCard title="Comments" icon="message-square">
+              <CardEmpty icon="message-square" title="No comments yet" hint="Internal notes on this product aren't backed by the connected backend." />
+            </SectionCard>
+          )}
+        </MainColumn>
+
+        <SideColumn span={4}>
+          <QuickActions>
+            <QuickAction icon="pencil" label="Edit product" />
+            <QuickAction icon="copy" label="Duplicate" />
+            <QuickAction icon="archive" label="Archive" tone="danger" />
+          </QuickActions>
+        </SideColumn>
+      </ContentGrid>
+    </DetailPage>
   );
 }

@@ -7,7 +7,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
+import { projectScopedBffFetch, ProjectSessionError } from "@/lib/project-scoped-bff";
 import { bffJsonHeaders } from "@/lib/commerce-headers";
 import { requestLogger } from "@/lib/request-logger";
 
@@ -71,6 +71,13 @@ export async function GET(
       headers: { "Cache-Control": "no-store" },
     });
   } catch (err) {
+    // A missing session or unselected project is not a product failure — surface
+    // it honestly with its own status so the UI can prompt correctly rather than
+    // reporting a generic "Failed to load product."
+    if (err instanceof ProjectSessionError) {
+      log.error('project session error', err, { productId: id, status: err.status });
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     log.error('fetch failed', err, { productId: id });
     return NextResponse.json(
       { error: "Failed to load product." },

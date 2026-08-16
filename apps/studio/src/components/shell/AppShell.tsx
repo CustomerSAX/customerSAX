@@ -152,6 +152,37 @@ export function AppShell({ children }: { children: ReactNode }) {
     window.location.assign(pathname || "/dashboard");
   };
 
+  const isAdmin = currentUser.role === "admin" || currentUser.role === "superadmin";
+
+  // The projects list can legitimately contain exact duplicates (the same
+  // clientId:projectKey returned twice) and distinct projects that happen to
+  // share a display name. De-dupe the former by identity, and disambiguate the
+  // latter in the option label so the rep can tell them apart — without ever
+  // altering the real display names themselves.
+  const uniqueProjects = useMemo(() => {
+    const seen = new Set<string>();
+    return currentUser.projects.filter((project) => {
+      const key = `${project.clientId ?? ""}:${project.projectKey}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [currentUser.projects]);
+
+  const projectOptionLabel = (project: CurrentUser["projects"][number]) => {
+    const base = project.displayName || project.projectKey;
+    const collides =
+      uniqueProjects.filter((candidate) => (candidate.displayName || candidate.projectKey) === base).length > 1;
+    if (!collides) return base;
+    // Same display name across different projects → append the projectKey (and
+    // clientId when even that matches) so each option is uniquely identifiable.
+    const keyCollides =
+      uniqueProjects.filter(
+        (candidate) => (candidate.displayName || candidate.projectKey) === base && candidate.projectKey === project.projectKey
+      ).length > 1;
+    return keyCollides ? `${base} · ${project.projectKey} · ${project.clientId ?? "—"}` : `${base} · ${project.projectKey}`;
+  };
+
   // Find active item ID
   let activeItemId = "dashboard";
   for (const group of groups) {
@@ -272,12 +303,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                   value={currentUser.activeProjectKey ? `${currentUser.activeClientId ?? ""}:${currentUser.activeProjectKey}` : ""}
                   onChange={(event) => void handleProjectChange(event.target.value)}
                   style={{
-                    height: 32,
-                    minWidth: 160,
-                    borderRadius: 'var(--radius-lg)',
+                    height: 34,
+                    minWidth: 170,
+                    maxWidth: 240,
+                    borderRadius: 'var(--radius-full)',
                     border: '1px solid var(--topbar-overlay)',
                     background: 'rgba(255,255,255,0.25)',
-                    padding: '0 10px',
+                    padding: '0 12px',
                     fontSize: 'var(--text-sm)',
                     fontWeight: 'var(--weight-semibold)',
                     color: 'var(--topbar-text)',
@@ -286,12 +318,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                   }}
                 >
                   {!currentUser.activeProjectKey && <option value="">Select project</option>}
-                  {currentUser.projects.map((project) => (
+                  {uniqueProjects.map((project) => (
                     <option
                       key={`${project.clientId ?? "legacy"}:${project.projectKey}`}
                       value={`${project.clientId ?? ""}:${project.projectKey}`}
                     >
-                      {project.displayName || project.projectKey}
+                      {projectOptionLabel(project)}
                     </option>
                   ))}
                 </select>
@@ -430,8 +462,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
               }
               items={[
-                { id: "profile", label: "My Profile", icon: "user" },
-                { id: "settings", label: "Org Settings", icon: "settings" },
+                { id: "profile", label: "My Profile", icon: "user", onClick: () => router.push("/profile") },
+                ...(isAdmin
+                  ? [{ id: "settings", label: "Org Settings", icon: "settings", onClick: () => router.push("/admin/users") }]
+                  : []),
                 "divider",
                 { id: "logout", label: "Sign out", icon: "log-out", danger: true, onClick: handleLogout }
               ]}

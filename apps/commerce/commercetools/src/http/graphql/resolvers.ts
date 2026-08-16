@@ -75,6 +75,7 @@ export const resolvers = {
     orders: orderResolvers.orders,
     product: productResolvers.product,
     productBySlug: productResolvers.productBySlug,
+    productDetail: productResolvers.productDetail,
     productPage: productResolvers.productPage,
     productSearch: productResolvers.productSearch,
     products: productResolvers.products,

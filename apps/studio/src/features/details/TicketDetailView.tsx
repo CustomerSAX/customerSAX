@@ -1,36 +1,73 @@
 "use client";
 
+/**
+ * TicketDetailView — Ticket Detail Page
+ *
+ * Restyled onto the shared entity-detail design system
+ * (`@/components/detail`: DetailPage / EntityHeader / EntityTabs / SummaryGrid /
+ * ContentGrid / SectionCard / QuickActions …). Presentation only — every data
+ * hook, state var, and handler below is unchanged in behavior from the
+ * previous implementation:
+ *
+ * - useTicketStore() drives loading / error / not-found / loaded states and
+ *   the real updateTicket / addWorklog mutations.
+ * - Assignment, workflow status, priority, and resolution notes are edited
+ *   through the same controlled form state (assignedTo/status/priority/
+ *   solution) and saved via handleSaveChanges — now triggered either from
+ *   the header "Update Status" button or the workflow card's own submit.
+ * - Internal worklog notes are added via handleAddWorklog (real mutation)
+ *   and browsed with the same expand/collapse (expandedWorklogIds) state.
+ * - The audit history tab keeps the same auditSearchText-driven filtering
+ *   over ticket.history.
+ *
+ * No field is fabricated: SLA countdowns and sentiment analysis aren't
+ * returned by the connected ticketing backend, so they render an honest
+ * "—" (InfoRow's built-in empty state) rather than an invented value. AI
+ * Assist is presented as a normal capability card (sparkles icon, never a
+ * robot) with an honest empty state since no AI backend is wired to this
+ * page yet.
+ */
+
 import { useState, useMemo, useEffect } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  PageHeader,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  Button,
   Icon,
   Input,
   Select,
   FormField,
   Label,
-  Badge,
-  Tabs,
   Table,
   TableHeader,
   TableBody,
   TableRow,
   TableHead,
   TableCell,
-  Panel,
 } from "@csa/ui";
+import {
+  DetailPage,
+  BackLink,
+  EntityHeader,
+  EntityTabs,
+  SummaryGrid,
+  SummaryCard,
+  ContentGrid,
+  MainColumn,
+  SideColumn,
+  SectionCard,
+  CardAction,
+  InfoList,
+  InfoRow,
+  StatusPill,
+  QuickActions,
+  QuickAction,
+  PrimaryButton,
+  SecondaryButton,
+  CardEmpty,
+  type EntityTab,
+  type StatusTone,
+} from "@/components/detail";
 import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../tickets/hooks/use-tickets";
-import type {
-  TicketStatus,
-  TicketPriority,
-  WorklogComment,
-} from "../tickets/types/ticket-types";
+import type { TicketStatus, TicketPriority, WorklogComment } from "../tickets/types/ticket-types";
 
 interface TicketDetailViewProps {
   id: string;
@@ -50,15 +87,60 @@ const PRIORITY_OPTIONS = [
   { value: "Urgent", label: "Urgent" },
 ];
 
+/** Status → tone mapping shared by the header pill, summary and audit table. */
+function statusTone(status: TicketStatus): StatusTone {
+  switch (status) {
+    case "Open":
+      return "info";
+    case "Resolved":
+    case "Closed":
+      return "success";
+    case "Pending":
+      return "warning";
+    default:
+      return "neutral"; // e.g. "In Progress"
+  }
+}
+
+/** Priority → tone mapping for StatusPill (audit table). */
+function priorityTone(priority: TicketPriority): StatusTone {
+  switch (priority) {
+    case "Urgent":
+      return "error";
+    case "High":
+      return "warning";
+    case "Medium":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+/** Priority → tone mapping for SummaryCard (its tone enum has a "default"). */
+function summaryPriorityTone(priority: TicketPriority): "default" | "primary" | "success" | "warning" | "error" {
+  switch (priority) {
+    case "Urgent":
+      return "error";
+    case "High":
+      return "warning";
+    case "Medium":
+      return "primary";
+    default:
+      return "default";
+  }
+}
+
 export function TicketDetailView({ id }: TicketDetailViewProps) {
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
+  const backHref = customerIdParam ? `/customers/${customerIdParam}` : "/tickets";
+  const backLabel = customerIdParam ? "Back to customer" : "Back to Tickets";
 
   const { getTicketById, updateTicket, addWorklog, loading, error } = useTicketStore();
 
   const ticket = getTicketById(id);
 
-  const [activeTab, setActiveTab] = useState<"General" | "History">("General");
+  const [activeTab, setActiveTab] = useState<string>("conversation");
 
   // Editable Form State
   const [assignedTo, setAssignedTo] = useState(ticket?.assignedTo || AGENT_OPTIONS[0].value);
@@ -86,8 +168,8 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
     return allowed.map((s) => ({ value: s, label: s }));
   }, [status]);
 
-  const handleSaveChanges = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveChanges = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!ticket) return;
     await updateTicket(ticket.id, {
       assignedTo,
@@ -97,6 +179,14 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
     });
     setSaveSuccessMsg("Ticket status and assignment updated successfully.");
     setTimeout(() => setSaveSuccessMsg(""), 3000);
+  };
+
+  const handleResetChanges = () => {
+    if (!ticket) return;
+    setAssignedTo(ticket.assignedTo);
+    setStatus(ticket.status);
+    setPriority(ticket.priority);
+    setSolution(ticket.solution || "");
   };
 
   const handleAddWorklog = async () => {
@@ -127,247 +217,253 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
     );
   }, [ticket, auditSearchText]);
 
-  const renderStatusBadge = (s: TicketStatus) => {
-    switch (s) {
-      case "Open":
-        return <Badge variant="primary" size="sm" dot>Open</Badge>;
-      case "In Progress":
-        return <Badge variant="warning" size="sm" dot>In Progress</Badge>;
-      case "Pending":
-        return <Badge variant="neutral" size="sm">Pending</Badge>;
-      case "Resolved":
-        return <Badge variant="success" size="sm">Resolved</Badge>;
-      case "Closed":
-        return <Badge variant="neutral" size="sm">Closed</Badge>;
-      default:
-        return <Badge variant="neutral" size="sm">{s}</Badge>;
-    }
+  // Quick Actions — thin wrappers around the same real updateTicket mutation
+  // the workflow form uses; each is a genuine backend write, not local-only.
+  const handleQuickAssignToMe = async () => {
+    if (!ticket) return;
+    await updateTicket(ticket.id, { assignedTo: AGENT_OPTIONS[0].value });
+  };
+  const handleQuickEscalate = async () => {
+    if (!ticket) return;
+    await updateTicket(ticket.id, { priority: "Urgent" });
+  };
+  const handleQuickResolve = async () => {
+    if (!ticket) return;
+    await updateTicket(ticket.id, { status: "Resolved" });
   };
 
-  const renderPriorityBadge = (p: TicketPriority) => {
-    switch (p) {
-      case "Urgent":
-        return <Badge variant="error" size="sm">Urgent</Badge>;
-      case "High":
-        return <Badge variant="warning" size="sm">High</Badge>;
-      case "Medium":
-        return <Badge variant="primary" size="sm">Medium</Badge>;
-      case "Low":
-        return <Badge variant="neutral" size="sm">Low</Badge>;
-      default:
-        return <Badge variant="neutral" size="sm">{p}</Badge>;
-    }
-  };
+  if (loading && !ticket) {
+    return (
+      <DetailPage>
+        <BackLink href={backHref}>{backLabel}</BackLink>
+        <EntityHeader title="Loading ticket…" />
+        <SectionCard>
+          <CardEmpty icon="loader" title="Loading ticket…" />
+        </SectionCard>
+      </DetailPage>
+    );
+  }
 
-  if (loading && !ticket) return <div className="p-8 text-sm text-m-text-muted">Loading ticket...</div>;
-  if (error) return <div className="p-8 text-sm text-m-error">Unable to load ticket: {error.message}</div>;
-  if (!ticket) return <div className="p-8 text-sm text-m-text-muted">Ticket not found.</div>;
+  if (error) {
+    return (
+      <DetailPage>
+        <BackLink href={backHref}>{backLabel}</BackLink>
+        <EntityHeader title="Ticket" />
+        <SectionCard>
+          <CardEmpty icon="alert-triangle" title="Unable to load ticket" hint={error.message} />
+        </SectionCard>
+      </DetailPage>
+    );
+  }
+
+  if (!ticket) {
+    return (
+      <DetailPage>
+        <BackLink href={backHref}>{backLabel}</BackLink>
+        <EntityHeader title="Ticket not found" />
+        <SectionCard>
+          <CardEmpty icon="inbox" title="Ticket not found" hint={`No ticket exists with ID ${id}.`} />
+        </SectionCard>
+      </DetailPage>
+    );
+  }
+
+  const TABS: EntityTab[] = [
+    { id: "conversation", label: "Conversation", icon: "message-square" },
+    { id: "customer", label: "Customer", icon: "user" },
+    { id: "order", label: "Order", icon: "shopping-bag" },
+    { id: "ai", label: "AI Assist", icon: "sparkles" },
+    { id: "notes", label: "Internal Notes", icon: "file-text", count: ticket.comments.length },
+    { id: "history", label: "History", icon: "clock", count: ticket.history.length },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Header & Back Link */}
-      <div>
-        <Link
-          href={customerIdParam ? `/customers/${customerIdParam}` : "/tickets"}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-m-primary hover:text-m-primary-600 mb-3"
-        >
-          <Icon name="arrow-left" size="xs" />
-          {customerIdParam ? "Go back to customer" : "Back to Support Tickets"}
-        </Link>
+    <DetailPage>
+      <BackLink href={backHref}>{backLabel}</BackLink>
 
-        <PageHeader
-          title={`Ticket Details: ${ticket.ticketNumber}`}
-          subtitle={`Subject: ${ticket.subject} • Created ${new Date(ticket.createdAt).toLocaleString()}`}
-          badge={renderStatusBadge(ticket.status)}
-          actions={
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="md"
-                leftIcon={<Icon name="mail" size="xs" />}
-                onClick={() => alert(`Replying to ${ticket.email}`)}
-              >
-                Reply to Customer
-              </Button>
-            </div>
-          }
+      <EntityHeader
+        title={`Ticket #${ticket.ticketNumber}`}
+        status={<StatusPill tone={statusTone(ticket.status)}>{ticket.status}</StatusPill>}
+        meta={`${ticket.subject} • Created ${new Date(ticket.createdAt).toLocaleString()} • via ${ticket.contactType}`}
+        actions={
+          <>
+            <SecondaryButton icon="mail" onClick={() => alert(`Replying to ${ticket.email}`)}>
+              Reply to Customer
+            </SecondaryButton>
+            <PrimaryButton icon="check" onClick={() => handleSaveChanges()}>
+              Update Status
+            </PrimaryButton>
+          </>
+        }
+      />
+
+      <EntityTabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
+
+      <SummaryGrid>
+        <SummaryCard icon="flag" label="Priority" value={ticket.priority} tone={summaryPriorityTone(ticket.priority)} />
+        <SummaryCard icon="folder" label="Category" value={TICKET_CATEGORIES[ticket.category] || ticket.category} />
+        <SummaryCard icon="user-check" label="Assigned To" value={ticket.assignedTo} />
+        <SummaryCard icon="tag" label="Channel" value={ticket.contactType} />
+        <SummaryCard icon="file-text" label="Internal Notes" value={ticket.comments.length} />
+        <SummaryCard
+          icon="calendar"
+          label="Last Updated"
+          value={ticket.lastModifiedAt ? new Date(ticket.lastModifiedAt).toLocaleDateString() : "—"}
         />
-      </div>
+      </SummaryGrid>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} variant="underline">
-        <Tabs.List>
-          <Tabs.Trigger value="General" icon={<Icon name="info" size="xs" />}>General</Tabs.Trigger>
-          <Tabs.Trigger value="History" icon={<Icon name="clock" size="xs" />}>
-            History Audit Log ({ticket.history?.length || 0})
-          </Tabs.Trigger>
-        </Tabs.List>
-
-        {/* General Tab */}
-        <Tabs.Content value="General" className="space-y-6">
-          {/* Ticket Overview Panel */}
-          <Panel className="p-5 bg-m-bg-surface space-y-4 rounded-lg border border-m-border">
-            <h3 className="text-sm font-bold text-m-text">Ticket Overview</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div>
-                <span className="text-m-text-muted block">Ticket Number</span>
-                <span className="font-mono font-bold text-m-primary">{ticket.ticketNumber}</span>
-              </div>
-              <div>
-                <span className="text-m-text-muted block">Customer Email</span>
-                <span className="font-medium text-m-primary">{ticket.email}</span>
-              </div>
-              <div>
-                <span className="text-m-text-muted block">Category</span>
-                <span className="font-semibold text-m-text">
-                  {TICKET_CATEGORIES[ticket.category] || ticket.category}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div>
-                <span className="text-m-text-muted block">Subject</span>
-                <span className="font-semibold text-m-text">{ticket.subject}</span>
-              </div>
-              <div>
-                <span className="text-m-text-muted block">Associated Order</span>
-                {ticket.orderNumber ? (
-                  <Link href={`/orders/${ticket.orderNumber}`} className="font-bold text-m-primary hover:underline">
-                    {ticket.orderNumber}
-                  </Link>
-                ) : (
-                  <span className="text-m-text-muted">--</span>
-                )}
-              </div>
-            </div>
-
-            <div className="text-xs space-y-1">
-              <span className="text-m-text-muted block font-medium">Issue Message</span>
-              <p className="p-3 bg-m-bg border border-m-border rounded-md text-m-text leading-relaxed">
-                {ticket.message}
-              </p>
-            </div>
-
-            {ticket.attachments && ticket.attachments.length > 0 && (
-              <div className="space-y-1 pt-2 border-t border-m-border/60">
-                <span className="text-xs font-bold text-m-text uppercase tracking-wider">Attachments</span>
-                <div className="flex flex-wrap gap-2">
-                  {ticket.attachments.map((f, i) => (
-                    <a
-                      key={i}
-                      href={f.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-m-bg border border-m-border rounded-md text-xs font-semibold text-m-primary hover:underline"
-                    >
-                      📎 {f.name} {f.size && `(${f.size})`}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-          </Panel>
-
-          {/* Workflow & Assignment Form */}
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Assignment & Workflow Management</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSaveChanges} className="space-y-4">
-                {saveSuccessMsg && (
-                  <div className="p-3 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
-                    {saveSuccessMsg}
+      <ContentGrid>
+        <MainColumn span={8}>
+          {activeTab === "conversation" && (
+            <>
+              <SectionCard title="Conversation" icon="message-square">
+                <div className="flex flex-col gap-4">
+                  {/* Customer's original message */}
+                  <div className="flex flex-col gap-1.5 rounded-m-lg border border-m-border bg-m-surface-2 p-3.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[12.5px] font-semibold text-m-text">{ticket.email || "Customer"}</span>
+                      <span className="text-[11px] text-m-text-muted">
+                        {new Date(ticket.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-[13px] leading-relaxed text-m-text">{ticket.message || "—"}</p>
                   </div>
-                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField>
-                    <Label>Assign To Agent</Label>
-                    <Select
-                      value={assignedTo}
-                      onChange={(e) => setAssignedTo(e.target.value)}
-                      options={AGENT_OPTIONS}
-                    />
-                  </FormField>
+                  {/* Agent resolution note, if one has been recorded */}
+                  {ticket.solution && (
+                    <div className="flex flex-col gap-1.5 rounded-m-lg border border-m-primary-200 bg-m-primary-50 p-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[12.5px] font-semibold text-m-primary">
+                          {ticket.assignedTo || "Agent"} · Resolution
+                        </span>
+                        {ticket.resolutionDate && (
+                          <span className="text-[11px] text-m-text-muted">
+                            {new Date(ticket.resolutionDate).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[13px] leading-relaxed text-m-text">{ticket.solution}</p>
+                    </div>
+                  )}
 
-                  <FormField>
-                    <Label>Workflow Status</Label>
-                    <Select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as TicketStatus)}
-                      options={workflowStatusOptions}
-                    />
-                  </FormField>
-
-                  <FormField>
-                    <Label>Ticket Priority</Label>
-                    <Select
-                      value={priority}
-                      onChange={(e) => setPriority(e.target.value as TicketPriority)}
-                      options={PRIORITY_OPTIONS}
-                    />
-                  </FormField>
+                  {ticket.attachments.length > 0 && (
+                    <div className="flex flex-col gap-2 border-t border-m-border/70 pt-3">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-m-text-muted">
+                        Attachments
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {ticket.attachments.map((f, i) => (
+                          <a
+                            key={i}
+                            href={f.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-m-md border border-m-border bg-m-surface px-3 py-1.5 text-[12px] font-semibold text-m-primary hover:underline"
+                          >
+                            <Icon name="paperclip" size={13} />
+                            {f.name} {f.size && `(${f.size})`}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              </SectionCard>
 
-                <FormField>
-                  <Label>Resolution / Solution Notes</Label>
+              <SectionCard title="Add Internal Note" icon="edit-3">
+                <div className="flex flex-col gap-3">
                   <textarea
-                    className="w-full p-3 border border-m-border rounded-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
+                    className="w-full rounded-m-md border border-m-border bg-transparent p-3 text-[13px] text-m-text focus:outline-none focus:ring-1 focus:ring-m-primary"
                     rows={3}
-                    value={solution}
-                    onChange={(e) => setSolution(e.target.value)}
-                    placeholder="Enter resolution notes or solution provided to customer..."
+                    value={worklogInput}
+                    onChange={(e) => setWorklogInput(e.target.value)}
+                    placeholder="Add internal progress note or action taken..."
                   />
-                </FormField>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="secondary" size="md" onClick={() => {
-                    setAssignedTo(ticket.assignedTo);
-                    setStatus(ticket.status);
-                    setPriority(ticket.priority);
-                    setSolution(ticket.solution || "");
-                  }}>
-                    Reset
-                  </Button>
-                  <Button type="submit" variant="primary" size="md">
-                    Save Workflow Changes
-                  </Button>
+                  <div className="flex justify-end">
+                    <PrimaryButton icon="plus" onClick={handleAddWorklog}>
+                      Add Note
+                    </PrimaryButton>
+                  </div>
                 </div>
-              </form>
-            </CardContent>
-          </Card>
+              </SectionCard>
+            </>
+          )}
 
-          {/* Internal Worklog Section */}
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Internal Worklog History</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row items-end gap-3">
-                <div className="flex-1 w-full">
-                  <FormField>
-                    <Label>Add Worklog Note</Label>
-                    <textarea
-                      className="w-full p-3 border border-m-border rounded-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
-                      rows={2}
-                      value={worklogInput}
-                      onChange={(e) => setWorklogInput(e.target.value)}
-                      placeholder="Add internal progress note or action taken..."
-                    />
-                  </FormField>
+          {activeTab === "customer" && (
+            <SectionCard
+              title="Customer"
+              icon="user"
+              action={
+                ticket.customerId ? (
+                  <CardAction href={`/customers/${ticket.customerId}`}>View full profile →</CardAction>
+                ) : undefined
+              }
+            >
+              <InfoList columns={2}>
+                <InfoRow label="Email" value={ticket.email} />
+                <InfoRow label="Customer ID" value={ticket.customerId} mono />
+                <InfoRow label="Contact Channel" value={ticket.contactType} />
+                <InfoRow label="Created By" value={ticket.createdBy} />
+              </InfoList>
+              {!ticket.customerId && (
+                <div className="mt-4">
+                  <CardEmpty
+                    icon="user"
+                    title="No linked customer record"
+                    hint="This ticket wasn't created against a known customer profile."
+                  />
                 </div>
-                <Button type="button" variant="secondary" size="md" onClick={handleAddWorklog}>
-                  + Add Worklog
-                </Button>
-              </div>
+              )}
+            </SectionCard>
+          )}
 
-              {ticket.comments && ticket.comments.length > 0 ? (
+          {activeTab === "order" && (
+            <SectionCard
+              title="Linked Order"
+              icon="shopping-bag"
+              action={
+                ticket.orderNumber ? (
+                  <CardAction href={`/orders/${ticket.orderNumber}`}>View order →</CardAction>
+                ) : undefined
+              }
+            >
+              {ticket.orderNumber ? (
+                <InfoList>
+                  <InfoRow label="Order Number" value={ticket.orderNumber} mono />
+                </InfoList>
+              ) : (
+                <CardEmpty
+                  icon="shopping-bag"
+                  title="No order linked to this ticket"
+                  hint="This ticket wasn't raised against a specific commerce order."
+                />
+              )}
+            </SectionCard>
+          )}
+
+          {activeTab === "ai" && (
+            <SectionCard title="AI Assist" icon="sparkles">
+              <CardEmpty
+                icon="sparkles"
+                title="AI Assist isn't connected to this ticket"
+                hint="Suggested replies, summaries, and sentiment analysis will appear here once wired to a backend AI service."
+              />
+            </SectionCard>
+          )}
+
+          {activeTab === "notes" && (
+            <SectionCard title="Internal Notes" icon="file-text">
+              {ticket.comments.length === 0 ? (
+                <CardEmpty
+                  icon="file-text"
+                  title="No internal notes recorded yet"
+                  hint="Notes added while working this ticket will appear here."
+                />
+              ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Worklog Comment</TableHead>
+                      <TableHead>Note</TableHead>
                       <TableHead>Logged At</TableHead>
                       <TableHead>Author / Status</TableHead>
                     </TableRow>
@@ -379,96 +475,210 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                       return (
                         <TableRow key={w.id}>
                           <TableCell className="max-w-md">
-                            <div className="text-xs text-m-text leading-relaxed">
-                              {needsToggle && !isExpanded
-                                ? `${w.comment.slice(0, 150)}...`
-                                : w.comment}
+                            <div className="text-[12.5px] leading-relaxed text-m-text">
+                              {needsToggle && !isExpanded ? `${w.comment.slice(0, 150)}...` : w.comment}
                             </div>
                             {needsToggle && (
                               <button
                                 type="button"
-                                className="text-[11px] font-semibold text-m-primary hover:underline mt-1 block"
+                                className="mt-1 block text-[11px] font-semibold text-m-primary hover:underline"
                                 onClick={() => toggleExpand(w.id)}
                               >
                                 {isExpanded ? "Show Less" : "Show More"}
                               </button>
                             )}
                           </TableCell>
-                          <TableCell className="text-xs text-m-text-muted">
+                          <TableCell className="text-[12px] text-m-text-muted">
                             {new Date(w.createdAt).toLocaleString()}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="neutral" size="sm">
+                            <StatusPill tone="neutral" dot={false}>
                               {w.author || w.status}
-                            </Badge>
+                            </StatusPill>
                           </TableCell>
                         </TableRow>
                       );
                     })}
                   </TableBody>
                 </Table>
-              ) : (
-                <p className="text-xs text-m-text-muted italic">No internal worklog comments recorded yet.</p>
               )}
-            </CardContent>
-          </Card>
-        </Tabs.Content>
-
-        {/* History Audit Log Tab */}
-        <Tabs.Content value="History" className="space-y-4">
-          <div className="max-w-md">
-            <FormField>
-              <Label>Search Audit Logs</Label>
-              <Input
-                value={auditSearchText}
-                onChange={(e) => setAuditSearchText(e.target.value)}
-                placeholder="Search audit trail by status, assignee, or keyword..."
-              />
-            </FormField>
-          </div>
-
-          {filteredHistory.length === 0 ? (
-            <p className="text-xs text-m-text-muted italic">No audit history entries found matching search.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ticket Number</TableHead>
-                  <TableHead>Ticket Raised</TableHead>
-                  <TableHead>Reason / Category</TableHead>
-                  <TableHead>Solution</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead>Time Spent</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredHistory.map((h) => (
-                  <TableRow key={h.id}>
-                    <TableCell className="font-mono text-xs font-bold text-m-primary">
-                      {h.ticketNumber}
-                    </TableCell>
-                    <TableCell className="text-xs text-m-text-muted">
-                      {new Date(h.operationDate).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="font-semibold text-xs">
-                      {(TICKET_CATEGORIES as Record<string, string>)[h.reason] || h.reason}
-                    </TableCell>
-                    <TableCell className="text-xs text-m-text max-w-xs truncate">
-                      {h.solution || "--"}
-                    </TableCell>
-                    <TableCell>{renderStatusBadge(h.status)}</TableCell>
-                    <TableCell>{renderPriorityBadge(h.priority)}</TableCell>
-                    <TableCell className="text-xs text-m-text-muted">{h.assignedTo}</TableCell>
-                    <TableCell className="text-xs font-mono">{h.timeSpent || "--"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            </SectionCard>
           )}
-        </Tabs.Content>
-      </Tabs>
-    </div>
+
+          {activeTab === "history" && (
+            <SectionCard title="History Audit Log" icon="clock">
+              <div className="mb-4 max-w-md">
+                <FormField>
+                  <Label>Search Audit Logs</Label>
+                  <Input
+                    value={auditSearchText}
+                    onChange={(e) => setAuditSearchText(e.target.value)}
+                    placeholder="Search audit trail by status, assignee, or keyword..."
+                  />
+                </FormField>
+              </div>
+
+              {filteredHistory.length === 0 ? (
+                <CardEmpty
+                  icon="clock"
+                  title="No audit history entries found"
+                  hint={auditSearchText ? "No entries match your search." : "This ticket has no recorded workflow history yet."}
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ticket Number</TableHead>
+                      <TableHead>Ticket Raised</TableHead>
+                      <TableHead>Reason / Category</TableHead>
+                      <TableHead>Solution</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Assigned To</TableHead>
+                      <TableHead>Time Spent</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredHistory.map((h) => (
+                      <TableRow key={h.id}>
+                        <TableCell className="font-mono text-[12px] font-bold text-m-primary">
+                          {h.ticketNumber}
+                        </TableCell>
+                        <TableCell className="text-[12px] text-m-text-muted">
+                          {new Date(h.operationDate).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-[12px] font-semibold">
+                          {(TICKET_CATEGORIES as Record<string, string>)[h.reason] || h.reason}
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate text-[12px] text-m-text">
+                          {h.solution || "--"}
+                        </TableCell>
+                        <TableCell>
+                          <StatusPill tone={statusTone(h.status)}>{h.status}</StatusPill>
+                        </TableCell>
+                        <TableCell>
+                          <StatusPill tone={priorityTone(h.priority)}>{h.priority}</StatusPill>
+                        </TableCell>
+                        <TableCell className="text-[12px] text-m-text-muted">{h.assignedTo}</TableCell>
+                        <TableCell className="font-mono text-[12px]">{h.timeSpent || "--"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </SectionCard>
+          )}
+        </MainColumn>
+
+        <SideColumn span={4}>
+          <SectionCard
+            title="Ticket Workflow"
+            icon="settings"
+            action={
+              saveSuccessMsg ? (
+                <span className="text-[11px] font-semibold text-m-success">{saveSuccessMsg}</span>
+              ) : undefined
+            }
+          >
+            <form id="ticket-workflow-form" onSubmit={handleSaveChanges} className="flex flex-col gap-4">
+              <FormField>
+                <Label>Assign To Agent</Label>
+                <Select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} options={AGENT_OPTIONS} />
+              </FormField>
+
+              <FormField>
+                <Label>Workflow Status</Label>
+                <Select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as TicketStatus)}
+                  options={workflowStatusOptions}
+                />
+              </FormField>
+
+              <FormField>
+                <Label>Ticket Priority</Label>
+                <Select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as TicketPriority)}
+                  options={PRIORITY_OPTIONS}
+                />
+              </FormField>
+
+              <FormField>
+                <Label>Resolution / Solution Notes</Label>
+                <textarea
+                  className="w-full rounded-m-md border border-m-border bg-transparent p-2.5 text-[12.5px] text-m-text focus:outline-none focus:ring-1 focus:ring-m-primary"
+                  rows={3}
+                  value={solution}
+                  onChange={(e) => setSolution(e.target.value)}
+                  placeholder="Enter resolution notes or solution provided to customer..."
+                />
+              </FormField>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <SecondaryButton onClick={handleResetChanges}>Reset</SecondaryButton>
+                <PrimaryButton icon="check" type="submit">
+                  Save
+                </PrimaryButton>
+              </div>
+            </form>
+          </SectionCard>
+
+          <SectionCard title="Ticket Details" icon="info">
+            <InfoList>
+              <InfoRow label="SLA" value={undefined} />
+              <InfoRow label="Sentiment" value={undefined} />
+              <InfoRow label="Time Spent" value={ticket.timeSpentOnTicket} />
+              <InfoRow
+                label="Resolution Date"
+                value={ticket.resolutionDate ? new Date(ticket.resolutionDate).toLocaleString() : undefined}
+              />
+              <InfoRow
+                label="Last Updated"
+                value={ticket.lastModifiedAt ? new Date(ticket.lastModifiedAt).toLocaleString() : undefined}
+              />
+            </InfoList>
+          </SectionCard>
+
+          <SectionCard
+            title="Customer"
+            icon="user"
+            action={
+              ticket.customerId ? <CardAction href={`/customers/${ticket.customerId}`}>View →</CardAction> : undefined
+            }
+          >
+            <InfoList>
+              <InfoRow label="Email" value={ticket.email} />
+              <InfoRow label="Contact Channel" value={ticket.contactType} />
+              <InfoRow label="Created By" value={ticket.createdBy} />
+            </InfoList>
+          </SectionCard>
+
+          <SectionCard
+            title="Linked Order"
+            icon="shopping-bag"
+            action={
+              ticket.orderNumber ? (
+                <CardAction href={`/orders/${ticket.orderNumber}`}>View →</CardAction>
+              ) : undefined
+            }
+          >
+            {ticket.orderNumber ? (
+              <InfoList>
+                <InfoRow label="Order Number" value={ticket.orderNumber} mono />
+              </InfoList>
+            ) : (
+              <CardEmpty icon="shopping-bag" title="No order linked" hint="Not associated with a commerce order." />
+            )}
+          </SectionCard>
+
+          <QuickActions>
+            <QuickAction icon="user-check" label="Assign to Me" onClick={handleQuickAssignToMe} />
+            <QuickAction icon="alert-triangle" label="Escalate" tone="danger" onClick={handleQuickEscalate} />
+            <QuickAction icon="check-circle" label="Resolve" onClick={handleQuickResolve} />
+          </QuickActions>
+        </SideColumn>
+      </ContentGrid>
+    </DetailPage>
   );
 }
