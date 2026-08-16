@@ -22,10 +22,10 @@ import {
   InfoList,
   InfoRow,
   MainColumn,
+  MoreActionsMenu,
   PrimaryButton,
   QuickAction,
   QuickActions,
-  SecondaryButton,
   SectionCard,
   SideColumn,
   StatusPill,
@@ -145,11 +145,30 @@ export function CartDetailView({ id }: { id: string }) {
         meta={`Customer ${cart.customerName || "Guest / Unassigned"} • Version ${cart.version}`}
         actions={
           <>
-            <SecondaryButton trailingIcon="chevron-down" disabled>
-              More actions
-            </SecondaryButton>
-            <PrimaryButton icon="pencil" disabled>
-              Edit Cart
+            <MoreActionsMenu
+              actions={[
+                {
+                  id: "refresh",
+                  label: refreshing ? "Refreshing…" : "Refresh Cart Data",
+                  icon: "refresh-cw",
+                  disabled: refreshing,
+                  onClick: handleRefresh,
+                },
+                {
+                  id: "view-customer",
+                  label: "View Customer",
+                  icon: "user",
+                  disabled: !cart.customerId,
+                  onClick: () => cart.customerId && router.push(`/customers/${cart.customerId}`),
+                },
+              ]}
+            />
+            <PrimaryButton
+              icon="arrow-right-circle"
+              disabled={converting || cart.lineItems.length === 0 || Boolean(convertResult)}
+              onClick={handleConvertToOrder}
+            >
+              {converting ? "Converting…" : "Convert to Order"}
             </PrimaryButton>
           </>
         }

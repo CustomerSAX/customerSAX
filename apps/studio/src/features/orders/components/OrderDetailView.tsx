@@ -40,6 +40,7 @@ import {
   QuickActions,
   QuickAction,
   PrimaryButton,
+  MoreActionsMenu,
   CardEmpty,
 } from "@/components/detail";
 import { useOrderStore, MOCK_SHIPPING_METHODS, MOCK_CATALOG_PRODUCTS, MOCK_AVAILABLE_DISCOUNTS } from "../hooks/use-orders";
@@ -548,9 +549,40 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           order.store && order.store !== "--" ? order.store : "—"
         }${order.companyName ? ` • ${order.companyName}` : ""}`}
         actions={
-          <PrimaryButton icon="copy" onClick={handleDuplicateOrder}>
-            {isB2b ? "Copy Order" : "Duplicate Order"}
-          </PrimaryButton>
+          <>
+            <MoreActionsMenu
+              actions={[
+                {
+                  id: "view-customer",
+                  label: "View Customer",
+                  icon: "user",
+                  disabled: !order.customerId,
+                  onClick: () => order.customerId && router.push(`/customers/${order.customerId}`),
+                },
+                {
+                  id: "create-return",
+                  label: "Create Return",
+                  icon: "rotate-ccw",
+                  onClick: () => {
+                    setActiveTab("Returns");
+                    handleOpenReturnDrawer();
+                  },
+                },
+                {
+                  id: "add-comment",
+                  label: "Add Comment",
+                  icon: "message-square",
+                  onClick: () => {
+                    setActiveTab("Comments");
+                    setShowCommentForm(true);
+                  },
+                },
+              ]}
+            />
+            <PrimaryButton icon="copy" onClick={handleDuplicateOrder}>
+              {isB2b ? "Copy Order" : "Duplicate Order"}
+            </PrimaryButton>
+          </>
         }
       />
 

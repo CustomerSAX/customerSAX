@@ -24,7 +24,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Icon } from "@csa/ui";
+import { Icon, Dropdown } from "@csa/ui";
 
 /* ------------------------------------------------------------------ *
  * Page shell + rhythm
@@ -545,6 +545,49 @@ export function SecondaryButton({
       {children}
       {trailingIcon && <Icon name={trailingIcon} size={15} className="text-m-text-muted" />}
     </button>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * More actions menu — the standard "More actions ▾" header control. Renders
+ * a real dropdown of a page's secondary actions (never a dead button): pass
+ * only actions backed by real handlers. Renders nothing when there are none,
+ * so a page with no real secondary action doesn't show an empty control.
+ * ------------------------------------------------------------------ */
+
+export interface MoreAction {
+  id: string;
+  label: ReactNode;
+  icon?: string;
+  onClick?: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}
+
+export function MoreActionsMenu({
+  actions,
+  label = "More actions",
+}: {
+  actions: (MoreAction | "divider")[];
+  label?: string;
+}) {
+  const hasReal = actions.some((a) => a !== "divider");
+  if (!hasReal) return null;
+  return (
+    <Dropdown
+      align="right"
+      trigger={
+        <span className="inline-flex h-10 cursor-pointer select-none items-center gap-2 rounded-m-md border border-m-border bg-m-surface px-3.5 text-[13.5px] font-semibold text-m-text transition-colors hover:bg-m-surface-2">
+          {label}
+          <Icon name="chevron-down" size={15} className="text-m-text-muted" />
+        </span>
+      }
+      items={actions.map((a) =>
+        a === "divider"
+          ? "divider"
+          : { id: a.id, label: a.label, icon: a.icon, danger: a.danger, disabled: a.disabled, onClick: a.onClick },
+      )}
+    />
   );
 }
 

@@ -47,10 +47,6 @@ import {
   SectionCard,
   InfoList,
   InfoRow,
-  QuickActions,
-  QuickAction,
-  PrimaryButton,
-  SecondaryButton,
   CardEmpty,
   type EntityTab,
 } from "@/components/detail";
@@ -277,12 +273,6 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
       <EntityHeader
         title={`Product: ${product.productName}`}
         meta={`Key: ${product.key} • ID: ${product.id}`}
-        actions={
-          <>
-            <SecondaryButton trailingIcon="chevron-down">More actions</SecondaryButton>
-            <PrimaryButton icon="pencil">Edit product</PrimaryButton>
-          </>
-        }
       />
 
       <EntityTabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
@@ -400,11 +390,13 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
         </MainColumn>
 
         <SideColumn span={4}>
-          <QuickActions>
-            <QuickAction icon="pencil" label="Edit product" />
-            <QuickAction icon="copy" label="Duplicate" />
-            <QuickAction icon="archive" label="Archive" tone="danger" />
-          </QuickActions>
+          <SectionCard title="Actions" icon="zap">
+            <CardEmpty
+              icon="lock"
+              title="No product actions available"
+              hint="Editing, duplicating, and archiving products aren't wired to the commerce backend in this environment yet."
+            />
+          </SectionCard>
         </SideColumn>
       </ContentGrid>
     </DetailPage>

@@ -62,6 +62,7 @@ import {
   QuickAction,
   PrimaryButton,
   SecondaryButton,
+  MoreActionsMenu,
   CardEmpty,
   type EntityTab,
   type StatusTone,
@@ -287,9 +288,29 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
         meta={`${ticket.subject} • Created ${new Date(ticket.createdAt).toLocaleString()} • via ${ticket.contactType}`}
         actions={
           <>
-            <SecondaryButton icon="mail" onClick={() => alert(`Replying to ${ticket.email}`)}>
-              Reply to Customer
-            </SecondaryButton>
+            <MoreActionsMenu
+              actions={[
+                {
+                  id: "assign-me",
+                  label: "Assign to Me",
+                  icon: "user-check",
+                  onClick: handleQuickAssignToMe,
+                },
+                {
+                  id: "escalate",
+                  label: "Escalate",
+                  icon: "alert-triangle",
+                  danger: true,
+                  onClick: handleQuickEscalate,
+                },
+                {
+                  id: "resolve",
+                  label: "Resolve",
+                  icon: "check-circle",
+                  onClick: handleQuickResolve,
+                },
+              ]}
+            />
             <PrimaryButton icon="check" onClick={() => handleSaveChanges()}>
               Update Status
             </PrimaryButton>

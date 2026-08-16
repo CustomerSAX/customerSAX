@@ -42,7 +42,7 @@ import {
   QuickActions,
   QuickAction,
   PrimaryButton,
-  SecondaryButton,
+  MoreActionsMenu,
   CardEmpty,
 } from "@/components/detail";
 import { useCustomerStore } from "../customers/hooks/use-customers";
@@ -670,12 +670,33 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
         }
         actions={
           <>
-            <SecondaryButton
-              trailingIcon="chevron-down"
-              onClick={() => alert(`Opening email client for ${customer?.email}`)}
-            >
-              More actions
-            </SecondaryButton>
+            <MoreActionsMenu
+              actions={[
+                {
+                  id: "create-ticket",
+                  label: "Create Ticket",
+                  icon: "plus-circle",
+                  onClick: () =>
+                    router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email ?? ""}`),
+                },
+                {
+                  id: "send-message",
+                  label: "Send Message",
+                  icon: "message-square",
+                  onClick: () => setActiveTab("conversations"),
+                },
+                {
+                  id: "password-reset",
+                  label: "Send Password Reset",
+                  icon: "key-round",
+                  disabled: passwordResetStatus === "sending",
+                  onClick: () => {
+                    setActiveTab("notes");
+                    handleSendPasswordReset();
+                  },
+                },
+              ]}
+            />
             <PrimaryButton icon="pencil" onClick={() => setActiveTab("overview")}>
               Edit Customer
             </PrimaryButton>
