@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
   PageHeader,
-  Card,
   Button,
   Icon,
   SearchBar,
@@ -22,6 +21,7 @@ import {
   EmptyState,
   Panel,
 } from "@csa/ui";
+import { SectionCard } from "@/components/detail";
 import { useOrderStore } from "../hooks/use-orders";
 import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
 
@@ -244,61 +244,54 @@ export function OrderListView() {
         }
       />
 
-      {/* Search & Toolbar */}
-      <Card variant="default" className="p-4 space-y-4">
-        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-          <div className="flex-1 flex flex-col sm:flex-row gap-2">
-            <div className="w-full sm:w-48">
-              <Select
-                value={searchOption}
-                onChange={(e) => setSearchOption(e.target.value)}
-                options={B2C_SEARCH_FIELD_OPTIONS}
-              />
-            </div>
-            <div className="flex-1">
-              <SearchBar
-                value={searchText}
-                onChange={(val) => {
-                  setSearchText(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value);
-                  setCurrentPage(1);
-                }}
-                onClear={() => {
-                  setSearchText("");
-                  setCurrentPage(1);
-                }}
-                placeholder={
-                  isB2b
-                    ? "Search by email, first or last name, order number, SKU, etc."
-                    : "Search by customer email, order number, SKU, store..."
-                }
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="w-40">
-              <Select
-                value={orderStateFilter}
-                onChange={(e) => {
-                  setOrderStateFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                options={ORDER_STATE_OPTIONS}
-              />
-            </div>
-            <div className="w-40">
-              <Select
-                value={paymentStateFilter}
-                onChange={(e) => {
-                  setPaymentStateFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                options={PAYMENT_STATE_OPTIONS}
-              />
-            </div>
-          </div>
+      {/* Search & Toolbar — flat, no card */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="w-full sm:w-48">
+          <Select
+            value={searchOption}
+            onChange={(e) => setSearchOption(e.target.value)}
+            options={B2C_SEARCH_FIELD_OPTIONS}
+          />
         </div>
-      </Card>
+        <div className="min-w-[240px] flex-1">
+          <SearchBar
+            value={searchText}
+            onChange={(val) => {
+              setSearchText(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value);
+              setCurrentPage(1);
+            }}
+            onClear={() => {
+              setSearchText("");
+              setCurrentPage(1);
+            }}
+            placeholder={
+              isB2b
+                ? "Search by email, first or last name, order number, SKU, etc."
+                : "Search by customer email, order number, SKU, store..."
+            }
+          />
+        </div>
+        <div className="w-40">
+          <Select
+            value={orderStateFilter}
+            onChange={(e) => {
+              setOrderStateFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            options={ORDER_STATE_OPTIONS}
+          />
+        </div>
+        <div className="w-40">
+          <Select
+            value={paymentStateFilter}
+            onChange={(e) => {
+              setPaymentStateFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            options={PAYMENT_STATE_OPTIONS}
+          />
+        </div>
+      </div>
 
       {error && (
         <Panel className="p-4 rounded-lg border border-m-danger/30 bg-m-danger-surface text-sm text-m-danger">
@@ -306,36 +299,39 @@ export function OrderListView() {
         </Panel>
       )}
 
-      {/* Orders Table */}
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} height={40} className="w-full rounded-md" />
-          ))}
-        </div>
-      ) : sortedOrders.length === 0 ? (
-        <Card variant="default" className="p-8">
-          <EmptyState
-            title="No Orders Found"
-            description="No orders match your active search query or filter parameters."
-            action={
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  setSearchText("");
-                  setOrderStateFilter("");
-                  setPaymentStateFilter("");
-                }}
-              >
-                Reset Search Filters
-              </Button>
-            }
-          />
-        </Card>
-      ) : (
-        <Card variant="default" className="overflow-hidden">
-          <div className="overflow-x-auto">
+      {/* Orders — one quiet container */}
+      <SectionCard
+        title={`Orders${!isLoading ? ` (${sortedOrders.length})` : ""}`}
+        bodyClassName="p-0"
+      >
+        {isLoading ? (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} height={40} className="w-full rounded-md" />
+            ))}
+          </div>
+        ) : sortedOrders.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              title="No Orders Found"
+              description="No orders match your active search query or filter parameters."
+              action={
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setSearchText("");
+                    setOrderStateFilter("");
+                    setPaymentStateFilter("");
+                  }}
+                >
+                  Reset Search Filters
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -430,16 +426,18 @@ export function OrderListView() {
                   );
                 })}
               </TableBody>
+            </Table>
+            <div className="border-t border-m-border/60 px-4 py-3">
               <TablePagination
                 page={currentPage}
                 totalPages={totalPages}
                 totalItems={sortedOrders.length}
                 onPageChange={(page) => setCurrentPage(page)}
               />
-            </Table>
-          </div>
-        </Card>
-      )}
+            </div>
+          </>
+        )}
+      </SectionCard>
     </div>
   );
 }

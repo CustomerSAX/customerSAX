@@ -1,18 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardMetric,
-  Badge,
-  Icon
-} from "@csa/ui";
+import { Badge } from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
 import { PageHeader } from "../workspace/PageHeader";
+import { SectionCard, SummaryCard, SummaryGrid } from "@/components/detail";
 import { useTicketStore } from "../tickets/hooks/use-tickets";
 import type { Ticket, TicketPriority } from "../tickets/types/ticket-types";
 
@@ -136,49 +128,42 @@ export function Dashboard() {
 
   return (
     <AppShell>
-      <PageHeader
-        description="Enterprise GCP-ready support console with Next.js, GraphQL BFF, commerce connectors, and Meridian design system."
-        eyebrow="Dashboard"
-        title="Customer Service Accelerator"
-      />
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          description="Enterprise GCP-ready support console with Next.js, GraphQL BFF, commerce connectors, and Meridian design system."
+          eyebrow="Dashboard"
+          title="Customer Service Accelerator"
+        />
 
-      {/* KPI Cards */}
-      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <CardMetric
-          title="Open Tickets"
-          value={ticketKpiValue(openCount)}
-          subtitle={ticketKpiSubtitle(
-            highCount > 0 ? `${highCount} high priority` : "Active, unresolved"
-          )}
-        />
-        <CardMetric
-          title="At-Risk (High/Urgent)"
-          value={ticketKpiValue(atRiskCount)}
-          subtitle={ticketKpiSubtitle("Unresolved, high priority")}
-        />
-        <CardMetric
-          title="Orders Reviewed"
-          value="—"
-          subtitle="Not available"
-        />
-        <CardMetric
-          title="AI Assist Resolved"
-          value="—"
-          subtitle="Not available"
-        />
-      </section>
+        {/* KPI tiles */}
+        <SummaryGrid>
+          <SummaryCard
+            icon="inbox"
+            label="Open Tickets"
+            value={ticketKpiValue(openCount)}
+            sub={ticketKpiSubtitle(
+              highCount > 0 ? `${highCount} high priority` : "Active, unresolved"
+            )}
+            tone="primary"
+          />
+          <SummaryCard
+            icon="alert-triangle"
+            label="At-Risk (High/Urgent)"
+            value={ticketKpiValue(atRiskCount)}
+            sub={ticketKpiSubtitle("Unresolved, high priority")}
+            tone={atRiskCount > 0 && !error ? "warning" : "default"}
+          />
+          <SummaryCard icon="shopping-bag" label="Orders Reviewed" value="—" sub="Not available" />
+          <SummaryCard icon="sparkles" label="AI Assist Resolved" value="—" sub="Not available" />
+        </SummaryGrid>
 
-      {/* Main Grid Section */}
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        {/* Active Queue Card */}
-        <Card variant="default">
-          <CardHeader>
-            <CardTitle>Active Work Queue</CardTitle>
-            <CardDescription>
-              Open tickets from the ticketing backend, most recently updated first.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0 divide-y divide-m-border/60">
+        {/* Main grid */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <SectionCard
+            title="Active Work Queue"
+            icon="list"
+            bodyClassName="p-0 divide-y divide-m-border/60"
+          >
             {loading && tickets.length === 0 ? (
               <p className="p-4 text-xs text-m-text-muted">Loading open tickets…</p>
             ) : error ? (
@@ -190,17 +175,19 @@ export function Dashboard() {
             ) : (
               queue.map((item) => (
                 <div
-                  className="flex items-center justify-between gap-4 p-4 hover:bg-m-surface-2/40 transition-colors"
+                  className="flex items-center justify-between gap-4 p-4 transition-colors hover:bg-m-surface-2/40"
                   key={item.id}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="mb-1 flex items-center gap-2">
                       <span className="text-xs font-bold text-m-primary">{item.ticketNumber}</span>
-                      <span className="text-xs font-semibold text-m-text truncate">{item.subject}</span>
+                      <span className="truncate text-xs font-semibold text-m-text">{item.subject}</span>
                     </div>
-                    <p className="text-xs text-m-text-muted truncate">{item.email || item.customerId || "Unknown customer"}</p>
+                    <p className="truncate text-xs text-m-text-muted">
+                      {item.email || item.customerId || "Unknown customer"}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex shrink-0 items-center gap-3">
                     <Badge variant={priorityBadgeVariant(item.priority)} size="sm" dot>
                       {item.priority} Priority
                     </Badge>
@@ -211,38 +198,29 @@ export function Dashboard() {
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
+          </SectionCard>
 
-        {/* Sidebar Cards */}
-        <aside className="space-y-6">
-          <Card variant="default">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Icon name="sparkles" className="text-m-primary" size="sm" />
-                <CardTitle>CSA Assistant</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-m-text-muted leading-relaxed">
+          {/* Sidebar */}
+          <aside className="flex flex-col gap-5">
+            <SectionCard title="CSA Assistant" icon="sparkles">
+              <p className="text-xs leading-relaxed text-m-text-muted">
                 AI Agent runs on the Vercel AI SDK with configurable model providers — OpenAI or
                 Anthropic (Claude) — plus custom commerce and ticketing tools.
               </p>
-            </CardContent>
-          </Card>
+            </SectionCard>
 
-          <Card variant="default">
-            <CardHeader>
-              <CardTitle>Core Service Health</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 divide-y divide-m-border/60">
+            <SectionCard
+              title="Core Service Health"
+              icon="activity"
+              bodyClassName="p-0 divide-y divide-m-border/60"
+            >
               {health.phase === "loading" ? (
-                <p className="px-5 py-3 text-xs text-m-text-muted">Checking services…</p>
+                <p className="px-4 py-3 text-xs text-m-text-muted">Checking services…</p>
               ) : health.phase === "error" ? (
-                <p className="px-5 py-3 text-xs text-m-text-muted">Status unavailable.</p>
+                <p className="px-4 py-3 text-xs text-m-text-muted">Status unavailable.</p>
               ) : (
                 health.services.map((service) => (
-                  <div className="flex items-center justify-between px-5 py-3" key={service.name}>
+                  <div className="flex items-center justify-between px-4 py-3" key={service.name}>
                     <span className="text-xs font-medium text-m-text">{service.name}</span>
                     <Badge
                       variant={
@@ -264,10 +242,10 @@ export function Dashboard() {
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
-        </aside>
-      </section>
+            </SectionCard>
+          </aside>
+        </div>
+      </div>
     </AppShell>
   );
 }

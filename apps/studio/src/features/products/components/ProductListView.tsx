@@ -24,7 +24,6 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
-  Panel,
   Button,
   Icon,
   Badge,
@@ -38,6 +37,7 @@ import {
   TableCell,
   TablePagination,
 } from "@csa/ui";
+import { SectionCard } from "@/components/detail";
 import { useProductList } from "../hooks/use-products";
 import { SelectableSearchInput } from "./SelectableSearchInput";
 import type {
@@ -392,12 +392,15 @@ export function ProductListView() {
     toggleExpanded,
   } = useProductList();
 
-  const [settings, setSettings] = useState<TableSettings>(() =>
-    loadSettings()
-  );
+  // Start from deterministic DEFAULT_SETTINGS so the server-rendered HTML and the
+  // first client render are identical — reading localStorage in the initializer
+  // makes the client's first render diverge from the server and triggers a React
+  // hydration mismatch. Real per-user settings are loaded from storage in the
+  // effect below, after mount.
+  const [settings, setSettings] = useState<TableSettings>(DEFAULT_SETTINGS);
   const [showManager, setShowManager] = useState(false);
 
-  // Sync settings from storage (handles tab-switching)
+  // Load persisted settings from storage after mount (post-hydration).
   useEffect(() => {
     setSettings(loadSettings());
   }, []);
@@ -441,7 +444,7 @@ export function ProductListView() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {/* Page Header */}
       <PageHeader
         title="Product Directory"
@@ -453,48 +456,46 @@ export function ProductListView() {
         }
       />
 
-      {/* Toolbar */}
-      <Panel>
-        <div className="flex flex-col gap-3 px-5 py-4">
-          <SelectableSearchInput
-            fieldValue={search.option}
-            searchValue={search.text}
-            fieldOptions={SEARCH_FIELD_OPTIONS}
-            placeholder={`Search products (min 4 chars)…`}
-            onFieldChange={(f) =>
-              setSearch({ text: search.text, option: f as typeof search.option })
-            }
-            onSearchChange={(t) =>
-              setSearch({ text: t, option: search.option })
-            }
-            onSearch={onSearch}
-            onReset={onReset}
-            showReset={search.text.length > 0 || sort !== null}
-          />
-          {isSearchActive && (
-            <p className="text-xs text-m-text-muted">
-              Showing results for &quot;{appliedSearch.text}&quot; in{" "}
-              <strong>
-                {
-                  SEARCH_FIELD_OPTIONS.find(
-                    (o) => o.value === appliedSearch.option
-                  )?.label
-                }
-              </strong>
-              {sort !== null && (
-                <span className="text-m-text-muted/60 ml-1">
-                  — sort disabled during search
-                </span>
-              )}
-            </p>
-          )}
-        </div>
-      </Panel>
+      {/* Search row — flat, no card */}
+      <div className="flex flex-col gap-2">
+        <SelectableSearchInput
+          fieldValue={search.option}
+          searchValue={search.text}
+          fieldOptions={SEARCH_FIELD_OPTIONS}
+          placeholder={`Search products (min 4 chars)…`}
+          onFieldChange={(f) =>
+            setSearch({ text: search.text, option: f as typeof search.option })
+          }
+          onSearchChange={(t) =>
+            setSearch({ text: t, option: search.option })
+          }
+          onSearch={onSearch}
+          onReset={onReset}
+          showReset={search.text.length > 0 || sort !== null}
+        />
+        {isSearchActive && (
+          <p className="text-xs text-m-text-muted">
+            Showing results for &quot;{appliedSearch.text}&quot; in{" "}
+            <strong>
+              {
+                SEARCH_FIELD_OPTIONS.find(
+                  (o) => o.value === appliedSearch.option
+                )?.label
+              }
+            </strong>
+            {sort !== null && (
+              <span className="text-m-text-muted/60 ml-1">
+                — sort disabled during search
+              </span>
+            )}
+          </p>
+        )}
+      </div>
 
-      {/* Table panel */}
-      <Panel
+      {/* Table container */}
+      <SectionCard
         title={`Products${!loading && totalItems > 0 ? ` (${totalItems})` : ""}`}
-        headerActions={
+        action={
           <div className="relative">
             <Button
               variant="ghost"
@@ -514,6 +515,7 @@ export function ProductListView() {
             )}
           </div>
         }
+        bodyClassName="p-0"
       >
         <Table>
           <TableHeader>
@@ -662,15 +664,17 @@ export function ProductListView() {
         </Table>
 
         {!loading && totalItems > 0 && (
-          <TablePagination
-            page={page}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            pageSize={perPage}
-            onPageChange={onPageChange}
-          />
+          <div className="border-t border-m-border/60 px-4 py-3">
+            <TablePagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={perPage}
+              onPageChange={onPageChange}
+            />
+          </div>
         )}
-      </Panel>
+      </SectionCard>
     </div>
   );
 }

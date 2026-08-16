@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
-  Card,
   Button,
   Icon,
   SearchBar,
@@ -22,6 +21,7 @@ import {
   EmptyState,
   Panel,
 } from "@csa/ui";
+import { SectionCard } from "@/components/detail";
 import { useCustomerStore } from "../hooks/use-customers";
 import type { Customer, CustomerListFilters } from "../types/customer-types";
 
@@ -202,7 +202,7 @@ export function CustomerListView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-5">
       {/* Header */}
       <PageHeader
         title="Customer Directory"
@@ -227,54 +227,49 @@ export function CustomerListView() {
         }
       />
 
-      {/* Toolbar & Filters */}
-      <Card variant="default" className="p-4 space-y-4">
-        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-          <div className="flex-1 flex flex-col sm:flex-row gap-2">
-            <div className="w-full sm:w-48">
-              <Select
-                value={filters.searchOption}
-                onChange={(e) => setFilters((prev) => ({ ...prev, searchOption: e.target.value }))}
-                options={SEARCH_OPTIONS}
-              />
-            </div>
-            <div className="flex-1">
-              <SearchBar
-                value={filters.searchText}
-                onChange={(val) => {
-                  const text = typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value;
-                  setFilters((prev) => ({ ...prev, searchText: text }));
-                  setCurrentPage(1);
-                }}
-                onClear={() => {
-                  setFilters((prev) => ({ ...prev, searchText: "" }));
-                  setCurrentPage(1);
-                }}
-                placeholder="Search customers by email, name, number..."
-              />
-            </div>
+      {/* Search row — flat, no card */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-full sm:w-48">
+            <Select
+              value={filters.searchOption}
+              onChange={(e) => setFilters((prev) => ({ ...prev, searchOption: e.target.value }))}
+              options={SEARCH_OPTIONS}
+            />
           </div>
-
-          <div className="flex items-center gap-2">
-            <div className="w-48">
-              <Select
-                value={filters.customerGroupId}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, customerGroupId: e.target.value }));
-                  setCurrentPage(1);
-                }}
-                options={groupSelectOptions}
-              />
-            </div>
-            <Button
-              variant={hasActiveAdvancedFilters ? "primary" : "secondary"}
-              size="md"
-              leftIcon={<Icon name="filter" size="xs" />}
-              onClick={() => setShowFiltersPanel((prev) => !prev)}
-            >
-              {hasActiveAdvancedFilters ? "Filters •" : "Filters"}
-            </Button>
+          <div className="min-w-[220px] flex-1">
+            <SearchBar
+              value={filters.searchText}
+              onChange={(val) => {
+                const text = typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value;
+                setFilters((prev) => ({ ...prev, searchText: text }));
+                setCurrentPage(1);
+              }}
+              onClear={() => {
+                setFilters((prev) => ({ ...prev, searchText: "" }));
+                setCurrentPage(1);
+              }}
+              placeholder="Search customers by email, name, number..."
+            />
           </div>
+          <div className="w-48">
+            <Select
+              value={filters.customerGroupId}
+              onChange={(e) => {
+                setFilters((prev) => ({ ...prev, customerGroupId: e.target.value }));
+                setCurrentPage(1);
+              }}
+              options={groupSelectOptions}
+            />
+          </div>
+          <Button
+            variant={hasActiveAdvancedFilters ? "primary" : "secondary"}
+            size="md"
+            leftIcon={<Icon name="filter" size="xs" />}
+            onClick={() => setShowFiltersPanel((prev) => !prev)}
+          >
+            {hasActiveAdvancedFilters ? "Filters •" : "Filters"}
+          </Button>
         </div>
 
         {/* Advanced Filters Drawer Panel */}
@@ -399,7 +394,7 @@ export function CustomerListView() {
             </div>
           </Panel>
         )}
-      </Card>
+      </div>
 
       {error && (
         <Panel className="p-4 rounded-lg border border-m-danger/30 bg-m-danger-surface text-sm text-m-danger">
@@ -407,14 +402,18 @@ export function CustomerListView() {
         </Panel>
       )}
 
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} height={40} className="w-full rounded-md" />
-          ))}
-        </div>
-      ) : sortedCustomers.length === 0 ? (
-        <Card variant="default" className="p-8">
+      {/* Records — one quiet container */}
+      <SectionCard
+        title={`Customers${sortedCustomers.length ? ` (${sortedCustomers.length})` : ""}`}
+        bodyClassName={isLoading || sortedCustomers.length === 0 ? "p-4" : "p-0"}
+      >
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} height={40} className="w-full rounded-md" />
+            ))}
+          </div>
+        ) : sortedCustomers.length === 0 ? (
           <EmptyState
             title="No Customers Found"
             description="No customer records match your filter criteria or search parameters."
@@ -431,79 +430,81 @@ export function CustomerListView() {
               </Button>
             }
           />
-        </Card>
-      ) : (
-        <Card variant="default" className="overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead onClick={() => handleSort("id")} className="cursor-pointer">
-                  Customer ID {sortColumn === "id" && (sortDirection === "asc" ? "↑" : "↓")}
-                </TableHead>
-                <TableHead onClick={() => handleSort("customerNumber")} className="cursor-pointer">
-                  Customer No {sortColumn === "customerNumber" && (sortDirection === "asc" ? "↑" : "↓")}
-                </TableHead>
-                <TableHead onClick={() => handleSort("firstName")} className="cursor-pointer">
-                  First Name {sortColumn === "firstName" && (sortDirection === "asc" ? "↑" : "↓")}
-                </TableHead>
-                <TableHead onClick={() => handleSort("lastName")} className="cursor-pointer">
-                  Last Name {sortColumn === "lastName" && (sortDirection === "asc" ? "↑" : "↓")}
-                </TableHead>
-                <TableHead onClick={() => handleSort("companyName")} className="cursor-pointer">
-                  Company {sortColumn === "companyName" && (sortDirection === "asc" ? "↑" : "↓")}
-                </TableHead>
-                <TableHead onClick={() => handleSort("email")} className="cursor-pointer">
-                  Email {sortColumn === "email" && (sortDirection === "asc" ? "↑" : "↓")}
-                </TableHead>
-                <TableHead>Customer Group</TableHead>
-                <TableHead onClick={() => handleSort("createdAt")} className="cursor-pointer">
-                  Date Created {sortColumn === "createdAt" && (sortDirection === "asc" ? "↑" : "↓")}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedCustomers.map((cust) => (
-                <TableRow
-                  key={cust.id}
-                  clickable
-                  onClick={() => router.push(`/customers/${cust.id}`)}
-                >
-                  <TableCell className="font-mono text-xs font-bold text-m-primary">
-                    <Link href={`/customers/${cust.id}`} className="hover:underline">
-                      {cust.id}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs font-medium text-m-text">
-                    {cust.customerNumber ?? "--"}
-                  </TableCell>
-                  <TableCell className="font-semibold text-m-text">{cust.firstName ?? "--"}</TableCell>
-                  <TableCell className="font-semibold text-m-text">{cust.lastName ?? "--"}</TableCell>
-                  <TableCell className="text-m-text">{cust.companyName ?? "--"}</TableCell>
-                  <TableCell className="text-m-primary font-medium">{cust.email}</TableCell>
-                  <TableCell>
-                    {cust.customerGroup ? (
-                      <Badge variant="neutral" size="sm">
-                        {cust.customerGroup.name}
-                      </Badge>
-                    ) : (
-                      "--"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs text-m-text-muted">
-                    {cust.createdAt ? new Date(cust.createdAt).toLocaleDateString() : "--"}
-                  </TableCell>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead onClick={() => handleSort("id")} className="cursor-pointer">
+                    Customer ID {sortColumn === "id" && (sortDirection === "asc" ? "↑" : "↓")}
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("customerNumber")} className="cursor-pointer">
+                    Customer No {sortColumn === "customerNumber" && (sortDirection === "asc" ? "↑" : "↓")}
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("firstName")} className="cursor-pointer">
+                    First Name {sortColumn === "firstName" && (sortDirection === "asc" ? "↑" : "↓")}
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("lastName")} className="cursor-pointer">
+                    Last Name {sortColumn === "lastName" && (sortDirection === "asc" ? "↑" : "↓")}
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("companyName")} className="cursor-pointer">
+                    Company {sortColumn === "companyName" && (sortDirection === "asc" ? "↑" : "↓")}
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("email")} className="cursor-pointer">
+                    Email {sortColumn === "email" && (sortDirection === "asc" ? "↑" : "↓")}
+                  </TableHead>
+                  <TableHead>Customer Group</TableHead>
+                  <TableHead onClick={() => handleSort("createdAt")} className="cursor-pointer">
+                    Date Created {sortColumn === "createdAt" && (sortDirection === "asc" ? "↑" : "↓")}
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-            <TablePagination
-              page={currentPage}
-              totalPages={totalPages}
-              totalItems={sortedCustomers.length}
-              onPageChange={(page) => setCurrentPage(page)}
-            />
-          </Table>
-        </Card>
-      )}
+              </TableHeader>
+              <TableBody>
+                {paginatedCustomers.map((cust) => (
+                  <TableRow
+                    key={cust.id}
+                    clickable
+                    onClick={() => router.push(`/customers/${cust.id}`)}
+                  >
+                    <TableCell className="font-mono text-xs font-bold text-m-primary">
+                      <Link href={`/customers/${cust.id}`} className="hover:underline">
+                        {cust.id}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs font-medium text-m-text">
+                      {cust.customerNumber ?? "--"}
+                    </TableCell>
+                    <TableCell className="font-semibold text-m-text">{cust.firstName ?? "--"}</TableCell>
+                    <TableCell className="font-semibold text-m-text">{cust.lastName ?? "--"}</TableCell>
+                    <TableCell className="text-m-text">{cust.companyName ?? "--"}</TableCell>
+                    <TableCell className="text-m-primary font-medium">{cust.email}</TableCell>
+                    <TableCell>
+                      {cust.customerGroup ? (
+                        <Badge variant="neutral" size="sm">
+                          {cust.customerGroup.name}
+                        </Badge>
+                      ) : (
+                        "--"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-m-text-muted">
+                      {cust.createdAt ? new Date(cust.createdAt).toLocaleDateString() : "--"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="border-t border-m-border/60 px-4 py-3">
+              <TablePagination
+                page={currentPage}
+                totalPages={totalPages}
+                totalItems={sortedCustomers.length}
+                onPageChange={(page) => setCurrentPage(page)}
+              />
+            </div>
+          </>
+        )}
+      </SectionCard>
     </div>
   );
 }

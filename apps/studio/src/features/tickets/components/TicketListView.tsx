@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
-  Card,
   Button,
   Icon,
   SearchBar,
@@ -21,6 +20,7 @@ import {
   Skeleton,
   EmptyState,
 } from "@csa/ui";
+import { SectionCard } from "@/components/detail";
 import { useTicketStore, TICKET_CATEGORIES } from "../hooks/use-tickets";
 import type { Ticket, TicketStatus, TicketPriority } from "../types/ticket-types";
 
@@ -161,7 +161,7 @@ export function TicketListView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-5">
       {/* Header */}
       <PageHeader
         title="Support Tickets"
@@ -186,59 +186,52 @@ export function TicketListView() {
         }
       />
 
-      {/* Toolbar & Filters */}
-      <Card variant="default" className="p-4 space-y-4">
-        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-          <div className="flex-1 flex flex-col sm:flex-row gap-2">
-            <div className="w-full sm:w-48">
-              <Select
-                value={searchOption}
-                onChange={(e) => setSearchOption(e.target.value as any)}
-                options={SEARCH_FIELD_OPTIONS}
-              />
-            </div>
-            <div className="flex-1">
-              <SearchBar
-                value={searchText}
-                onChange={(val) => {
-                  setSearchText(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value);
-                  setCurrentPage(1);
-                }}
-                onClear={() => {
-                  setSearchText("");
-                  setCurrentPage(1);
-                }}
-                placeholder="Search tickets by number, email, or subject..."
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="w-40">
-              <Select
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                options={STATUS_FILTER_OPTIONS}
-              />
-            </div>
-            <div className="w-40">
-              <Select
-                value={priorityFilter}
-                onChange={(e) => {
-                  setPriorityFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                options={PRIORITY_FILTER_OPTIONS}
-              />
-            </div>
-          </div>
+      {/* Search & Filters — flat, no card */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="w-full sm:w-48">
+          <Select
+            value={searchOption}
+            onChange={(e) => setSearchOption(e.target.value as any)}
+            options={SEARCH_FIELD_OPTIONS}
+          />
         </div>
-      </Card>
+        <div className="min-w-[220px] flex-1">
+          <SearchBar
+            value={searchText}
+            onChange={(val) => {
+              setSearchText(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value);
+              setCurrentPage(1);
+            }}
+            onClear={() => {
+              setSearchText("");
+              setCurrentPage(1);
+            }}
+            placeholder="Search tickets by number, email, or subject..."
+          />
+        </div>
+        <div className="w-40">
+          <Select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            options={STATUS_FILTER_OPTIONS}
+          />
+        </div>
+        <div className="w-40">
+          <Select
+            value={priorityFilter}
+            onChange={(e) => {
+              setPriorityFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            options={PRIORITY_FILTER_OPTIONS}
+          />
+        </div>
+      </div>
 
-      {/* Tickets Table */}
+      {/* Tickets */}
       {loading && tickets.length === 0 ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -246,11 +239,11 @@ export function TicketListView() {
           ))}
         </div>
       ) : error ? (
-        <Card variant="default" className="p-8">
+        <SectionCard title="Tickets">
           <EmptyState title="Unable to load tickets" description={error.message} action={<Button variant="primary" size="sm" onClick={handleRefresh}>Retry</Button>} />
-        </Card>
+        </SectionCard>
       ) : sortedTickets.length === 0 ? (
-        <Card variant="default" className="p-8">
+        <SectionCard title="Tickets">
           <EmptyState
             title="No Tickets Found"
             description="There are currently no tickets matching your active search filters."
@@ -268,74 +261,75 @@ export function TicketListView() {
               </Button>
             }
           />
-        </Card>
+        </SectionCard>
       ) : (
-        <Card variant="default" className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead onClick={() => handleSort("ticketNumber")} className="cursor-pointer">
-                    Ticket Number {sortColumn === "ticketNumber" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("email")} className="cursor-pointer">
-                    Customer {sortColumn === "email" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("createdAt")} className="cursor-pointer">
-                    Created {sortColumn === "createdAt" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("lastModifiedAt")} className="cursor-pointer">
-                    Modified {sortColumn === "lastModifiedAt" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead onClick={() => handleSort("status")} className="cursor-pointer">
-                    Status {sortColumn === "status" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("priority")} className="cursor-pointer">
-                    Priority {sortColumn === "priority" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Assignee</TableHead>
+        <SectionCard title={`Tickets (${sortedTickets.length})`} bodyClassName="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead onClick={() => handleSort("ticketNumber")} className="cursor-pointer">
+                  Ticket Number {sortColumn === "ticketNumber" && (sortDirection === "asc" ? "↑" : "↓")}
+                </TableHead>
+                <TableHead onClick={() => handleSort("email")} className="cursor-pointer">
+                  Customer {sortColumn === "email" && (sortDirection === "asc" ? "↑" : "↓")}
+                </TableHead>
+                <TableHead onClick={() => handleSort("createdAt")} className="cursor-pointer">
+                  Created {sortColumn === "createdAt" && (sortDirection === "asc" ? "↑" : "↓")}
+                </TableHead>
+                <TableHead onClick={() => handleSort("lastModifiedAt")} className="cursor-pointer">
+                  Modified {sortColumn === "lastModifiedAt" && (sortDirection === "asc" ? "↑" : "↓")}
+                </TableHead>
+                <TableHead>Source</TableHead>
+                <TableHead onClick={() => handleSort("status")} className="cursor-pointer">
+                  Status {sortColumn === "status" && (sortDirection === "asc" ? "↑" : "↓")}
+                </TableHead>
+                <TableHead onClick={() => handleSort("priority")} className="cursor-pointer">
+                  Priority {sortColumn === "priority" && (sortDirection === "asc" ? "↑" : "↓")}
+                </TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Subject</TableHead>
+                <TableHead>Assignee</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedTickets.map((t) => (
+                <TableRow key={t.id} clickable onClick={() => router.push(`/tickets/${t.id}`)}>
+                  <TableCell className="font-mono text-xs font-bold text-m-primary">
+                    <Link href={`/tickets/${t.id}`} className="hover:underline">
+                      {t.ticketNumber}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="font-medium text-m-primary">{t.email}</TableCell>
+                  <TableCell className="text-xs text-m-text-muted">
+                    {new Date(t.createdAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-xs text-m-text-muted">
+                    {t.lastModifiedAt ? new Date(t.lastModifiedAt).toLocaleString() : "--"}
+                  </TableCell>
+                  <TableCell>{t.contactType}</TableCell>
+                  <TableCell>{renderStatusBadge(t.status)}</TableCell>
+                  <TableCell>{renderPriorityBadge(t.priority)}</TableCell>
+                  <TableCell className="text-xs font-medium">
+                    {TICKET_CATEGORIES[t.category] || t.category}
+                  </TableCell>
+                  <TableCell className="font-medium text-m-text max-w-xs truncate">
+                    {t.subject}
+                  </TableCell>
+                  <TableCell className="text-xs text-m-text-muted">{t.assignedTo}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedTickets.map((t) => (
-                  <TableRow key={t.id} clickable onClick={() => router.push(`/tickets/${t.id}`)}>
-                    <TableCell className="font-mono text-xs font-bold text-m-primary">
-                      <Link href={`/tickets/${t.id}`} className="hover:underline">
-                        {t.ticketNumber}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="font-medium text-m-primary">{t.email}</TableCell>
-                    <TableCell className="text-xs text-m-text-muted">
-                      {new Date(t.createdAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-xs text-m-text-muted">
-                      {t.lastModifiedAt ? new Date(t.lastModifiedAt).toLocaleString() : "--"}
-                    </TableCell>
-                    <TableCell>{t.contactType}</TableCell>
-                    <TableCell>{renderStatusBadge(t.status)}</TableCell>
-                    <TableCell>{renderPriorityBadge(t.priority)}</TableCell>
-                    <TableCell className="text-xs font-medium">
-                      {TICKET_CATEGORIES[t.category] || t.category}
-                    </TableCell>
-                    <TableCell className="font-medium text-m-text max-w-xs truncate">
-                      {t.subject}
-                    </TableCell>
-                    <TableCell className="text-xs text-m-text-muted">{t.assignedTo}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-              <TablePagination
-                page={currentPage}
-                totalPages={totalPages}
-                totalItems={sortedTickets.length}
-                onPageChange={(page) => setCurrentPage(page)}
-              />
-            </Table>
+              ))}
+            </TableBody>
+          </Table>
+
+          <div className="border-t border-m-border/60 px-4 py-3">
+            <TablePagination
+              page={currentPage}
+              totalPages={totalPages}
+              totalItems={sortedTickets.length}
+              onPageChange={(page) => setCurrentPage(page)}
+            />
           </div>
-        </Card>
+        </SectionCard>
       )}
     </div>
   );
