@@ -1,8 +1,0 @@
-{
-  "version": 2,
-  "framework": "nextjs",
-  "buildCommand": "pnpm --filter @csa/docs-site build",
-  "devCommand": "pnpm --filter @csa/docs-site dev",
-  "installCommand": "pnpm install",
-  "outputDirectory": "apps/docs-site/.next"
-}
