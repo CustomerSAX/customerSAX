@@ -62,10 +62,10 @@ ALL_SVCS=(
 )
 
 # ── Compute changed files ─────────────────────────────────────────────────────
-if [ "${BRANCH_NAME}" = "customerSAX-Prod" ] || [ "${BRANCH_NAME}" = "customerSAX-QA" ]; then
-  BASE_BRANCH="main"
+if [ "${BRANCH_NAME}" = "customerSAX-Prod" ]; then
+  BASE_BRANCH=""
 else
-  BASE_BRANCH="main"
+  BASE_BRANCH="customerSAX-Prod"
 fi
 
 MERGE_BASE=$(git merge-base HEAD "origin/${BASE_BRANCH}" 2>/dev/null || true)
