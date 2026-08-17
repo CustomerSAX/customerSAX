@@ -1,3 +1,9 @@
+/**
+ * Document type for per-client SMTP profiles (the `csa_smtp_profiles`
+ * collection). The SMTP password is persisted only as `smtpPasswordEncrypted`
+ * (AES-256-GCM); at most one profile per client is flagged `isDefault`.
+ */
+
 import type { ObjectId } from "@csa/mongodb";
 
 export interface CsaSmtpProfile {

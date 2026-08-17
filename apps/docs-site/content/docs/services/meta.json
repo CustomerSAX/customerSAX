@@ -1,0 +1,12 @@
+{
+  "title": "Service Documentation",
+  "pages": [
+    "index",
+    "auth",
+    "ai-assist",
+    "bff",
+    "commercetools",
+    "ticketing",
+    "admin"
+  ]
+}

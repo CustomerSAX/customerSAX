@@ -18,12 +18,12 @@ contradicts a specific claim, never to reason abstractly about what the code "sh
 ## Method — cheapest, most direct check first
 
 1. Read `.claude/skills/verify-commerce-flow/SKILL.md` for the layer-by-layer order this repo's services
-   compose in (commercetools subgraph :4310 → BFF gateway :4000 → ai-assist `/chat` :8080 → webapp UI :3000)
+   compose in (commercetools subgraph :4310 → BFF gateway :4000 → ai-assist `/chat` :8080 → studio UI :3000)
    and use it as your default checklist — but only exercise the layers actually relevant to the claim you
    were given.
 2. For a backend/data claim: curl the layer closest to the claim directly. Don't route through the whole
    stack if a single subgraph query settles it.
-3. For a UI claim: use the Browser pane tools against the running webapp. Prefer `get_page_text`, `read_page`,
+3. For a UI claim: use the Browser pane tools against the running studio. Prefer `get_page_text`, `read_page`,
    and `javascript_tool` (to read real computed styles/DOM state) over
    `computer{action:"screenshot"}` — screenshots can fail to composite in this environment's pane.
 4. For an eligibility/state-gated claim (e.g. "returns are blocked until paid+shipped"), test **both**

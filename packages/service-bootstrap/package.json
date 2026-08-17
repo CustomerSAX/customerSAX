@@ -1,0 +1,31 @@
+{
+  "name": "@csa/service-bootstrap",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@apollo/server": "^4.11.0",
+    "@csa/headers": "workspace:*",
+    "@csa/logger": "workspace:*"
+  },
+  "devDependencies": {
+    "@csa/config-typescript": "workspace:*",
+    "@types/node": "^20.14.11",
+    "graphql": "^16.9.0",
+    "typescript": "^5.5.4"
+  }
+}

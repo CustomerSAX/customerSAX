@@ -1,3 +1,11 @@
+/**
+ * Document types for CSA commerce project configurations (the `csa_projects`
+ * collection). A project targets one {@link CommercePlatform}; per-platform
+ * credentials live under `credentials.*` (secrets stored encrypted). The
+ * top-level `ct*` fields are the legacy flat layout kept for backward
+ * compatibility with older documents and are mirrored on write.
+ */
+
 import type { ObjectId } from "@csa/mongodb";
 
 export type CommercePlatform = "commercetools" | "shopify" | "bigcommerce";

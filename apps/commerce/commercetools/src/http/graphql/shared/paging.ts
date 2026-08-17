@@ -5,9 +5,17 @@ export type PagingArgs = {
   sortOrder?: string;
 };
 
+// Shared pagination bounds for every list/page resolver in this subgraph.
+// DEFAULT_PAGE_SIZE mirrors the `limit: Int = 20` defaults declared in the
+// commerce contract's GraphQL schema; MAX_PAGE_SIZE caps how much a single
+// caller can pull from commercetools in one request.
+const DEFAULT_PAGE_SIZE = 20;
+const MIN_PAGE_SIZE = 1;
+const MAX_PAGE_SIZE = 100;
+
 export function paging(args: PagingArgs = {}) {
   return {
-    limit: clamp(args.limit ?? 20, 1, 100),
+    limit: clamp(args.limit ?? DEFAULT_PAGE_SIZE, MIN_PAGE_SIZE, MAX_PAGE_SIZE),
     offset: Math.max(Math.floor(args.offset ?? 0), 0)
   };
 }

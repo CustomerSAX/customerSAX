@@ -1,0 +1,44 @@
+---
+title: commerce / commercetools
+description: The implemented commerce adapter — wrapping the real commercetools API behind the neutral contract.
+---
+
+## At a glance
+
+| | |
+| --- | --- |
+| **Package** | `@csa/commerce-commercetools` |
+| **Port** | 4310 |
+| **Framework** | Apollo subgraph |
+| **Contract** | `@csa/commerce-contract` (built `dist/`) |
+| **Backend** | commercetools SaaS GraphQL API |
+
+## Responsibilities
+
+- **The one live adapter.** Implements the platform-neutral commerce contract
+  against the real commercetools API. (shopify / bigcommerce / sfcc exist only as
+  schema-only placeholders.)
+- **Resolver allowlist.** `src/http/graphql/resolvers.ts` is a **manual
+  allowlist** — every `Query`/`Mutation` field is named there explicitly. A
+  resolver that isn't listed silently never binds.
+- **Contract consumption.** Imports the contract's built `dist/`, so schema
+  changes require a contract rebuild to take effect.
+
+## commercetools API quirks worth knowing
+
+- Update actions are `{ actionName: { ...params } }` — never
+  `{ action: "actionName", ... }`.
+- `where` predicates do exact, case-sensitive matches on plain `String` fields;
+  substring/`contains` needs `all()`/`any()` on Set fields.
+
+## Operations
+
+The commercetools subgraph contributes the bulk of the supergraph's commerce
+operations — orders, carts, customers, products and shipping. The full list is
+in the [GraphQL BFF reference](/docs/api-reference/graphql-bff).
+
+<Callout type="info">
+Adding a field here is a five-step propagation (contract → rebuild → resolver →
+allowlist → BFF poll). The [Add a GraphQL field](/docs/guides/add-a-graphql-field)
+guide walks it.
+</Callout>

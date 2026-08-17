@@ -1,0 +1,22 @@
+---
+title: Service Documentation
+description: One page per service — role, port and responsibilities.
+---
+
+## Services
+
+| Service | Port | Framework | Page |
+| --- | --- | --- | --- |
+| auth | 4360 | `node:http` | [auth](/docs/services/auth) |
+| ai-assist | 8080 | Express | [ai-assist](/docs/services/ai-assist) |
+| bff | 4000 | Apollo Gateway | [bff](/docs/services/bff) |
+| commerce / commercetools | 4310 | Apollo subgraph | [commercetools](/docs/services/commercetools) |
+| ticketing | 4350 | Apollo subgraph | [ticketing](/docs/services/ticketing) |
+| admin | 4370 | Apollo subgraph | [admin](/docs/services/admin) |
+
+The rep console (`@csa/studio`, port 3000) is the human UI on top of these
+services; this documentation portal (`@csa/docs-site`, port 3001) is a separate
+static site.
+
+Each backend binds `127.0.0.1` locally and `0.0.0.0` under Cloud Run (detected
+via `K_SERVICE`). Each backend service has its own `Dockerfile` and Terraform.

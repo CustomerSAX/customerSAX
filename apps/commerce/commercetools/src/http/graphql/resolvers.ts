@@ -1,3 +1,21 @@
+/**
+ * The subgraph's resolver map — and a MANUAL ALLOWLIST, not an auto-aggregate.
+ *
+ * Apollo binds a schema field to a resolver only if that field name appears as
+ * a key in the `Query`/`Mutation` objects below. Writing a resolver in a
+ * `*.resolvers.ts` file and exporting it from its domain barrel is NOT enough:
+ * if you forget to also list it here by name, the field silently never runs.
+ * The failure mode looks exactly like a data bug — "Cannot query field X" or a
+ * null on a non-nullable field — not like the wiring omission it actually is,
+ * so it burns real debugging time every time.
+ *
+ * => After adding ANY new query/mutation anywhere in this subgraph, add its
+ *    field name here (keep each block alphabetical) and confirm it resolves.
+ *    See .claude/rules/commercetools.md ("The resolver aggregation trap").
+ *
+ * Each domain (`cart`, `customer`, `order`, `product`, `agent`) owns its own
+ * resolver implementations; this file only maps schema field -> implementation.
+ */
 import { agent } from "./agent/index.js";
 import { cart } from "./cart/index.js";
 import { customer } from "./customer/index.js";
@@ -57,6 +75,7 @@ export const resolvers = {
     orders: orderResolvers.orders,
     product: productResolvers.product,
     productBySlug: productResolvers.productBySlug,
+    productDetail: productResolvers.productDetail,
     productPage: productResolvers.productPage,
     productSearch: productResolvers.productSearch,
     products: productResolvers.products,

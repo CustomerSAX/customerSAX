@@ -9,7 +9,7 @@
 |---|---|
 | Active branch `feature/ai-assistant` | Working branch has been `main` and `customerSAX-deploy` at different times — **branch hygiene is messy**; confirm before committing. |
 | Layout omits them | **`apps/admin`** (`@csa/admin`, :4370) and **`apps/auth`** (`@csa/auth`, :4360) exist and are load-bearing. |
-| `packages/ui` = Meridian design system | **No `packages/ui`.** Design system lives at `apps/webapp/src/ui/*`, aliased `@csa/ui`. Only workspace package is `packages/mongodb`. |
+| `packages/ui` = Meridian design system | **No `packages/ui`.** Design system lives at `apps/studio/src/ui/*`, aliased `@csa/ui`. Only workspace package is `packages/mongodb`. |
 | `apps/tickets-mcp` placeholder | Does not exist. |
 | AI Assist uses a "Vercel AI Gateway / CSA provider router"; supports grok/xai | Direct `@ai-sdk/openai` + `@ai-sdk/anthropic` with `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`. **No gateway. `LlmProvider` = `"openai" | "anthropic"` only — grok/xai not implemented.** |
 
@@ -19,7 +19,7 @@ CLAUDE.md's **gotchas** remain accurate and verified; its **layout/branch/LLM** 
 
 | App | Package | Port | Framework | Role |
 |---|---|---|---|---|
-| webapp | `@csa/webapp` | 3000 | Next.js App Router | Rep console + proxy layer (`app/api/*`) |
+| studio | `@csa/studio` | 3000 | Next.js App Router | Rep console + proxy layer (`app/api/*`) |
 | ai-assist | `@csa/ai-assist` | 8080 | Express | LLM chat orchestration, tools, memory |
 | bff | `@csa/bff` | 4000 | Apollo Gateway | Federated GraphQL supergraph |
 | auth | `@csa/auth` | 4360 | **plain `node:http`** | Login, sessions, project selection (REST, not federated) |
@@ -52,13 +52,13 @@ Browser (@ai-sdk/react useChat)
 - **Gotcha #1 — manual resolver allowlist:** `commercetools/src/http/graphql/resolvers.ts` names every root field explicitly. Unlisted resolver silently never binds.
 - **Gotcha #2 — dist staleness:** editing `contract/src` under a running `tsx watch` keeps the old SDL until `pnpm --filter @csa/commerce-contract build`. Verify by grepping `contract/dist/graphql/*.js`.
 - **Gotcha #3 — BFF poll:** `IntrospectAndCompose({ pollIntervalInMs: 10_000 })` in `bff/src/server/federation.ts`. Without it, new subgraph fields are unreachable until restart. Keep it.
-- **A new root field touches 5 places:** contract SDL → rebuild dist → domain resolver → allowlist → BFF re-poll. (Then: ai-assist tool GraphQL string, webapp proxy mapper / ChatStream scrape.)
+- **A new root field touches 5 places:** contract SDL → rebuild dist → domain resolver → allowlist → BFF re-poll. (Then: ai-assist tool GraphQL string, studio proxy mapper / ChatStream scrape.)
 
 ## 4. BFF federation
 
 `buildGateway` (`federation.ts`): parses `FEDERATED_SERVICES` (default = commercetools + ticketing + admin). `selectCommerceService` keeps all non-commerce subgraphs + **exactly one** commerce subgraph matching `BFF_COMMERCE_PLATFORM` (so multiple adapters can be declared without schema collision; `salesforce↔sfcc` aliased). `RemoteGraphQLDataSource.willSendRequest` stamps `x-csa-commerce-platform`, `x-csa-project-key`, `x-csa-client-id`, `x-csa-user-role`, `x-csa-user-email` onto every subgraph call from `GatewayContext`.
 
-**⚠️ Risk:** `ai-assist/.env.example` sets `AI_COMMERCE_SERVICE_URL=http://localhost:4310/graphql` (the subgraph), while `bffQuery` defaults to `:4000` (BFF). Configured per the example, the LLM **bypasses federation** (loses ticketing/admin) and only works because the commercetools subgraph serves the same field names. The webapp's `api/tickets/route.ts` explicitly forbids calling subgraphs directly. **Resolve to always go through the BFF.**
+**⚠️ Risk:** `ai-assist/.env.example` sets `AI_COMMERCE_SERVICE_URL=http://localhost:4310/graphql` (the subgraph), while `bffQuery` defaults to `:4000` (BFF). Configured per the example, the LLM **bypasses federation** (loses ticketing/admin) and only works because the commercetools subgraph serves the same field names. The studio's `api/tickets/route.ts` explicitly forbids calling subgraphs directly. **Resolve to always go through the BFF.**
 
 ## 5. ai-assist `POST /chat` lifecycle (`routes/chat.ts:63`)
 
@@ -78,7 +78,7 @@ Browser (@ai-sdk/react useChat)
 - **Episodic** — Mongo `csa_memory`, one doc per `(userEmail, projectKey)`, 30-day / 50-entry cap. Repeat-contact awareness.
 - **Chat sessions** — Mongo `csa_chat_sessions`, powers History panel; in-memory fallback without `MONGO_URI`.
 
-## 7. Webapp
+## 7. Studio
 
 - **Proxy layer** (`app/api/*`): every browser data call goes through a Next route that injects server-side session identity (`projectScopedBffFetch` fetches `auth/sessions/current`, requires an active project, sets project/client headers). `api/graphql` is the generic BFF passthrough. Policy: **never call a subgraph directly — always via BFF.**
 - **csa-assistant feature:** `useChat` transport → ai-assist; sessionId in localStorage; approvals prefixed `[approved-action]`.
@@ -88,7 +88,7 @@ Browser (@ai-sdk/react useChat)
 ## 8. Deployment & infra
 
 - **CI (`bitbucket-pipelines.yml`):** node:20, install → parallel `test / typecheck / lint / build`. Triggers: all PRs + pushes to `main`/`develop`. **No deploy stage. `test` runs nothing (see STANDARDS §B).** Branch names in the pipeline don't match the actual working branches — gate coverage is suspect.
-- **Hosting:** webapp on **Firebase Hosting** (Next SSR, `us-central1`). Backends on **Cloud Run** (each has its own `Dockerfile` + `terraform/`). `infra/gcp` Terraform declares Cloud Run, Secret Manager, Cloud SQL, Firestore, Cloud Storage, BigQuery (starter-grade). Commerce adapters deploy as separate Cloud Run services.
+- **Hosting:** studio + marketing frontends on **Vercel** (via GitHub Actions). Backends on **Cloud Run** (each has its own `Dockerfile` + `terraform/`). `infra/gcp` Terraform declares Cloud Run, Secret Manager, Cloud SQL, Firestore, Cloud Storage, BigQuery (starter-grade). Commerce adapters deploy as separate Cloud Run services.
 - **Data:** MongoDB (`csa-admin`, `csa-agents`, `csa-tickets`, chat/memory), Redis (working memory), commercetools SaaS.
 
 ## 9. Assessment
@@ -105,4 +105,4 @@ Browser (@ai-sdk/react useChat)
 7. Significant doc drift.
 8. Three placeholder commerce adapters — multi-platform is architecturally real but only commercetools is built.
 
-**Load-bearing seams to bookmark:** `commercetools/.../resolvers.ts` (allowlist), `bff/src/server/federation.ts` (selection+poll), `ai-assist/src/routes/chat.ts` (orchestration), `ai-assist/src/chat/system-prompt.ts` (agent behavior), `webapp/.../ChatStream.tsx` (scrape/state).
+**Load-bearing seams to bookmark:** `commercetools/.../resolvers.ts` (allowlist), `bff/src/server/federation.ts` (selection+poll), `ai-assist/src/routes/chat.ts` (orchestration), `ai-assist/src/chat/system-prompt.ts` (agent behavior), `studio/.../ChatStream.tsx` (scrape/state).

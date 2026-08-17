@@ -1,0 +1,31 @@
+---
+title: ticketing
+description: The MongoDB-backed ticket subgraph behind the support-ticket flows.
+---
+
+## At a glance
+
+| | |
+| --- | --- |
+| **Package** | `@csa/ticketing` |
+| **Port** | 4350 |
+| **Framework** | Apollo subgraph |
+| **Data** | MongoDB |
+
+## Responsibilities
+
+- **Tickets** — the backing store for support tickets: creation, lookup, status
+  and worklog entries. Contributes ticket operations to the BFF supergraph.
+- **Ticket numbers & worklogs** — owns ticket-number generation and worklog
+  semantics.
+- **Federated** — reached only through the BFF; the assistant's ticket tools and
+  the studio's Create Ticket stepper both flow through it.
+
+## Relationship to the assistant
+
+The AI assistant's ticket tools call ticketing through the BFF, and the Create
+Ticket stepper emits those same tools — so a ticket created by chat and one
+created by the stepper are the same operation against the same backend.
+
+<Callout>🚧 Expanding — the ticket schema (fields, states, worklog shape) and
+example queries/mutations will be documented here.</Callout>

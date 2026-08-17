@@ -1,0 +1,29 @@
+{
+  "name": "@csa/cache",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@csa/logger": "workspace:*",
+    "redis": "^6.2.1"
+  },
+  "devDependencies": {
+    "@csa/config-typescript": "workspace:*",
+    "@types/node": "^20.14.11",
+    "typescript": "^5.5.4"
+  }
+}

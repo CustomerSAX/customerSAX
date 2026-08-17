@@ -11,7 +11,7 @@
     "pretypecheck": "pnpm --filter @csa/commerce-contract build",
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "tsx src/index.ts",
     "lint": "tsc --noEmit",
     "tf:check": "terraform fmt -check -recursive terraform",
     "tf:format": "terraform fmt -recursive terraform",
@@ -21,6 +21,8 @@
     "@apollo/server": "^4.11.0",
     "@apollo/subgraph": "^2.10.0",
     "@csa/commerce-contract": "workspace:*",
+    "@csa/logger": "workspace:*",
+    "@csa/service-bootstrap": "workspace:*",
     "graphql": "^16.9.0"
   },
   "devDependencies": {

@@ -1,55 +1,163 @@
 # Customer Service Accelerator
 
-Monorepo scaffold for the CSA architecture on GCP.
+Enterprise-grade customer service operations platform built on GCP — AI-powered support, commerce integration, and real-time analytics in a single monorepo.
 
-## What Is Included
+## Architecture
 
-- `apps/webapp`: Next.js + React frontend, intended for Firebase Hosting.
-- `apps/bff`: Node.js GraphQL BFF / Apollo gateway facade.
-- `apps/commerce`: Commerce service group with a shared contract and platform adapters.
-- `apps/ticketing`: MongoDB-backed ticketing subgraph.
-- `apps/ai-assist`: Node.js AI assist service facade for Cloud Run.
-- `packages/ui`: Shared React UI primitives.
-- `configs/typescript`: Shared TypeScript configuration.
-- `infra/gcp`: Terraform starter for GCP services in the diagram.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        FRONTENDS                                │
+│  Studio (3000)  │  Marketing (3100)  │  Docs (3200)            │
+└───────┬─────────┴────────────────────┴──────────────────────────┘
+        │
+┌───────▼─────────────────────────────────────────────────────────┐
+│                     BFF / API GATEWAY                           │
+│  Apollo Federation Gateway (4000)                               │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐          │
+│  │ Commerce │ │ Ticketing│ │  Admin   │ │ AI Assist│          │
+│  │  (4310)  │ │  (4350)  │ │  (4360)  │ │  (8080)  │          │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘          │
+└─────────────────────────────────────────────────────────────────┘
+        │
+┌───────▼─────────────────────────────────────────────────────────┐
+│                     DATA / INFRA (GCP)                          │
+│  MongoDB  │  Cloud SQL  │  Firestore  │  BigQuery  │  GCS      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## What's Included
+
+### Frontends
+| App | Path | Port | Description |
+|-----|------|------|-------------|
+| **Studio** | `apps/studio` | 3000 | Next.js dashboard — tickets, orders, customers, AI assistant |
+| **Marketing** | `apps/marketing` | 3100 | Next.js 16 marketing/landing site |
+| **Docs** | `apps/docs-site` | 3200 | Fumadocs-powered API & architecture docs |
+
+### Backend Services
+| Service | Path | Port | Description |
+|---------|------|------|-------------|
+| **BFF** | `apps/bff` | 4000 | Apollo Federation gateway |
+| **Auth** | `apps/auth` | 4100 | JWT authentication service |
+| **Commerce** | `apps/commerce/*` | 4310–4340 | Multi-platform commerce adapters |
+| **Ticketing** | `apps/ticketing` | 4350 | MongoDB-backed ticket subgraph |
+| **Admin** | `apps/admin` | 4360 | Admin operations subgraph |
+| **AI Assist** | `apps/ai-assist` | 8080 | Multi-LLM AI assistant (Vercel AI SDK) |
+
+### Shared Packages
+| Package | Path | Description |
+|---------|------|-------------|
+| `@csa/ui` | `packages/ui` | Shared React UI primitives, design tokens, Tailwind preset |
+| `@csa/config` | `packages/config` | Environment configuration utilities |
+| `@csa/logger` | `packages/logger` | Structured logging (Pino) |
+| `@csa/mongodb` | `packages/mongodb` | MongoDB client + field encryption |
+| `@csa/cache` | `packages/cache` | Redis/memory cache layer |
+| `@csa/headers` | `packages/headers` | CSA HTTP header utilities |
+| `@csa/service-bootstrap` | `packages/service-bootstrap` | Service startup helpers |
+
+### Infrastructure
+| Path | Description |
+|------|-------------|
+| `infra/gcp` | Terraform root — Cloud Run, Secret Manager, Cloud SQL, BigQuery |
+| `apps/*/terraform` | Per-service Terraform modules (portable) |
+| `.github/workflows` | CI/CD — GitHub Actions → Cloud Build → Cloud Run |
 
 ## Prerequisites
 
-- Node.js 20+
-- pnpm 9+
-- Terraform 1.7+
-- Google Cloud SDK
+- **Node.js** 20+
+- **pnpm** 9+
+- **Terraform** 1.7+
+- **Google Cloud SDK** (`gcloud`)
 
-## Local Development
+## Quick Start
 
 ```bash
+# 1. Install dependencies
 pnpm install
-pnpm dev
+
+# 2. Copy env files
+cp apps/studio/.env.example apps/studio/.env
+cp apps/bff/.env.example apps/bff/.env
+# ... repeat for each app
+
+# 3. Start core stack (Studio + BFF + Auth + Commerce + Ticketing)
+pnpm dev:studio
+
+# 4. Or start everything
+pnpm dev:all
 ```
 
-App-specific env examples live with each app:
+## Commands
 
-- `apps/webapp/.env.example`
-- `apps/bff/.env.example`
-- `apps/ai-assist/.env.example`
-- `apps/commerce/commercetools/.env.example`
-- `apps/ticketing/.env.example`
+### Clean & Install
 
-Default local URLs:
+| Command | Description |
+|---------|-------------|
+| `pnpm clean` | Remove `dist/` and `.next/` build artifacts |
+| `pnpm clean:all` | ↑ plus delete **all `node_modules/`** and `.turbo` cache |
+| `pnpm fresh` | Nuclear reset — `clean:all` → `install` → `build` |
 
-- Webapp: `http://localhost:3000`
-- BFF GraphQL: `http://localhost:4000/graphql`
-- commercetools Adapter GraphQL: `http://localhost:4310/graphql`
-- Ticketing GraphQL: `http://localhost:4350/graphql`
-- AI Assist: `http://localhost:8080`
+### Build
+
+| Command | Description |
+|---------|-------------|
+| `pnpm build` | Build all 23 packages via Turbo |
+| `pnpm typecheck` | TypeScript type checking |
+| `pnpm lint` | Run lint checks across all packages |
+
+### Development
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start all packages with `dev` script |
+| `pnpm dev:all` | All backends + Studio + Marketing + Docs |
+| `pnpm dev:studio` | Studio + BFF + Auth + Commerce + Ticketing (core stack) |
+| `pnpm dev:marketing` | Marketing site only |
+| `pnpm dev:docs` | Docs site only |
+
+### Production
+
+| Command | Description |
+|---------|-------------|
+| `pnpm start` | Start all apps in production mode |
+| `pnpm start:all` | Studio + Marketing + Docs (frontend trio) |
+
+### App Shortcuts
+
+```bash
+pnpm app:studio              # @csa/studio
+pnpm app:bff                 # @csa/bff
+pnpm app:auth                # @csa/auth
+pnpm app:ai-assist            # @csa/ai-assist
+pnpm app:admin                # @csa/admin
+pnpm app:ticketing            # @csa/ticketing
+pnpm app:commerce-commercetools
+pnpm app:commerce-shopify
+pnpm app:commerce-bigcommerce
+pnpm app:commerce-sfcc
+pnpm app:marketing            # marketing
+pnpm app:docs                 # @csa/docs-site
+```
+
+## Local URLs
+
+| App | URL |
+|-----|-----|
+| Studio | http://localhost:3000 |
+| Marketing | http://localhost:3100 |
+| Docs | http://localhost:3200 |
+| BFF GraphQL | http://localhost:4000/graphql |
+| Auth | http://localhost:4100 |
+| Commerce (commercetools) | http://localhost:4310/graphql |
+| Ticketing | http://localhost:4350/graphql |
+| Admin | http://localhost:4360/graphql |
+| AI Assist | http://localhost:8080 |
 
 ## Federated BFF
 
-The webapp uses Apollo Client and reads `NEXT_PUBLIC_GRAPHQL_URL` to call the BFF.
+The Studio app uses Apollo Client and reads `NEXT_PUBLIC_GRAPHQL_URL` to call the BFF.
 
 `apps/bff` runs as a local hello-world GraphQL server by default. When `FEDERATED_SERVICES` is set, it starts as an Apollo Federation gateway and introspects the configured subgraphs.
-
-Commerce adapters can be listed as separate federated services:
 
 ```bash
 FEDERATED_SERVICES='{
@@ -61,25 +169,35 @@ FEDERATED_SERVICES='{
 }'
 ```
 
-The BFF composes only the selected commerce service so duplicate commerce schemas do not conflict. Other non-commerce services can stay in the same object, Mars-style.
-
-Use `BFF_COMMERCE_PLATFORM` to select the commerce platform the BFF should request from the commerce subgraph:
+Use `BFF_COMMERCE_PLATFORM` to select the active commerce adapter:
 
 ```bash
 BFF_COMMERCE_PLATFORM=commercetools
 ```
 
-Supported values are `commercetools`, `shopify`, `bigcommerce`, and `sfcc`. `salesforce` is accepted as an alias for `sfcc`. The BFF forwards this value as `x-csa-commerce-platform`.
+Supported: `commercetools`, `shopify`, `bigcommerce`, `sfcc` (alias: `salesforce`).
+
+## Commerce Services
+
+`apps/commerce` is a service group with a shared contract:
+
+- **`apps/commerce/contract`** — Shared CSA commerce GraphQL schema and TypeScript domain types
+- **`apps/commerce/commercetools`** — commercetools adapter (fully implemented)
+- **`apps/commerce/shopify`** — Shopify adapter placeholder
+- **`apps/commerce/bigcommerce`** — BigCommerce adapter placeholder
+- **`apps/commerce/sfcc`** — Salesforce Commerce Cloud adapter placeholder
+
+Each adapter is independently deployable with its own `Dockerfile` and Terraform module.
 
 ## Ticketing Service
 
-`apps/ticketing` is a standalone MongoDB-backed Apollo subgraph. The webapp calls ticket queries through the BFF gateway:
+`apps/ticketing` is a standalone MongoDB-backed Apollo subgraph:
 
-```text
-webapp -> BFF GraphQL -> ticketing subgraph -> MongoDB
+```
+Studio → BFF GraphQL → Ticketing subgraph → MongoDB
 ```
 
-Configure it from `apps/ticketing/.env.example`:
+Configure from `apps/ticketing/.env.example`:
 
 ```env
 TICKETING_PORT=4350
@@ -89,53 +207,26 @@ MONGO_TICKETS_COLLECTION=Tickets
 TICKETING_PROJECT_KEY=default
 ```
 
-Every ticket read/write is scoped by `projectKey`. Locally, `TICKETING_PROJECT_KEY` provides the default scope; later the BFF can forward tenant/project context from auth.
+## Multi-LLM Support
 
-## Commerce Services
-
-`apps/commerce` is now a service group:
-
-- `apps/commerce/contract`: Shared CSA commerce GraphQL schema and TypeScript domain types.
-- `apps/commerce/commercetools`: commercetools adapter service that calls native commercetools GraphQL APIs and maps responses into the CSA contract.
-- `apps/commerce/shopify`, `apps/commerce/bigcommerce`, `apps/commerce/sfcc`: Separate adapter service placeholders for future implementation.
-
-Each commerce adapter is independently runnable and deployable with its own `package.json`, `Dockerfile`, and TypeScript config. To reuse only one platform in another repo, take `apps/commerce/contract` plus that adapter folder; the other commerce adapters are not required.
-
-The BFF federates directly with one selected commerce adapter from `FEDERATED_SERVICES`. The BFF-facing models stay the same:
-
-- `Product`
-- `Cart`
-- `Order`
-- `Customer`
-
-Configure the commercetools adapter from `apps/commerce/commercetools/.env.example`. If the commercetools adapter is running without credentials, that adapter falls back to local sample data.
-
-## Workspace Scripts
+`apps/ai-assist` supports multiple LLM providers via Vercel AI Gateway:
 
 ```bash
-pnpm dev        # run all apps in development mode through Turbo
-pnpm build      # build all apps and packages
-pnpm lint       # run lint checks
-pnpm typecheck  # run TypeScript checks
+curl -X POST http://localhost:8080/assist \
+  -H "content-type: application/json" \
+  -d '{"provider":"openai","message":"Write a short ticket summary"}'
 ```
 
-Workspace shortcuts:
+Supported providers: `openai`, `anthropic`/`claude`, `grok`/`xai`
 
-```bash
-pnpm app:webapp
-pnpm app:bff
-pnpm app:commerce-commercetools
-pnpm app:commerce-shopify
-pnpm app:commerce-bigcommerce
-pnpm app:commerce-sfcc
-pnpm app:ticketing
-pnpm app:ai-assist
-pnpm lib:ui
-pnpm cfg:typescript
-pnpm infra:gcp
-```
+Key env vars:
+- `DEFAULT_LLM_PROVIDER` — default provider
+- `AI_GATEWAY_API_KEY` — Vercel AI Gateway key
+- `OPENAI_MODEL` — e.g. `openai/gpt-5.6-luna`
+- `ANTHROPIC_MODEL` — e.g. `anthropic/claude-sonnet-4-6`
+- `XAI_MODEL` — e.g. `xai/grok-4.5`
 
-## Terraform
+## Terraform / Infrastructure
 
 ```bash
 cd infra/gcp
@@ -146,66 +237,64 @@ terraform plan \
   -var="environment=dev"
 ```
 
-The Terraform is intentionally a starter layer. It enables the core APIs and declares Cloud Run services, Secret Manager secrets, Cloud SQL, Firestore, Cloud Storage, and BigQuery resources that match the diagram.
+Per-service Terraform modules live beside each deployable service:
 
-The repository also includes component-owned Terraform boilerplate beside each deployable service:
-
-- `apps/bff/terraform`
-- `apps/ai-assist/terraform`
-- `apps/ticketing/terraform`
-- `apps/auth/terraform`
-- `apps/admin/terraform`
-- `apps/webapp/terraform`
-- `apps/commerce/commercetools/terraform`
-- `apps/commerce/shopify/terraform`
-- `apps/commerce/bigcommerce/terraform`
-- `apps/commerce/sfcc/terraform`
-
-These folders are intentionally portable. A component can be copied into another repo with its own Dockerfile, package metadata, and Terraform scaffold. `infra/gcp` remains the environment composition layer for the full CSA deployment.
-
-Commerce adapters are separate Cloud Run services:
-
-- `commerce-commercetools`
-- `commerce-shopify`
-- `commerce-bigcommerce`
-- `commerce-sfcc`
-
-Set `commerce_platform` to choose which commerce service the BFF and AI Assist service use by default.
-
-## Multi-LLM Support
-
-`apps/ai-assist` supports provider selection per request:
-
-```bash
-curl -X POST http://localhost:8080/assist \
-  -H "content-type: application/json" \
-  -d '{"provider":"openai","message":"Write a short ticket summary"}'
+```
+apps/bff/terraform
+apps/ai-assist/terraform
+apps/ticketing/terraform
+apps/auth/terraform
+apps/admin/terraform
+apps/studio/terraform
+apps/commerce/commercetools/terraform
+apps/commerce/shopify/terraform
+apps/commerce/bigcommerce/terraform
+apps/commerce/sfcc/terraform
 ```
 
-Supported provider values:
+## Design System
 
-- `openai`
-- `anthropic` or `claude`
-- `grok` or `xai`
+The UI uses a 3-layer token system defined in `packages/ui`:
 
-Configure defaults with:
+- **Brand Yellow** `#F5A624` — CTA buttons, active highlights
+- **Brand Blue** `#1B4BEB` — Sidebar, accent backgrounds
+- **Navy** `#07103D` — Text, dark surfaces
 
-- `AI_COMMERCE_PLATFORM`
-- `DEFAULT_LLM_PROVIDER`
-- `AI_GATEWAY_API_KEY`
-- `AI_GATEWAY_BASE_URL` when a custom Gateway endpoint is required
-- `OPENAI_MODEL` such as `openai/gpt-5.6-luna`
-- `ANTHROPIC_MODEL` such as `anthropic/claude-sonnet-4-6`
-- `XAI_MODEL` such as `xai/grok-4.5`
-
-The current implementation uses Vercel AI SDK with Vercel AI Gateway behind a small CSA provider router. That gives us a stable application contract while the Gateway handles multi-provider model access through one API key. LangGraph is still a later step, useful when the assistant becomes a stateful workflow with multi-step orchestration, approvals, resumable runs, retries, and persistent memory.
+Components are built with **shadcn/ui** + **Tailwind CSS** via a shared preset (`@csa/ui/preset`).
 
 ## Monorepo Shape
 
-This repository follows the same broad layout style as the Phoenix MACH monorepo:
+```
+customerSAX/
+├── apps/
+│   ├── studio/          # Next.js 14 dashboard (Vercel)
+│   ├── marketing/       # Next.js 16 landing site
+│   ├── docs-site/       # Fumadocs documentation
+│   ├── bff/             # Apollo Federation gateway
+│   ├── auth/            # JWT auth service
+│   ├── admin/           # Admin operations subgraph
+│   ├── ai-assist/       # Multi-LLM AI assistant
+│   ├── ticketing/       # Ticket management subgraph
+│   └── commerce/
+│       ├── contract/    # Shared GraphQL schema
+│       ├── commercetools/
+│       ├── shopify/
+│       ├── bigcommerce/
+│       └── sfcc/
+├── packages/
+│   ├── ui/              # Design tokens, components, Tailwind preset
+│   ├── config/          # Env utilities
+│   ├── logger/          # Pino logger
+│   ├── mongodb/         # MongoDB client + encryption
+│   ├── cache/           # Cache layer
+│   ├── headers/         # HTTP header utilities
+│   └── service-bootstrap/
+├── infra/gcp/           # Terraform root module
+├── .github/workflows/   # CI/CD pipeline
+├── turbo.json           # Turborepo task config
+└── package.json         # Root workspace scripts
+```
 
-- `apps/*` for deployable services and frontends.
-- `packages/*` for shared source packages.
-- `configs/*` for reusable tool configuration packages.
-- `infra/*` for infrastructure workspaces.
-- `turbo.json` for task orchestration across workspaces.
+## License
+
+Private — © 2026 Royal Cyber

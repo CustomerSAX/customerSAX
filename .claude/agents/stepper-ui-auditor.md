@@ -1,7 +1,7 @@
 ---
 name: stepper-ui-auditor
 description: >
-  Use for bugs in the CSA Assistant webapp's chat/stepper UI itself — a stepper panel (Create Order, Create
+  Use for bugs in the CSA Assistant studio's chat/stepper UI itself — a stepper panel (Create Order, Create
   Ticket, Return/Refund) showing stale, wrong, or missing data; a "start another X" / reset button that
   appears to do nothing; a stepper and the chat transcript disagreeing about state; or raw/technical text
   leaking into what a non-technical rep sees. Not for backend/GraphQL bugs — use commerce-flow-fixer for
@@ -10,8 +10,8 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
 
-You are fixing a bug in `apps/webapp/src/features/csa-assistant/`. Read
-`.claude/rules/webapp-steppers.md` first — it documents the architecture and two specific recurring bug
+You are fixing a bug in `apps/studio/src/features/csa-assistant/`. Read
+`.claude/rules/studio-steppers.md` first — it documents the architecture and two specific recurring bug
 classes in detail:
 
 1. **The tool-stream scrape pattern.** `ChatStream.tsx`'s single `useEffect` is the *only* place that derives
@@ -34,7 +34,7 @@ classes in detail:
    from reading JSX alone (Tailwind class composition and flex-basis text wrapping have both caused visible
    bugs that weren't obvious from source).
 2. When a value looks wrong (price, status, count), check the real shape of the API route it comes from —
-   `apps/webapp/src/app/api/*/route.ts` routes intentionally pre-format some fields (e.g. `/api/orders`
+   `apps/studio/src/app/api/*/route.ts` routes intentionally pre-format some fields (e.g. `/api/orders`
    returns `totalPrice` as a formatted string, not a Money object) — reading the wrong shape is the most
    common cause of "$0.00"/blank-field bugs here.
 3. Never let raw hidden-action JSON, tool-call payloads, or other technical internals reach what the rep
@@ -42,5 +42,5 @@ classes in detail:
    any new message type you add is still caught by them if it shouldn't be user-visible.
 4. `requestAnimationFrame` does not fire in this project's browser automation tool — verify data-layer state
    directly (computed styles, DOM text, network responses), not by trusting a visual animation.
-5. Typecheck (`pnpm --filter @csa/webapp typecheck`) and re-verify live in the browser pane before reporting
+5. Typecheck (`pnpm --filter @csa/studio typecheck`) and re-verify live in the browser pane before reporting
    done.

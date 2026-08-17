@@ -169,7 +169,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   # Job 4: Deploy frontend apps to Vercel (runs in parallel with Cloud Build)
   # Uses pre-configured secrets: VERCEL_TOKEN, VERCEL_ORG_ID,
-  # VERCEL_PROJECT_ID_WEBAPP, VERCEL_PROJECT_ID_MARKETING
+  # VERCEL_PROJECT_ID_STUDIO, VERCEL_PROJECT_ID_MARKETING
   # ──────────────────────────────────────────────────────────────────────────
   vercel-deploy:
     name: "🌐 Deploy Frontend to Vercel"
@@ -193,7 +193,7 @@ jobs:
       - name: Install dependencies (monorepo root)
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy webapp to Vercel (Production)
+      - name: Deploy studio to Vercel (Production)
         run: |
           vercel deploy --prod \
             --token="${{ secrets.VERCEL_TOKEN }}" \
@@ -201,7 +201,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEBAPP }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_STUDIO }}
 
       - name: Deploy marketing to Vercel (Production)
         working-directory: apps/marketing
@@ -213,6 +213,17 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_MARKETING }}
+
+      - name: Deploy docs-site to Vercel (Production)
+        working-directory: apps/docs-site
+        run: |
+          vercel deploy --prod \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_DOCS }}
 
   # ──────────────────────────────────────────────────────────────────────────
   # Job 5: Print service URLs after successful deployment
@@ -247,5 +258,6 @@ jobs:
           done
           echo ""
           echo "── Vercel Frontend ──────────────────────"
-          echo "  webapp:    https://customersax.vercel.app"
+          echo "  studio:    https://customersax.vercel.app"
+          echo "  docs-site: https://docs.customersax.com"
           echo "  marketing: (check Vercel dashboard)"
