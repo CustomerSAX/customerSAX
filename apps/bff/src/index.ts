@@ -6,7 +6,7 @@ import { buildGateway, type GatewayContext } from "./server/federation.js";
 import { localSchema } from "./server/local-schema.js";
 
 const log = createLogger("bff");
-const port = Number(process.env.BFF_PORT ?? 4000);
+const port = Number(process.env.BFF_PORT ?? process.env.PORT ?? 4000);
 const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
 
 /**
