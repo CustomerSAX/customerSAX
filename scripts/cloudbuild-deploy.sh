@@ -43,7 +43,7 @@ deploy_service() {
   IMAGE="${REGISTRY}/${PROJECT_ID}/${ARTIFACT_REPO}/${SVC}"
 
   # Cloud Run service name (matches Terraform resource names)
-  RUN_SVC_NAME="csa-dev-${SVC}"
+  RUN_SVC_NAME="${NAME_PREFIX}-${SVC}"
 
   # ── Per-service Cloud Run scaling / resources ──────────────────────────────
   CONC=80
@@ -62,9 +62,9 @@ deploy_service() {
   # Format: ENV_VAR_NAME=secret-name:version
   case "${SVC}" in
     ai-assist)
-      SECRETS="AI_GATEWAY_API_KEY=csa-dev-ai-gateway-api-key:latest" ;;
+      SECRETS="AI_GATEWAY_API_KEY=${NAME_PREFIX}-ai-gateway-api-key:latest" ;;
     commerce-commercetools)
-      SECRETS="COMMERCETOOLS_CLIENT_ID=csa-dev-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=csa-dev-commercetools-client-secret:latest" ;;
+      SECRETS="COMMERCETOOLS_CLIENT_ID=${NAME_PREFIX}-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=${NAME_PREFIX}-commercetools-client-secret:latest" ;;
     *)
       SECRETS="" ;;
   esac
@@ -120,7 +120,7 @@ deploy_service() {
   # Cloud Run validates that token — so the BFF SA needs invoker on each.
   # api: lookup the SA from the BFF's own config (idempotent, survives SA changes).
   if [ "${SVC}" != "bff" ] && [ "${SVC}" != "auth" ]; then
-    BFF_SA=$(gcloud run services describe "csa-dev-bff" \
+    BFF_SA=$(gcloud run services describe "${NAME_PREFIX}-bff" \
       --region="${REGION}" --project="${PROJECT_ID}" \
       --format='value(spec.template.spec.serviceAccountName)' 2>/dev/null \
       || echo "")

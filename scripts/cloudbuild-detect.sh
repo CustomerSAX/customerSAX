@@ -22,7 +22,6 @@ set -euo pipefail
 
 REGION="us-central1"
 REGISTRY="us-central1-docker.pkg.dev"
-ARTIFACT_REPO="csa-dev-repo"
 
 if [ "${BRANCH_NAME}" = "customerSAX-Prod" ]; then
   ENVIRONMENT="production"
@@ -31,6 +30,8 @@ elif [ "${BRANCH_NAME}" = "customerSAX-QA" ]; then
 else
   ENVIRONMENT="dev"
 fi
+
+ARTIFACT_REPO="csa-${ENVIRONMENT}-repo"
 
 echo "============================================================"
 echo "🔍 Detect Changes — customerSAX"
@@ -48,7 +49,7 @@ ARTIFACT_REPO="${ARTIFACT_REPO}"
 ENVIRONMENT="${ENVIRONMENT}"
 PROJECT_ID="${PROJECT_ID}"
 COMMIT_SHA="${COMMIT_SHA}"
-NAME_PREFIX="csa-dev"
+NAME_PREFIX="csa-${ENVIRONMENT}"
 EOF
 
 ALL_SVCS=(
