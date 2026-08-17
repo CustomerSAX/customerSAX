@@ -139,6 +139,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      redis:
+        specifier: ^6.2.1
+        version: 6.2.1(@opentelemetry/api@1.9.1)
     devDependencies:
       '@csa/config-typescript':
         specifier: workspace:*

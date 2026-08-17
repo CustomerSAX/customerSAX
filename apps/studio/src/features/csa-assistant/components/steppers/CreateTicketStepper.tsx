@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useConversationStore, type TicketWorkflowSnapshot } from '../../store/conversation-store';
+import { useAgentPresence, type AgentPresenceStatus } from '../../hooks/use-agent-presence';
 import {
   CustomerResultList,
   StepperHeader,
@@ -36,6 +37,12 @@ const PRIORITIES = [
   { id: 'high', label: 'High' },
   { id: 'urgent', label: 'Urgent' },
 ];
+
+function presenceColor(status: AgentPresenceStatus) {
+  if (status === 'online') return '#34d399';
+  if (status === 'away') return '#f59e0b';
+  return '#9ca3af';
+}
 
 /**
  * Local draft — everything the rep fills in before submission. Nothing here
@@ -101,6 +108,7 @@ export function CreateTicketStepper({
   const [worklogInput, setWorklogInput] = useState('');
   const [worklogHistoryOpen, setWorklogHistoryOpen] = useState(true);
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+  const { statusByEmail } = useAgentPresence({ heartbeat: false });
 
   // Real assignee list — same BFF endpoint the agent registry uses elsewhere.
   // No fabricated fallback: if this fails, the picker just offers "Unassigned".
@@ -382,6 +390,20 @@ export function CreateTicketStepper({
                   className={`chip-select ${localDraft.assignTo === a ? 'selected' : ''}`}
                   onClick={() => setLocalDraft((prev) => ({ ...prev, assignTo: a }))}
                 >
+                  {a.includes('@') && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        display: 'inline-block',
+                        width: 7,
+                        height: 7,
+                        borderRadius: '50%',
+                        background: presenceColor(statusByEmail.get(a.toLowerCase())?.status ?? 'offline'),
+                        marginRight: 6,
+                        verticalAlign: 1,
+                      }}
+                    />
+                  )}
                   {a}
                 </button>
               ))}
