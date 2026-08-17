@@ -1,7 +1,8 @@
 {
   "version": 2,
   "framework": "nextjs",
-  "installCommand": "npm install",
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "buildCommand": "pnpm --filter marketing build",
+  "devCommand": "pnpm --filter marketing dev",
+  "installCommand": "pnpm install",
+  "outputDirectory": "apps/marketing/.next"
 }
