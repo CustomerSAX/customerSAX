@@ -78,6 +78,32 @@ deploy_service() {
     commerce-commercetools)
       SVC_ENV="${SVC_ENV},COMMERCETOOLS_AUTH_URL=https://auth.us-central1.gcp.commercetools.com"
       SVC_ENV="${SVC_ENV},COMMERCETOOLS_API_URL=https://api.us-central1.gcp.commercetools.com" ;;
+    bff)
+      # Build FEDERATED_SERVICES JSON from live Cloud Run URLs.
+      # Subgraphs are deployed before bff so their URLs already exist.
+      get_url() {
+        gcloud run services describe "${NAME_PREFIX}-$1" \
+          --region="${REGION}" --project="${PROJECT_ID}" \
+          --format='value(status.url)' 2>/dev/null || echo ""
+      }
+      CT_URL=$(get_url "commerce-commercetools")
+      TICK_URL=$(get_url "ticketing")
+      ADMIN_URL=$(get_url "admin")
+      FED_SERVICES="{}"
+      if [ -n "${CT_URL}" ]; then
+        FED_SERVICES=$(echo "${FED_SERVICES}" | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); d['commerce-commercetools']='${CT_URL}/graphql'; print(json.dumps(d))")
+      fi
+      if [ -n "${TICK_URL}" ]; then
+        FED_SERVICES=$(echo "${FED_SERVICES}" | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); d['ticketing']='${TICK_URL}/graphql'; print(json.dumps(d))")
+      fi
+      if [ -n "${ADMIN_URL}" ]; then
+        FED_SERVICES=$(echo "${FED_SERVICES}" | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); d['admin']='${ADMIN_URL}/graphql'; print(json.dumps(d))")
+      fi
+      echo "🔗 FEDERATED_SERVICES: ${FED_SERVICES}"
+      SVC_ENV="${SVC_ENV},FEDERATED_SERVICES=${FED_SERVICES}" ;;
   esac
 
   # ── Public vs private ─────────────────────────────────────────────────────

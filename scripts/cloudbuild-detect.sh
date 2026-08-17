@@ -53,12 +53,12 @@ NAME_PREFIX="csa-${ENVIRONMENT}"
 EOF
 
 ALL_SVCS=(
-  "bff"
   "auth"
   "ai-assist"
   "commerce-commercetools"
   "ticketing"
   "admin"
+  "bff"
 )
 
 # ── Compute changed files ─────────────────────────────────────────────────────
