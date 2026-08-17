@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 import { AppShell } from "../../../components/shell/AppShell";
-import { TicketDetailView } from "../../../features/details/TicketDetailView";
+import { TicketDetailView } from "../../../features/tickets/components/TicketDetailView";
 import { Skeleton } from "@csa/ui";
+
+export const dynamic = 'force-dynamic';
 
 export default function TicketDetailPage({ params }: { params: { id: string } }) {
   return (

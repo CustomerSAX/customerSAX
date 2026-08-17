@@ -47,9 +47,9 @@ export function Sidebar({
     <aside
       style={{
         width: isCollapsed ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)',
-        background: 'linear-gradient(160deg, var(--sidebar-bg) 0%, var(--csa-blue-700) 100%)',
+        background: 'linear-gradient(160deg, #245BDE 0%, #103BBA 100%)',
         borderRight: '1px solid var(--sidebar-border)',
-        transition: 'width var(--duration-base) var(--ease-enterprise)',
+        transition: 'width 220ms cubic-bezier(.2,.8,.2,1)',
       }}
       className={cn(
         'flex flex-col h-full select-none overflow-hidden shrink-0',
@@ -92,33 +92,6 @@ export function Sidebar({
           </div>
         )}
 
-        {collapsible && (
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            style={{
-              color: 'var(--sidebar-text)',
-              padding: '6px',
-              borderRadius: 'var(--radius-md)',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'color var(--duration-fast), background var(--duration-fast)',
-              marginLeft: isCollapsed ? 'auto' : '4px',
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLButtonElement).style.color = 'var(--csa-white)';
-              (e.currentTarget as HTMLButtonElement).style.background = 'var(--sidebar-item-hover)';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLButtonElement).style.color = 'var(--sidebar-text)';
-              (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-            }}
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <Icon name={isCollapsed ? 'panel-left-open' : 'panel-left-close'} size="sm" />
-          </button>
-        )}
       </div>
 
       {/* ── Nav Groups ───────────────────────────── */}
@@ -222,14 +195,48 @@ export function Sidebar({
       </div>
 
       {/* ── Footer ───────────────────────────────── */}
-      {footer && (
-        <div
-          style={{ borderTop: '1px solid var(--sidebar-border)', padding: '12px' }}
-          className="shrink-0"
-        >
-          {!isCollapsed ? footer : <div className="flex justify-center">{footer}</div>}
-        </div>
-      )}
+      <div
+        style={{ borderTop: '1px solid var(--sidebar-border)', padding: '12px' }}
+        className="shrink-0 flex flex-col gap-2"
+      >
+        {footer && (
+          <div>
+            {!isCollapsed ? footer : <div className="flex justify-center">{footer}</div>}
+          </div>
+        )}
+        {collapsible && (
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            style={{
+              color: 'var(--sidebar-text)',
+              padding: '8px',
+              borderRadius: 'var(--radius-md)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'color var(--duration-fast), background var(--duration-fast)',
+              display: 'flex',
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              alignItems: 'center',
+              width: '100%',
+              gap: '10px'
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--csa-white)';
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--sidebar-item-hover)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--sidebar-text)';
+              (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            }}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <Icon name={isCollapsed ? 'panel-right-open' : 'panel-left-close'} size="sm" />
+            {!isCollapsed && <span className="text-[14px] font-medium">Collapse</span>}
+          </button>
+        )}
+      </div>
     </aside>
   );
 }

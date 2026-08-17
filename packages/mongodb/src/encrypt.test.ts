@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { encrypt, decrypt, decryptWithFallback } from "./encrypt";
+import { encrypt, decrypt, decryptWithFallback } from "./encrypt.js";
 
 // These run with SUPERADMIN_ENCRYPTION_KEY unset + NODE_ENV=test, so encrypt/
 // decrypt use the labeled dev-default key (never the prod path) — the round-trip

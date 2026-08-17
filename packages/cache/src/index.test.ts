@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getOrSet, del, ctProjectConfig, ctToken } from "./index";
+import { getOrSet, del, ctProjectConfig, ctToken } from "./index.js";
 
 // No REDIS_URL in the test env → the cache degrades to its in-memory fallback,
 // which is exactly the behavior we want to assert (single-flight + hit/miss).

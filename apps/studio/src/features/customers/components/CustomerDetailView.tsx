@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useQuery } from "@apollo/client";
-import { CUSTOMER_ORDERS_QUERY, CUSTOMER_CARTS_QUERY, CUSTOMER_ADDRESSES_QUERY } from "../orders/api/queries";
+import { CUSTOMER_ORDERS_QUERY, CUSTOMER_CARTS_QUERY, CUSTOMER_ADDRESSES_QUERY } from "../../orders/api/queries";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -45,7 +45,7 @@ import {
   MoreActionsMenu,
   CardEmpty,
 } from "@/components/detail";
-import { useCustomerStore } from "../customers/hooks/use-customers";
+import { useCustomerStore } from "../hooks/use-customers";
 import type {
   CustomerAddress,
   CustomerCart,
@@ -57,7 +57,7 @@ import type {
   CustomerMessage,
   CustomerPromotion,
   PromotionUsage,
-} from "../customers/types/customer-types";
+} from "../types/customer-types";
 
 interface CustomerDetailViewProps {
   id: string;
@@ -720,23 +720,25 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
       <EntityTabs tabs={CUSTOMER_TABS} active={activeTab} onChange={setActiveTab} />
 
+      <div className="mt-4">
+        <SummaryGrid>
+          <SummaryCard icon="shopping-bag" label="Total Orders" value={ordersLoading ? "…" : totalOrderCount.toString()} sub="Lifetime orders" />
+          <SummaryCard
+            icon="dollar-sign"
+            label="Total Spend"
+            value={ordersLoading ? "…" : totalSpend}
+            sub={totalOrderCount > 100 ? `From first 100 of ${totalOrderCount}` : "Across fetched orders"}
+          />
+          <SummaryCard icon="mail" label="Email" value={customer?.email || ""} />
+          <SummaryCard icon="phone" label="Phone" value={customer?.phone || ""} />
+          <SummaryCard icon="calendar" label="Customer Since" value={customerSince || ""} />
+          <SummaryCard icon="shopping-cart" label="Active Carts" value={totalCartsCount.toString()} tone="primary" />
+        </SummaryGrid>
+      </div>
+
       {/* ── Overview ─────────────────────────────────────────────────────── */}
       {activeTab === "overview" && (
         <>
-          <SummaryGrid>
-            <SummaryCard icon="shopping-bag" label="Total Orders" value={ordersLoading ? "…" : totalOrderCount.toString()} sub="Lifetime orders" />
-            <SummaryCard
-              icon="dollar-sign"
-              label="Total Spend"
-              value={ordersLoading ? "…" : totalSpend}
-              sub={totalOrderCount > 100 ? `From first 100 of ${totalOrderCount}` : "Across fetched orders"}
-            />
-            <SummaryCard icon="mail" label="Email" value={customer?.email || ""} />
-            <SummaryCard icon="phone" label="Phone" value={customer?.phone || ""} />
-            <SummaryCard icon="calendar" label="Customer Since" value={customerSince || ""} />
-            <SummaryCard icon="shopping-cart" label="Active Carts" value={totalCartsCount.toString()} tone="primary" />
-          </SummaryGrid>
-
           <ContentGrid>
             <MainColumn>
               <SectionCard title="Profile" icon="user">
@@ -860,6 +862,24 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
             </MainColumn>
 
             <SideColumn>
+              <QuickActions>
+                <QuickAction
+                  icon="plus-circle"
+                  label="Create Ticket"
+                  onClick={() => router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email}`)}
+                />
+                <QuickAction icon="message-square" label="Send Message" onClick={() => setActiveTab("conversations")} />
+                <QuickAction
+                  icon="key-round"
+                  label="Send Password Reset"
+                  onClick={() => {
+                    setActiveTab("notes");
+                    handleSendPasswordReset();
+                  }}
+                  disabled={passwordResetStatus === "sending"}
+                />
+              </QuickActions>
+
               <SectionCard title="Customer Identifiers" icon="id-card">
                 <InfoList>
                   <InfoRow label="Customer Number" value={customer?.customerNumber} mono />
@@ -884,24 +904,6 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   />
                 </InfoList>
               </SectionCard>
-
-              <QuickActions>
-                <QuickAction
-                  icon="plus-circle"
-                  label="Create Ticket"
-                  onClick={() => router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email}`)}
-                />
-                <QuickAction icon="message-square" label="Send Message" onClick={() => setActiveTab("conversations")} />
-                <QuickAction
-                  icon="key-round"
-                  label="Send Password Reset"
-                  onClick={() => {
-                    setActiveTab("notes");
-                    handleSendPasswordReset();
-                  }}
-                  disabled={passwordResetStatus === "sending"}
-                />
-              </QuickActions>
             </SideColumn>
           </ContentGrid>
         </>

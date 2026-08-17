@@ -7,7 +7,7 @@
     "clean": "rm -rf dist",
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "tsx src/index.ts",
     "lint": "tsc --noEmit",
     "tf:check": "terraform fmt -check -recursive terraform",
     "tf:format": "terraform fmt -recursive terraform",

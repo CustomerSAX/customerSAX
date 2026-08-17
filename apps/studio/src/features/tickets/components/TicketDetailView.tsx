@@ -67,8 +67,8 @@ import {
   type EntityTab,
   type StatusTone,
 } from "@/components/detail";
-import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../tickets/hooks/use-tickets";
-import type { TicketStatus, TicketPriority, WorklogComment } from "../tickets/types/ticket-types";
+import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../hooks/use-tickets";
+import type { TicketStatus, TicketPriority, WorklogComment } from "../types/ticket-types";
 
 interface TicketDetailViewProps {
   id: string;
@@ -148,6 +148,15 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const [status, setStatus] = useState<TicketStatus>(ticket?.status || "Open");
   const [priority, setPriority] = useState<TicketPriority>(ticket?.priority || "High");
   const [solution, setSolution] = useState(ticket?.solution || "");
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const fmtDate = (v?: string | null, style: "date" | "full" = "full") => {
+    if (!v) return "—";
+    if (!mounted) return v.slice(0, 10);
+    const d = new Date(v);
+    return style === "date" ? d.toLocaleDateString() : d.toLocaleString();
+  };
   const [worklogInput, setWorklogInput] = useState("");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
   const [expandedWorklogIds, setExpandedWorklogIds] = useState<Record<string, boolean>>({});
@@ -285,7 +294,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
       <EntityHeader
         title={`Ticket #${ticket.ticketNumber}`}
         status={<StatusPill tone={statusTone(ticket.status)}>{ticket.status}</StatusPill>}
-        meta={`${ticket.subject} • Created ${new Date(ticket.createdAt).toLocaleString()} • via ${ticket.contactType}`}
+        meta={`${ticket.subject} • Created ${fmtDate(ticket.createdAt)} • via ${ticket.contactType}`}
         actions={
           <>
             <MoreActionsMenu
@@ -329,7 +338,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
         <SummaryCard
           icon="calendar"
           label="Last Updated"
-          value={ticket.lastModifiedAt ? new Date(ticket.lastModifiedAt).toLocaleDateString() : "—"}
+          value={fmtDate(ticket.lastModifiedAt, "date")}
         />
       </SummaryGrid>
 
@@ -344,7 +353,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-[12.5px] font-semibold text-m-text">{ticket.email || "Customer"}</span>
                       <span className="text-[11px] text-m-text-muted">
-                        {new Date(ticket.createdAt).toLocaleString()}
+                        {fmtDate(ticket.createdAt)}
                       </span>
                     </div>
                     <p className="text-[13px] leading-relaxed text-m-text">{ticket.message || "—"}</p>
@@ -359,7 +368,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                         </span>
                         {ticket.resolutionDate && (
                           <span className="text-[11px] text-m-text-muted">
-                            {new Date(ticket.resolutionDate).toLocaleString()}
+                            {fmtDate(ticket.resolutionDate)}
                           </span>
                         )}
                       </div>
@@ -481,47 +490,38 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                   hint="Notes added while working this ticket will appear here."
                 />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Note</TableHead>
-                      <TableHead>Logged At</TableHead>
-                      <TableHead>Author / Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ticket.comments.map((w: WorklogComment) => {
-                      const isExpanded = Boolean(expandedWorklogIds[w.id]);
-                      const needsToggle = w.comment.length > 150;
-                      return (
-                        <TableRow key={w.id}>
-                          <TableCell className="max-w-md">
-                            <div className="text-[12.5px] leading-relaxed text-m-text">
-                              {needsToggle && !isExpanded ? `${w.comment.slice(0, 150)}...` : w.comment}
-                            </div>
-                            {needsToggle && (
-                              <button
-                                type="button"
-                                className="mt-1 block text-[11px] font-semibold text-m-primary hover:underline"
-                                onClick={() => toggleExpand(w.id)}
-                              >
-                                {isExpanded ? "Show Less" : "Show More"}
-                              </button>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-[12px] text-m-text-muted">
-                            {new Date(w.createdAt).toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            <StatusPill tone="neutral" dot={false}>
+                <div className="flex flex-col gap-4">
+                  {ticket.comments.map((w: WorklogComment) => {
+                    const isExpanded = Boolean(expandedWorklogIds[w.id]);
+                    const needsToggle = w.comment.length > 200;
+                    return (
+                      <div key={w.id} className="flex flex-col gap-1.5 p-3 rounded-m-md border border-m-border bg-m-surface">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[12px] font-semibold text-m-text">
                               {w.author || w.status}
-                            </StatusPill>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-medium text-m-text-muted">
+                            {fmtDate(w.createdAt)}
+                          </span>
+                        </div>
+                        <div className="text-[13px] leading-relaxed text-m-text-subtle">
+                          {needsToggle && !isExpanded ? `${w.comment.slice(0, 200)}...` : w.comment}
+                        </div>
+                        {needsToggle && (
+                          <button
+                            type="button"
+                            className="text-left text-[11px] font-semibold text-m-primary hover:underline w-max mt-1"
+                            onClick={() => toggleExpand(w.id)}
+                          >
+                            {isExpanded ? "Show Less" : "Read More"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </SectionCard>
           )}
@@ -566,7 +566,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                           {h.ticketNumber}
                         </TableCell>
                         <TableCell className="text-[12px] text-m-text-muted">
-                          {new Date(h.operationDate).toLocaleString()}
+                          {fmtDate(h.operationDate)}
                         </TableCell>
                         <TableCell className="text-[12px] font-semibold">
                           {(TICKET_CATEGORIES as Record<string, string>)[h.reason] || h.reason}
@@ -652,11 +652,11 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
               <InfoRow label="Time Spent" value={ticket.timeSpentOnTicket} />
               <InfoRow
                 label="Resolution Date"
-                value={ticket.resolutionDate ? new Date(ticket.resolutionDate).toLocaleString() : undefined}
+                value={ticket.resolutionDate ? fmtDate(ticket.resolutionDate) : undefined}
               />
               <InfoRow
                 label="Last Updated"
-                value={ticket.lastModifiedAt ? new Date(ticket.lastModifiedAt).toLocaleString() : undefined}
+                value={ticket.lastModifiedAt ? fmtDate(ticket.lastModifiedAt) : undefined}
               />
             </InfoList>
           </SectionCard>

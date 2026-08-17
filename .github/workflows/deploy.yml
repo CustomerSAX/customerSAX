@@ -214,6 +214,17 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_MARKETING }}
 
+      - name: Deploy docs-site to Vercel (Production)
+        working-directory: apps/docs-site
+        run: |
+          vercel deploy --prod \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_DOCS }}
+
   # ──────────────────────────────────────────────────────────────────────────
   # Job 5: Print service URLs after successful deployment
   # ──────────────────────────────────────────────────────────────────────────
@@ -248,4 +259,5 @@ jobs:
           echo ""
           echo "── Vercel Frontend ──────────────────────"
           echo "  studio:    https://customersax.vercel.app"
+          echo "  docs-site: https://docs.customersax.com"
           echo "  marketing: (check Vercel dashboard)"

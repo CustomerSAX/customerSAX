@@ -2,17 +2,17 @@ import { AppShell } from "../../../components/shell/AppShell";
 import { ProductDetailView } from "../../../features/products/components/ProductDetailView";
 
 interface ProductDetailPageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
-export default async function ProductDetailPage({
+export const dynamic = 'force-dynamic';
+
+export default function ProductDetailPage({
   params,
 }: ProductDetailPageProps) {
-  const { id } = await params;
-
   return (
     <AppShell>
-      <ProductDetailView id={id} />
+      <ProductDetailView id={params.id} />
     </AppShell>
   );
 }

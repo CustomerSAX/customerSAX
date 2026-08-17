@@ -61,25 +61,25 @@ export const csaTokens = {
     neutral: {
       0:   '#FFFFFF',
       25:  '#FDFEFF',
-      50:  '#F7F9FC',
+      50:  '#F8F9FC',
       100: '#EEF2F7',
       150: '#E6EBF3',
-      200: '#D8E0EA',
+      200: '#E3E8F0',
       300: '#BAC6D6',
       400: '#94A3B6',
       500: '#667085',
       600: '#4A5568',
-      700: '#334155',
-      800: '#1E293B',
+      700: '#344054',
+      800: '#1C2531',
       900: '#101828',
       950: '#0A1020',
     },
 
     /** Semantic */
-    success: { light: '#ECFDF5', border: '#A7F3D0', base: '#059669', dark: '#047857' },
-    warning: { light: '#FFFBEB', border: '#FDE68A', base: '#D97706', dark: '#B45309' },
-    error:   { light: '#FEF2F2', border: '#FECACA', base: '#DC2626', dark: '#B91C1C' },
-    info:    { light: '#EFF8FF', border: '#BAE6FD', base: '#0284C7', dark: '#0369A1' },
+    success: { light: '#ECFDF5', border: '#A7F3D0', base: '#16A66A', dark: '#047857' },
+    warning: { light: '#FFFBEB', border: '#FDE68A', base: '#F59E0B', dark: '#B45309' },
+    error:   { light: '#FEF2F2', border: '#FECACA', base: '#E5484D', dark: '#B91C1C' },
+    info:    { light: '#EEF4FF', border: '#BAE6FD', base: '#0284C7', dark: '#0369A1' },
   },
 
   /** shadcn-compatible HSL values (used in styles.css :root block) */
@@ -224,7 +224,7 @@ export const csaTokens = {
 
   componentDimensions: {
     sidebar:  { width: '240px', widthCollapsed: '64px' },
-    topbar:   { height: '52px' },
+    topbar:   { height: '68px' },
     button:   { heightSm: '32px', heightMd: '38px', heightLg: '44px' },
     input:    { heightSm: '32px', heightMd: '38px', heightLg: '44px' },
   },

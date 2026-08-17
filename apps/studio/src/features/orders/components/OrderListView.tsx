@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -59,6 +59,9 @@ export function OrderListView() {
   const isB2b = pathname?.startsWith("/b2b");
 
   const { orders, duplicateOrder, loading, error, refetch } = useOrderStore();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const [searchOption, setSearchOption] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
@@ -398,18 +401,18 @@ export function OrderListView() {
                       <TableCell>{renderShipmentBadge(o.shipmentState)}</TableCell>
                       <TableCell>{renderPaymentBadge(o.paymentState)}</TableCell>
                       <TableCell className="text-xs text-m-text-muted">
-                        {o.createdAt
+                        {o.createdAt && mounted
                           ? new Date(o.createdAt).toLocaleString(undefined, {
                               month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
                             })
-                          : "--"}
+                          : o.createdAt ? o.createdAt.slice(0, 10) : "--"}
                       </TableCell>
                       <TableCell className="text-xs text-m-text-muted">
-                        {o.lastModifiedAt
+                        {o.lastModifiedAt && mounted
                           ? new Date(o.lastModifiedAt).toLocaleString(undefined, {
                               month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
                             })
-                          : "--"}
+                          : o.lastModifiedAt ? o.lastModifiedAt.slice(0, 10) : "--"}
                       </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <Button

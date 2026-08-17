@@ -397,12 +397,14 @@ export function ProductListView() {
   // makes the client's first render diverge from the server and triggers a React
   // hydration mismatch. Real per-user settings are loaded from storage in the
   // effect below, after mount.
+  const [mounted, setMounted] = useState(false);
   const [settings, setSettings] = useState<TableSettings>(DEFAULT_SETTINGS);
   const [showManager, setShowManager] = useState(false);
 
   // Load persisted settings from storage after mount (post-hydration).
   useEffect(() => {
     setSettings(loadSettings());
+    setMounted(true);
   }, []);
 
   const isSearchActive = appliedSearch.text.trim().length > 0;
@@ -442,6 +444,8 @@ export function ProductListView() {
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+
+  if (!mounted) return <Skeleton height={500} className="w-full" />;
 
   return (
     <div className="flex flex-col gap-5">
