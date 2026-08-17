@@ -1,6 +1,6 @@
 # CSA Assistant — Status Report & Action Plan
 
-**Scope:** `apps/ai-assist` + `apps/webapp/src/features/csa-assistant` (branch `feature/ai-assistant`)
+**Scope:** `apps/ai-assist` + `apps/studio/src/features/csa-assistant` (branch `feature/ai-assistant`)
 **Compared against:** the original `ct-csa-standalone` app (`src/ui/dashboard/` + `lib/ai/`)
 **Method:** full source read of both codebases, `tsc --noEmit` on both new apps, and live end-to-end testing against the running services (ai-assist :8080, BFF :4000, commercetools subgraph :4310, ticketing :4350, webapp :3000).
 
@@ -54,7 +54,7 @@ Neither error set blocks `next dev` (Next tolerates type errors at runtime) but 
 
 ### Working but disconnected from real data
 
-- **Stepper browse/search is fully mocked.** `apps/webapp/src/app/api/{customers/search,orders,product-search,shipping-methods,agent-registry/users}/route.ts` all return **hardcoded fixed arrays** (4 fake customers, 2 fake orders, 4 fake products, 3 fake shipping methods, 4 fake agents) — not the commerce BFF. Net effect: the chat's own tools (`find_customer`, `get_order`, `search_products`) hit real CommerceTools data, but the stepper's "search for a customer/order/product" UI shows the same fixed fake records no matter what you type. Two different sources of truth for what should be the same lookup.
+- **Stepper browse/search is fully mocked.** `apps/studio/src/app/api/{customers/search,orders,product-search,shipping-methods,agent-registry/users}/route.ts` all return **hardcoded fixed arrays** (4 fake customers, 2 fake orders, 4 fake products, 3 fake shipping methods, 4 fake agents) — not the commerce BFF. Net effect: the chat's own tools (`find_customer`, `get_order`, `search_products`) hit real CommerceTools data, but the stepper's "search for a customer/order/product" UI shows the same fixed fake records no matter what you type. Two different sources of truth for what should be the same lookup.
 - **Write safety is prompt-only.** `place_order`/`cancel_order`/`start_return` execute immediately when the tool is called (verified by reading `commerce.ts`) — no server-side confirmation token like the old app's `confirm_action`. The only guard is the system prompt's text instruction. A model mistake or prompt injection has no backstop.
 
 ### Not implemented at all

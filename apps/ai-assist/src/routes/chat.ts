@@ -3,6 +3,7 @@ import { Readable } from "stream";
 import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage, SystemModelMessage } from "ai";
 import { getLanguageModel } from "../llm/index.js";
+import { config } from "../config.js";
 import { buildDynamicPrompt, STATIC_SYSTEM_PROMPT, contextStorage } from "../chat/system-prompt.js";
 import { buildChatTools } from "../chat/tools/index.js";
 import type { SystemPromptContext } from "../chat/system-prompt.js";
@@ -10,28 +11,65 @@ import { loadOrCreateSession, appendSessionMessages, getSessionMessages, listSes
 import type { StoredMessage } from "../db/mongo-chat.js";
 import { getWorkingMemory, setWorkingMemory, formatWorkingMemoryForPrompt } from "../memory/working-memory.js";
 import { getEpisodicMemory, getCustomerMemory } from "../memory/episodic-memory.js";
+import { incrementFixedWindow, aiChatRateLimit } from "@csa/cache";
+import { createLogger } from "@csa/logger";
+import { readCsaContext } from "@csa/headers";
+
+const log = createLogger("ai-assist").child({ module: "chat" });
 
 export const chatRouter = Router();
 
 // ---------------------------------------------------------------------------
-// Per-session rate limiter — sliding window, in-process
+// Trusted identity — derived from x-csa-* headers set by the studio proxy
+// ---------------------------------------------------------------------------
+//
+// The browser no longer talks to ai-assist directly. The studio's
+// /api/chat/stream proxy validates the httpOnly session and forwards the
+// authenticated identity as trusted x-csa-* headers. This service therefore
+// derives userEmail / role / projectKey / clientId AND the ACL from those
+// headers — never from the request body, which the client controls. When the
+// role header is absent or unrecognized we fail closed (reads only, no writes).
+
+/** Roles allowed to perform write actions. Anything else is read-only. */
+function isWriterRole(role: string | undefined): boolean {
+  const normalized = (role ?? "").trim().toLowerCase();
+  return normalized === "agent" || normalized === "admin" || normalized === "superadmin";
+}
+
+/** Human-readable role label for the system prompt, derived from the trusted role. */
+function roleDisplayLabel(role: string | undefined): string {
+  switch ((role ?? "").trim().toLowerCase()) {
+    case "admin":
+      return "CSA Administrator";
+    case "superadmin":
+      return "CSA Super Administrator";
+    case "agent":
+      return "CSA Agent";
+    default:
+      // Fail-closed default — a benign label that pairs with reads-only ACL.
+      return "Support Agent";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Per-user rate limiter — fixed window, Redis-backed (shared across instances)
 // ---------------------------------------------------------------------------
 
-const RATE_LIMIT_MAX = Number(process.env.CHAT_RATE_LIMIT_MAX) || 60;
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1_000; // 1 hour
-const rateLimitStore = new Map<string, number[]>();
+const RATE_LIMIT_MAX = config.chat.rateLimitMax;
+const RATE_LIMIT_WINDOW_SECONDS = Math.ceil(config.chat.rateLimitWindowMs / 1000); // 1 hour
 
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW_MS;
-  const timestamps = (rateLimitStore.get(key) ?? []).filter((t) => t > windowStart);
-  if (timestamps.length >= RATE_LIMIT_MAX) {
-    rateLimitStore.set(key, timestamps);
-    return true;
-  }
-  timestamps.push(now);
-  rateLimitStore.set(key, timestamps);
-  return false;
+/**
+ * Fixed-window rate limit via a shared Redis counter (`@csa/cache`), so the
+ * limit holds across every ai-assist instance rather than per-process.
+ *
+ * DEGRADE-OPEN: when Redis is unavailable `incrementFixedWindow` returns null;
+ * we allow the request rather than block on a cache outage — a rate limiter
+ * must never take down the chat path.
+ */
+async function isRateLimited(key: string): Promise<boolean> {
+  const count = await incrementFixedWindow(aiChatRateLimit(key), RATE_LIMIT_WINDOW_SECONDS);
+  if (count === null) return false; // Redis down → degrade open (allow)
+  return count > RATE_LIMIT_MAX;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,9 +89,15 @@ function extractText(message: UIMessage): string {
 /**
  * POST /chat
  *
+ * Identity + ACL (userEmail/role/projectKey/clientId + can* flags) are derived
+ * ONLY from the trusted x-csa-* headers set by the studio proxy — never from the
+ * body. The body's `context` may still carry BENIGN presentation fields.
+ *
  * Body:
  *   messages    : UIMessage[]  — full conversation from useChat hook
- *   context     : SystemPromptContext partial — session/page/ACL context
+ *   context     : benign presentation context only — pageContext /
+ *                               businessType / proactiveHint / vipThreshold.
+ *                               Any identity/ACL here is ignored.
  *   sessionId   : string       — client-generated UUID; server creates the
  *                               MongoDB session if not found
  *   provider    : "openai" | "anthropic" — optional override
@@ -69,42 +113,54 @@ chatRouter.post("/chat", async (request, response, next) => {
       provider?: string;
     };
 
-    // Build session context with sensible defaults
+    // ── Trusted identity + ACL — from headers ONLY, never the body ─────────
+    // The studio proxy validated the session and set these x-csa-* headers.
+    // The body's `context` may still carry BENIGN presentation fields
+    // (pageContext / businessType / proactiveHint / vipThreshold), but any
+    // identity/ACL it contains is deliberately ignored — the client cannot be
+    // trusted for its own identity or permissions.
+    const csa = readCsaContext(request);
+    const isWriter = isWriterRole(csa.userRole);
+
     const sessionCtx: SystemPromptContext = {
-      userEmail: context.userEmail ?? "agent@csa.local",
-      userRole: context.userRole ?? "Support Agent",
-      projectKey: context.projectKey ?? (process.env.COMMERCETOOLS_PROJECT_KEY ?? "default"),
+      userEmail: csa.userEmail?.trim() || "unknown@csa.local",
+      userRole: roleDisplayLabel(csa.userRole),
+      projectKey: csa.projectKey?.trim() || (process.env.COMMERCETOOLS_PROJECT_KEY ?? "default"),
+      // Tenant id — carried through so the commerce path (bffQuery) can forward
+      // x-csa-client-id and resolve provisioned multi-tenant projects. Absent
+      // for the single-tenant/env path, which is unaffected.
+      clientId: csa.clientId?.trim() || undefined,
+
+      // Benign, non-identity presentation context — safe to take from the body.
       businessType: context.businessType ?? "b2c",
       pageContext: context.pageContext ?? null,
       proactiveHint: context.proactiveHint ?? null,
-      workingMemoryBlock: context.workingMemoryBlock ?? null,
+      vipThreshold: context.vipThreshold,
+      workingMemoryBlock: null, // populated from Redis below
 
-      // ACL — reads default true, writes default false (principle of least privilege).
-      // The webapp is expected to send explicit permission flags derived from the
-      // authenticated user's role. Defaults here only apply if the webapp omits
-      // a flag, which should not happen for a real authenticated session.
-      canViewTickets: context.canViewTickets ?? true,
-      canCreateTickets: context.canCreateTickets ?? false,
-      canUpdateTickets: context.canUpdateTickets ?? false,
-      canViewOrders: context.canViewOrders ?? true,
-      canCreateOrders: context.canCreateOrders ?? false,
-      canUpdateOrders: context.canUpdateOrders ?? false,
-      canViewCustomers: context.canViewCustomers ?? true,
-      canCreateCustomers: context.canCreateCustomers ?? false,
-      canUpdateCustomers: context.canUpdateCustomers ?? false,
-      canViewCarts: context.canViewCarts ?? true,
-      canCreateCarts: context.canCreateCarts ?? false,
-      canUpdateCarts: context.canUpdateCarts ?? false,
-      canViewProducts: context.canViewProducts ?? true,
-
-      vipThreshold: context.vipThreshold
+      // ACL — derived from the TRUSTED role header. Reads are always allowed
+      // (data-layer project scoping is the real read boundary); writes are
+      // granted only to writer roles. Absent/unknown role → reads only.
+      canViewTickets: true,
+      canCreateTickets: isWriter,
+      canUpdateTickets: isWriter,
+      canViewOrders: true,
+      canCreateOrders: isWriter,
+      canUpdateOrders: isWriter,
+      canViewCustomers: true,
+      canCreateCustomers: isWriter,
+      canUpdateCustomers: isWriter,
+      canViewCarts: true,
+      canCreateCarts: isWriter,
+      canUpdateCarts: isWriter,
+      canViewProducts: true,
     };
 
     const userEmail = sessionCtx.userEmail;
     const projectKey = sessionCtx.projectKey;
 
     // Rate-limit by userEmail so runaway clients can't spam the LLM
-    if (isRateLimited(userEmail)) {
+    if (await isRateLimited(userEmail)) {
       response.status(429).json({ error: "Rate limit exceeded — please wait before sending more messages." });
       return;
     }
@@ -125,7 +181,7 @@ chatRouter.post("/chat", async (request, response, next) => {
       );
       sessionId = session.sessionId; // use what the store returned (same UUID)
     } catch (err) {
-      console.error("[chat] Session load/create failed (non-fatal):", err);
+      log.error("session load/create failed (non-fatal)", err);
     }
 
     // ── Working memory — inject previous turn's context ────────────────────
@@ -175,7 +231,7 @@ chatRouter.post("/chat", async (request, response, next) => {
         messages: modelMessages,
         tools: chatTools,
         stopWhen: [
-          stepCountIs(20),
+          stepCountIs(config.chat.maxAgenticSteps),
           // Defence-in-depth: stop the multi-step loop after any step that
           // contained an action_approval tool call, so the model cannot call a
           // write tool in the *following* step of the same request.
@@ -188,9 +244,9 @@ chatRouter.post("/chat", async (request, response, next) => {
             return results.some((tr) => tr.toolName === "action_approval");
           },
         ],
-        temperature: 0.3,
+        temperature: config.llm.chatTemperature,
         onError: (event) => {
-          console.error("[chat] streamText error:", event.error);
+          log.error("streamText error", event.error);
         },
         onFinish: async ({ steps }) => {
           // Persist this turn to MongoDB so the History panel can display it.
@@ -219,7 +275,7 @@ chatRouter.post("/chat", async (request, response, next) => {
               }
             }
           } catch (err) {
-            console.warn("[chat] Working memory persist failed (non-fatal):", err);
+            log.warn("working memory persist failed (non-fatal)", { reason: (err as Error).message });
           }
 
           // ── Session persistence — append messages to MongoDB ───────────
@@ -260,7 +316,7 @@ chatRouter.post("/chat", async (request, response, next) => {
               await appendSessionMessages(session!.sessionId, newMessages);
             }
           } catch (err) {
-            console.error("[chat] onFinish persistence failed (non-fatal):", err);
+            log.error("onFinish persistence failed (non-fatal)", err);
           }
         }
       });
@@ -297,10 +353,14 @@ chatRouter.post("/chat", async (request, response, next) => {
 chatRouter.get("/chat", async (request, response, next) => {
   try {
     const sessionId = (request.query.sessionId as string | undefined)?.trim();
-    const userEmail = (request.query.userEmail as string | undefined)?.trim() ?? "";
+    // IDOR fix: userEmail is derived from the TRUSTED x-csa-user-email header
+    // (set by the studio proxy after validating the session), NOT a
+    // client-supplied query param. A caller can no longer read another user's
+    // transcript by passing ?userEmail=victim@x.com.
+    const userEmail = readCsaContext(request).userEmail?.trim() ?? "";
 
     if (!sessionId || !userEmail) {
-      response.status(400).json({ error: "sessionId and userEmail are required" });
+      response.status(400).json({ error: "sessionId and authenticated identity are required" });
       return;
     }
 
@@ -317,13 +377,17 @@ chatRouter.get("/chat", async (request, response, next) => {
 
 chatRouter.get("/sessions", async (request, response, next) => {
   try {
-    const userEmail = (request.query.userEmail as string | undefined)?.trim() ?? "";
-    const projectKey = (request.query.projectKey as string | undefined)?.trim() ?? "";
+    // IDOR fix: identity comes from the TRUSTED x-csa-* headers set by the
+    // studio proxy, not client-supplied query params. A caller cannot list
+    // another user's sessions by passing ?userEmail=victim@x.com.
+    const trusted = readCsaContext(request);
+    const userEmail = trusted.userEmail?.trim() ?? "";
+    const projectKey = trusted.projectKey?.trim() ?? "";
     const limit = Math.min(Number(request.query.limit ?? 20), 100);
     const skip = Math.max(Number(request.query.skip ?? 0), 0);
 
     if (!userEmail) {
-      response.status(400).json({ error: "userEmail is required" });
+      response.status(400).json({ error: "authenticated identity is required" });
       return;
     }
 
@@ -350,10 +414,14 @@ chatRouter.get("/sessions", async (request, response, next) => {
  */
 chatRouter.get("/memory", async (request, response, next) => {
   try {
+    // Identity (userEmail/projectKey) is derived from the TRUSTED x-csa-*
+    // headers set by the studio proxy, not client-supplied query params, so a
+    // caller cannot read another agent's episodic memory via ?userEmail=.
+    const trusted     = readCsaContext(request);
     const sessionId   = (request.query.sessionId   as string | undefined)?.trim() ?? "";
     const customerId  = (request.query.customerId  as string | undefined)?.trim() ?? "";
-    const userEmail   = (request.query.userEmail   as string | undefined)?.trim() ?? "";
-    const projectKey  = (request.query.projectKey  as string | undefined)?.trim() ?? "";
+    const userEmail   = trusted.userEmail?.trim() ?? "";
+    const projectKey  = trusted.projectKey?.trim() ?? "";
     const customerName  = (request.query.customerName  as string | undefined)?.trim() ?? "";
     const customerEmail = (request.query.customerEmail as string | undefined)?.trim() ?? "";
 

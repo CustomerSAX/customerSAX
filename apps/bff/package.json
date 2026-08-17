@@ -16,6 +16,10 @@
   "dependencies": {
     "@apollo/gateway": "^2.10.0",
     "@apollo/server": "^4.11.0",
+    "@csa/cache": "workspace:*",
+    "@csa/config": "workspace:*",
+    "@csa/headers": "workspace:*",
+    "@csa/logger": "workspace:*",
     "google-auth-library": "^11.0.2",
     "graphql": "^16.9.0"
   },

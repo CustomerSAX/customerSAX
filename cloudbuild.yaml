@@ -18,7 +18,7 @@
 # Rules:
 #   • NEVER uses --set-env-vars or --set-secrets (always --update-*)
 #   • All secrets come from GCP Secret Manager (created by Terraform)
-#   • webapp, marketing excluded (Vercel/frontend — not built here)
+#   • studio, marketing excluded (Vercel/frontend — not built here)
 # ============================================================
 
 steps:

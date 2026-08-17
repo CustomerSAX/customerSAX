@@ -20,8 +20,12 @@
   "dependencies": {
     "@apollo/server": "^4.11.0",
     "@apollo/subgraph": "^2.10.0",
+    "@csa/cache": "workspace:*",
     "@csa/commerce-contract": "workspace:*",
+    "@csa/config": "workspace:*",
+    "@csa/logger": "workspace:*",
     "@csa/mongodb": "workspace:*",
+    "@csa/service-bootstrap": "workspace:*",
     "graphql": "^16.9.0",
     "graphql-tag": "^2.12.7"
   },

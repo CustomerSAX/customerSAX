@@ -12,7 +12,7 @@ From the file paths above, determine which workspace packages (under `apps/*`, `
    all depend on contract's built `dist/`), run `pnpm --filter @csa/commerce-contract build` **first**,
    before typechecking anything else.
 2. Run `pnpm --filter <pkg> typecheck` for each affected package (map directory → package name via that
-   package's own `package.json` `name` field, e.g. `apps/webapp` → `@csa/webapp`).
+   package's own `package.json` `name` field, e.g. `apps/studio` → `@csa/studio`).
 3. Report pass/fail per package. If any package fails, show the real `tsc` error output — don't summarize
    it away.
 

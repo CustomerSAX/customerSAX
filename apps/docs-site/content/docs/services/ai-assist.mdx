@@ -1,0 +1,39 @@
+---
+title: ai-assist
+description: LLM chat orchestration — the streamText loop, tools, memory and the approval gate.
+---
+
+## At a glance
+
+| | |
+| --- | --- |
+| **Package** | `@csa/ai-assist` |
+| **Port** | 8080 |
+| **Framework** | Express (Vercel AI SDK `streamText`) |
+| **Data** | Redis (working memory) + MongoDB (sessions, episodic memory) |
+| **Upstream** | the BFF supergraph, via `bffQuery` |
+
+## Responsibilities
+
+- **Chat orchestration** — runs the `streamText` loop that turns a rep's
+  messages into tool calls and streamed responses. See
+  [ai-assist /chat](/docs/api-reference/ai-assist-chat).
+- **Tools** — commerce tools, ticket tools, and render-only UI tools. Every tool
+  call ultimately goes through the BFF, so chat and the guided steppers share one
+  execution path.
+- **Memory** — working memory (Redis, short-term) is injected into the prompt;
+  episodic memory and chat sessions live in MongoDB.
+- **Guardrails** — ACL defaults to reads-open / writes-closed; a per-request
+  approval gate blocks state-changing actions until the rep approves.
+
+## Providers
+
+Model provider is `"openai"` or `"anthropic"`, chosen via the `provider` field
+on the request (or a default). There is no gateway/router in front of the
+providers — the SDK talks to them directly using the configured API keys.
+
+## Prompt shape
+
+A two-block system prompt: a large **static** block (cache-friendly) plus a
+**dynamic** block built per request from the user, role, ACL, page context and
+working memory.

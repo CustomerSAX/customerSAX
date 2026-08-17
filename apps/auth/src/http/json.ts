@@ -1,5 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
+/**
+ * A request-attributable error the top-level handler maps to a specific HTTP
+ * status (with a rep-safe message) instead of collapsing to a generic 500.
+ */
+export class HttpError extends Error {
+  constructor(readonly statusCode: number, message: string) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
 export async function readJsonBody<TBody>(request: IncomingMessage): Promise<TBody> {
   const chunks: Buffer[] = [];
 
@@ -13,13 +24,25 @@ export async function readJsonBody<TBody>(request: IncomingMessage): Promise<TBo
     return {} as TBody;
   }
 
-  return JSON.parse(raw) as TBody;
+  try {
+    return JSON.parse(raw) as TBody;
+  } catch {
+    // Malformed JSON is a client mistake, not a server fault — surface a 400
+    // with a rep-safe message rather than throwing to the 500 handler.
+    throw new HttpError(400, "invalid request body");
+  }
 }
 
-export function sendJson(response: ServerResponse, statusCode: number, body: unknown) {
+export function sendJson(
+  response: ServerResponse,
+  statusCode: number,
+  body: unknown,
+  extraHeaders?: Record<string, string>
+) {
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store"
+    "cache-control": "no-store",
+    ...extraHeaders
   });
   response.end(JSON.stringify(body));
 }

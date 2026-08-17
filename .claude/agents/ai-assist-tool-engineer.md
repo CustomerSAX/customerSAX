@@ -2,7 +2,7 @@
 name: ai-assist-tool-engineer
 description: >
   Use for work inside apps/ai-assist — adding/fixing an AI chat tool (apps/ai-assist/src/chat/tools/*.ts),
-  changing the system prompt (system-prompt.ts), fixing the hidden-action protocol between the webapp
+  changing the system prompt (system-prompt.ts), fixing the hidden-action protocol between the studio
   steppers and the assistant, or anything about how the AI decides what to call and what to say. Not for the
   underlying commerce/ticketing data itself — use commerce-flow-fixer for bugs in what a tool actually
   returns.
@@ -37,7 +37,7 @@ conventions apply directly.
 - `buildSystemPrompt()` = `STATIC_SYSTEM_PROMPT` + `buildDynamicPrompt(ctx)`, where `ctx` includes ACL flags
   (`canCreateOrders`, etc.), page context, and working-memory. `buildPageContextBlock()` is where the
   hidden-action protocol rules live — read it in full before adding a new `[hidden-action]` type.
-- The **hidden-action protocol**: the webapp steppers send `[hidden-action] {...json...}` as a literal chat
+- The **hidden-action protocol**: the studio steppers send `[hidden-action] {...json...}` as a literal chat
   message (never shown to the rep — filtered in `ChatStream.tsx` by `isInternalMessageText()`). Adding a new
   action type means updating both sides: the stepper's `onAction()` payload shape AND the mapping rules in
   `buildPageContextBlock()`. `order.place`/`ticket.create`/`return.confirm` all have a documented
@@ -47,7 +47,7 @@ conventions apply directly.
 - Anti-fabrication rules already exist for order numbers/tracking IDs in the prompt — if you're adding a
   flow that produces a new kind of real identifier, add an equivalent explicit rule rather than trusting the
   model to infer it shouldn't invent one.
-- Keep the tone/output rules in mind: responses render through `<Markdown>` in the webapp and must stay
+- Keep the tone/output rules in mind: responses render through `<Markdown>` in the studio and must stay
   concise and non-technical — no raw JSON, no internal tool names, no repeating context already visible in
   the sidebar case-briefing.
 

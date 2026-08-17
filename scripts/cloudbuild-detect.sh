@@ -16,7 +16,7 @@
 #   ticketing               → csa-dev-ticketing       (private)
 #   admin                   → csa-dev-admin           (private)
 #
-# Frontend (Vercel — excluded from Cloud Build): webapp, marketing
+# Frontend (Vercel — excluded from Cloud Build): studio, marketing
 # ============================================================
 set -euo pipefail
 

@@ -1,5 +1,24 @@
+/**
+ * Builds the Apollo Gateway that fronts every backend subgraph.
+ *
+ * The load-bearing rule for commerce: the gateway composes exactly ONE commerce
+ * subgraph, never several at once. Each commerce adapter (commercetools,
+ * shopify, ...) intentionally exposes the SAME platform-neutral CSA schema, so
+ * composing two would be a type collision. `selectCommerceService` picks the
+ * single adapter that matches `BFF_COMMERCE_PLATFORM` out of the configured
+ * `FEDERATED_SERVICES` map and drops the rest, while leaving all non-commerce
+ * subgraphs (ticketing, admin, ...) untouched. Switching platforms is therefore
+ * a one-env-var change on the BFF, with no change to any consumer.
+ *
+ * Requests also carry per-tenant/user identity down to the subgraphs via the
+ * `x-csa-*` headers set in `willSendRequest`, plus a GCP identity token when
+ * running on Cloud Run (`getIdentityToken`).
+ */
 import { ApolloGateway, IntrospectAndCompose, RemoteGraphQLDataSource } from "@apollo/gateway";
 import { GoogleAuth } from "google-auth-library";
+import { getOrSet, bffIdentityToken } from "@csa/cache";
+import { applyCsaHeaders } from "@csa/headers";
+import { type Logger, type RequestContext } from "@csa/logger";
 
 type FederatedServices = Record<string, string>;
 type FederatedService = {
@@ -7,49 +26,48 @@ type FederatedService = {
   url: string;
 };
 
-export type GatewayContext = { clientId?: string; projectKey?: string; userEmail?: string; userRole?: string };
+export type GatewayContext = RequestContext;
 
 export function getCommercePlatform() {
   return process.env.BFF_COMMERCE_PLATFORM ?? "commercetools";
 }
 
 const auth = new GoogleAuth();
-const tokenCache = new Map<string, string>();
 
-async function getIdentityToken(targetUrl: string): Promise<string | undefined> {
+async function getIdentityToken(targetUrl: string, logger?: Logger): Promise<string | undefined> {
   // Only attempt GCP authentication if we're in production (running on Cloud Run)
   if (process.env.NODE_ENV !== "production") return undefined;
 
   const audience = new URL(targetUrl).origin;
-  
-  if (!tokenCache.has(audience)) {
-    try {
-      const client = await auth.getIdTokenClient(audience);
-      const token = await client.idTokenProvider.fetchIdToken(audience);
-      tokenCache.set(audience, token);
-      
-      // Auto-refresh token cache (Google tokens expire in ~1h)
-      setTimeout(() => tokenCache.delete(audience), 50 * 60 * 1000);
-    } catch (e) {
-      console.error(`Failed to get identity token for ${audience}:`, e);
-      return undefined;
-    }
-  }
 
-  return tokenCache.get(audience);
+  try {
+    // `getOrSet` replaces the hand-rolled Map + setTimeout: single-flight
+    // collapses concurrent cold-cache fetches, and the 50-minute TTL preserves
+    // the previous auto-refresh window (Google identity tokens expire in ~1h).
+    return await getOrSet(bffIdentityToken(audience), 50 * 60, async () => {
+      const client = await auth.getIdTokenClient(audience);
+      return client.idTokenProvider.fetchIdToken(audience);
+    });
+  } catch (e) {
+    logger?.error("failed to get identity token", e, { audience });
+    return undefined;
+  }
 }
 
-export function buildGateway(): ApolloGateway | undefined {
+export function buildGateway(logger: Logger): ApolloGateway | undefined {
   const services = parseFederatedServices(
     process.env.FEDERATED_SERVICES ?? defaultLocalFederatedServices()
   );
 
   if (services.length === 0) {
-    console.warn("BFF running with local fallback schema. FEDERATED_SERVICES is not configured.");
+    logger.warn("running with local fallback schema — FEDERATED_SERVICES is not configured");
     return undefined;
   }
 
-  console.log(`BFF composing federated services: ${services.map((service) => service.name).join(", ")}`);
+  logger.info("composing federated services", { services: services.map((service) => service.name).join(", ") });
+
+  // url -> subgraph name, so each forward is traceable by service (not just url).
+  const serviceNameByUrl = new Map(services.map((service) => [service.url, service.name]));
 
   return new ApolloGateway({
     buildService: ({ url }) =>
@@ -57,15 +75,29 @@ export function buildGateway(): ApolloGateway | undefined {
         url,
         async willSendRequest({ request, context }) {
           if (url) {
-            const token = await getIdentityToken(url);
+            const token = await getIdentityToken(url, logger);
             if (token) request.http?.headers.set("Authorization", `Bearer ${token}`);
           }
-          request.http?.headers.set("x-csa-commerce-platform", getCommercePlatform());
           const gatewayContext = context as GatewayContext;
-          if (gatewayContext.projectKey) request.http?.headers.set("x-csa-project-key", gatewayContext.projectKey);
-          if (gatewayContext.clientId) request.http?.headers.set("x-csa-client-id", gatewayContext.clientId);
-          if (gatewayContext.userRole) request.http?.headers.set("x-csa-user-role", gatewayContext.userRole);
-          if (gatewayContext.userEmail) request.http?.headers.set("x-csa-user-email", gatewayContext.userEmail);
+          // Per-hop trace: which subgraph this request is being forwarded to,
+          // correlated by requestId. Debug-level (one line per subgraph hop).
+          logger.debug("subgraph forward", {
+            service: (url ? serviceNameByUrl.get(url) : undefined) ?? url ?? "unknown",
+            requestId: gatewayContext.requestId
+          });
+          if (request.http) {
+            // Forward the tenant/user identity + correlation id so a request can
+            // be traced (and scoped) across every subgraph hop. Only present
+            // fields are written — see `applyCsaHeaders`.
+            applyCsaHeaders(request.http.headers, {
+              commercePlatform: getCommercePlatform(),
+              requestId: gatewayContext.requestId,
+              projectKey: gatewayContext.projectKey,
+              clientId: gatewayContext.clientId,
+              userRole: gatewayContext.userRole,
+              userEmail: gatewayContext.userEmail,
+            });
+          }
         }
       }),
     supergraphSdl: new IntrospectAndCompose({
@@ -83,7 +115,7 @@ export function buildGateway(): ApolloGateway | undefined {
       async introspectionHeaders(service) {
         const headers: Record<string, string> = {};
         if (!service.url) return headers;
-        const token = await getIdentityToken(service.url);
+        const token = await getIdentityToken(service.url, logger);
         if (token) headers.Authorization = `Bearer ${token}`;
         return headers;
       }
@@ -122,6 +154,16 @@ function stripTrailingCommas(value: string) {
   return value.replace(/,\s*([}\]])/g, "$1");
 }
 
+/**
+ * Reduces the configured service list to at most one commerce subgraph.
+ *
+ * Non-commerce services always pass through. Among the commerce services
+ * (`commerce` or `commerce-*`), keep only the one whose name matches the
+ * selected `BFF_COMMERCE_PLATFORM` (see `getCommerceServiceNameCandidates` for
+ * the `salesforce`/`sfcc` alias), falling back to a bare `commerce` entry if
+ * present. If commerce services are configured but none match the selected
+ * platform, drop them all rather than composing the wrong backend.
+ */
 function selectCommerceService(services: FederatedService[]) {
   const selectedCommerceServiceNames = getCommerceServiceNameCandidates(getCommercePlatform());
   const commerceServices = services.filter((service) => isCommerceService(service.name));

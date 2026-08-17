@@ -1,0 +1,61 @@
+---
+title: Resolution Flow
+description: What happens on a chat request — from the browser through ai-assist to the tools.
+---
+
+## The chat request, end to end
+
+The chat stream **posts directly** from the browser to ai-assist (`:8080`),
+bypassing the Next.js proxy. This is an intentional asymmetry: all _other_ data
+calls proxy through the studio server, which injects server-derived identity;
+the chat POST carries identity/ACL/project key in the client body.
+
+<Mermaid
+  chart={`sequenceDiagram
+  participant U as Browser (useChat)
+  participant A as ai-assist /chat
+  participant G as BFF gateway
+  participant S as Subgraph (commercetools / ticketing)
+  U->>A: POST /chat { messages, context, sessionId, provider }
+  A->>A: build session ctx · ACL (reads=true, writes=false)
+  A->>A: rate limit · load session · inject working memory
+  A->>A: streamText loop (system prompt + tools)
+  A->>G: bffQuery (tool GraphQL) with project/role headers
+  G->>S: federated subgraph call
+  S-->>G: result
+  G-->>A: result
+  A-->>U: streamed tokens + tool results
+  A->>A: onFinish — persist turns + working memory`}
+/>
+
+## The lifecycle, step by step
+
+1. **Destructure** `{ messages, context, sessionId, provider }`. ACL defaults to
+   least privilege — reads `true`, **writes `false`**.
+2. **Rate limit** per `userEmail` (in-process sliding window).
+3. **Load or create session** in MongoDB (non-fatal) and inject Redis working
+   memory.
+4. **Two-block prompt** — a large static system prompt (cache-friendly) plus a
+   dynamic block (user, role, ACL, page context, working memory).
+5. **Build tools** — commerce, ticket and render-only UI tools, sharing one
+   per-request approval gate.
+6. **`streamText` loop**, stopping after a bounded number of steps or when an
+   approval card is emitted.
+7. **`onFinish`** — persist the working-memory state and the user + assistant
+   turns.
+
+## The approval gate
+
+Writes are gated with two layers of defense:
+
+- **Same-step:** emitting an approval card sets the gate to pending; write tools
+  bail out.
+- **Cross-step:** the loop ends after an approval card, so the actual write only
+  runs on the **next** user turn — after the rep clicks Approve.
+
+<Callout type="info">
+Because both the guided steppers and free-form chat emit the same tools through
+the same `/chat`, the studio's stream "scrape" rebuilds one identical state
+snapshot regardless of which path the rep used. That single snapshot is what
+every stepper renders from.
+</Callout>

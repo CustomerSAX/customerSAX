@@ -1,0 +1,74 @@
+---
+title: ai-assist /chat
+description: The AI assistant chat stream — request body, context/ACL fields, and streaming behavior.
+---
+
+## Endpoint
+
+```
+POST http://localhost:8080/chat
+Content-Type: application/json
+```
+
+This is the assistant's streaming chat endpoint, driven by the Vercel AI SDK
+`streamText` loop. The browser's `useChat` hook posts to it **directly**
+(bypassing the studio proxy), so identity, ACL and project key travel in the
+request body.
+
+## Request body
+
+```jsonc
+{
+  "messages": [ /* UIMessage[] — full conversation from useChat */ ],
+  "sessionId": "client-generated-uuid",   // server creates the session if new
+  "provider": "openai",                    // optional: "openai" | "anthropic"
+  "context": {
+    "userEmail": "agent@example.com",
+    "userRole": "Support Agent",
+    "projectKey": "your-ct-project-key",
+    "businessType": "b2c",                  // "b2c" | "b2b"
+    "pageContext": null,                    // what the rep is looking at
+    "proactiveHint": null,
+    "workingMemoryBlock": null,
+    "canViewTickets": true,
+    "canCreateTickets": false
+    /* …further per-capability ACL flags */
+  }
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `messages` | `UIMessage[]` | The full conversation, as produced by `useChat`. |
+| `sessionId` | `string` | Client-generated UUID; the server creates the session record if it's new. |
+| `provider` | `"openai" \| "anthropic"` | Optional model-provider override. |
+| `context` | object | Session context — see below. |
+
+### `context` and ACL
+
+`context` carries the session identity and the **access-control flags**. ACL
+defaults to least privilege: **reads `true`, writes `false`**. Capability flags
+such as `canViewTickets` / `canCreateTickets` gate what tools the assistant may
+call. When omitted, `userEmail`, `userRole`, `projectKey` and `businessType`
+fall back to safe defaults.
+
+## Response
+
+A streamed response consumed by `useChat` — assistant tokens interleaved with
+tool-call results. The stream ends when the loop hits its step budget **or** a
+tool emits an approval card (so a destructive action waits for the rep's next
+turn).
+
+## Behavior notes
+
+- **Rate limiting** is per `userEmail`, an in-process sliding window.
+- **Memory:** Redis working memory is injected into the prompt; on finish, the
+  working-memory state and the user + assistant turns are persisted to MongoDB.
+- **Tools:** commerce tools, ticket tools and render-only UI tools, all sharing
+  one per-request approval gate.
+
+<Callout type="warn">
+The chat POST trusts client-supplied identity/ACL because it bypasses the
+server proxy. Treat this endpoint as security-sensitive; see the platform's
+`SECURITY-TENANCY.md` for the full discussion.
+</Callout>

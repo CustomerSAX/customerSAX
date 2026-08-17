@@ -1,0 +1,18 @@
+/* ===========================================================================
+   @csa/docs-site — global styles
+   Order matters:
+   1. Tailwind v4 core
+   2. Fumadocs UI preset (registers fd utilities, shiki, typography, animations)
+   3. CSA palette tokens (single source of truth — see @csa/ui) imported in
+      app/layout.tsx via `@csa/ui/styles/tokens.css`; also re-imported here so
+      the token custom properties are available to the @theme mapping below.
+   4. csa-theme.css maps Fumadocs' --color-fd-* family onto the CSA tokens.
+   =========================================================================== */
+@import "tailwindcss";
+@import "fumadocs-ui/css/preset.css";
+@import "@csa/ui/styles/tokens.css";
+@import "./csa-theme.css";
+
+body {
+  font-family: var(--font-family);
+}

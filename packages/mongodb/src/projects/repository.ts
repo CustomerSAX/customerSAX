@@ -7,16 +7,12 @@
 
 import { ObjectId } from "mongodb";
 import { getProjectsCollection } from "../admin/db.js";
+import { createCollectionAccessor } from "../collection-accessor.js";
 import { encrypt, decrypt } from "../encrypt.js";
 import type { CommercePlatform, CsaProject, ProjectCredentials } from "./types.js";
 
-function toObjectId(id: string): ObjectId | null {
-  try {
-    return new ObjectId(id);
-  } catch {
-    return null;
-  }
-}
+/** Shared id-keyed helpers over the `csa_projects` collection. */
+const projects = createCollectionAccessor(getProjectsCollection);
 
 /**
  * CommerceTools REST calls use `{origin}/{projectKey}/…` — the API root
@@ -92,11 +88,24 @@ export async function listProjectsByClient(clientId: string): Promise<CsaProject
   return docs as unknown as CsaProject[];
 }
 
-export async function findProjectById(id: string): Promise<CsaProject | null> {
-  const col = await getProjectsCollection();
-  const oid = toObjectId(id);
-  if (!oid) return null;
-  return (await col.findOne({ _id: oid })) as CsaProject | null;
+/**
+ * Tenant-scoped project lookup: matches ONLY when the project belongs to
+ * `clientId` (`{ _id, clientId }`). This is the safe default — a caller that is
+ * bound to one organisation can never read another tenant's project by id.
+ * Superadmin/cross-client flows must use `findProjectByIdAnyClient` explicitly.
+ */
+export async function findProjectById(id: string, clientId: string): Promise<CsaProject | null> {
+  return (await projects.findById(id, { clientId })) as CsaProject | null;
+}
+
+/**
+ * UNSCOPED project lookup by id — reads across all tenants. ONLY for
+ * superadmin/server-internal flows where cross-client scope is already enforced
+ * upstream (e.g. the admin subgraph's `authorize()` superadmin gate, or the
+ * internal connection-test path). Never call this from a client-scoped path.
+ */
+export async function findProjectByIdAnyClient(id: string): Promise<CsaProject | null> {
+  return (await projects.findById(id)) as CsaProject | null;
 }
 
 export async function countProjectsByClient(clientId: string): Promise<number> {
@@ -117,7 +126,10 @@ export async function getProjectWithSecret(id: string): Promise<
     })
   | null
 > {
-  const doc = await findProjectById(id);
+  // Internal server-to-server connection test — reached only from the admin
+  // subgraph's superadmin-gated `adminTestProjectConnection`, so a cross-client
+  // (unscoped) lookup is correct and intentional here.
+  const doc = await findProjectByIdAnyClient(id);
   if (!doc) return null;
 
   const view = projectView(doc);
@@ -242,10 +254,6 @@ export async function updateProject(
     bigcommerceAccessToken?: string;
   }
 ): Promise<boolean> {
-  const col = await getProjectsCollection();
-  const oid = toObjectId(id);
-  if (!oid) return false;
-
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (updates.displayName !== undefined) set.displayName = updates.displayName.trim();
   if (updates.ctApiUrl !== undefined) {
@@ -306,16 +314,25 @@ export async function updateProject(
   const updateDoc: Record<string, unknown> = { $set: set };
   if (Object.keys(unset).length) updateDoc.$unset = unset;
 
-  const result = await col.updateOne({ _id: oid }, updateDoc as never);
-  return result.matchedCount > 0;
+  return projects.updateById(id, updateDoc);
 }
 
-export async function deleteProject(id: string): Promise<boolean> {
-  const col = await getProjectsCollection();
-  const oid = toObjectId(id);
-  if (!oid) return false;
-  const result = await col.deleteOne({ _id: oid });
-  return result.deletedCount > 0;
+/**
+ * Tenant-scoped delete: removes the project ONLY when it belongs to `clientId`
+ * (`{ _id, clientId }`). The safe default — prevents a client-bound caller from
+ * deleting another tenant's project by id. Superadmin/cross-client deletes must
+ * use `deleteProjectAnyClient` explicitly.
+ */
+export async function deleteProject(id: string, clientId: string): Promise<boolean> {
+  return projects.deleteById(id, { clientId });
+}
+
+/**
+ * UNSCOPED delete by id — deletes across all tenants. ONLY for
+ * superadmin-gated flows where cross-client scope is already enforced upstream.
+ */
+export async function deleteProjectAnyClient(id: string): Promise<boolean> {
+  return projects.deleteById(id);
 }
 
 export async function deleteProjectsByClient(clientId: string): Promise<number> {

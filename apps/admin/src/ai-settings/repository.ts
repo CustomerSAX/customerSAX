@@ -1,4 +1,7 @@
 import { encrypt, getAiSettingsCollection } from "@csa/mongodb";
+import { createLogger } from "@csa/logger";
+
+const log = createLogger("admin").child({ module: "ai-settings" });
 
 export async function getAiSettings(clientId: string) {
   const doc = await (await getAiSettingsCollection()).findOne({ clientId });
@@ -10,7 +13,7 @@ export async function getAiSettings(clientId: string) {
 
 export async function updateAiSettings(clientId: string, input: { enabled: boolean; provider: string; displayName: string; model: string; baseUrl?: string; apiKey?: string }, updatedBy: string) {
   const set: Record<string, unknown> = { enabled: input.enabled, provider: input.provider.trim(), displayName: input.displayName.trim(), model: input.model.trim(), baseUrl: input.baseUrl?.trim() || null, updatedBy, updatedAt: new Date() };
-  if (input.apiKey?.trim()) set.apiKeyEncrypted = encrypt(input.apiKey.trim());
+  if (input.apiKey?.trim()) set.apiKeyEncrypted = encrypt(input.apiKey.trim(), log);
   await (await getAiSettingsCollection()).updateOne({ clientId }, { $set: set, $setOnInsert: { clientId, createdAt: new Date() } }, { upsert: true });
   return getAiSettings(clientId);
 }

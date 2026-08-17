@@ -1,0 +1,12 @@
+{
+  "title": "customerSAX",
+  "root": true,
+  "pages": [
+    "index",
+    "getting-started",
+    "architecture",
+    "api-reference",
+    "services",
+    "guides"
+  ]
+}

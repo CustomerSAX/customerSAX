@@ -1,7 +1,7 @@
 ---
 name: restart-stale-services
 description: >
-  Use when a schema/code change appears correct in source but the running dev services (webapp, ai-assist,
+  Use when a schema/code change appears correct in source but the running dev services (studio, ai-assist,
   bff, commerce/commercetools) don't reflect it yet — a new GraphQL field 404s despite being in the resolver,
   a UI component doesn't show a recent edit, or "it works when I test the function directly but not through
   the app." This is almost always one of three specific staleness sources in this repo, not a mystery bug.

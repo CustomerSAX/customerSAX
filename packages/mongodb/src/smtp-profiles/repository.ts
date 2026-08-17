@@ -1,15 +1,19 @@
+/**
+ * MongoDB CRUD for per-client SMTP profiles (the `csa_smtp_profiles`
+ * collection). Every operation is tenant-scoped by `clientId`, and the SMTP
+ * password is encrypted at rest with AES-256-GCM (see ../encrypt.ts) — only
+ * {@link getSmtpProfileWithSecretForClient} decrypts it, for the outbound
+ * test-send path. Exactly one profile per client may carry `isDefault`.
+ */
+
 import { ObjectId } from "mongodb";
 import { getSmtpProfilesCollection } from "../admin/db.js";
+import { createCollectionAccessor } from "../collection-accessor.js";
 import { encrypt, decrypt } from "../encrypt.js";
 import type { CsaSmtpProfile } from "./types.js";
 
-function toObjectId(id: string): ObjectId | null {
-  try {
-    return new ObjectId(id);
-  } catch {
-    return null;
-  }
-}
+/** Shared id-keyed helpers over the `csa_smtp_profiles` collection. */
+const smtpProfiles = createCollectionAccessor(getSmtpProfilesCollection);
 
 export function smtpProfileView(doc: CsaSmtpProfile) {
   const { _id, smtpPasswordEncrypted: _enc, ...rest } = doc;
@@ -30,10 +34,7 @@ export async function listSmtpProfilesByClient(clientId: string): Promise<CsaSmt
 }
 
 export async function findSmtpProfileByIdForClient(profileId: string, clientId: string): Promise<CsaSmtpProfile | null> {
-  const col = await getSmtpProfilesCollection();
-  const oid = toObjectId(profileId);
-  if (!oid) return null;
-  return (await col.findOne({ _id: oid, clientId })) as CsaSmtpProfile | null;
+  return (await smtpProfiles.findById(profileId, { clientId })) as CsaSmtpProfile | null;
 }
 
 export async function getSmtpProfileWithSecretForClient(
@@ -110,11 +111,7 @@ export async function updateSmtpProfile(
     isDefault?: boolean;
   }
 ): Promise<boolean> {
-  const col = await getSmtpProfilesCollection();
-  const oid = toObjectId(profileId);
-  if (!oid) return false;
-
-  const existing = await col.findOne({ _id: oid, clientId });
+  const existing = await findSmtpProfileByIdForClient(profileId, clientId);
   if (!existing) return false;
 
   if (updates.isDefault === true) {
@@ -133,16 +130,11 @@ export async function updateSmtpProfile(
   if (updates.emailFrom !== undefined) set.emailFrom = updates.emailFrom.trim();
   if (updates.isDefault !== undefined) set.isDefault = updates.isDefault;
 
-  const result = await col.updateOne({ _id: oid, clientId }, { $set: set });
-  return result.matchedCount > 0;
+  return smtpProfiles.updateById(profileId, { $set: set }, { clientId });
 }
 
 export async function deleteSmtpProfile(profileId: string, clientId: string): Promise<boolean> {
-  const col = await getSmtpProfilesCollection();
-  const oid = toObjectId(profileId);
-  if (!oid) return false;
-  const result = await col.deleteOne({ _id: oid, clientId });
-  return result.deletedCount > 0;
+  return smtpProfiles.deleteById(profileId, { clientId });
 }
 
 export async function deleteSmtpProfilesByClient(clientId: string): Promise<number> {

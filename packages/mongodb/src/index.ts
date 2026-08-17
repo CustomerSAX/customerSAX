@@ -1,3 +1,21 @@
+/**
+ * `@csa/mongodb` — the shared MongoDB data layer for the CSA platform.
+ *
+ * This barrel is the stable public surface consumed directly by the running
+ * services (`apps/auth`, `apps/admin`, `apps/commerce/commercetools`,
+ * `apps/ticketing`). It exposes:
+ *  - connection + env helpers (connection.ts) and named collection getters
+ *    (admin/db.ts);
+ *  - AES-256-GCM `encrypt`/`decrypt` (the single source of truth for secret
+ *    encryption across services);
+ *  - domain repositories, types, and helpers for clients, projects, smtp
+ *    profiles, and users.
+ *
+ * Internal plumbing (e.g. the shared collection-accessor factory) is
+ * deliberately NOT re-exported here so the published API stays minimal and
+ * stable; refactors happen behind these exports without changing them.
+ */
+
 // ---------------------------------------------------------------------------
 // Connection utilities
 // ---------------------------------------------------------------------------
@@ -12,11 +30,17 @@ export { ObjectId } from "mongodb";
 export * from "./encrypt.js";
 
 // ---------------------------------------------------------------------------
+// Durable idempotency keys (exactly-once writes)
+// ---------------------------------------------------------------------------
+export * from "./idempotency.js";
+
+// ---------------------------------------------------------------------------
 // Domain — clients
 // ---------------------------------------------------------------------------
 export * from "./clients/types.js";
 export * from "./clients/repository.js";
 export * from "./clients/parse-sso-input.js";
+export * from "./clients/sso-secrets.js";
 
 // ---------------------------------------------------------------------------
 // Domain — projects

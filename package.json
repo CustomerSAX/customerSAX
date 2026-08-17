@@ -13,8 +13,8 @@
     "app:commerce-sfcc": "pnpm --filter @csa/commerce-sfcc",
     "app:commerce-shopify": "pnpm --filter @csa/commerce-shopify",
     "app:ticketing": "pnpm --filter @csa/ticketing",
-    "app:webapp": "pnpm --filter @csa/webapp",
-    "dev:all": "concurrently \"pnpm app:commerce-commercetools dev\" \"pnpm app:bff dev\" \"pnpm app:webapp dev\" \"pnpm app:auth dev\" \"pnpm app:ticketing dev\"",
+    "app:studio": "pnpm --filter @csa/studio",
+    "dev:all": "concurrently \"pnpm app:commerce-commercetools dev\" \"pnpm app:bff dev\" \"pnpm app:studio dev\" \"pnpm app:auth dev\" \"pnpm app:ticketing dev\"",
     "build": "turbo run build",
     "clean": "turbo run clean",
     "cfg:prettier": "pnpm --filter @csa/config-prettier",
@@ -23,7 +23,7 @@
     "format": "prettier --write --ignore-path=.gitignore .",
     "infra:gcp": "pnpm --filter @csa/infra-gcp",
     "lint": "turbo run lint",
-    "test": "pnpm -r --if-present test",
+    "test": "vitest run",
     "tf:check": "turbo run tf:check",
     "tf:format": "turbo run tf:format",
     "typecheck": "turbo run typecheck"
@@ -32,7 +32,8 @@
     "concurrently": "^10.0.4",
     "prettier": "^3.3.3",
     "turbo": "^2.0.11",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=20.0.0",

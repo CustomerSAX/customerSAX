@@ -1,0 +1,103 @@
+/* ===========================================================================
+   CSA theme mapping for Fumadocs
+   ---------------------------------------------------------------------------
+   Fumadocs UI colors everything through the --color-fd-* custom-property
+   family. We DO NOT hardcode hex here — every value resolves to a CSA design
+   token defined in @csa/ui (packages/ui/src/styles/tokens.css), so the docs
+   portal stays in lock-step with the product palette:
+       primary  → --csa-blue-500  (#2563EB, light royal blue)
+       accent   → --csa-yellow-500 (#F5A624, brand yellow)
+   Re-value a token in @csa/ui and this site follows automatically.
+   =========================================================================== */
+
+/* Light theme (default) — blue primary on white surfaces. */
+@theme {
+  --color-fd-background: var(--csa-white);
+  --color-fd-foreground: var(--csa-gray-900);
+
+  --color-fd-muted: var(--csa-gray-50);
+  --color-fd-muted-foreground: var(--csa-gray-500);
+
+  --color-fd-popover: var(--csa-white);
+  --color-fd-popover-foreground: var(--csa-gray-900);
+
+  --color-fd-card: var(--csa-white);
+  --color-fd-card-foreground: var(--csa-gray-900);
+
+  --color-fd-border: var(--csa-gray-200);
+
+  --color-fd-primary: var(--csa-blue-500);
+  --color-fd-primary-foreground: var(--csa-white);
+
+  --color-fd-secondary: var(--csa-blue-50);
+  --color-fd-secondary-foreground: var(--csa-blue-700);
+
+  --color-fd-accent: var(--csa-blue-50);
+  --color-fd-accent-foreground: var(--csa-blue-700);
+
+  --color-fd-ring: var(--csa-blue-500);
+}
+
+/* Dark theme — navy surfaces, brighter blue primary, yellow accents.
+   Plain selector (not @theme) so it overrides the light values at runtime,
+   the same pattern Fumadocs' own preset themes use. */
+.dark {
+  --color-fd-background: var(--csa-navy-950);
+  --color-fd-foreground: var(--csa-gray-100);
+
+  --color-fd-muted: var(--csa-navy-900);
+  --color-fd-muted-foreground: var(--csa-gray-400);
+
+  --color-fd-popover: var(--csa-navy-900);
+  --color-fd-popover-foreground: var(--csa-gray-100);
+
+  --color-fd-card: var(--csa-navy-900);
+  --color-fd-card-foreground: var(--csa-gray-100);
+
+  --color-fd-border: rgba(255, 255, 255, 0.1);
+
+  --color-fd-primary: var(--csa-blue-400);
+  --color-fd-primary-foreground: var(--csa-navy-950);
+
+  --color-fd-secondary: var(--csa-navy-800);
+  --color-fd-secondary-foreground: var(--csa-gray-100);
+
+  --color-fd-accent: var(--csa-navy-800);
+  --color-fd-accent-foreground: var(--csa-yellow-400);
+
+  --color-fd-ring: var(--csa-blue-400);
+}
+
+/* -------------------------------------------------------------------------
+   Yellow brand accents (--csa-yellow-500 / -400).
+   These layer on top of the blue theme so the portal reads as CSA, not a
+   generic blue docs site. Selectors that don't match a given Fumadocs build
+   simply no-op.
+   ------------------------------------------------------------------------- */
+:root {
+  --csa-accent-brand: var(--csa-yellow-500);
+}
+.dark {
+  --csa-accent-brand: var(--csa-yellow-400);
+}
+
+/* Brand hairline across the top of the navbar. */
+#nd-nav {
+  border-top: 3px solid var(--csa-accent-brand);
+}
+
+/* Active sidebar item: yellow inset accent bar. */
+#nd-sidebar a[data-active="true"] {
+  box-shadow: inset 3px 0 0 0 var(--csa-accent-brand);
+}
+
+/* Callout / blockquote lead border in brand yellow. */
+.prose blockquote,
+#nd-page blockquote {
+  border-inline-start-color: var(--csa-accent-brand);
+}
+
+/* Inline code keeps a subtle blue tint tied to the primary token. */
+:root {
+  --color-fd-secondary: var(--csa-blue-50);
+}

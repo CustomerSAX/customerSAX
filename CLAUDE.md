@@ -1,14 +1,14 @@
 # customer-service-accelerator-monorepo
 
 CSA (Customer Service Accelerator): an AI-assisted support console. A rep works tickets/orders/returns
-either through guided steppers in the webapp UI or free-form chat with an AI assistant — both paths must
+either through guided steppers in the studio UI or free-form chat with an AI assistant — both paths must
 produce identical real results, because they call the same backend tools.
 
 ## Layout (pnpm workspace, Turborepo)
 
 ```
 apps/
-  webapp/                 Next.js admin console. CSA Assistant feature lives at
+  studio/                 Next.js admin console. CSA Assistant feature lives at
                            src/features/csa-assistant/ (chat UI, steppers, Zustand store).
   ai-assist/               Express service (port 8080). POST /chat (Vercel AI SDK streamText).
                            Tools in src/chat/tools/{commerce,tickets,ui-tools}.ts, all via bffQuery().
@@ -31,7 +31,7 @@ configs/{typescript,prettier}/  Shared tsconfig/prettier base configs.
 
 ```bash
 pnpm dev                                          # turbo run dev --parallel — all services
-pnpm --filter @csa/webapp dev                     # just the webapp (port 3000)
+pnpm --filter @csa/studio dev                     # just the studio app (port 3000)
 pnpm --filter @csa/commerce-contract build         # rebuild the shared GraphQL contract (see gotcha below)
 pnpm --filter <pkg> typecheck                      # tsc --noEmit for one package
 pnpm typecheck                                      # turbo run typecheck — all packages
@@ -65,13 +65,13 @@ Package names follow `@csa/<dir-name>` (e.g. `apps/commerce/commercetools` is `@
    never `{ action: "actionName", ...params }`. `where` predicates only do exact, case-sensitive matches on
    plain String fields (no substring/`contains` without `all()`/`any()` on Set fields). See [[commercetools]].
 
-5. **Webapp stepper "done" screens don't auto-clear.** Each stepper (`CreateOrderStepper`, `CreateTicketStepper`,
+5. **Studio stepper "done" screens don't auto-clear.** Each stepper (`CreateOrderStepper`, `CreateTicketStepper`,
    `ReturnStepper`) derives its whole state from a Zustand workflow snapshot that `ChatStream.tsx`'s scrape
    effect rebuilds from the tool-call stream — and that snapshot's terminal field (`placedOrder` /
    `createdTicket` / `completed`) is deliberately *never* cleared by the scrape effect itself, so the "done"
    screen doesn't flicker away mid-stream. Any "start another X" button MUST explicitly call
    `useConversationStore.getState().set<X>Workflow(null)` before resetting its local step, or the auto-advance
-   effect immediately flips it right back to "done" in the same tick. See [[webapp-steppers]].
+   effect immediately flips it right back to "done" in the same tick. See [[studio-steppers]].
 
 ## Project philosophy (non-negotiable, repeatedly enforced)
 

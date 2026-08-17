@@ -12,8 +12,12 @@ import {
   usersRepo,
 } from "@csa/mongodb";
 import type { ClientSsoConfigStored, CsaUser } from "@csa/mongodb";
+import { del as cacheDel, ctProjectConfig } from "@csa/cache";
+import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
 import * as aiSettingsRepo from "./ai-settings/repository.js";
+
+const log = createLogger("admin").child({ module: "schema" });
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,6 +53,35 @@ function smtpViewIso(doc: Parameters<typeof smtpRepo.smtpProfileView>[0]) {
 function clientViewIso(doc: Parameters<typeof clientsRepo.clientView>[0]) {
   const v = clientsRepo.clientView(doc);
   return { ...v, createdAt: iso(v.createdAt), updatedAt: iso(v.updatedAt) };
+}
+
+/**
+ * Per-request admin identity, populated upstream from `x-csa-*` headers (see
+ * the header-trust boundary note in `index.ts`). `superadmin` crosses clients;
+ * a client-scoped `admin` is bound to a single `clientId`.
+ */
+type ResolverContext = { clientId?: string; userRole?: string };
+
+/**
+ * Look up a project for an admin resolver with correct tenant scope. A
+ * superadmin legitimately reads across clients (unscoped variant); any other
+ * caller is constrained to their own organisation's projects, so it can never
+ * read another tenant's project by id. A missing `clientId` fails closed
+ * (scoped lookup on `""` matches nothing).
+ */
+function findProjectScoped(context: unknown, id: string) {
+  const ctx = (context ?? {}) as ResolverContext;
+  return ctx.userRole === "superadmin"
+    ? projectsRepo.findProjectByIdAnyClient(id)
+    : projectsRepo.findProjectById(id, ctx.clientId ?? "");
+}
+
+/** Tenant-scoped project delete, mirroring {@link findProjectScoped}. */
+function deleteProjectScoped(context: unknown, id: string) {
+  const ctx = (context ?? {}) as ResolverContext;
+  return ctx.userRole === "superadmin"
+    ? projectsRepo.deleteProjectAnyClient(id)
+    : projectsRepo.deleteProject(id, ctx.clientId ?? "");
 }
 
 async function requireClient(id: string) {
@@ -359,8 +392,8 @@ export const resolvers = {
       return docs.map(projectViewIso);
     },
 
-    adminProject: async (_p: unknown, args: { id: string }) => {
-      const doc = await projectsRepo.findProjectById(args.id);
+    adminProject: async (_p: unknown, args: { id: string }, context: unknown) => {
+      const doc = await findProjectScoped(context, args.id);
       return doc ? projectViewIso(doc) : null;
     },
 
@@ -532,9 +565,10 @@ export const resolvers = {
           bigcommerceClientId?: string;
           bigcommerceAccessToken?: string;
         };
-      }
+      },
+      context: unknown
     ) => {
-      const existing = await projectsRepo.findProjectById(args.id);
+      const existing = await findProjectScoped(context, args.id);
       if (!existing) throw new Error("Project not found");
 
       const input = args.input;
@@ -557,16 +591,22 @@ export const resolvers = {
       });
       if (!ok) throw new Error("Failed to update project");
 
-      const updated = await projectsRepo.findProjectById(args.id);
+      // Invalidate the commercetools subgraph's cached project config so an
+      // updated credential/URL takes effect immediately rather than after the
+      // 300s TTL. Keyed on (clientId, projectKey) — the same shape the subgraph
+      // caches under. Best-effort: `del` never throws (no-op if Redis is down).
+      await cacheDel(ctProjectConfig(existing.clientId, existing.projectKey));
+
+      const updated = await findProjectScoped(context, args.id);
       return updated ? projectViewIso(updated) : null;
     },
 
-    adminDeleteProject: async (_p: unknown, args: { id: string }) => {
-      return projectsRepo.deleteProject(args.id);
+    adminDeleteProject: async (_p: unknown, args: { id: string }, context: unknown) => {
+      return deleteProjectScoped(context, args.id);
     },
 
     adminTestProjectConnection: async (_p: unknown, args: { id: string }) => {
-      return testProjectConnection(args.id);
+      return testProjectConnection(args.id, log);
     },
 
     adminTestProjectCredentials: async (
@@ -588,7 +628,7 @@ export const resolvers = {
         };
       }
     ) => {
-      return testCredentials(args.input);
+      return testCredentials(args.input, log);
     },
 
     // ── SMTP profiles ────────────────────────────────────────────────────
@@ -654,7 +694,7 @@ export const resolvers = {
     },
 
     adminTestSmtpProfile: async (_p: unknown, args: { id: string; clientId: string; to?: string }) => {
-      return testSmtpProfile(args.id, args.clientId, args.to ?? "");
+      return testSmtpProfile(args.id, args.clientId, args.to ?? "", log);
     },
 
     // ── Users ────────────────────────────────────────────────────────────

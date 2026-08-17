@@ -1,0 +1,67 @@
+---
+title: Service Topology
+description: The service graph — console, ai-assist, BFF gateway, subgraphs, auth and data stores.
+---
+
+## Topology diagram
+
+The diagram below shows the real service graph and the two distinct request
+paths: proxied data calls (browser → studio server → BFF) and the direct chat
+stream (browser → ai-assist).
+
+<Mermaid
+  chart={`flowchart TD
+  B["Browser · Rep console UI"]
+  WEB["studio :3000<br/>Next.js + server proxy (app/api/*)"]
+  AI["ai-assist :8080<br/>Express · streamText loop"]
+  BFF["BFF gateway :4000<br/>Apollo Gateway (supergraph)"]
+  AUTH["auth :4360<br/>node:http · sessions"]
+  CT["commercetools :4310<br/>commerce subgraph"]
+  TIC["ticketing :4350<br/>tickets subgraph"]
+  ADM["admin :4370<br/>admin subgraph"]
+  REDIS[("Redis<br/>working memory")]
+  MONGO[("MongoDB<br/>sessions · tickets · memory")]
+  CTAPI[["commercetools SaaS API"]]
+
+  B -- "data calls (proxied)" --> WEB
+  B -- "chat stream (direct)" --> AI
+  WEB -- "session cookie" --> AUTH
+  WEB -- "GraphQL" --> BFF
+  AI -- "bffQuery (GraphQL)" --> BFF
+  AI --> REDIS
+  AI --> MONGO
+  BFF --> CT
+  BFF --> TIC
+  BFF --> ADM
+  CT --> CTAPI
+  TIC --> MONGO
+  ADM --> MONGO`}
+/>
+
+## Reading the graph
+
+- **studio — `:3000`.** The rep console plus a **server proxy layer**
+  (`app/api/*`). Every browser _data_ call goes through a Next.js route that
+  injects server-derived session identity the browser can't forge.
+- **ai-assist — `:8080`.** An Express service running the LLM `streamText` loop.
+  It calls the BFF through `bffQuery`, and reads/writes memory in Redis and
+  MongoDB.
+- **BFF gateway — `:4000`.** An Apollo Gateway that federates the commercetools,
+  ticketing and admin subgraphs. It stamps commerce-platform, project, client,
+  role and user headers onto every subgraph request.
+- **auth — `:4360`.** A plain `node:http` service (not federated) handling login,
+  sessions and project selection over REST.
+- **Subgraphs.** commercetools (`:4310`) wraps the real commercetools API;
+  ticketing (`:4350`) and admin (`:4370`) are Mongo-backed.
+
+## Diagrams & screenshots
+
+Reference images belong under `public/img/` and are rendered like:
+
+```md
+![Service topology](/img/architecture/topology.png)
+```
+
+<Callout>🚧 Expanding — annotated screenshots of the running console and a
+sequence diagram of a place-order flow will live here. Drop assets into
+`public/img/architecture/`.</Callout>

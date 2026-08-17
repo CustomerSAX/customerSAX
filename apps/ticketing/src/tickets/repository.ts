@@ -1,10 +1,41 @@
 import { ObjectId, type Document, type Filter, type Sort } from "@csa/mongodb";
+import { createLogger } from "@csa/logger";
 import { getTicketsCollection } from "../db/mongodb.js";
 import { mapTicket } from "./mapper.js";
-import { generateTicketNumber } from "./ticket-number.js";
+import { generateTicketNumber, nextTicketNumber } from "./ticket-number.js";
 import type { Ticket, TicketDraft, TicketListArgs, TicketPage, TicketUpdate, WorklogComment } from "./types.js";
 
+const log = createLogger("ticketing").child({ module: "tickets/repository" });
+
 const memoryTickets: Document[] = [];
+
+/**
+ * Startup guard for the ticket data store. Call this ONCE at process boot,
+ * before serving traffic.
+ *
+ * When `MONGO_URI` is unset the repository falls back to an in-process array
+ * (`memoryTickets`) that is lost on every restart. That is acceptable for local
+ * development but catastrophic in production: a misconfigured prod deployment
+ * would appear to accept tickets and then silently lose every one of them on
+ * the next restart. So:
+ *   - in production (`NODE_ENV==='production'`) with no `MONGO_URI`, HARD-FAIL —
+ *     throw and refuse to serve rather than run the ephemeral memory store;
+ *   - in any non-production environment, allow the memory store but emit a LOUD
+ *     startup warning so it is never selected silently.
+ */
+export function assertTicketStoreConfigured() {
+  if (!usesMemoryStore()) return;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Ticketing refuses to start: MONGO_URI is not set in production. The in-memory ticket store is ephemeral and would lose every ticket on restart. Set MONGO_URI to a real MongoDB connection string."
+    );
+  }
+
+  log.warn(
+    "USING IN-MEMORY TICKET STORE — MONGO_URI is not set. Tickets are held in-process and WILL BE LOST on restart. This is for local/dev only; set MONGO_URI for any durable environment."
+  );
+}
 
 export async function listTickets(args: TicketListArgs): Promise<TicketPage> {
   if (usesMemoryStore()) {
@@ -49,7 +80,9 @@ export async function getTicket(id: string, projectKey?: string | null): Promise
 export async function createTicket(draft: TicketDraft): Promise<Ticket> {
   const now = new Date();
   const projectKey = resolveProjectKey(draft.projectKey);
-  const ticketNumber = generateTicketNumber();
+  // Durable atomic counter for the real Mongo store; random-suffix fallback for
+  // the in-memory dev store (which has no counter to draw from).
+  const ticketNumber = usesMemoryStore() ? generateTicketNumber() : await nextTicketNumber(projectKey);
   const doc = {
     assignee: draft.assignee ?? "Queue",
     category: draft.category ?? null,
