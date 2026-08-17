@@ -62,8 +62,8 @@ ALL_SVCS=(
 )
 
 # ── Compute changed files ─────────────────────────────────────────────────────
-if [ "${BRANCH_NAME}" = "customerSAX-Prod" ]; then
-  BASE_BRANCH="customerSAX-QA"
+if [ "${BRANCH_NAME}" = "customerSAX-Prod" ] || [ "${BRANCH_NAME}" = "customerSAX-QA" ]; then
+  BASE_BRANCH="main"
 else
   BASE_BRANCH="main"
 fi
