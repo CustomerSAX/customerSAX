@@ -40,7 +40,7 @@ export function AdminSettingsView({ section }: { section: Section }) {
   const clientId = user?.activeClientId ?? "";
   const projectKey = user?.activeProjectKey ?? "";
   const allowed = user?.role === "admin" || user?.role === "superadmin";
-  const { data, loading, error, refetch } = useQuery(WORKSPACE_ADMIN, { variables: { clientId, projectKey }, skip: !clientId || !projectKey || !allowed, fetchPolicy: "network-only" });
+  const { data, loading, error, refetch } = useQuery(WORKSPACE_ADMIN, { variables: { clientId, projectKey }, skip: !clientId || !projectKey || !allowed, fetchPolicy: "cache-and-network" });
 
   if (userLoading) return <AppShell><State text="Checking administrator access…" /></AppShell>;
   if (!allowed) return <AppShell><State text="Administrator access is required." /></AppShell>;

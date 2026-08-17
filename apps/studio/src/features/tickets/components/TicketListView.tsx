@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -51,6 +51,9 @@ const PRIORITY_FILTER_OPTIONS = [
 export function TicketListView() {
   const router = useRouter();
   const { tickets, loading, error, refetch } = useTicketStore();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const [searchOption, setSearchOption] = useState<"ticketNumber" | "email" | "subject" | "allFields">("ticketNumber");
   const [searchText, setSearchText] = useState("");
@@ -301,10 +304,10 @@ export function TicketListView() {
                   </TableCell>
                   <TableCell className="font-medium text-m-primary">{t.email}</TableCell>
                   <TableCell className="text-xs text-m-text-muted">
-                    {new Date(t.createdAt).toLocaleString()}
+                    {mounted ? new Date(t.createdAt).toLocaleString() : t.createdAt.slice(0, 10)}
                   </TableCell>
                   <TableCell className="text-xs text-m-text-muted">
-                    {t.lastModifiedAt ? new Date(t.lastModifiedAt).toLocaleString() : "--"}
+                    {t.lastModifiedAt && mounted ? new Date(t.lastModifiedAt).toLocaleString() : t.lastModifiedAt ? t.lastModifiedAt.slice(0, 10) : "--"}
                   </TableCell>
                   <TableCell>{t.contactType}</TableCell>
                   <TableCell>{renderStatusBadge(t.status)}</TableCell>

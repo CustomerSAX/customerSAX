@@ -337,11 +337,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 background: 'var(--topbar-search-bg)',
                 border: '1px solid var(--topbar-search-border)',
                 borderRadius: 'var(--radius-full)',
-                padding: '0 14px',
-                height: 34,
+                padding: '0 16px',
+                height: 40,
+                width: '100%',
+                maxWidth: 480,
+                margin: '0 auto',
               }}
             >
-              <Icon name="search" size="xs" style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+              <Icon name="search" size="sm" style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
               <input
                 type="search"
                 placeholder="Search customers, orders, tickets..."
@@ -358,11 +361,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               />
               <kbd
                 style={{
-                  fontSize: 10,
+                  fontSize: 11,
                   color: 'var(--color-text-muted)',
                   border: '1px solid var(--color-border)',
                   borderRadius: 4,
-                  padding: '1px 4px',
+                  padding: '2px 6px',
                   background: 'var(--color-surface-3)',
                   flexShrink: 0,
                 }}
@@ -372,61 +375,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           }
           actions={
-            <div className="flex items-center gap-1">
-              {/* Team selector */}
-              <button
-                type="button"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '0 12px',
-                  height: 34,
-                  borderRadius: 'var(--radius-full)',
-                  border: '1px solid var(--topbar-overlay)',
-                  background: 'var(--sidebar-overlay)',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 'var(--weight-medium)',
-                  color: 'var(--topbar-text)',
-                  cursor: 'pointer',
-                }}
-              >
-                <Icon name="users" size="xs" />
-                <span>Customer Experience Team</span>
-                <Icon name="chevron-down" size="xs" style={{ opacity: 0.6 }} />
-              </button>
-              {/* Notification bell */}
-              <button
-                type="button"
-                aria-label="Notifications"
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 'var(--radius-full)',
-                  border: 'none',
-                  background: 'var(--sidebar-overlay)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: 'var(--topbar-icon)',
-                  position: 'relative',
-                }}
-              >
-                <Icon name="bell" size="sm" />
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: 6,
-                    right: 6,
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: 'var(--csa-red-500)',
-                    border: '1.5px solid var(--topbar-bg)',
-                  }}
-                />
-              </button>
+            <div className="flex items-center gap-2">
+              {/* Features removed until workflows are built */}
             </div>
           }
           userSlot={
@@ -440,7 +390,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <div className="hidden flex-col sm:flex">
                     <span
                       style={{
-                        fontSize: 'var(--text-sm)',
+                        fontSize: '14px',
                         fontWeight: 'var(--weight-semibold)',
                         color: 'var(--topbar-text)',
                         lineHeight: 1.1,

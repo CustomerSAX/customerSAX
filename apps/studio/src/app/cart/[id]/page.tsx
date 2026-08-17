@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { AppShell } from "../../../components/shell/AppShell";
-import { CartDetailView } from "../../../features/details/CartDetailView";
+import { CartDetailView } from "../../../features/cart/components/CartDetailView";
 import { Skeleton } from "@csa/ui";
 
 export default function CartDetailPage({ params }: { params: { id: string } }) {

@@ -56,12 +56,12 @@ export function ReportExportPanel() {
     }
 
     setIsExporting(true);
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
       const fileName = `Report - ${selectedReportValue} (${formatDdMmYyyy(fromDate)} to ${formatDdMmYyyy(toDate)})`;
       try {
-        exportRowsToExcel(getMockReportRows(selectedReportValue), fileName);
+        await exportRowsToExcel(getMockReportRows(selectedReportValue), fileName);
         pushToast("success", `${fileName} exported successfully!`);
-      } catch {
+      } catch (err) {
         pushToast("error", "No data to export");
       } finally {
         setIsExporting(false);

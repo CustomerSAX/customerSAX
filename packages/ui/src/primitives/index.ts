@@ -9,3 +9,4 @@ export * from './Label';
 export * from './FormField';
 export * from './TextArea';
 export * from './Select';
+export * from './Separator';

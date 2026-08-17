@@ -41,29 +41,29 @@
   /* Neutral grays */
   --csa-white:     #FFFFFF;
   --csa-gray-25:   #FDFEFF;
-  --csa-gray-50:   #F7F9FC;
+  --csa-gray-50:   #F8F9FC;
   --csa-gray-100:  #EEF2F7;
   --csa-gray-150:  #E6EBF3;
-  --csa-gray-200:  #D8E0EA;
+  --csa-gray-200:  #E3E8F0;
   --csa-gray-300:  #BAC6D6;
   --csa-gray-400:  #94A3B6;
   --csa-gray-500:  #667085;
   --csa-gray-600:  #4A5568;
-  --csa-gray-700:  #334155;
-  --csa-gray-800:  #1E293B;
+  --csa-gray-700:  #344054;
+  --csa-gray-800:  #1C2531;
   --csa-gray-900:  #101828;
   --csa-gray-950:  #0A1020;
 
   /* Status */
   --csa-green-50:  #ECFDF5;
-  --csa-green-500: #059669;
+  --csa-green-500: #16A66A;
   --csa-green-700: #047857;
   --csa-red-50:    #FEF2F2;
-  --csa-red-500:   #DC2626;
+  --csa-red-500:   #E5484D;
   --csa-red-700:   #B91C1C;
   --csa-amber-50:  #FFFBEB;
-  --csa-amber-500: #D97706;
-  --csa-info-50:   #EFF8FF;
+  --csa-amber-500: #F59E0B;
+  --csa-info-50:   #EEF4FF;
   --csa-info-200:  #B2DDFF;
   --csa-info-500:  #0284C7;
   --csa-green-200: #A7F3D0;
@@ -82,8 +82,8 @@
   --color-primary-light:  var(--csa-blue-50);
   --color-primary-border: var(--csa-blue-200);
 
-  --color-ink:          var(--csa-gray-900);
-  --color-ink-soft:     var(--csa-gray-800);
+  --color-ink:          var(--csa-gray-800);
+  --color-ink-soft:     var(--csa-gray-700);
   --color-text-muted:   var(--csa-gray-500);
   --color-text-subtle:  var(--csa-gray-400);
   --color-text-inverse: var(--csa-white);
@@ -212,7 +212,7 @@
   /* ----------------------------------------------------------
      BACKWARD-COMPAT ALIASES
      ---------------------------------------------------------- */
-  --color-ink:              var(--csa-gray-900);
+  --color-ink:              var(--csa-gray-800);
   --background:             var(--color-bg);
   --foreground:             var(--color-ink);
   --content-bg:             var(--color-bg);
@@ -233,7 +233,7 @@
   --topbar-bg:              var(--csa-yellow-500);
   --sidebar-bg:             var(--csa-blue-500);
   --sidebar-width:          240px;
-  --topbar-height:          52px;
+  --topbar-height:          68px;
 
   /* Meridian (m-) prefix compat */
   --m-primary:             var(--csa-blue-500);

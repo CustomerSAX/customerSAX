@@ -106,8 +106,14 @@ export function EntityTabs({
   return (
     <div
       role="tablist"
-      className="sticky top-0 z-20 -mx-1 flex items-stretch gap-1 overflow-x-auto border-b border-m-border px-1 backdrop-blur"
-      style={{ background: "color-mix(in srgb, var(--color-bg) 92%, transparent)" }}
+      className="sticky z-20 flex items-end gap-8 overflow-x-auto border-b border-m-border"
+      style={{
+        top: "var(--topbar-height)",
+        minHeight: 52,
+        background: "rgba(248,249,252,.96)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }}
     >
       {tabs.map((tab) => {
         const isActive = tab.id === active;
@@ -119,27 +125,20 @@ export function EntityTabs({
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={[
-              "relative inline-flex h-[50px] items-center gap-2 whitespace-nowrap px-3.5 text-[14px] font-semibold outline-none transition-colors",
+              "relative inline-flex h-[52px] items-center whitespace-nowrap text-[14px] font-semibold outline-none transition-colors",
               "focus-visible:ring-2 focus-visible:ring-m-primary/40",
-              isActive ? "text-m-primary" : "text-m-text-muted hover:text-m-text",
+              isActive
+                ? "text-m-primary"
+                : "text-m-text-muted hover:text-[#344054]",
             ].join(" ")}
+            style={{ background: "transparent", border: 0 }}
           >
-            {tab.icon && <Icon name={tab.icon} size={16} />}
             {tab.label}
-            {typeof tab.count === "number" && (
-              <span
-                className={[
-                  "ml-0.5 min-w-[18px] rounded-m-full px-1.5 text-center text-[11px] font-semibold leading-[17px]",
-                  isActive ? "bg-m-primary-50 text-m-primary" : "bg-m-surface-3 text-m-text-muted",
-                ].join(" ")}
-              >
-                {tab.count}
-              </span>
-            )}
             {isActive && (
               <span
                 aria-hidden
-                className="absolute inset-x-0 -bottom-px h-[2px] rounded-t-sm bg-m-primary"
+                className="absolute inset-x-0 -bottom-px rounded-t-sm bg-m-primary"
+                style={{ height: "2.5px" }}
               />
             )}
           </button>
@@ -171,19 +170,34 @@ export function SummaryCard({
   label: string;
   value: ReactNode;
   sub?: ReactNode;
-  tone?: "default" | "primary" | "success" | "warning" | "error";
+  tone?: "default" | "primary" | "success" | "warning" | "error" | "info" | "neutral";
 }) {
-  const iconTone: Record<string, string> = {
+  const iconBg: Record<string, string> = {
+    default: "bg-m-surface-3",
+    primary: "bg-m-primary-50",
+    success: "bg-m-success-light",
+    warning: "bg-m-warning-light",
+    error: "bg-m-error-light",
+    info: "bg-m-info-light",
+    neutral: "bg-m-surface-3",
+  };
+  const iconFg: Record<string, string> = {
     default: "text-m-text-muted",
     primary: "text-m-primary",
     success: "text-m-success",
     warning: "text-m-warning-dark",
     error: "text-m-error",
+    info: "text-m-info-dark",
+    neutral: "text-m-text",
   };
   return (
-    <div className="flex flex-col gap-2 rounded-m-xl border border-m-border bg-m-surface p-3.5 shadow-m-xs">
-      <div className="flex items-center gap-1.5">
-        {icon && <Icon name={icon} size={14} className={iconTone[tone]} />}
+    <div className="flex flex-col gap-2 rounded-m-xl border border-m-border bg-m-surface p-4 shadow-m-xs">
+      <div className="flex items-center gap-2">
+        {icon && (
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-m-md ${iconBg[tone]}`}>
+            <Icon name={icon} size={14} className={iconFg[tone]} />
+          </span>
+        )}
         <span className="text-[11px] font-medium uppercase tracking-wide text-m-text-muted">
           {label}
         </span>
@@ -202,16 +216,16 @@ export function SummaryCard({
  * ------------------------------------------------------------------ */
 
 export function ContentGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">{children}</div>;
+  return <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">{children}</div>;
 }
 
 export function MainColumn({ span = 8, children }: { span?: 6 | 7 | 8; children: ReactNode }) {
-  const cls = span === 6 ? "xl:col-span-6" : span === 7 ? "xl:col-span-7" : "xl:col-span-8";
+  const cls = span === 6 ? "lg:col-span-6" : span === 7 ? "lg:col-span-7" : "lg:col-span-8";
   return <div className={`flex flex-col gap-5 ${cls}`}>{children}</div>;
 }
 
 export function SideColumn({ span = 4, children }: { span?: 4 | 5 | 6; children: ReactNode }) {
-  const cls = span === 6 ? "xl:col-span-6" : span === 5 ? "xl:col-span-5" : "xl:col-span-4";
+  const cls = span === 6 ? "lg:col-span-6" : span === 5 ? "lg:col-span-5" : "lg:col-span-4";
   return <div className={`flex flex-col gap-5 ${cls}`}>{children}</div>;
 }
 
@@ -242,16 +256,17 @@ export function SectionCard({
   return (
     <section
       className={[
-        "overflow-hidden rounded-m-xl border shadow-m-xs",
+        "overflow-hidden rounded-m-xl border",
         amber ? "border-m-warning-border bg-m-warning-light" : "border-m-border bg-m-surface",
         className ?? "",
       ].join(" ")}
+      style={{ boxShadow: "0 1px 2px rgba(16,24,40,.03)" }}
     >
       {title != null && (
         <header
           className={[
-            "flex items-center justify-between gap-3 px-4 py-3",
-            amber ? "" : "border-b border-m-border/70",
+            "flex items-center justify-between gap-3 px-5 py-3.5",
+            amber ? "" : "border-b border-m-border/60",
           ].join(" ")}
         >
           <div className="flex min-w-0 items-center gap-2">
@@ -267,7 +282,7 @@ export function SectionCard({
           {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
         </header>
       )}
-      <div className={bodyClassName ?? "p-4"}>{children}</div>
+      <div className={bodyClassName ?? "px-5 py-4"}>{children}</div>
     </section>
   );
 }
@@ -378,7 +393,8 @@ export function StatusPill({
   };
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-m-full px-2.5 py-1 text-[12px] font-semibold ${map[tone]}`}
+      className={`inline-flex items-center gap-1.5 rounded-m-full text-[12px] font-semibold ${map[tone]}`}
+      style={{ padding: "3px 8px" }}
     >
       {dot && <span className={`h-1.5 w-1.5 rounded-full ${dotMap[tone]}`} aria-hidden />}
       {children}
@@ -418,21 +434,21 @@ export function Timeline({ items }: { items: TimelineItem[] }) {
             {!isLast && (
               <span
                 aria-hidden
-                className="absolute left-[11px] top-6 h-[calc(100%-14px)] w-px bg-m-border"
+                className="absolute left-[11px] top-7 h-[calc(100%-16px)] w-px bg-m-border"
               />
             )}
             <span
-              className={`relative z-10 mt-0.5 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border ${n.ring}`}
+              className={`relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${n.ring}`}
             >
               <Icon name={n.icon} size={12} className={n.iconColor} />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="text-[13.5px] font-semibold text-m-text">{item.label}</span>
+                <span className="text-[13px] font-semibold text-m-text">{item.label}</span>
                 {item.meta && <span className="text-[12px] text-m-text-muted">{item.meta}</span>}
               </div>
               {item.detail && (
-                <div className="mt-0.5 text-[12.5px] text-m-text-muted">{item.detail}</div>
+                <div className="mt-0.5 text-[12px] text-m-text-muted">{item.detail}</div>
               )}
             </div>
           </li>

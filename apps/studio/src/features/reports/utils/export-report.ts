@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 import type { ReportExportRow } from "../types/report-types";
 
 /** Input[type=date] always yields "YYYY-MM-DD"; reformat without going through
@@ -10,10 +8,14 @@ export function formatDdMmYyyy(value: string): string {
   return `${dd}-${mm}-${yyyy}`;
 }
 
-export function exportRowsToExcel(rows: ReportExportRow[], fileName: string): void {
+export async function exportRowsToExcel(rows: ReportExportRow[], fileName: string): Promise<void> {
   if (rows.length === 0) {
     throw new Error("No data to export");
   }
+
+  // Dynamically import heavy libraries to reduce initial bundle size and avoid SSR issues
+  const XLSX = await import("xlsx");
+  const { saveAs } = await import("file-saver");
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
   const workbook = XLSX.utils.book_new();

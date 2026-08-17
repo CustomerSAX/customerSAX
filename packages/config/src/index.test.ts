@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { env, requiredEnv, envInt } from "./index";
+import { env, requiredEnv, envInt } from "./index.js";
 
 const KEY = "CSA_TEST_ENV_VAR_UNIQUE";
 

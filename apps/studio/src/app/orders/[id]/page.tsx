@@ -3,6 +3,8 @@ import { AppShell } from "../../../components/shell/AppShell";
 import { OrderDetailView } from "../../../features/orders/components/OrderDetailView";
 import { Skeleton } from "@csa/ui";
 
+export const dynamic = 'force-dynamic';
+
 export default function OrderDetailPage({ params }: { params: { id: string } }) {
   return (
     <AppShell>

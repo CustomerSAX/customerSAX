@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CSA_HEADERS, headerValue, readCsaContext, applyCsaHeaders } from "./index";
+import { CSA_HEADERS, headerValue, readCsaContext, applyCsaHeaders } from "./index.js";
 
 describe("@csa/headers", () => {
   it("headerValue normalizes array→first, string→string, undefined/empty→undefined", () => {
