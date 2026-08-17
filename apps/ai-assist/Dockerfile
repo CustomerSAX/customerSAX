@@ -33,5 +33,6 @@ COPY --from=build /app/packages/headers /app/packages/headers
 COPY --from=build /app/packages/logger /app/packages/logger
 COPY --from=build /app/packages/mongodb /app/packages/mongodb
 COPY --from=build /app/apps/ai-assist/package.json /app/apps/ai-assist/package.json
+COPY --from=build /app/apps/ai-assist/src /app/apps/ai-assist/src
 COPY --from=build /app/apps/ai-assist/dist /app/apps/ai-assist/dist
 CMD ["pnpm", "--filter", "@csa/ai-assist", "start"]

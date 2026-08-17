@@ -33,5 +33,6 @@ COPY --from=build /app/packages/headers /app/packages/headers
 COPY --from=build /app/packages/logger /app/packages/logger
 COPY --from=build /app/packages/mongodb /app/packages/mongodb
 COPY --from=build /app/apps/auth/package.json /app/apps/auth/package.json
+COPY --from=build /app/apps/auth/src /app/apps/auth/src
 COPY --from=build /app/apps/auth/dist /app/apps/auth/dist
 CMD ["pnpm", "--filter", "@csa/auth", "start"]

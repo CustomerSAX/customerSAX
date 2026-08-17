@@ -41,5 +41,6 @@ COPY --from=build /app/packages/service-bootstrap /app/packages/service-bootstra
 COPY --from=build /app/apps/commerce/contract/package.json /app/apps/commerce/contract/package.json
 COPY --from=build /app/apps/commerce/contract/dist /app/apps/commerce/contract/dist
 COPY --from=build /app/apps/commerce/commercetools/package.json /app/apps/commerce/commercetools/package.json
+COPY --from=build /app/apps/commerce/commercetools/src /app/apps/commerce/commercetools/src
 COPY --from=build /app/apps/commerce/commercetools/dist /app/apps/commerce/commercetools/dist
 CMD ["pnpm", "--filter", "@csa/commerce-commercetools", "start"]
