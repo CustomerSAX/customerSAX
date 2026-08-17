@@ -1,5 +1,6 @@
 locals {
   name_prefix = "csa-${var.environment}"
+  compute_sa_email = "${data.google_project.current.number}-compute@developer.gserviceaccount.com"
 
   llm_secrets = {
     ai_gateway_api_key = "AI_GATEWAY_API_KEY"
