@@ -32,5 +32,6 @@ COPY --from=build /app/packages/service-bootstrap /app/packages/service-bootstra
 COPY --from=build /app/apps/commerce/contract/package.json /app/apps/commerce/contract/package.json
 COPY --from=build /app/apps/commerce/contract/dist /app/apps/commerce/contract/dist
 COPY --from=build /app/apps/commerce/sfcc/package.json /app/apps/commerce/sfcc/package.json
+COPY --from=build /app/apps/commerce/sfcc/src /app/apps/commerce/sfcc/src
 COPY --from=build /app/apps/commerce/sfcc/dist /app/apps/commerce/sfcc/dist
 CMD ["pnpm", "--filter", "@csa/commerce-sfcc", "start"]

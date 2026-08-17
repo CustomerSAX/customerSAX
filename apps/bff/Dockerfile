@@ -30,5 +30,6 @@ COPY --from=build /app/packages/config /app/packages/config
 COPY --from=build /app/packages/headers /app/packages/headers
 COPY --from=build /app/packages/logger /app/packages/logger
 COPY --from=build /app/apps/bff/package.json /app/apps/bff/package.json
+COPY --from=build /app/apps/bff/src /app/apps/bff/src
 COPY --from=build /app/apps/bff/dist /app/apps/bff/dist
 CMD ["pnpm", "--filter", "@csa/bff", "start"]

@@ -36,5 +36,6 @@ COPY --from=build /app/packages/logger /app/packages/logger
 COPY --from=build /app/packages/mongodb /app/packages/mongodb
 COPY --from=build /app/packages/service-bootstrap /app/packages/service-bootstrap
 COPY --from=build /app/apps/admin/package.json /app/apps/admin/package.json
+COPY --from=build /app/apps/admin/src /app/apps/admin/src
 COPY --from=build /app/apps/admin/dist /app/apps/admin/dist
 CMD ["pnpm", "--filter", "@csa/admin", "start"]
