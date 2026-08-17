@@ -210,6 +210,10 @@ jobs:
 
       - name: Deploy studio to Vercel (Production)
         run: |
+          if [ -z "${VERCEL_PROJECT_ID}" ]; then
+            echo "⚠️ VERCEL_PROJECT_ID_STUDIO is empty. Skipping Studio deployment."
+            exit 0
+          fi
           vercel deploy --prod \
             --token="${{ secrets.VERCEL_TOKEN }}" \
             --yes
@@ -221,6 +225,10 @@ jobs:
       - name: Deploy marketing to Vercel (Production)
         working-directory: apps/marketing
         run: |
+          if [ -z "${VERCEL_PROJECT_ID}" ]; then
+            echo "⚠️ VERCEL_PROJECT_ID_MARKETING is empty. Skipping Marketing deployment."
+            exit 0
+          fi
           vercel deploy --prod \
             --token="${{ secrets.VERCEL_TOKEN }}" \
             --yes
@@ -232,6 +240,10 @@ jobs:
       - name: Deploy docs-site to Vercel (Production)
         working-directory: apps/docs-site
         run: |
+          if [ -z "${VERCEL_PROJECT_ID}" ]; then
+            echo "⚠️ VERCEL_PROJECT_ID_DOCS is empty. Skipping Docs Site deployment."
+            exit 0
+          fi
           vercel deploy --prod \
             --token="${{ secrets.VERCEL_TOKEN }}" \
             --yes
