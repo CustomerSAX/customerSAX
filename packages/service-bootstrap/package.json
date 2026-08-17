@@ -20,7 +20,11 @@
   "dependencies": {
     "@apollo/server": "^4.11.0",
     "@csa/headers": "workspace:*",
-    "@csa/logger": "workspace:*"
+    "@csa/logger": "workspace:*",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
   },
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",

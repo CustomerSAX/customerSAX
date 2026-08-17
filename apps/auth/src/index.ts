@@ -16,8 +16,6 @@ const log = createLogger("auth");
 const port = Number(process.env.AUTH_PORT ?? process.env.PORT ?? 4360);
 const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
 
-await ensureAuthIndexes();
-
 const server = createServer(withHttpContext(log, async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
@@ -128,4 +126,7 @@ const server = createServer(withHttpContext(log, async (request, response) => {
 
 server.listen(port, host, () => {
   log.info("service ready", { host, port });
+  // Ensure MongoDB indexes AFTER port is bound — Cloud Run startup probe
+  // must see port 8080 immediately; index creation is non-blocking for startup.
+  ensureAuthIndexes().catch((err) => log.error("ensureAuthIndexes failed", err));
 });
