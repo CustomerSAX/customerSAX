@@ -5,6 +5,7 @@ export type AuthUserProject = {
   displayName?: string;
   projectKey: string;
   role: string;
+  shellMode?: "b2c" | "b2b";
 };
 
 export type AuthUser = {
@@ -41,6 +42,7 @@ export type PublicUser = {
   projectKey?: string;
   activeClientId?: string;
   activeProjectKey?: string;
+  activeProjectShellMode?: "b2c" | "b2b";
   projects: AuthUserProject[];
   requiresProjectSelection: boolean;
   role: AuthRole;

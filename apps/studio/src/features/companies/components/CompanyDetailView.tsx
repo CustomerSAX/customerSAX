@@ -24,9 +24,10 @@ import {
   Input,
   Select,
   EmptyState,
+  Skeleton,
 } from "@csa/ui";
-import { useCompanies } from "../hooks/use-companies";
-import { useQuotes } from "@/features/quotes/hooks/use-quotes";
+import { formatDate, formatDateTime } from "@/lib/format-date";
+import { useCompanies, useCompanyCommerceActivity } from "../hooks/use-companies";
 
 type DetailTab = "general" | "address" | "cart" | "order" | "quote" | "employees";
 
@@ -54,12 +55,19 @@ const MOCK_COMPANY_ORDERS = [
   },
 ];
 
+const formatCurrencyNumber = (value: number) => value.toLocaleString("en-US");
+
 export function CompanyDetailView({ id }: { id: string }) {
   const router = useRouter();
-  const { getCompanyById, updateCompany, addCompanyAddress, addCompanyAssociate } = useCompanies();
-  const { quotes } = useQuotes();
+  const { getCompanyById, updateCompany, addCompanyAddress, addCompanyAssociate, loading } = useCompanies();
 
   const company = getCompanyById(id);
+  const {
+    carts: activityCarts,
+    orders: activityOrders,
+    quotes: activityQuotes,
+    error: activityError,
+  } = useCompanyCommerceActivity(company?.key);
   const [activeTab, setActiveTab] = useState<DetailTab>("general");
 
   // Edit company state
@@ -81,11 +89,24 @@ export function CompanyDetailView({ id }: { id: string }) {
   const [assocEmail, setAssocEmail] = useState("");
   const [assocRole, setAssocRole] = useState("Buyer");
 
-  const companyCarts = MOCK_COMPANY_CARTS;
-  const companyOrders = MOCK_COMPANY_ORDERS;
-  const companyQuotes = quotes.filter(
-    (q) => q.companyId === company?.id || q.companyName === company?.name || q.companyKey === company?.key
-  );
+  const companyCarts = activityError ? MOCK_COMPANY_CARTS : activityCarts;
+  const companyOrders = activityError ? MOCK_COMPANY_ORDERS : activityOrders;
+  const companyQuotes = activityError ? [] : activityQuotes;
+
+  if (loading && !company) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader title={<Skeleton width={280} height={32} />} subtitle={<Skeleton width={180} height={16} />} />
+        <Panel>
+          <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+            <Skeleton height={64} />
+            <Skeleton height={64} />
+            <Skeleton height={64} />
+          </div>
+        </Panel>
+      </div>
+    );
+  }
 
   if (!company) {
     return (
@@ -165,7 +186,7 @@ export function CompanyDetailView({ id }: { id: string }) {
             </Badge>
           </div>
         }
-        subtitle={`${company.unitType} • Created ${new Date(company.createdAt).toLocaleDateString()}`}
+        subtitle={`${company.unitType} • Created ${formatDate(company.createdAt)}`}
         breadcrumbs={
           <div className="flex items-center gap-1 text-xs text-m-text-muted">
             <button onClick={() => router.push("/b2b/company")} className="hover:text-m-primary font-semibold">
@@ -272,20 +293,20 @@ export function CompanyDetailView({ id }: { id: string }) {
                   <span className="text-xs font-semibold uppercase tracking-wider text-m-text-muted block mb-1">
                     Created
                   </span>
-                  <span className="text-m-text">{new Date(company.createdAt).toLocaleString()}</span>
+                  <span className="text-m-text">{formatDateTime(company.createdAt)}</span>
                 </div>
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-m-text-muted block mb-1">
                     Last Modified
                   </span>
-                  <span className="text-m-text">{new Date(company.lastModifiedAt).toLocaleString()}</span>
+                  <span className="text-m-text">{formatDateTime(company.lastModifiedAt)}</span>
                 </div>
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-m-text-muted block mb-1">
                     Credit Limit / Available
                   </span>
                   <span className="font-semibold text-m-success">
-                    ${((company.creditLimit ?? 100000) - (company.creditUsed ?? 0)).toLocaleString()} / ${(company.creditLimit ?? 100000).toLocaleString()}
+                    ${formatCurrencyNumber((company.creditLimit ?? 100000) - (company.creditUsed ?? 0))} / ${formatCurrencyNumber(company.creditLimit ?? 100000)}
                   </span>
                 </div>
               </div>
@@ -387,7 +408,7 @@ export function CompanyDetailView({ id }: { id: string }) {
                             {c.cartState}
                           </Badge>
                         </TableCell>
-                        <TableCell>{new Date(c.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{formatDate(c.createdAt)}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -435,7 +456,7 @@ export function CompanyDetailView({ id }: { id: string }) {
                           </Badge>
                         </TableCell>
                         <TableCell className="font-semibold">${o.totalPrice.toFixed(2)}</TableCell>
-                        <TableCell>{new Date(o.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{formatDate(o.createdAt)}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -478,8 +499,8 @@ export function CompanyDetailView({ id }: { id: string }) {
                           </Badge>
                         </TableCell>
                         <TableCell className="font-semibold">${q.negotiatedTotal.toFixed(2)}</TableCell>
-                        <TableCell>{q.validUntil ? new Date(q.validUntil).toLocaleDateString() : "--"}</TableCell>
-                        <TableCell>{new Date(q.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{formatDate(q.validUntil)}</TableCell>
+                        <TableCell>{formatDate(q.createdAt)}</TableCell>
                       </TableRow>
                     ))
                   )}

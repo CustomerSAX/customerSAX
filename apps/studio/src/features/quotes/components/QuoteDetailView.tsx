@@ -20,6 +20,7 @@ import {
   Input,
   EmptyState,
 } from "@csa/ui";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 import { useQuotes } from "../hooks/use-quotes";
 import { QuoteStatusChip } from "./QuoteStatusChip";
 
@@ -240,11 +241,11 @@ export function QuoteDetailView({ id }: { id: string }) {
             </div>
             <div className="flex justify-between border-b border-m-border/60 pb-2">
               <span className="text-m-text-muted">Valid Until</span>
-              <span className="font-semibold">{new Date(quote.validUntil).toLocaleDateString()}</span>
+              <span className="font-semibold">{formatDate(quote.validUntil)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-m-text-muted">Requested Date</span>
-              <span>{new Date(quote.createdAt).toLocaleString()}</span>
+              <span>{formatDateTime(quote.createdAt)}</span>
             </div>
           </div>
         </Panel>
@@ -309,7 +310,7 @@ export function QuoteDetailView({ id }: { id: string }) {
                       </Badge>
                     </div>
                     <span className="text-m-text-muted text-[11px]">
-                      {new Date(turn.timestamp).toLocaleString()}
+                      {formatDateTime(turn.timestamp)}
                     </span>
                   </div>
                   <p className="text-xs text-m-text mt-1">{turn.comment}</p>
