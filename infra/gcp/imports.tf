@@ -8,74 +8,74 @@
 
 # ── Artifact Registry ──────────────────────────────────────
 import {
-  id = "projects/customerservice-505511/locations/us-central1/repositories/csa-dev-repo"
+  id = "projects/customerservice-505511/locations/us-central1/repositories/csa-${var.environment}-repo"
   to = google_artifact_registry_repository.repo
 }
 
 # ── BigQuery ───────────────────────────────────────────────
 import {
-  id = "projects/customerservice-505511/datasets/csa_dev_analytics"
+  id = "projects/customerservice-505511/datasets/csa_${var.environment}_analytics"
   to = google_bigquery_dataset.analytics
 }
 
 # ── Secret Manager ─────────────────────────────────────────
 import {
-  id = "projects/customerservice-505511/secrets/csa-dev-ai-gateway-api-key"
+  id = "projects/customerservice-505511/secrets/csa-${var.environment}-ai-gateway-api-key"
   to = google_secret_manager_secret.llm["ai_gateway_api_key"]
 }
 
 import {
-  id = "projects/customerservice-505511/secrets/csa-dev-commercetools-client-id"
+  id = "projects/customerservice-505511/secrets/csa-${var.environment}-commercetools-client-id"
   to = google_secret_manager_secret.commerce["commercetools_client_id"]
 }
 
 import {
-  id = "projects/customerservice-505511/secrets/csa-dev-commercetools-client-secret"
+  id = "projects/customerservice-505511/secrets/csa-${var.environment}-commercetools-client-secret"
   to = google_secret_manager_secret.commerce["commercetools_client_secret"]
 }
 
 # ── Cloud Run Services ─────────────────────────────────────
 import {
-  id = "projects/customerservice-505511/locations/us-central1/services/csa-dev-bff"
+  id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-bff"
   to = google_cloud_run_v2_service.bff
 }
 
 import {
-  id = "projects/customerservice-505511/locations/us-central1/services/csa-dev-auth"
+  id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-auth"
   to = google_cloud_run_v2_service.auth
 }
 
 import {
-  id = "projects/customerservice-505511/locations/us-central1/services/csa-dev-ai-assist"
+  id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-ai-assist"
   to = google_cloud_run_v2_service.ai_assist
 }
 
 import {
-  id = "projects/customerservice-505511/locations/us-central1/services/csa-dev-commerce-commercetools"
+  id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-commerce-commercetools"
   to = google_cloud_run_v2_service.commerce_commercetools
 }
 
 import {
-  id = "projects/customerservice-505511/locations/us-central1/services/csa-dev-commerce-shopify"
+  id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-commerce-shopify"
   to = google_cloud_run_v2_service.commerce_shopify
 }
 
 import {
-  id = "projects/customerservice-505511/locations/us-central1/services/csa-dev-commerce-bigcommerce"
+  id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-commerce-bigcommerce"
   to = google_cloud_run_v2_service.commerce_bigcommerce
 }
 
 import {
-  id = "projects/customerservice-505511/locations/us-central1/services/csa-dev-commerce-sfcc"
+  id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-commerce-sfcc"
   to = google_cloud_run_v2_service.commerce_sfcc
 }
 
 import {
-  id = "projects/customerservice-505511/locations/us-central1/services/csa-dev-admin"
+  id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-admin"
   to = google_cloud_run_v2_service.admin
 }
 
 import {
-  id = "projects/customerservice-505511/locations/us-central1/services/csa-dev-ticketing"
+  id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-ticketing"
   to = google_cloud_run_v2_service.ticketing
 }
