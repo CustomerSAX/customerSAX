@@ -230,7 +230,6 @@ jobs:
           AUTH_URL="https://${PREFIX}-auth-v3egj3ywmq-uc.a.run.app"
           
           vercel deploy $PROD_FLAG \
-            -A apps/studio/vercel.json \
             --token="${{ secrets.VERCEL_TOKEN }}" \
             --build-env NEXT_PUBLIC_BFF_URL="$BFF_URL" \
             --build-env NEXT_PUBLIC_AUTH_URL="$AUTH_URL" \
@@ -256,7 +255,6 @@ jobs:
           fi
           
           vercel deploy $PROD_FLAG \
-            -A apps/marketing/vercel.json \
             --token="${{ secrets.VERCEL_TOKEN }}" \
             --yes
         env:
@@ -278,7 +276,6 @@ jobs:
           fi
           
           vercel deploy $PROD_FLAG \
-            -A apps/docs-site/vercel.json \
             --token="${{ secrets.VERCEL_TOKEN }}" \
             --yes
         env:

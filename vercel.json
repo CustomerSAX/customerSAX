@@ -1,8 +1,0 @@
-{
-  "version": 2,
-  "framework": "nextjs",
-  "buildCommand": "pnpm --filter @csa/studio build",
-  "devCommand": "pnpm --filter @csa/studio dev",
-  "installCommand": "pnpm install",
-  "outputDirectory": "apps/studio/.next"
-}
