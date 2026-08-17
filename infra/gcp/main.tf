@@ -41,7 +41,9 @@ locals {
   )
 }
 
-data "google_project" "current" {}
+data "google_project" "current" {
+  depends_on = [google_project_service.required]
+}
 
 resource "google_project_service" "required" {
   for_each = toset(local.services)
@@ -98,6 +100,15 @@ resource "google_storage_bucket" "documents" {
   name                        = "${local.name_prefix}-documents-${random_id.suffix.hex}"
   location                    = var.region
   uniform_bucket_level_access = true
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_artifact_registry_repository" "repo" {
+  location      = var.region
+  repository_id = "${local.name_prefix}-repo"
+  description   = "Docker repository for CSA backend services"
+  format        = "DOCKER"
 
   depends_on = [google_project_service.required]
 }
@@ -161,6 +172,14 @@ resource "google_cloud_run_v2_service" "bff" {
   }
 
   depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service_iam_member" "bff_public" {
+  project  = google_cloud_run_v2_service.bff.project
+  location = google_cloud_run_v2_service.bff.location
+  name     = google_cloud_run_v2_service.bff.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
 
 resource "google_cloud_run_v2_service" "commerce_commercetools" {
@@ -316,6 +335,68 @@ resource "google_cloud_run_v2_service" "ai_assist" {
             }
           }
         }
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service" "auth" {
+  name     = "${local.name_prefix}-auth"
+  location = var.region
+
+  template {
+    containers {
+      image = var.auth_image
+
+      env {
+        name  = "AUTH_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service_iam_member" "auth_public" {
+  project  = google_cloud_run_v2_service.auth.project
+  location = google_cloud_run_v2_service.auth.location
+  name     = google_cloud_run_v2_service.auth.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_v2_service" "admin" {
+  name     = "${local.name_prefix}-admin"
+  location = var.region
+
+  template {
+    containers {
+      image = var.admin_image
+
+      env {
+        name  = "ADMIN_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service" "ticketing" {
+  name     = "${local.name_prefix}-ticketing"
+  location = var.region
+
+  template {
+    containers {
+      image = var.ticketing_image
+
+      env {
+        name  = "TICKETING_PORT"
+        value = "8080"
       }
     }
   }
