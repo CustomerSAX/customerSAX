@@ -10,7 +10,6 @@ env:
   PROJECT_NUMBER: "17754871169"
   REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
-  ARTIFACT_REPO: csa-dev-repo
   PLACEHOLDER_IMAGE: us-docker.pkg.dev/cloudrun/container/hello
 
 jobs:
@@ -35,6 +34,14 @@ jobs:
 
       - name: Create missing Cloud Run services (idempotent)
         run: |
+          if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
+            PREFIX="csa-production"
+          elif [ "${{ github.ref_name }}" = "customerSAX-QA" ]; then
+            PREFIX="csa-qa"
+          else
+            PREFIX="csa-dev"
+          fi
+
           # First ensure all APIs are enabled
           gcloud services enable run.googleapis.com \
             secretmanager.googleapis.com \
@@ -44,19 +51,19 @@ jobs:
 
           # Public services (allow unauthenticated — frontend calls these directly)
           PUBLIC_SERVICES=(
-            "csa-dev-bff"
-            "csa-dev-auth"
+            "${PREFIX}-bff"
+            "${PREFIX}-auth"
           )
 
           # Private services (service-to-service auth only)
           PRIVATE_SERVICES=(
-            "csa-dev-ai-assist"
-            "csa-dev-commerce-commercetools"
-            "csa-dev-ticketing"
-            "csa-dev-admin"
-            "csa-dev-commerce-shopify"
-            "csa-dev-commerce-bigcommerce"
-            "csa-dev-commerce-sfcc"
+            "${PREFIX}-ai-assist"
+            "${PREFIX}-commerce-commercetools"
+            "${PREFIX}-ticketing"
+            "${PREFIX}-admin"
+            "${PREFIX}-commerce-shopify"
+            "${PREFIX}-commerce-bigcommerce"
+            "${PREFIX}-commerce-sfcc"
           )
 
           for SVC in "${PUBLIC_SERVICES[@]}"; do
@@ -127,13 +134,21 @@ jobs:
 
       - name: Terraform Apply
         run: |
+          if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
+            ENV_VAR="production"
+          elif [ "${{ github.ref_name }}" = "customerSAX-QA" ]; then
+            ENV_VAR="qa"
+          else
+            ENV_VAR="dev"
+          fi
+
           cd infra/gcp
           terraform init
           terraform apply -auto-approve \
             -var="project_id=${{ env.PROJECT_ID }}" \
             -var="project_number=${{ env.PROJECT_NUMBER }}" \
             -var="region=${{ env.REGION }}" \
-            -var="environment=dev"
+            -var="environment=${ENV_VAR}"
 
   # ──────────────────────────────────────────────────────────────────────────
   # Job 3: Build + Deploy all changed services via Cloud Build

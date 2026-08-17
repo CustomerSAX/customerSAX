@@ -85,6 +85,17 @@ resource "google_secret_manager_secret_iam_member" "ai_assist_llm_keys" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_secret_manager_secret_version" "llm_dummy" {
+  for_each = google_secret_manager_secret.llm
+
+  secret      = each.value.id
+  secret_data = "placeholder"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}
+
 resource "google_secret_manager_secret" "commerce" {
   for_each = local.commerce_secrets
 
@@ -109,6 +120,17 @@ resource "google_secret_manager_secret_iam_member" "commerce_keys" {
   member    = "serviceAccount:${local.compute_sa_email}"
 
   depends_on = [google_project_service.required]
+}
+
+resource "google_secret_manager_secret_version" "commerce_dummy" {
+  for_each = google_secret_manager_secret.commerce
+
+  secret      = each.value.id
+  secret_data = "placeholder"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
 }
 
 resource "google_storage_bucket" "documents" {
