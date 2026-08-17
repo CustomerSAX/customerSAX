@@ -185,22 +185,16 @@ resource "google_cloud_run_v2_service" "bff" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
 }
 
-# allUsers IAM binding removed — org policy (constraints/iam.allowedPolicyMemberDomains)
-# blocks fully-public Cloud Run invocations. BFF is authenticated via the
-# API Gateway layer instead.
-resource "google_cloud_run_v2_service_iam_member" "bff_public" {
-  project  = google_cloud_run_v2_service.bff.project
-  location = google_cloud_run_v2_service.bff.location
-  name     = google_cloud_run_v2_service.bff.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
+# NOTE: allUsers IAM binding removed — org policy
+# (constraints/iam.allowedPolicyMemberDomains) blocks public Cloud Run
+# invocations via Terraform. Public access for bff is managed by the
+# deploy script's post-deploy gcloud command instead.
 
 resource "google_cloud_run_v2_service" "commerce_commercetools" {
   name     = "${local.name_prefix}-commerce-commercetools"
@@ -242,7 +236,7 @@ resource "google_cloud_run_v2_service" "commerce_commercetools" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -264,7 +258,7 @@ resource "google_cloud_run_v2_service" "commerce_shopify" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -286,7 +280,7 @@ resource "google_cloud_run_v2_service" "commerce_bigcommerce" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -308,7 +302,7 @@ resource "google_cloud_run_v2_service" "commerce_sfcc" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -354,7 +348,7 @@ resource "google_cloud_run_v2_service" "ai_assist" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -376,21 +370,16 @@ resource "google_cloud_run_v2_service" "auth" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
 }
 
-# allUsers IAM binding removed — org policy blocks public Cloud Run invocations.
-# Auth service is accessed via authenticated service-to-service calls.
-resource "google_cloud_run_v2_service_iam_member" "auth_public" {
-  project  = google_cloud_run_v2_service.auth.project
-  location = google_cloud_run_v2_service.auth.location
-  name     = google_cloud_run_v2_service.auth.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
+# NOTE: allUsers IAM binding removed — org policy
+# (constraints/iam.allowedPolicyMemberDomains) blocks public Cloud Run
+# invocations via Terraform. Public access for auth is managed by the
+# deploy script's post-deploy gcloud command instead.
 
 resource "google_cloud_run_v2_service" "admin" {
   name     = "${local.name_prefix}-admin"
@@ -408,7 +397,7 @@ resource "google_cloud_run_v2_service" "admin" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -430,7 +419,7 @@ resource "google_cloud_run_v2_service" "ticketing" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
