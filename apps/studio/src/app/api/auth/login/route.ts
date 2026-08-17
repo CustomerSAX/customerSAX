@@ -16,8 +16,11 @@ export async function POST(request: Request) {
 
   const payload = await response.json().catch(() => ({}));
 
-  if (!response.ok) {
-    return NextResponse.json({ error: payload.error ?? "invalid credentials" }, { status: response.status });
+  if (!response.ok || !payload.token || !payload.expiresAt) {
+    return NextResponse.json(
+      { error: payload.error ?? "Invalid response from authentication service. The backend might still be deploying." },
+      { status: response.ok ? 502 : response.status }
+    );
   }
 
   const nextResponse = NextResponse.json({ expiresAt: payload.expiresAt, user: payload.user });
