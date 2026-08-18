@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { useRouter } from "next/navigation";
 import {
   Button,
@@ -32,8 +31,8 @@ import {
   QuickActions,
   QuickAction,
   CardEmpty,
-} from "@/components/detail";
-import { MOCK_AVAILABLE_DISCOUNTS } from "../hooks/use-orders";
+} from "@csa/ui";
+import { formatTime } from "@/lib/format-date";
 import type { OrderState, ShipmentState, PaymentState, OrderLineItem } from "../types/order-types";
 import type { OrderGeneralTabProps } from "./order-tab-types";
 
@@ -83,7 +82,7 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
   setShowCommentForm: (v: boolean) => void;
 }) {
   const {
-    order, fmtDate, mounted, orderState, setOrderState, shipmentState, setShipmentState,
+    order, fmtDate, orderState, setOrderState, shipmentState, setShipmentState,
     paymentState, setPaymentState, stateSaveMsg, handleSaveStates,
     altEmail, setAltEmail, paymentReminderFeedback, handleSendPaymentReminder,
     loyaltyPointsInput, setLoyaltyPointsInput, loyaltySavedDollars, handleCalculateLoyalty,
@@ -104,7 +103,7 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
               icon="calendar"
               label="Order Date"
               value={order.createdAt ? fmtDate(order.createdAt, "date") : "--"}
-              sub={order.createdAt && mounted ? new Date(order.createdAt).toLocaleTimeString() : undefined}
+              sub={order.createdAt ? formatTime(order.createdAt) : undefined}
             />
             <SummaryCard icon="hash" label="Order Number" value={order.orderNumber} />
             <SummaryCard icon="shopping-bag" label="Sales Channel" value={order.store} />
@@ -532,17 +531,11 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                         </div>
                       )}
                       <FormField>
-                        <Label>Select Discount Code</Label>
-                        <Select
+                        <Label>Discount Code</Label>
+                        <Input
                           value={selectedDiscountCode}
                           onChange={(e) => setSelectedDiscountCode(e.target.value)}
-                          options={[
-                            { value: "", label: "Select discount code..." },
-                            ...MOCK_AVAILABLE_DISCOUNTS.map((d) => ({
-                              value: d.code,
-                              label: `${d.code} — ${d.name} (${d.value})`,
-                            })),
-                          ]}
+                          placeholder="Enter discount code..."
                         />
                       </FormField>
 

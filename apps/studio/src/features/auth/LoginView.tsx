@@ -53,12 +53,8 @@ export function LoginView() {
         setError("Invalid credentials. Please check your email and password.");
         return;
       }
-      const payload = await res.json().catch(() => ({}));
-      router.replace(
-        payload.user?.requiresProjectSelection
-          ? `/select-project?callbackUrl=${encodeURIComponent(callbackUrl)}`
-          : callbackUrl
-      );
+      await res.json().catch(() => ({}));
+      router.replace(callbackUrl);
       router.refresh();
     } catch {
       setError("Unable to reach the auth service. Please try again.");

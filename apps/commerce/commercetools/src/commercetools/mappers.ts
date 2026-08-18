@@ -44,11 +44,17 @@ export function mapCart(cart: CtCart | null | undefined): Cart | null {
   }
 
   return {
+    billingAddress: cart.billingAddress ?? null,
+    cartState: cart.cartState,
+    createdAt: cart.createdAt,
     currencyCode: cart.totalPrice.currencyCode,
     customerId: cart.customerId,
+    customerEmail: cart.customerEmail,
     id: cart.id,
     key: cart.key,
+    lastModifiedAt: cart.lastModifiedAt,
     lineItems: (cart.lineItems ?? []).map(mapLineItem),
+    shippingAddress: cart.shippingAddress ?? null,
     totalPrice: mapMoney(cart.totalPrice),
     version: cart.version
   };

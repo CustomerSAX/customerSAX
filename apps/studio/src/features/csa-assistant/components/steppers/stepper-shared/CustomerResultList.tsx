@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import { Input } from '@csa/ui';
 import { useCustomerSearch, type CustomerSearchResult } from './useCustomerSearch';
 
 export interface CustomerResultListProps {
@@ -35,7 +35,7 @@ export function CustomerResultList({
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.3-4.3" />
         </svg>
-        <input
+        <Input
           className="search-input"
           placeholder={placeholder}
           value={search}

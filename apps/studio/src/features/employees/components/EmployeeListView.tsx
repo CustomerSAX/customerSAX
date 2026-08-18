@@ -20,6 +20,7 @@ import {
   EmptyState,
   Skeleton,
 } from "@csa/ui";
+import { formatDate } from "@/lib/format-date";
 import { useEmployees } from "../hooks/use-employees";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
 
@@ -31,6 +32,8 @@ const SEARCH_OPTIONS = [
   { value: "customerNumber", label: "Customer Number" },
   { value: "externalId", label: "External Id" },
 ];
+
+type EmployeeSearchField = "all" | "firstName" | "lastName" | "email" | "customerNumber" | "externalId";
 
 const ROLE_OPTIONS = [
   { value: "", label: "All Roles" },
@@ -57,7 +60,7 @@ export function EmployeeListView() {
 
   const { allCompanies } = useCompanies();
 
-  const [searchField, setSearchField] = useState<any>("all");
+  const [searchField, setSearchField] = useState<EmployeeSearchField>("all");
   const [searchText, setSearchText] = useState("");
 
   const companyOptions = [
@@ -128,7 +131,7 @@ export function EmployeeListView() {
             <Select
               value={searchField}
               options={SEARCH_OPTIONS}
-              onChange={(e) => setSearchField(e.target.value as any)}
+              onChange={(e) => setSearchField(e.target.value as EmployeeSearchField)}
               size="md"
             />
           </div>
@@ -282,7 +285,7 @@ export function EmployeeListView() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-m-text-muted">
-                      {new Date(emp.createdAt).toLocaleDateString()}
+                      {formatDate(emp.createdAt)}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <Button

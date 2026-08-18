@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import {
   Button,
   Input,
@@ -17,16 +16,16 @@ import {
   InfoRow,
   Timeline,
   CardEmpty,
-} from "@/components/detail";
-import { MOCK_SHIPPING_METHODS } from "../hooks/use-orders";
+} from "@csa/ui";
 import type { OrderShippingTabProps } from "./order-tab-types";
-import type { TimelineItem } from "@/components/detail";
+import type { TimelineItem } from "@csa/ui";
 
 export function OrderShippingTab(props: OrderShippingTabProps & { orderTimeline: TimelineItem[] }) {
   const {
     order,
     selectedShippingMethodId, setSelectedShippingMethodId,
     shippingMethodFeedback, handleSaveShippingMethod,
+    shippingMethods, shippingMethodsError,
     addressForm, setAddressForm, addressFeedback, handleSaveShippingAddress,
     orderTimeline,
   } = props;
@@ -46,21 +45,24 @@ export function OrderShippingTab(props: OrderShippingTabProps & { orderTimeline:
                   <Select
                     value={selectedShippingMethodId}
                     onChange={(e) => setSelectedShippingMethodId(e.target.value)}
-                    options={MOCK_SHIPPING_METHODS.map((m) => ({
+                    options={shippingMethods.map((m) => ({
                       value: m.id,
-                      label: `${m.name} — $${m.price.toFixed(2)} (${m.carrier})`,
+                      label: m.name,
                     }))}
                   />
+                  {shippingMethodsError && (
+                    <p className="text-xs font-semibold text-m-error">{shippingMethodsError}</p>
+                  )}
                 </FormField>
                 <div className="flex items-center gap-3">
-                  <Button type="button" variant="primary" size="md" onClick={handleSaveShippingMethod}>
+                  <Button type="button" variant="primary" size="md" disabled={!selectedShippingMethodId} onClick={handleSaveShippingMethod}>
                     Save Shipping Method
                   </Button>
                   <Button
                     type="button"
                     variant="secondary"
                     size="md"
-                    onClick={() => setSelectedShippingMethodId(order.shippingInfo.shippingMethodId || MOCK_SHIPPING_METHODS[0].id)}
+                    onClick={() => setSelectedShippingMethodId(order.shippingInfo.shippingMethodId || "")}
                   >
                     Reset
                   </Button>

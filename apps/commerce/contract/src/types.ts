@@ -31,14 +31,84 @@ export type CommerceLineItem = {
   totalPrice: Money;
 };
 
+export type CartAddress = {
+  streetNumber?: string | null;
+  streetName?: string | null;
+  apartment?: string | null;
+  building?: string | null;
+  pOBox?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  additionalStreetInfo?: string | null;
+  additionalAddressInfo?: string | null;
+};
+
 export type Cart = {
+  billingAddress?: CartAddress | null;
+  cartState?: string;
+  createdAt?: string;
   currencyCode: string;
   customerId?: string;
+  customerEmail?: string;
   id: string;
   key?: string;
+  lastModifiedAt?: string;
   lineItems: CommerceLineItem[];
+  shippingAddress?: CartAddress | null;
   totalPrice: Money;
   version: number;
+};
+
+export type CompanyReference = {
+  id?: string;
+  key?: string;
+  name?: string;
+};
+
+export type CompanyAddress = {
+  city?: string;
+  company?: string;
+  country?: string;
+  email?: string;
+  firstName?: string;
+  id?: string;
+  key?: string;
+  lastName?: string;
+  phone?: string;
+  postalCode?: string;
+  state?: string;
+  streetName?: string;
+  streetNumber?: string;
+};
+
+export type CompanyAssociate = {
+  customerId?: string;
+  email?: string;
+  firstName?: string;
+  id?: string;
+  lastName?: string;
+  roles: string[];
+};
+
+export type Company = {
+  addresses: CompanyAddress[];
+  approvalRuleMode?: string;
+  associateMode?: string;
+  associates: CompanyAssociate[];
+  contactEmail?: string;
+  createdAt?: string;
+  id: string;
+  key: string;
+  lastModifiedAt?: string;
+  name: string;
+  parentUnit?: CompanyReference;
+  status?: string;
+  storeMode?: string;
+  unitType?: string;
 };
 
 export type OrderReturnItem = {
@@ -101,6 +171,20 @@ export type Customer = {
   version?: number;
   createdAt?: string;
   lastModifiedAt?: string;
+};
+
+export type Quote = {
+  companyKey?: string;
+  companyName?: string;
+  createdAt?: string;
+  customerEmail?: string;
+  customerId?: string;
+  id: string;
+  key?: string;
+  lastModifiedAt?: string;
+  quoteNumber?: string;
+  status?: string;
+  totalPrice?: Money;
 };
 
 /**

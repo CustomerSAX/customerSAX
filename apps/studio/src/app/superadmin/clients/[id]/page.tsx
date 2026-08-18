@@ -1,9 +1,27 @@
 "use client";
 
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { use, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@apollo/client";
-import { PageShell, Button, Icon, EmptyState, LoadingSpinner } from "@csa/ui";
+import {
+  PageShell,
+  Button,
+  Checkbox,
+  Icon,
+  EmptyState,
+  Input,
+  LoadingSpinner,
+  Radio,
+  RadioGroup,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TextArea,
+} from "@csa/ui";
 import {
   ADMIN_CLIENT_QUERY,
   ADMIN_UPDATE_CLIENT,
@@ -13,10 +31,6 @@ import {
   ADMIN_DELETE_PROJECT,
   ADMIN_TEST_PROJECT_CONNECTION,
   ADMIN_TEST_PROJECT_CREDENTIALS,
-  ADMIN_CREATE_SMTP_PROFILE,
-  ADMIN_UPDATE_SMTP_PROFILE,
-  ADMIN_DELETE_SMTP_PROFILE,
-  ADMIN_TEST_SMTP_PROFILE,
   ADMIN_CREATE_CLIENT_USER,
   ADMIN_ASSIGN_CLIENT_USER,
   ADMIN_UPDATE_CLIENT_USER,
@@ -24,85 +38,12 @@ import {
   ADMIN_REMOVE_USER_FROM_CLIENT
 } from "@/features/superadmin/api/queries";
 import { useCurrentUser } from "@/lib/use-current-user";
+import { formatDate } from "@/lib/format-date";
+import { EmailTab } from "./EmailTab";
+import type { ClientDetail, Platform, ProjectRow, ShellMode, SsoConfig, SmtpProfileRow, TabKey, UserRow } from "./types";
+import { CARD_CLASS, LABEL_CLASS, PANEL_HEADER_CLASS } from "./styles";
 
 // ─── Types (mirror the apps/admin GraphQL schema) ──────────────────────────
-
-type SsoConfig = {
-  provider: "none" | "oidc" | "saml";
-  issuer?: string | null;
-  clientId?: string | null;
-  providerDisplayName?: string | null;
-  extraScopes?: string | null;
-  authorizeConnection?: string | null;
-  oidcClientSecretSet?: boolean | null;
-  entryPointUrl?: string | null;
-  idpCertSet?: boolean | null;
-};
-
-type ClientDetail = {
-  id: string;
-  name: string;
-  slug: string;
-  contactEmail: string;
-  status: "active" | "blocked";
-  createdAt?: string | null;
-  createdBy?: string | null;
-  ssoConfig: SsoConfig;
-};
-
-type Platform = "commercetools" | "shopify" | "bigcommerce";
-type ShellMode = "b2c" | "b2b";
-
-interface ProjectRow {
-  id: string;
-  clientId: string;
-  platform: Platform;
-  projectKey: string;
-  displayName: string;
-  ctApiUrl: string;
-  ctAuthUrl: string;
-  ctClientId: string;
-  ctClientSecretMasked: string;
-  scopes?: string | null;
-  smtpProfileId?: string | null;
-  standaloneB2cEnabled?: boolean | null;
-  standaloneB2bEnabled?: boolean | null;
-  shopifyStoreDomain?: string | null;
-  shopifyApiVersion?: string | null;
-  bigcommerceStoreHash?: string | null;
-  bigcommerceClientId?: string | null;
-  createdAt?: string | null;
-}
-
-interface UserProjectEntry {
-  projectKey: string;
-  role: string;
-}
-
-interface UserRow {
-  id: string;
-  email: string;
-  firstName?: string | null;
-  lastName?: string | null;
-  role: string;
-  active: boolean;
-  clientProjects: UserProjectEntry[];
-}
-
-interface SmtpProfileRow {
-  id: string;
-  clientId: string;
-  name: string;
-  smtpHost: string;
-  smtpPort: number;
-  smtpSecure: boolean;
-  smtpUser: string;
-  smtpPasswordMasked: string;
-  emailFrom: string;
-  isDefault: boolean;
-}
-
-type TabKey = "overview" | "projects" | "users" | "email";
 
 function shellModeFromFlags(p: { standaloneB2cEnabled?: boolean | null; standaloneB2bEnabled?: boolean | null }): ShellMode {
   return p.standaloneB2bEnabled === true ? "b2b" : "b2c";
@@ -110,8 +51,8 @@ function shellModeFromFlags(p: { standaloneB2cEnabled?: boolean | null; standalo
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
-export default function ClientDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [tab, setTab] = useState<TabKey>("overview");
 
   const { data, loading, error, refetch } = useQuery<{
@@ -179,11 +120,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
       <div className="flex border-b border-m-border">
         {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`border-b-2 px-4 py-2.5 text-xs transition-all ${
+            <Button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              variant="ghost"
+              size="sm"
+              className={`rounded-none border-b-2 px-4 py-2.5 transition-all hover:translate-y-0 ${
               tab === t.key
                 ? "border-m-primary font-bold text-m-primary"
                 : "border-transparent font-medium text-m-text-muted hover:text-m-text"
@@ -191,7 +134,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           >
             {t.label}
             {t.count >= 0 && ` (${t.count})`}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -229,13 +172,6 @@ function ClientStatusBadge({ status }: { status: "active" | "blocked" }) {
     </span>
   );
 }
-
-// Shared "card" look for panels — matches ct-csa-standalone's CARD constant.
-const CARD_CLASS = "overflow-hidden rounded-m-xl border border-m-border bg-m-surface shadow-m-card";
-const PANEL_HEADER_CLASS = "flex items-center justify-between gap-3 border-b border-m-border/60 px-5 py-3.5";
-const LABEL_CLASS = "mb-1 block text-xs font-semibold text-m-text";
-const INPUT_CLASS =
-  "h-9 w-full rounded-m-md border border-m-border bg-m-surface px-3 text-xs text-m-text outline-none focus:border-m-primary";
 
 // ─── Overview (client info + SSO/Federation) ───────────────────────────────
 
@@ -303,13 +239,12 @@ function OverviewTab({
           <div className="grid grid-cols-2 gap-3.5">
             <div>
               <label className={LABEL_CLASS}>Organisation Name</label>
-              <input className={INPUT_CLASS} value={name} onChange={(e) => setName(e.target.value)} disabled={isSaving} />
+              <Input value={name} onChange={(e) => setName(e.target.value)} disabled={isSaving} />
             </div>
             <div>
               <label className={LABEL_CLASS}>Contact Email</label>
-              <input
+              <Input
                 type="email"
-                className={INPUT_CLASS}
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
                 disabled={isSaving}
@@ -320,7 +255,7 @@ function OverviewTab({
             <label className={LABEL_CLASS}>
               Slug <span className="font-normal text-m-text-subtle">— immutable after creation</span>
             </label>
-            <input className={`${INPUT_CLASS} bg-m-neutral-50 font-mono text-m-text-muted`} value={client.slug} disabled />
+            <Input className="font-mono text-m-text-muted" value={client.slug} disabled />
           </div>
 
           {error && <p className="text-xs text-m-error">{error}</p>}
@@ -370,7 +305,7 @@ function OverviewTab({
         <div className="grid grid-cols-2 gap-3 p-5">
           {[
             ["Created by", client.createdBy || "—"],
-            ["Created at", client.createdAt ? new Date(client.createdAt).toLocaleDateString() : "—"],
+            ["Created at", formatDate(client.createdAt)],
             ["Projects", String(projectCount)],
             ["Users", String(userCount)]
           ].map(([label, value]) => (
@@ -401,10 +336,14 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
   const [idpCertPem, setIdpCertPem] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [redirectUri, setRedirectUri] = useState("/api/sso/oidc/callback");
 
-  const redirectUri = typeof window !== "undefined" ? `${window.location.origin}/api/sso/oidc/callback` : "/api/sso/oidc/callback";
   const oidcSecretSet = stored.oidcClientSecretSet ?? false;
   const idpCertSet = stored.idpCertSet ?? false;
+
+  useEffect(() => {
+    setRedirectUri(`${window.location.origin}/api/sso/oidc/callback`);
+  }, []);
 
   async function handleSave() {
     setIsSaving(true);
@@ -457,15 +396,14 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
 
         <div>
           <label className={LABEL_CLASS}>Federation type</label>
-          <select
-            className={`${INPUT_CLASS} cursor-pointer bg-m-surface`}
+          <Select
             value={provider}
             onChange={(e) => setProvider(e.target.value as SsoConfig["provider"])}
           >
             <option value="none">None — password only</option>
             <option value="oidc">OpenID Connect (OAuth 2.0)</option>
             <option value="saml">SAML 2.0 (store metadata; runtime sign-in not wired yet)</option>
-          </select>
+          </Select>
         </div>
 
         {provider === "oidc" && (
@@ -474,14 +412,14 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
               <label className={LABEL_CLASS}>
                 Issuer URL {!issuer && <span className="text-m-error">*</span>}
               </label>
-              <input className={`${INPUT_CLASS} font-mono`} placeholder="https://login.microsoftonline.com/{tenant}/v2.0" value={issuer} onChange={(e) => setIssuer(e.target.value)} />
+              <Input className="font-mono" placeholder="https://login.microsoftonline.com/{tenant}/v2.0" value={issuer} onChange={(e) => setIssuer(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-3.5">
               <div>
                 <label className={LABEL_CLASS}>
                   Client ID {!oidcClientId && <span className="text-m-error">*</span>}
                 </label>
-                <input className={`${INPUT_CLASS} font-mono`} value={oidcClientId} onChange={(e) => setOidcClientId(e.target.value)} />
+                <Input className="font-mono" value={oidcClientId} onChange={(e) => setOidcClientId(e.target.value)} />
               </div>
               <div>
                 <label className={LABEL_CLASS}>
@@ -492,9 +430,9 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
                     <span className="text-m-error">*</span>
                   )}
                 </label>
-                <input
+                <Input
                   type="password"
-                  className={`${INPUT_CLASS} font-mono`}
+                  className="font-mono"
                   value={oidcClientSecret}
                   onChange={(e) => setOidcClientSecret(e.target.value)}
                   autoComplete="new-password"
@@ -506,20 +444,20 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
               <label className={LABEL_CLASS}>
                 Button label <span className="font-normal text-m-text-subtle">— optional</span>
               </label>
-              <input className={INPUT_CLASS} placeholder="e.g. Sign in with Azure AD" value={providerDisplayName} onChange={(e) => setProviderDisplayName(e.target.value)} />
+              <Input placeholder="e.g. Sign in with Azure AD" value={providerDisplayName} onChange={(e) => setProviderDisplayName(e.target.value)} />
             </div>
             <div>
               <label className={LABEL_CLASS}>
                 Extra scopes <span className="font-normal text-m-text-subtle">— optional, space-separated</span>
               </label>
-              <input className={INPUT_CLASS} placeholder="e.g. Groups.Claim" value={extraScopes} onChange={(e) => setExtraScopes(e.target.value)} />
+              <Input placeholder="e.g. Groups.Claim" value={extraScopes} onChange={(e) => setExtraScopes(e.target.value)} />
             </div>
             <div>
               <label className={LABEL_CLASS}>
                 OAuth connection <span className="font-normal text-m-text-subtle">— optional</span>
               </label>
-              <input
-                className={`${INPUT_CLASS} font-mono`}
+              <Input
+                className="font-mono"
                 placeholder="e.g. Username-Password-Authentication"
                 value={authorizeConnection}
                 onChange={(e) => setAuthorizeConnection(e.target.value)}
@@ -548,13 +486,13 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
               <label className={LABEL_CLASS}>
                 IdP SSO URL {!entryPointUrl && <span className="text-m-error">*</span>}
               </label>
-              <input className={INPUT_CLASS} placeholder="https://idp.example.com/app/xxx/sso/saml" value={entryPointUrl} onChange={(e) => setEntryPointUrl(e.target.value)} />
+              <Input placeholder="https://idp.example.com/app/xxx/sso/saml" value={entryPointUrl} onChange={(e) => setEntryPointUrl(e.target.value)} />
             </div>
             <div>
               <label className={LABEL_CLASS}>
                 IdP issuer / entity ID {!samlIssuer && <span className="text-m-error">*</span>}
               </label>
-              <input className={INPUT_CLASS} value={samlIssuer} onChange={(e) => setSamlIssuer(e.target.value)} />
+              <Input value={samlIssuer} onChange={(e) => setSamlIssuer(e.target.value)} />
             </div>
             <div>
               <label className={LABEL_CLASS}>
@@ -565,8 +503,8 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
                   <span className="text-m-error">*</span>
                 )}
               </label>
-              <textarea
-                className="w-full resize-y rounded-m-md border border-m-border bg-m-surface px-3 py-2 font-mono text-[11px]"
+              <TextArea
+                className="font-mono text-[11px]"
                 rows={5}
                 placeholder="-----BEGIN CERTIFICATE-----"
                 value={idpCertPem}
@@ -607,27 +545,17 @@ function ShellModePicker({
   ];
 
   return (
-    <div className={`flex ${compact ? "flex-row gap-3" : "flex-col gap-2.5"}`}>
+    <RadioGroup name={name} value={value} onChange={(mode) => onChange(mode as ShellMode)} className={compact ? "flex-row gap-3" : "gap-2.5"}>
       {options.map((option) => (
-        <label key={option.mode} className={`flex cursor-pointer gap-2 ${compact ? "items-center" : "items-start"}`}>
-          <input
-            type="radio"
-            name={name}
-            checked={value === option.mode}
-            onChange={() => onChange(option.mode)}
-            className="accent-m-primary"
-          />
+        <div key={option.mode} className={compact ? "flex items-center" : ""}>
           {compact ? (
-            <span className="text-xs font-semibold text-m-text">{option.mode.toUpperCase()}</span>
+            <Radio value={option.mode} label={<span className="font-semibold">{option.mode.toUpperCase()}</span>} />
           ) : (
-            <span>
-              <span className="block text-xs font-semibold text-m-text">{option.label}</span>
-              <span className="block text-[11px] leading-snug text-m-text-muted">{option.hint}</span>
-            </span>
+            <Radio value={option.mode} label={option.label} hint={option.hint} />
           )}
-        </label>
+        </div>
       ))}
-    </div>
+    </RadioGroup>
   );
 }
 
@@ -689,54 +617,48 @@ function ProjectsTab({
             <EmptyState icon="package" title="No projects yet" description="Register a CommerceTools, Shopify, or BigCommerce project for this client." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-m-border/60 bg-m-neutral-50">
-                  {["Project Key", "Display Name", "API Region", "Client ID", "Secret", "Shell", "Added", ""].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-2">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                {["Project Key", "Display Name", "API Region", "Client ID", "Secret", "Shell", "Added", ""].map((h) => (
+                  <TableHead key={h}>{h}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                 {projects.map((p, idx) => (
-                  <Fragment key={p.id}>
-                    <tr className={idx < projects.length - 1 ? "border-b border-m-border/40" : ""}>
-                      <td className="px-4 py-3 font-mono font-semibold">
-                        <button type="button" className="text-m-primary underline" onClick={() => setEditing(p)}>
+                    <TableRow key={p.id} className={idx < projects.length - 1 ? "border-b border-m-border/40" : ""}>
+                      <TableCell className="font-mono font-semibold">
+                        <Button type="button" variant="ghost" size="sm" className="h-auto px-0 py-0 font-mono text-m-primary underline hover:translate-y-0" onClick={() => setEditing(p)}>
                           {p.projectKey}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3">
+                        </Button>
+                      </TableCell>
+                      <TableCell>
                         {p.displayName}
                         <span className="ml-2 rounded-full border border-m-primary-200 bg-m-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-m-primary">
                           {p.platform === "shopify" ? "Shopify" : p.platform === "bigcommerce" ? "BigCommerce" : "CommerceTools"}
                         </span>
-                      </td>
-                      <td className="max-w-[160px] truncate px-4 py-3 text-m-text-muted" title={p.ctApiUrl}>
+                      </TableCell>
+                      <TableCell className="max-w-[160px] truncate text-m-text-muted" title={p.ctApiUrl}>
                         {p.ctApiUrl?.replace("https://", "") || "—"}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-m-text-muted">
+                      </TableCell>
+                      <TableCell className="font-mono text-m-text-muted">
                         {p.platform === "shopify" ? p.shopifyStoreDomain : p.platform === "bigcommerce" ? p.bigcommerceClientId : p.ctClientId}
-                      </td>
-                      <td className="px-4 py-3 font-mono tracking-wider text-m-text-subtle">{p.ctClientSecretMasked}</td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="font-mono tracking-wider text-m-text-subtle">{p.ctClientSecretMasked}</TableCell>
+                      <TableCell>
                         <ShellModePicker name={`shell-${p.id}`} value={shellModeFromFlags(p)} onChange={(mode) => void handleShellChange(p, mode)} compact />
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-m-text-muted">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}</td>
-                      <td className="whitespace-nowrap px-4 py-3">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-m-text-muted">{formatDate(p.createdAt)}</TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <Button variant="danger" size="sm" onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
                           Remove
                         </Button>
-                      </td>
-                    </tr>
-                  </Fragment>
+                      </TableCell>
+                    </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+            </TableBody>
+          </Table>
         )}
       </div>
 
@@ -904,8 +826,7 @@ function ProjectModal({
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
           <div>
             <label className={LABEL_CLASS}>Commerce Platform *</label>
-            <select
-              className={`${INPUT_CLASS} cursor-pointer bg-m-surface`}
+            <Select
               value={platform}
               onChange={(e) => setPlatform(e.target.value as Platform)}
               disabled={isEdit}
@@ -913,17 +834,17 @@ function ProjectModal({
               <option value="commercetools">CommerceTools</option>
               <option value="shopify">Shopify</option>
               <option value="bigcommerce">BigCommerce</option>
-            </select>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={LABEL_CLASS}>Project Key *</label>
-              <input className={`${INPUT_CLASS} font-mono`} value={projectKey} onChange={(e) => setProjectKey(e.target.value)} disabled={isEdit} required />
+              <Input className="font-mono" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} disabled={isEdit} required />
             </div>
             <div>
               <label className={LABEL_CLASS}>Display Name *</label>
-              <input className={INPUT_CLASS} value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
+              <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
             </div>
           </div>
 
@@ -931,27 +852,27 @@ function ProjectModal({
             <>
               <div>
                 <label className={LABEL_CLASS}>CT API URL *</label>
-                <input className={INPUT_CLASS} placeholder="https://api.us-central1.gcp.commercetools.com" value={ctApiUrl} onChange={(e) => setCtApiUrl(e.target.value)} required />
+                <Input placeholder="https://api.us-central1.gcp.commercetools.com" value={ctApiUrl} onChange={(e) => setCtApiUrl(e.target.value)} required />
               </div>
               <div>
                 <label className={LABEL_CLASS}>CT Auth URL *</label>
-                <input className={INPUT_CLASS} placeholder="https://auth.us-central1.gcp.commercetools.com" value={ctAuthUrl} onChange={(e) => setCtAuthUrl(e.target.value)} required />
+                <Input placeholder="https://auth.us-central1.gcp.commercetools.com" value={ctAuthUrl} onChange={(e) => setCtAuthUrl(e.target.value)} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={LABEL_CLASS}>Client ID *</label>
-                  <input className={`${INPUT_CLASS} font-mono`} value={ctClientId} onChange={(e) => setCtClientId(e.target.value)} required />
+                  <Input className="font-mono" value={ctClientId} onChange={(e) => setCtClientId(e.target.value)} required />
                 </div>
                 <div>
                   <label className={LABEL_CLASS}>
                     Client Secret * {isEdit && <span className="font-normal text-m-text-muted">(leave blank to keep)</span>}
                   </label>
-                  <input type="password" className={`${INPUT_CLASS} font-mono`} value={ctClientSecret} onChange={(e) => setCtClientSecret(e.target.value)} required={!isEdit} />
+                  <Input type="password" className="font-mono" value={ctClientSecret} onChange={(e) => setCtClientSecret(e.target.value)} required={!isEdit} />
                 </div>
               </div>
               <div>
                 <label className={LABEL_CLASS}>Scopes — optional, defaults to manage_project:&lt;key&gt;</label>
-                <input className={INPUT_CLASS} value={scopes} onChange={(e) => setScopes(e.target.value)} />
+                <Input value={scopes} onChange={(e) => setScopes(e.target.value)} />
               </div>
             </>
           )}
@@ -960,18 +881,18 @@ function ProjectModal({
             <>
               <div>
                 <label className={LABEL_CLASS}>Store Domain *</label>
-                <input className={`${INPUT_CLASS} font-mono`} placeholder="my-store.myshopify.com" value={shopifyStoreDomain} onChange={(e) => setShopifyStoreDomain(e.target.value)} required />
+                <Input className="font-mono" placeholder="my-store.myshopify.com" value={shopifyStoreDomain} onChange={(e) => setShopifyStoreDomain(e.target.value)} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={LABEL_CLASS}>
                     Admin API Token * {isEdit && <span className="font-normal text-m-text-muted">(leave blank to keep)</span>}
                   </label>
-                  <input type="password" className={`${INPUT_CLASS} font-mono`} placeholder="shpat_..." value={shopifyAdminAccessToken} onChange={(e) => setShopifyAdminAccessToken(e.target.value)} required={!isEdit} />
+                  <Input type="password" className="font-mono" placeholder="shpat_..." value={shopifyAdminAccessToken} onChange={(e) => setShopifyAdminAccessToken(e.target.value)} required={!isEdit} />
                 </div>
                 <div>
                   <label className={LABEL_CLASS}>API Version *</label>
-                  <input className={`${INPUT_CLASS} font-mono`} placeholder="2024-10" value={shopifyApiVersion} onChange={(e) => setShopifyApiVersion(e.target.value)} required />
+                  <Input className="font-mono" placeholder="2024-10" value={shopifyApiVersion} onChange={(e) => setShopifyApiVersion(e.target.value)} required />
                 </div>
               </div>
             </>
@@ -981,18 +902,18 @@ function ProjectModal({
             <>
               <div>
                 <label className={LABEL_CLASS}>Store Hash *</label>
-                <input className={`${INPUT_CLASS} font-mono`} value={bigcommerceStoreHash} onChange={(e) => setBigcommerceStoreHash(e.target.value)} required />
+                <Input className="font-mono" value={bigcommerceStoreHash} onChange={(e) => setBigcommerceStoreHash(e.target.value)} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={LABEL_CLASS}>Client ID *</label>
-                  <input className={`${INPUT_CLASS} font-mono`} value={bigcommerceClientId} onChange={(e) => setBigcommerceClientId(e.target.value)} required />
+                  <Input className="font-mono" value={bigcommerceClientId} onChange={(e) => setBigcommerceClientId(e.target.value)} required />
                 </div>
                 <div>
                   <label className={LABEL_CLASS}>
                     Access Token * {isEdit && <span className="font-normal text-m-text-muted">(leave blank to keep)</span>}
                   </label>
-                  <input type="password" className={`${INPUT_CLASS} font-mono`} value={bigcommerceAccessToken} onChange={(e) => setBigcommerceAccessToken(e.target.value)} required={!isEdit} />
+                  <Input type="password" className="font-mono" value={bigcommerceAccessToken} onChange={(e) => setBigcommerceAccessToken(e.target.value)} required={!isEdit} />
                 </div>
               </div>
             </>
@@ -1091,25 +1012,22 @@ function UsersTab({
             <EmptyState icon="users" title="No users yet" description="Assign a user to a project in this client." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-m-border/60 bg-m-neutral-50">
-                  {["Email", "Name", "Projects", ""].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-2">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
+          <Table className="min-w-[640px]">
+            <TableHeader>
+              <TableRow>
+                {["Email", "Name", "Projects", ""].map((h) => (
+                  <TableHead key={h}>{h}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                 {users.map((u, idx) => (
-                  <tr key={u.email} className={`align-top ${idx < users.length - 1 ? "border-b border-m-border/40" : ""}`}>
-                    <td className="whitespace-nowrap px-4 py-3 font-medium">{u.email}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-m-text-muted">
+                  <TableRow key={u.email} className={`align-top ${idx < users.length - 1 ? "border-b border-m-border/40" : ""}`}>
+                    <TableCell className="whitespace-nowrap font-medium">{u.email}</TableCell>
+                    <TableCell className="whitespace-nowrap text-m-text-muted">
                       {[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <div className="flex flex-wrap gap-1.5">
                         {u.clientProjects.length === 0 ? (
                           <span className="text-m-text-subtle">—</span>
@@ -1123,21 +1041,23 @@ function UsersTab({
                             >
                               {p.projectKey}
                               <span className="text-[10px] opacity-70">({p.role})</span>
-                              <button
+                              <Button
                                 type="button"
+                                variant="ghost"
+                                size="sm"
                                 title={`Remove from ${p.projectKey}`}
                                 disabled={removingEmail === u.email}
                                 onClick={() => void handleRemoveFromProject(u.email, p.projectKey)}
-                                className="pl-0.5 text-sm leading-none opacity-70 hover:opacity-100 disabled:opacity-30"
+                                className="h-auto px-0.5 py-0 text-sm leading-none opacity-70 hover:translate-y-0 hover:opacity-100 disabled:opacity-30"
                               >
                                 ×
-                              </button>
+                              </Button>
                             </span>
                           ))
                         )}
                       </div>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
                       <div className="flex gap-1.5">
                         <Button variant="outline" size="sm" onClick={() => setEditing(u)}>
                           Edit
@@ -1152,12 +1072,11 @@ function UsersTab({
                           Remove All
                         </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+            </TableBody>
+          </Table>
         )}
 
         <div className="border-t border-m-border/60 bg-m-info-light/40 px-5 py-3">
@@ -1298,38 +1217,42 @@ function UserModal({
 
         {!isEdit && (
           <div className="mb-5 flex gap-2 rounded-m-md bg-m-neutral-100 p-1">
-            <button
+            <Button
               type="button"
               onClick={() => setMode("create")}
-              className={`flex-1 rounded-m-sm py-2 text-xs font-semibold transition-all ${mode === "create" ? "bg-m-surface text-m-primary shadow-m-xs" : "text-m-text-muted"}`}
+              variant={mode === "create" ? "secondary" : "ghost"}
+              size="sm"
+              className="flex-1 rounded-m-sm py-2 hover:translate-y-0"
             >
               Create New User
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setMode("assign")}
-              className={`flex-1 rounded-m-sm py-2 text-xs font-semibold transition-all ${mode === "assign" ? "bg-m-surface text-m-primary shadow-m-xs" : "text-m-text-muted"}`}
+              variant={mode === "assign" ? "secondary" : "ghost"}
+              size="sm"
+              className="flex-1 rounded-m-sm py-2 hover:translate-y-0"
             >
               Assign Existing User
-            </button>
+            </Button>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
           <div>
             <label className={LABEL_CLASS}>Email *</label>
-            <input type="email" className={INPUT_CLASS} value={email} onChange={(e) => setEmail(e.target.value)} disabled={isEdit} required />
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isEdit} required />
           </div>
 
           {(mode === "create" || isEdit) && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={LABEL_CLASS}>First Name</label>
-                <input className={INPUT_CLASS} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
               </div>
               <div>
                 <label className={LABEL_CLASS}>Last Name</label>
-                <input className={INPUT_CLASS} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
               </div>
             </div>
           )}
@@ -1340,7 +1263,7 @@ function UserModal({
                 {isEdit ? "New Password" : "Password *"}{" "}
                 <span className="font-normal text-m-text-subtle">{isEdit ? "(leave blank to keep current)" : "(min 8 chars)"}</span>
               </label>
-              <input type="password" className={INPUT_CLASS} value={password} onChange={(e) => setPassword(e.target.value)} required={!isEdit} />
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required={!isEdit} />
             </div>
           )}
 
@@ -1359,21 +1282,22 @@ function UserModal({
                       key={p.projectKey}
                       className={`flex items-center gap-2.5 px-3 py-2 ${idx < projects.length - 1 ? "border-b border-m-border/50" : ""} ${checked ? "bg-m-primary-50" : ""}`}
                     >
-                      <input type="checkbox" checked={checked} onChange={() => toggleProject(p.projectKey)} className="h-3.5 w-3.5 accent-m-primary" />
+                      <Checkbox checked={checked} onChange={() => toggleProject(p.projectKey)} size="sm" />
                       <div className="flex-1 cursor-pointer" onClick={() => toggleProject(p.projectKey)}>
                         <div className="text-xs font-medium text-m-text">{p.projectKey}</div>
                         {p.displayName && <div className="text-[11px] text-m-text-muted">{p.displayName}</div>}
                       </div>
                       {isEdit && (
-                        <select
+                        <Select
                           value={editRoles[p.projectKey] ?? "admin"}
                           disabled={!checked}
                           onChange={(e) => setEditRoles((prev) => ({ ...prev, [p.projectKey]: e.target.value }))}
-                          className="rounded-m-sm border border-m-border bg-m-surface px-2 py-1 text-[11px] disabled:bg-m-neutral-100 disabled:text-m-text-subtle"
+                          size="sm"
+                          className="max-w-[110px] text-[11px]"
                         >
                           <option value="admin">Admin</option>
                           <option value="member">Member</option>
-                        </select>
+                        </Select>
                       )}
                     </div>
                   );
@@ -1385,10 +1309,10 @@ function UserModal({
           {!isEdit && (
             <div>
               <label className={LABEL_CLASS}>Role for selected Projects</label>
-              <select className={`${INPUT_CLASS} cursor-pointer bg-m-surface`} value={bulkRole} onChange={(e) => setBulkRole(e.target.value)}>
+              <Select value={bulkRole} onChange={(e) => setBulkRole(e.target.value)}>
                 <option value="admin">Admin — full access, user management</option>
                 <option value="member">Member — view-only access</option>
-              </select>
+              </Select>
             </div>
           )}
 
@@ -1400,332 +1324,6 @@ function UserModal({
             </Button>
             <Button type="submit" variant="primary" disabled={isSaving || !isFormValid || !currentUser}>
               {isSaving ? (isEdit ? "Saving…" : mode === "assign" ? "Assigning…" : "Creating…") : isEdit ? "Save Changes" : mode === "assign" ? "Assign User" : "Create User"}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ─── Email / SMTP profiles ──────────────────────────────────────────────────
-
-function EmailTab({
-  clientId,
-  profiles,
-  projects,
-  onChanged
-}: {
-  clientId: string;
-  profiles: SmtpProfileRow[];
-  projects: ProjectRow[];
-  onChanged: () => void;
-}) {
-  const [deleteProfile] = useMutation(ADMIN_DELETE_SMTP_PROFILE);
-  const [testProfile] = useMutation(ADMIN_TEST_SMTP_PROFILE);
-  const [updateProject] = useMutation(ADMIN_UPDATE_PROJECT);
-
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editing, setEditing] = useState<SmtpProfileRow | null>(null);
-  const [testResult, setTestResult] = useState<Record<string, string | undefined>>({});
-  const [testingId, setTestingId] = useState<string | null>(null);
-  const [removingId, setRemovingId] = useState<string | null>(null);
-
-  async function handleTest(profile: SmtpProfileRow) {
-    setTestingId(profile.id);
-    try {
-      const { data } = await testProfile({ variables: { id: profile.id, clientId } });
-      const result = data?.adminTestSmtpProfile;
-      setTestResult((prev) => ({ ...prev, [profile.id]: result?.ok ? `Sent to ${result.to}` : result?.message }));
-    } catch (e) {
-      setTestResult((prev) => ({ ...prev, [profile.id]: e instanceof Error ? e.message : "Test failed" }));
-    } finally {
-      setTestingId(null);
-    }
-  }
-
-  async function handleDelete(profile: SmtpProfileRow) {
-    setRemovingId(profile.id);
-    try {
-      await deleteProfile({ variables: { id: profile.id, clientId } });
-      onChanged();
-    } finally {
-      setRemovingId(null);
-    }
-  }
-
-  async function handleAssignRouting(project: ProjectRow, smtpProfileId: string) {
-    await updateProject({ variables: { id: project.id, input: { smtpProfileId: smtpProfileId || null } } });
-    onChanged();
-  }
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div className={CARD_CLASS}>
-        <div className={PANEL_HEADER_CLASS}>
-          <div>
-            <div className="text-sm font-bold text-m-text">SMTP profiles</div>
-            <p className="mt-0.5 text-xs text-m-text-muted">
-              Used by the email Cloud Function when sends include this client&rsquo;s <code className="text-[11px]">clientId</code> and{" "}
-              <code className="text-[11px]">smtpProfileId</code>.
-            </p>
-          </div>
-          <Button variant="primary" size="sm" leftIcon={<Icon name="plus" size="xs" />} onClick={() => setIsAddOpen(true)}>
-            Add Profile
-          </Button>
-        </div>
-
-        {profiles.length === 0 ? (
-          <div className="p-10">
-            <EmptyState icon="mail" title="No SMTP profiles yet" description="Add one (e.g. SendGrid SMTP) so CSA can send email for this client." />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-m-border/60 bg-m-neutral-50">
-                  {["Label", "Host", "From", "Default", ""].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-2">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {profiles.map((s, idx) => (
-                  <Fragment key={s.id}>
-                    <tr className={idx < profiles.length - 1 ? "border-b border-m-border/40" : ""}>
-                      <td className="whitespace-nowrap px-4 py-3 font-semibold">{s.name}</td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-m-text-muted">
-                        {s.smtpHost}:{s.smtpPort}
-                        {s.smtpSecure ? " (TLS)" : ""}
-                      </td>
-                      <td className="max-w-[220px] truncate px-4 py-3" title={s.emailFrom}>
-                        {s.emailFrom}
-                      </td>
-                      <td className="px-4 py-3">
-                        {s.isDefault ? <span className="text-[11px] font-semibold text-m-success">Default</span> : <span className="text-m-text-subtle">—</span>}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <div className="flex gap-1.5">
-                          <Button variant="outline" size="sm" onClick={() => void handleTest(s)} disabled={testingId === s.id || removingId === s.id}>
-                            {testingId === s.id ? "Sending…" : "Test"}
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => setEditing(s)}>
-                            Edit
-                          </Button>
-                          <Button variant="danger" size="sm" onClick={() => void handleDelete(s)} disabled={removingId === s.id}>
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                    {testResult[s.id] && (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-2 text-[11px] text-m-text-muted">
-                          {testResult[s.id]}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <div className={CARD_CLASS}>
-        <div className="border-b border-m-border/60 px-5 py-3.5">
-          <div className="text-sm font-bold text-m-text">Project routing</div>
-          <p className="mt-1.5 text-xs text-m-text-muted">
-            Choose which SMTP profile each commerce project uses. Leave as &ldquo;Client default&rdquo; to use the default profile above.
-          </p>
-        </div>
-        {projects.length === 0 ? (
-          <div className="px-5 py-8 text-center text-xs text-m-text-muted">Add a project first to assign SMTP routing.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-m-border/60 bg-m-neutral-50">
-                  {["Project key", "SMTP profile"].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-2">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((p, idx) => (
-                  <tr key={p.id} className={idx < projects.length - 1 ? "border-b border-m-border/40" : ""}>
-                    <td className="px-4 py-3 font-mono font-semibold">{p.projectKey}</td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={p.smtpProfileId ?? ""}
-                        onChange={(e) => void handleAssignRouting(p, e.target.value)}
-                        className="h-8 max-w-[320px] cursor-pointer rounded-m-md border border-m-border bg-m-surface px-2 text-xs"
-                      >
-                        <option value="">Client default</option>
-                        {profiles.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} ({s.emailFrom})
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <SmtpProfileModal
-        isOpen={isAddOpen || !!editing}
-        onClose={() => {
-          setIsAddOpen(false);
-          setEditing(null);
-        }}
-        clientId={clientId}
-        existing={editing}
-        profileCount={profiles.length}
-        onSaved={() => {
-          setIsAddOpen(false);
-          setEditing(null);
-          onChanged();
-        }}
-      />
-    </div>
-  );
-}
-
-function SmtpProfileModal({
-  isOpen,
-  onClose,
-  clientId,
-  existing,
-  profileCount,
-  onSaved
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  clientId: string;
-  existing: SmtpProfileRow | null;
-  profileCount: number;
-  onSaved: () => void;
-}) {
-  const [createProfile] = useMutation(ADMIN_CREATE_SMTP_PROFILE);
-  const [updateProfile] = useMutation(ADMIN_UPDATE_SMTP_PROFILE);
-
-  const isEdit = !!existing;
-  const [name, setName] = useState(existing?.name ?? "");
-  const [smtpHost, setSmtpHost] = useState(existing?.smtpHost ?? "");
-  const [smtpPort, setSmtpPort] = useState(existing?.smtpPort ?? 587);
-  const [smtpSecure, setSmtpSecure] = useState(existing?.smtpSecure ?? false);
-  const [smtpUser, setSmtpUser] = useState(existing?.smtpUser ?? "");
-  const [smtpPassword, setSmtpPassword] = useState("");
-  const [emailFrom, setEmailFrom] = useState(existing?.emailFrom ?? "");
-  const [isDefault, setIsDefault] = useState(existing?.isDefault ?? profileCount === 0);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setName(existing?.name ?? "");
-    setSmtpHost(existing?.smtpHost ?? "");
-    setSmtpPort(existing?.smtpPort ?? 587);
-    setSmtpSecure(existing?.smtpSecure ?? false);
-    setSmtpUser(existing?.smtpUser ?? "");
-    setSmtpPassword("");
-    setEmailFrom(existing?.emailFrom ?? "");
-    setIsDefault(existing?.isDefault ?? profileCount === 0);
-    setError(null);
-  }, [isOpen, existing, profileCount]);
-
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setIsSaving(true);
-    setError(null);
-    try {
-      if (isEdit && existing) {
-        await updateProfile({
-          variables: {
-            id: existing.id,
-            clientId,
-            input: { name, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPassword: smtpPassword || undefined, emailFrom, isDefault }
-          }
-        });
-      } else {
-        await createProfile({
-          variables: { clientId, input: { name, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPassword, emailFrom, isDefault } }
-        });
-      }
-      onSaved();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save SMTP profile");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/45 p-4">
-      <div className="w-full max-w-md overflow-y-auto rounded-m-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
-        <h2 className="mb-5 text-base font-bold text-m-primary">{isEdit ? "Edit SMTP Profile" : "Add SMTP Profile"}</h2>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-          <div>
-            <label className={LABEL_CLASS}>Label</label>
-            <input className={INPUT_CLASS} value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={LABEL_CLASS}>Host</label>
-              <input className={INPUT_CLASS} value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} required />
-            </div>
-            <div>
-              <label className={LABEL_CLASS}>Port</label>
-              <input type="number" className={INPUT_CLASS} value={smtpPort} onChange={(e) => setSmtpPort(Number(e.target.value) || 587)} required />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={LABEL_CLASS}>Username</label>
-              <input className={INPUT_CLASS} value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} required />
-            </div>
-            <div>
-              <label className={LABEL_CLASS}>
-                Password {isEdit && <span className="font-normal text-m-text-muted">(leave blank to keep)</span>}
-              </label>
-              <input type="password" className={INPUT_CLASS} value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)} required={!isEdit} />
-            </div>
-          </div>
-          <div>
-            <label className={LABEL_CLASS}>From header</label>
-            <input className={INPUT_CLASS} placeholder="Support <noreply@example.com>" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} required />
-          </div>
-          <div className="flex items-center gap-5">
-            <label className="flex items-center gap-2 text-xs text-m-text">
-              <input type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} className="h-3.5 w-3.5 accent-m-primary" />
-              Use TLS (typically port 465)
-            </label>
-            <label className="flex items-center gap-2 text-xs text-m-text">
-              <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} className="h-3.5 w-3.5 accent-m-primary" />
-              Default profile for this client
-            </label>
-          </div>
-
-          {error && <p className="text-xs text-m-error">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" disabled={isSaving}>
-              {isSaving ? "Saving…" : isEdit ? "Save Changes" : "Add Profile"}
             </Button>
           </div>
         </form>

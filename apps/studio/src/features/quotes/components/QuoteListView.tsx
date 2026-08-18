@@ -19,6 +19,7 @@ import {
   EmptyState,
   Skeleton,
 } from "@csa/ui";
+import { formatDate } from "@/lib/format-date";
 import { useQuotes } from "../hooks/use-quotes";
 import { QuoteStatusChip } from "./QuoteStatusChip";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
@@ -249,19 +250,19 @@ export function QuoteListView() {
                     </div>
                   </TableCell>
                   <TableCell className="text-m-text-muted">
-                    {q.lineItems.length} {q.lineItems.length === 1 ? "item" : "items"}
+                    {q.itemCount ?? q.lineItems.length} {(q.itemCount ?? q.lineItems.length) === 1 ? "item" : "items"}
                   </TableCell>
                   <TableCell className="font-semibold text-m-text">
-                    ${q.negotiatedTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {q.currencyCode || "USD"} {q.negotiatedTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell>
                     <QuoteStatusChip status={q.status} />
                   </TableCell>
                   <TableCell className="text-m-text-muted">
-                    {new Date(q.validUntil).toLocaleDateString()}
+                    {formatDate(q.validUntil)}
                   </TableCell>
                   <TableCell className="text-m-text-muted">
-                    {new Date(q.createdAt).toLocaleDateString()}
+                    {formatDate(q.createdAt)}
                   </TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <Button

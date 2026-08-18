@@ -1,10 +1,10 @@
 import { AppShell } from "../../components/shell/AppShell";
-import { CsaAssistantPageView } from "../../features/workspace/ModulePages";
+import { CsaAssistant } from "../../features/csa-assistant";
 
 export default function CsaAssistantPage() {
   return (
     <AppShell>
-      <CsaAssistantPageView />
+      <CsaAssistant />
     </AppShell>
   );
 }

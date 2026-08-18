@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { applyCsaHeaders } from "@csa/headers";
-import { authServiceUrl, currentSessionToken } from "../auth/shared";
+import { authServiceUrl, currentSessionToken, ensureDefaultProjectSelection } from "../auth/shared";
 
 const bffUrl = process.env.AI_COMMERCE_SERVICE_URL?.trim() || "http://localhost:4000/graphql";
 
 export async function POST(request: Request) {
-  const token = currentSessionToken();
+  const token = await currentSessionToken();
   if (!token) return NextResponse.json({ errors: [{ message: "unauthenticated" }] }, { status: 401 });
   const sessionResponse = await fetch(`${authServiceUrl()}/sessions/current`, {
     headers: { authorization: `Bearer ${token}` }, cache: "no-store"
   });
   const session = await sessionResponse.json().catch(() => ({}));
   if (!sessionResponse.ok) return NextResponse.json({ errors: [{ message: "unauthenticated" }] }, { status: 401 });
+  session.user = await ensureDefaultProjectSelection(token, session.user);
   if (session.user?.requiresProjectSelection) {
     return NextResponse.json({ errors: [{ message: "project selection required" }] }, { status: 409 });
   }

@@ -31,5 +31,5 @@ export interface ExportJobHistory {
   fileSize: string;
   timestamp: string;
   recordCount: number;
-  status: "Ready" | "Generating";
+  status: "Ready" | "Generating" | "Failed";
 }

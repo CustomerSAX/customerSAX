@@ -102,6 +102,10 @@ export interface CustomerReturn {
 
 export interface CustomerQuote {
   id: string;
+  companyName?: string;
+  customerEmail?: string;
+  displayId?: string;
+  itemsCount?: number;
   quoteKey?: string;
   quoteState: string;
   totalPrice: string;

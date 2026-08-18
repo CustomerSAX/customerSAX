@@ -34,9 +34,9 @@ export function FormField({
         </Label>
       )}
       {React.isValidElement(children)
-        ? React.cloneElement(children as React.ReactElement<any>, {
+        ? React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
             id: fieldId,
-            error: !!error,
+            ...(error ? { error: true, 'aria-invalid': true, 'aria-describedby': `${fieldId}-error` } : {}),
             required,
           })
         : children}

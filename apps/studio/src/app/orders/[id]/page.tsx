@@ -5,11 +5,13 @@ import { Skeleton } from "@csa/ui";
 
 export const dynamic = 'force-dynamic';
 
-export default function OrderDetailPage({ params }: { params: { id: string } }) {
+export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
   return (
     <AppShell>
       <Suspense fallback={<Skeleton height={300} className="w-full" />}>
-        <OrderDetailView id={params.id} />
+        <OrderDetailView id={id} />
       </Suspense>
     </AppShell>
   );

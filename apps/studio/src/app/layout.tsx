@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Inter } from "next/font/google";
+import "@fontsource-variable/inter";
 import { AppProviders } from "./providers";
 import "./styles.css";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "CSA Admin",
@@ -17,8 +15,8 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable}`}>
-      <body className="font-sans" suppressHydrationWarning>
+    <html lang="en" className="light" data-theme="light">
+      <body className="font-sans">
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

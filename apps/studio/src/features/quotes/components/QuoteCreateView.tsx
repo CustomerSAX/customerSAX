@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
@@ -21,14 +21,6 @@ import { useCompanies } from "@/features/companies/hooks/use-companies";
 import { useEmployees } from "@/features/employees/hooks/use-employees";
 import type { QuoteLineItem } from "../types/quote-types";
 
-const CATALOG_PRODUCT_SAMPLE = [
-  { sku: "OFF-CHR-001", name: "Ergonomic Mesh Office Chair (Black)", listPrice: 249.99 },
-  { sku: "MON-UW34-09", name: "Ultra-Wide 34\" Curved Monitor 144Hz", listPrice: 599.99 },
-  { sku: "AUD-ANC-900", name: "Wireless Noise-Canceling Headphones", listPrice: 199.99 },
-  { sku: "KB-MECH-88", name: "Mechanical Gaming Keyboard RGB", listPrice: 129.99 },
-  { sku: "CAM-4K-RING", name: "4K USB-C Webcam with Ring Light", listPrice: 89.99 },
-];
-
 export function QuoteCreateView() {
   const router = useRouter();
   const { createQuote } = useQuotes();
@@ -38,22 +30,14 @@ export function QuoteCreateView() {
   const [companyId, setCompanyId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [discountPct, setDiscountPct] = useState(10);
-  const [validUntil, setValidUntil] = useState(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  );
+  const [validUntil, setValidUntil] = useState("");
   const [note, setNote] = useState("");
 
-  const [lineItems, setLineItems] = useState<QuoteLineItem[]>([
-    {
-      id: "line-1",
-      sku: CATALOG_PRODUCT_SAMPLE[0].sku,
-      name: CATALOG_PRODUCT_SAMPLE[0].name,
-      quantity: 10,
-      listPrice: CATALOG_PRODUCT_SAMPLE[0].listPrice,
-      negotiatedPrice: 220.0,
-      subtotal: 2200.0,
-    },
-  ]);
+  const [lineItems, setLineItems] = useState<QuoteLineItem[]>([]);
+
+  useEffect(() => {
+    setValidUntil((current) => current || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  }, []);
 
   const companyOptions = [
     { value: "", label: "Select Company / Business Unit" },
@@ -73,15 +57,14 @@ export function QuoteCreateView() {
   ];
 
   const handleAddLineItem = () => {
-    const sample = CATALOG_PRODUCT_SAMPLE[lineItems.length % CATALOG_PRODUCT_SAMPLE.length];
     const newItem: QuoteLineItem = {
       id: `line-${Date.now()}`,
-      sku: sample.sku,
-      name: sample.name,
-      quantity: 5,
-      listPrice: sample.listPrice,
-      negotiatedPrice: sample.listPrice,
-      subtotal: sample.listPrice * 5,
+      sku: "",
+      name: "",
+      quantity: 1,
+      listPrice: 0,
+      negotiatedPrice: 0,
+      subtotal: 0,
     };
     setLineItems((prev) => [...prev, newItem]);
   };
@@ -128,12 +111,12 @@ export function QuoteCreateView() {
     const cust = allEmployees.find((e) => e.id === customerId);
 
     const created = createQuote({
-      companyId: comp?.id ?? "bu-101",
-      companyName: comp?.name ?? "Company",
-      companyKey: comp?.key ?? "company-key",
-      customerId: cust?.id ?? "cst-1001",
-      customerName: cust ? `${cust.firstName} ${cust.lastName}` : "Customer",
-      customerEmail: cust?.email ?? "customer@example.com",
+      companyId: comp?.id ?? "",
+      companyName: comp?.name ?? "",
+      companyKey: comp?.key ?? "",
+      customerId: cust?.id ?? "",
+      customerName: cust ? `${cust.firstName} ${cust.lastName}` : "",
+      customerEmail: cust?.email ?? "",
       status,
       lineItems,
       subtotal: grossSubtotal,

@@ -99,6 +99,18 @@ The response shape stays the same for every platform because each adapter maps n
 
 The BFF composes only the selected adapter. Do not compose every commerce adapter at the same time, because they intentionally expose the same CSA commerce schema.
 
+## B2B Business Units
+
+The shared commerce contract includes a platform-neutral B2B surface for the old CSA/Phoenix-style UI:
+
+- `companies`: maps to commercetools Business Units.
+- `company`: reads one Business Unit by id or key.
+- `companyCarts`: maps a company tab to B2B carts for the selected Business Unit.
+- `companyOrders`: maps a company tab to B2B orders for the selected Business Unit.
+- `quotes`: placeholder quote page contract for the Quote tab.
+
+The commercetools adapter includes native Business Unit GraphQL mapping with sample fallback for local/demo usage when Business Units are not available in the connected project.
+
 ## Required Env
 
 Each adapter owns its own runtime env. For commercetools, see `apps/commerce/commercetools/.env.example`:

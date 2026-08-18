@@ -1,7 +1,6 @@
-'use client';
-
 import React from 'react';
 import * as LucideIcons from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '../utils';
 
 export type IconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
@@ -43,7 +42,8 @@ export function Icon({
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join('');
 
-  const IconComponent = (LucideIcons as Record<string, any>)[pascalName] || LucideIcons.HelpCircle;
+  const iconRegistry = LucideIcons as unknown as Record<string, LucideIcon>;
+  const IconComponent = iconRegistry[pascalName] || LucideIcons.HelpCircle;
 
   const numericSize = typeof size === 'number' ? size : sizeMap[size] || 20;
 

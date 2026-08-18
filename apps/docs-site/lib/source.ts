@@ -1,4 +1,4 @@
-import { docs } from "@/.source";
+import { docs } from "@/.source/server";
 import { loader } from "fumadocs-core/source";
 
 // fumadocs-mdx builds the source's `files` as a lazy function

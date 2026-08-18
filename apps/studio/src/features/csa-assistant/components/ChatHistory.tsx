@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { formatDateTime, formatTime as formatSharedTime } from '@/lib/format-date';
 
 interface SessionSummary {
   sessionId: string;
@@ -29,17 +30,11 @@ function dateGroup(iso: string): string {
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return formatSharedTime(iso);
 }
 
 function formatFullDate(iso: string): string {
-  return (
-    new Date(iso).toLocaleDateString('en-GB', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-    }) +
-    ' at ' +
-    formatTime(iso)
-  );
+  return formatDateTime(iso);
 }
 
 function stripMarkdown(text: string): string {

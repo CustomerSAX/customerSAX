@@ -9,6 +9,12 @@ export interface CustomerSearchResult {
   initials: string;
 }
 
+type CustomerSearchApiResult = Partial<CustomerSearchResult>;
+type CustomerSearchApiResponse = {
+  error?: string;
+  results?: CustomerSearchApiResult[];
+};
+
 /**
  * Debounced customer search against the same BFF endpoint the Customers page
  * uses. Read-only browse/typeahead only — the actual business decision (which
@@ -43,7 +49,7 @@ export function useCustomerSearch(query: string) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ option: 'all', text: trimmed, limit: 10, offset: 0 }),
         });
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as CustomerSearchApiResponse;
         if (!res.ok) {
           setResults([]);
           setError(data?.error || 'Unable to search customers right now.');
@@ -54,8 +60,8 @@ export function useCustomerSearch(query: string) {
         // reconstructing name/initials from those (as this used to do)
         // always fell through to the fallback branch and showed the
         // customer's email as their "name" with "C" as their initials.
-        const mapped: CustomerSearchResult[] = (data.results || []).map((c: any) => ({
-          id: c.id,
+        const mapped: CustomerSearchResult[] = (data.results || []).map((c) => ({
+          id: c.id ?? '',
           name: c.name || c.email || 'Customer',
           email: c.email || '',
           initials: c.initials || (c.name?.[0] || c.email?.[0] || 'C').toUpperCase(),

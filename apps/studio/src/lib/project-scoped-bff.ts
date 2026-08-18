@@ -21,7 +21,7 @@ export class ProjectSessionError extends Error {
  * session. Callers cannot override these headers with browser-supplied values.
  */
 export async function projectScopedBffFetch(url: string, init: RequestInit = {}, requestId?: string) {
-  const token = currentSessionToken();
+  const token = await currentSessionToken();
   if (!token) throw new ProjectSessionError("Authentication required", 401);
 
   const sessionResponse = await fetch(`${authServiceUrl()}/sessions/current`, {

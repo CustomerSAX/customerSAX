@@ -8,10 +8,15 @@ const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/gr
 const HEADERS = bffJsonHeaders();
 
 // Only fields exposed by the BFF's Cart / CartLineItem schema.
-// Cart: id, version, key, customerId, currencyCode, totalPrice, lineItems
 // CartLineItem: id, productId, sku, name, quantity, totalPrice
 const CART_FIELDS = `
-  id version key customerId currencyCode
+  id version key customerId customerEmail createdAt lastModifiedAt cartState currencyCode
+  shippingAddress {
+    streetNumber streetName apartment building pOBox city state postalCode country phone mobile additionalStreetInfo additionalAddressInfo
+  }
+  billingAddress {
+    streetNumber streetName apartment building pOBox city state postalCode country phone mobile additionalStreetInfo additionalAddressInfo
+  }
   totalPrice { centAmount currencyCode fractionDigits }
   lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
 `;
@@ -27,6 +32,11 @@ async function bff<T = unknown>(query: string, variables: Record<string, unknown
   if (data?.errors?.length)
     throw new Error(data.errors.map((e: { message: string }) => e.message).join('; '));
   return data?.data as T;
+}
+
+function getIntegerParam(value: string | null, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 /** POST /api/carts — create a new cart */
@@ -62,31 +72,55 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** GET /api/carts?customerEmail=… — search active carts for a customer */
+/** GET /api/carts — list carts, or search active carts when customerEmail is supplied */
 export async function GET(request: NextRequest) {
   const { log, requestId } = requestLogger(request, 'api/carts');
   try {
     const url = new URL(request.url);
     const customerEmail = url.searchParams.get('customerEmail');
-    if (!customerEmail) {
-      return NextResponse.json({ error: 'customerEmail query param is required.' }, { status: 400 });
+
+    if (customerEmail) {
+      const data = await bff<{ searchCarts: { results: unknown[] } }>(
+        `query SearchCarts($option: String!, $text: String!) {
+          searchCarts(option: $option, text: $text) {
+            results { ${CART_FIELDS} }
+          }
+        }`,
+        { option: 'customerEmail', text: customerEmail },
+        requestId,
+      );
+
+      const results = data?.searchCarts?.results ?? [];
+      return NextResponse.json({ results });
     }
 
-    const data = await bff<{ searchCarts: { results: unknown[] } }>(
-      `query SearchCarts($option: String!, $text: String!) {
-        searchCarts(option: $option, text: $text) {
+    const limit = getIntegerParam(url.searchParams.get('limit'), 20);
+    const offset = getIntegerParam(url.searchParams.get('offset'), 0);
+    const sortKey = url.searchParams.get('sortKey');
+    const sortOrder = url.searchParams.get('sortOrder');
+
+    const data = await bff<{ cartPage: { results: unknown[]; total: number; count: number; offset: number } }>(
+      `query CartPage($limit: Int!, $offset: Int!, $sortKey: String, $sortOrder: String) {
+        cartPage(limit: $limit, offset: $offset, sortKey: $sortKey, sortOrder: $sortOrder) {
+          total
+          count
+          offset
           results { ${CART_FIELDS} }
         }
       }`,
-      { option: 'customerEmail', text: customerEmail },
+      {
+        limit,
+        offset,
+        sortKey: sortKey || null,
+        sortOrder: sortOrder || null,
+      },
       requestId,
     );
 
-    const results = data?.searchCarts?.results ?? [];
-    return NextResponse.json({ results });
+    return NextResponse.json(data?.cartPage ?? { results: [], total: 0, count: 0, offset });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    log.error('search carts failed', err);
+    log.error('fetch carts failed', err);
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

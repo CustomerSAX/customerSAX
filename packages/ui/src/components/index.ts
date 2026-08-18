@@ -17,6 +17,7 @@ export * from './layout/Panel';
 export * from './layout/Toolbar';
 export * from './layout/StickyActionBar';
 export * from './layout/Accordion';
+export * from './entity-detail/EntityDetail';
 
 // Navigation
 export * from './navigation/Sidebar';

@@ -2,15 +2,61 @@
 
 import { useState, useCallback, useMemo } from "react";
 import type { Employee, EmployeeAddress, EmployeeCompanyMembership, EmployeeFilter, EmployeeSort } from "../types/employee-types";
-import { INITIAL_EMPLOYEES } from "../constants/mock-employees";
+import { useCompanies } from "@/features/companies/hooks/use-companies";
 
 export function useEmployees() {
-  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
-  const loading = false;
+  const { allCompanies, loading } = useCompanies();
+  const [localEmployees, setLocalEmployees] = useState<Employee[]>([]);
   const [filter, setFilter] = useState<EmployeeFilter>({ searchField: "all", searchText: "" });
   const [sort, setSort] = useState<EmployeeSort>({ key: "createdAt", order: "desc" });
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+
+  const companyEmployees = useMemo(() => {
+    const employeeMap = new Map<string, Employee>();
+
+    allCompanies.forEach((company) => {
+      company.associates.forEach((associate) => {
+        const id = associate.customerId || associate.id || associate.email;
+        if (!id) return;
+
+        const [firstName = "", ...rest] = associate.name && associate.name !== "Company associate"
+          ? associate.name.split(" ")
+          : [associate.email || ""];
+        const lastName = rest.join(" ");
+        const membership: EmployeeCompanyMembership = {
+          companyId: company.id,
+          companyKey: company.key,
+          companyName: company.name,
+          roles: associate.roles,
+        };
+        const existing = employeeMap.get(id);
+
+        if (existing) {
+          existing.memberships.push(membership);
+          return;
+        }
+
+        employeeMap.set(id, {
+          id,
+          customerNumber: id,
+          externalId: id,
+          firstName,
+          lastName,
+          email: associate.email,
+          status: associate.status,
+          createdAt: company.createdAt,
+          lastModifiedAt: company.lastModifiedAt,
+          memberships: [membership],
+          addresses: [],
+        });
+      });
+    });
+
+    return Array.from(employeeMap.values());
+  }, [allCompanies]);
+
+  const employees = useMemo(() => [...localEmployees, ...companyEmployees], [companyEmployees, localEmployees]);
 
   const filteredEmployees = useMemo(() => {
     let result = [...employees];
@@ -77,14 +123,14 @@ export function useEmployees() {
         createdAt: new Date().toISOString(),
         lastModifiedAt: new Date().toISOString(),
       };
-      setEmployees((prev) => [created, ...prev]);
+      setLocalEmployees((prev) => [created, ...prev]);
       return created;
     },
     [employees.length]
   );
 
   const updateEmployee = useCallback((id: string, updates: Partial<Employee>) => {
-    setEmployees((prev) =>
+    setLocalEmployees((prev) =>
       prev.map((emp) =>
         emp.id === id || emp.customerNumber === id || emp.email === id
           ? { ...emp, ...updates, lastModifiedAt: new Date().toISOString() }
@@ -98,7 +144,7 @@ export function useEmployees() {
       ...address,
       id: `eaddr-${Date.now()}`,
     };
-    setEmployees((prev) =>
+    setLocalEmployees((prev) =>
       prev.map((emp) =>
         emp.id === employeeId
           ? { ...emp, addresses: [...emp.addresses, newAddr], lastModifiedAt: new Date().toISOString() }
@@ -108,7 +154,7 @@ export function useEmployees() {
   }, []);
 
   const addEmployeeMembership = useCallback((employeeId: string, membership: EmployeeCompanyMembership) => {
-    setEmployees((prev) =>
+    setLocalEmployees((prev) =>
       prev.map((emp) =>
         emp.id === employeeId
           ? { ...emp, memberships: [...emp.memberships.filter(m => m.companyId !== membership.companyId), membership], lastModifiedAt: new Date().toISOString() }

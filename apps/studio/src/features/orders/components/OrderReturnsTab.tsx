@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import {
   Button,
   Icon,
@@ -22,7 +21,7 @@ import {
   type StatusTone,
   PrimaryButton,
   CardEmpty,
-} from "@/components/detail";
+} from "@csa/ui";
 import type { OrderReturnsTabProps } from "./order-tab-types";
 
 function statusTone(status?: string | null): StatusTone {

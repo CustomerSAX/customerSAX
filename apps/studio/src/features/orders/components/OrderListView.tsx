@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { Fragment, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -20,10 +20,13 @@ import {
   Skeleton,
   EmptyState,
   Panel,
+  useDataTable,
 } from "@csa/ui";
-import { SectionCard } from "@/components/detail";
+import { SectionCard } from "@csa/ui";
+import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
 import { useOrderStore } from "../hooks/use-orders";
 import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
+import { formatDateTime } from "@/lib/format-date";
 
 const B2C_SEARCH_FIELD_OPTIONS = [
   { value: "all", label: "All fields" },
@@ -53,26 +56,127 @@ const PAYMENT_STATE_OPTIONS = [
   { value: "CreditOwed", label: "Credit Owed" },
 ];
 
+type OrderColumnKey =
+  | "orderNumber"
+  | "customer"
+  | "customerEmail"
+  | "companyName"
+  | "store"
+  | "grandTotal"
+  | "lineItemCount"
+  | "totalQuantity"
+  | "orderState"
+  | "shipmentState"
+  | "paymentState"
+  | "createdAt"
+  | "lastModifiedAt"
+  | "duplicate";
+
+const ORDER_COLUMNS: ManagedColumn<OrderColumnKey>[] = [
+  { key: "orderNumber", label: "Order Number", pinned: true },
+  { key: "customer", label: "Customer" },
+  { key: "customerEmail", label: "Customer Email" },
+  { key: "companyName", label: "Company" },
+  { key: "store", label: "Store" },
+  { key: "grandTotal", label: "Order Total" },
+  { key: "lineItemCount", label: "No. of Order Items" },
+  { key: "totalQuantity", label: "Total Items" },
+  { key: "orderState", label: "Order Status" },
+  { key: "shipmentState", label: "Shipment Status" },
+  { key: "paymentState", label: "Payment Status" },
+  { key: "createdAt", label: "Created" },
+  { key: "lastModifiedAt", label: "Modified" },
+  { key: "duplicate", label: "Duplicate" },
+];
+
+const DEFAULT_B2C_ORDER_COLUMN_KEYS: OrderColumnKey[] = [
+  "orderNumber",
+  "customer",
+  "customerEmail",
+  "grandTotal",
+  "lineItemCount",
+  "totalQuantity",
+  "orderState",
+  "shipmentState",
+  "paymentState",
+  "createdAt",
+  "lastModifiedAt",
+  "duplicate",
+];
+
+const DEFAULT_B2B_ORDER_COLUMN_KEYS: OrderColumnKey[] = [
+  "orderNumber",
+  "customerEmail",
+  "grandTotal",
+  "lineItemCount",
+  "totalQuantity",
+  "orderState",
+  "shipmentState",
+  "paymentState",
+  "createdAt",
+  "lastModifiedAt",
+  "duplicate",
+];
+
+const SORTABLE_ORDER_COLUMN_KEYS = new Set<OrderColumnKey>([
+  "orderNumber",
+  "customer",
+  "customerEmail",
+  "companyName",
+  "store",
+  "grandTotal",
+  "orderState",
+  "shipmentState",
+  "paymentState",
+  "createdAt",
+  "lastModifiedAt",
+]);
+
+function readStoredColumnKeys<TKey extends string>(
+  storageKey: string,
+  columns: ManagedColumn<TKey>[],
+  defaultKeys: TKey[]
+) {
+  if (typeof window === "undefined") return defaultKeys;
+
+  const raw = window.localStorage.getItem(storageKey);
+  if (!raw) return defaultKeys;
+
+  try {
+    const parsed = JSON.parse(raw) as TKey[];
+    const allowed = new Set(columns.map((column) => column.key));
+    const filtered = parsed.filter((key) => allowed.has(key));
+    return filtered.length > 0 ? filtered : defaultKeys;
+  } catch {
+    return defaultKeys;
+  }
+}
+
 export function OrderListView() {
   const router = useRouter();
   const pathname = usePathname();
   const isB2b = pathname?.startsWith("/b2b");
+  const orderColumnStorageKey = isB2b ? "csa_b2b_order_columns" : "csa_order_columns";
+  const defaultOrderColumnKeys = isB2b
+    ? DEFAULT_B2B_ORDER_COLUMN_KEYS
+    : DEFAULT_B2C_ORDER_COLUMN_KEYS;
 
   const { orders, duplicateOrder, loading, error, refetch } = useOrderStore();
-
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   const [searchOption, setSearchOption] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
   const [orderStateFilter, setOrderStateFilter] = useState("");
   const [paymentStateFilter, setPaymentStateFilter] = useState("");
 
-  const [sortColumn, setSortColumn] = useState<keyof Order>("createdAt");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [visibleOrderColumnKeys, setVisibleOrderColumnKeys] = useState<OrderColumnKey[]>(() =>
+    readStoredColumnKeys(orderColumnStorageKey, ORDER_COLUMNS, defaultOrderColumnKeys)
+  );
+
+  const visibleOrderColumns = useMemo(() => {
+    const visibleSet = new Set(visibleOrderColumnKeys);
+    return ORDER_COLUMNS.filter((column) => visibleSet.has(column.key));
+  }, [visibleOrderColumnKeys]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -83,20 +187,20 @@ export function OrderListView() {
     }
   }, [refetch]);
 
-  const handleSort = (column: keyof Order) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
-
   const handleDuplicateOrder = (e: React.MouseEvent, order: Order) => {
     e.stopPropagation();
     const newCartId = duplicateOrder(order.id);
     router.push(`/cart/${newCartId}`);
   };
+
+  const handleOrderColumnsChange = useCallback(
+    (keys: OrderColumnKey[]) => {
+      const nextKeys = keys.length > 0 ? keys : defaultOrderColumnKeys;
+      setVisibleOrderColumnKeys(nextKeys);
+      window.localStorage.setItem(orderColumnStorageKey, JSON.stringify(nextKeys));
+    },
+    [defaultOrderColumnKeys, orderColumnStorageKey]
+  );
 
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
@@ -150,21 +254,22 @@ export function OrderListView() {
     });
   }, [orders, orderStateFilter, paymentStateFilter, searchText, searchOption]);
 
-  const sortedOrders = useMemo(() => {
-    return [...filteredOrders].sort((a, b) => {
-      const valA = String(a[sortColumn] ?? "");
-      const valB = String(b[sortColumn] ?? "");
-      const res = valA.localeCompare(valB, undefined, { numeric: true });
-      return sortDirection === "asc" ? res : -res;
-    });
-  }, [filteredOrders, sortColumn, sortDirection]);
-
-  const paginatedOrders = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedOrders.slice(start, start + pageSize);
-  }, [sortedOrders, currentPage, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / pageSize));
+  const {
+    page: currentPage,
+    paginatedRows: paginatedOrders,
+    resetPage,
+    setPage: setCurrentPage,
+    sortDirection,
+    sortKey: sortColumn,
+    totalItems,
+    totalPages,
+    onSort: handleSort,
+  } = useDataTable<Order, keyof Order>({
+    rows: filteredOrders,
+    initialSortKey: "createdAt",
+    initialSortDirection: "desc",
+    pageSize: 20,
+  });
   const isLoading = loading || isRefreshing;
 
   const renderOrderStateBadge = (state: OrderState) => {
@@ -213,6 +318,119 @@ export function OrderListView() {
     }
   };
 
+  const getOrderColumnLabel = (key: OrderColumnKey) => {
+    if (isB2b) {
+      if (key === "customerEmail") return "Email (order)";
+      if (key === "grandTotal") return "Order final total (gross)";
+      if (key === "lineItemCount") return "Line items";
+      if (key === "totalQuantity") return "Total quantity";
+      if (key === "createdAt") return "Date created";
+      if (key === "lastModifiedAt") return "Date modified";
+      if (key === "duplicate") return "Copy order";
+    }
+
+    return ORDER_COLUMNS.find((column) => column.key === key)?.label ?? key;
+  };
+
+  const renderSortIndicator = (key: OrderColumnKey) => {
+    if (sortColumn !== key) return null;
+    return sortDirection === "asc" ? " ↑" : " ↓";
+  };
+
+  const renderOrderCell = (order: Order, key: OrderColumnKey) => {
+    const totalItemQty = order.lineItems.reduce((acc, item) => acc + item.quantity, 0);
+
+    if (key === "orderNumber") {
+      return (
+        <TableCell className="font-mono text-xs font-bold text-m-primary">
+          <Link href={`/orders/${order.id}`} className="hover:underline">
+            {order.orderNumber}
+          </Link>
+        </TableCell>
+      );
+    }
+
+    if (key === "customer") {
+      return (
+        <TableCell className="font-medium text-m-primary">
+          {order.customerId ? (
+            <Link
+              href={`/customers/${order.customerId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="hover:underline text-m-primary"
+            >
+              {order.customerName}
+            </Link>
+          ) : (
+            order.customerName
+          )}
+        </TableCell>
+      );
+    }
+
+    if (key === "customerEmail") {
+      return <TableCell className="text-m-text-muted text-xs">{order.customerEmail}</TableCell>;
+    }
+
+    if (key === "companyName") {
+      return <TableCell className="text-m-text">{order.companyName ?? "--"}</TableCell>;
+    }
+
+    if (key === "store") {
+      return <TableCell className="text-m-text">{order.store || "--"}</TableCell>;
+    }
+
+    if (key === "grandTotal") {
+      return <TableCell className="font-bold text-m-text">${order.grandTotal.toFixed(2)}</TableCell>;
+    }
+
+    if (key === "lineItemCount") {
+      return <TableCell>{order.lineItems.length}</TableCell>;
+    }
+
+    if (key === "totalQuantity") {
+      return <TableCell>{totalItemQty}</TableCell>;
+    }
+
+    if (key === "orderState") {
+      return <TableCell>{renderOrderStateBadge(order.orderState)}</TableCell>;
+    }
+
+    if (key === "shipmentState") {
+      return <TableCell>{renderShipmentBadge(order.shipmentState)}</TableCell>;
+    }
+
+    if (key === "paymentState") {
+      return <TableCell>{renderPaymentBadge(order.paymentState)}</TableCell>;
+    }
+
+    if (key === "createdAt") {
+      return <TableCell className="text-xs text-m-text-muted">{formatDateTime(order.createdAt)}</TableCell>;
+    }
+
+    if (key === "lastModifiedAt") {
+      return (
+        <TableCell className="text-xs text-m-text-muted">
+          {formatDateTime(order.lastModifiedAt)}
+        </TableCell>
+      );
+    }
+
+    return (
+      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          title={isB2b ? "Copy order" : "Duplicate order"}
+          leftIcon={<Icon name="copy" size="xs" />}
+          onClick={(e) => handleDuplicateOrder(e, order)}
+        >
+          {isB2b ? "Copy" : "Duplicate"}
+        </Button>
+      </TableCell>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -220,7 +438,7 @@ export function OrderListView() {
         title={isB2b ? "B2B Orders Commerce" : "Orders Operations"}
         subtitle={
           isB2b
-            ? `${sortedOrders.length} result${sortedOrders.length === 1 ? "" : "s"} — search, inspect, and copy orders for follow-up work.`
+            ? `${totalItems} result${totalItems === 1 ? "" : "s"} — search, inspect, and copy orders for follow-up work.`
             : "Find orders, inspect fulfillment state, and duplicate carts for follow-up work."
         }
         badge={<Badge variant="primary">{isB2b ? "B2B Commerce" : "Order Operations"}</Badge>}
@@ -252,7 +470,10 @@ export function OrderListView() {
         <div className="w-full sm:w-48">
           <Select
             value={searchOption}
-            onChange={(e) => setSearchOption(e.target.value)}
+            onChange={(e) => {
+              setSearchOption(e.target.value);
+              resetPage();
+            }}
             options={B2C_SEARCH_FIELD_OPTIONS}
           />
         </div>
@@ -261,11 +482,11 @@ export function OrderListView() {
             value={searchText}
             onChange={(val) => {
               setSearchText(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value);
-              setCurrentPage(1);
+              resetPage();
             }}
             onClear={() => {
               setSearchText("");
-              setCurrentPage(1);
+              resetPage();
             }}
             placeholder={
               isB2b
@@ -279,7 +500,7 @@ export function OrderListView() {
             value={orderStateFilter}
             onChange={(e) => {
               setOrderStateFilter(e.target.value);
-              setCurrentPage(1);
+              resetPage();
             }}
             options={ORDER_STATE_OPTIONS}
           />
@@ -289,7 +510,7 @@ export function OrderListView() {
             value={paymentStateFilter}
             onChange={(e) => {
               setPaymentStateFilter(e.target.value);
-              setCurrentPage(1);
+              resetPage();
             }}
             options={PAYMENT_STATE_OPTIONS}
           />
@@ -304,7 +525,16 @@ export function OrderListView() {
 
       {/* Orders — one quiet container */}
       <SectionCard
-        title={`Orders${!isLoading ? ` (${sortedOrders.length})` : ""}`}
+        title={`Orders${!isLoading ? ` (${totalItems})` : ""}`}
+        action={
+          <ColumnManager
+            columns={ORDER_COLUMNS}
+            defaultVisibleKeys={defaultOrderColumnKeys}
+            title="Order columns"
+            visibleKeys={visibleOrderColumnKeys}
+            onChange={handleOrderColumnsChange}
+          />
+        }
         bodyClassName="p-0"
       >
         {isLoading ? (
@@ -313,7 +543,7 @@ export function OrderListView() {
               <Skeleton key={i} height={40} className="w-full rounded-md" />
             ))}
           </div>
-        ) : sortedOrders.length === 0 ? (
+        ) : totalItems === 0 ? (
           <div className="p-8">
             <EmptyState
               title="No Orders Found"
@@ -338,103 +568,45 @@ export function OrderListView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead onClick={() => handleSort("orderNumber")} className="cursor-pointer">
-                    Order Number {sortColumn === "orderNumber" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  {!isB2b && (
-                    <TableHead onClick={() => handleSort("customerName")} className="cursor-pointer">
-                      Customer {sortColumn === "customerName" && (sortDirection === "asc" ? "↑" : "↓")}
-                    </TableHead>
-                  )}
-                  <TableHead onClick={() => handleSort("customerEmail")} className="cursor-pointer">
-                    {isB2b ? "Email (order)" : "Customer Email"} {sortColumn === "customerEmail" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("grandTotal")} className="cursor-pointer">
-                    {isB2b ? "Order final total (gross)" : "Order Total"} {sortColumn === "grandTotal" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead>{isB2b ? "Line items" : "No. of order Items"}</TableHead>
-                  <TableHead>{isB2b ? "Total quantity" : "Total Items"}</TableHead>
-                  <TableHead onClick={() => handleSort("orderState")} className="cursor-pointer">
-                    Order Status {sortColumn === "orderState" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead>Shipment Status</TableHead>
-                  <TableHead>Payment Status</TableHead>
-                  <TableHead onClick={() => handleSort("createdAt")} className="cursor-pointer">
-                    {isB2b ? "Date created" : "Created"} {sortColumn === "createdAt" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("lastModifiedAt")} className="cursor-pointer">
-                    {isB2b ? "Date modified" : "Modified"} {sortColumn === "lastModifiedAt" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead className="text-right">{isB2b ? "Copy order" : "Duplicate"}</TableHead>
+                  {visibleOrderColumns.map((column) => {
+                    const isSortable = SORTABLE_ORDER_COLUMN_KEYS.has(column.key);
+                    const sortKey = column.key === "customer" ? "customerName" : column.key;
+                    return (
+                      <TableHead
+                        key={column.key}
+                        onClick={isSortable ? () => handleSort(sortKey as keyof Order) : undefined}
+                        className={
+                          isSortable
+                            ? column.key === "duplicate"
+                              ? "cursor-pointer text-right"
+                              : "cursor-pointer"
+                            : column.key === "duplicate"
+                              ? "text-right"
+                              : undefined
+                        }
+                      >
+                        {getOrderColumnLabel(column.key)}
+                        {isSortable ? renderSortIndicator(sortKey as OrderColumnKey) : null}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedOrders.map((o) => {
-                  const totalItemQty = o.lineItems.reduce((acc, item) => acc + item.quantity, 0);
-                  return (
-                    <TableRow key={o.id} clickable onClick={() => router.push(`/orders/${o.id}`)}>
-                      <TableCell className="font-mono text-xs font-bold text-m-primary">
-                        <Link href={`/orders/${o.id}`} className="hover:underline">
-                          {o.orderNumber}
-                        </Link>
-                      </TableCell>
-                      {!isB2b && (
-                        <TableCell className="font-medium text-m-primary">
-                          {o.customerId ? (
-                            <Link
-                              href={`/customers/${o.customerId}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="hover:underline text-m-primary"
-                            >
-                              {o.customerName}
-                            </Link>
-                          ) : (
-                            o.customerName
-                          )}
-                        </TableCell>
-                      )}
-                      <TableCell className="text-m-text-muted text-xs">{o.customerEmail}</TableCell>
-                      <TableCell className="font-bold text-m-text">${o.grandTotal.toFixed(2)}</TableCell>
-                      <TableCell>{o.lineItems.length}</TableCell>
-                      <TableCell>{totalItemQty}</TableCell>
-                      <TableCell>{renderOrderStateBadge(o.orderState)}</TableCell>
-                      <TableCell>{renderShipmentBadge(o.shipmentState)}</TableCell>
-                      <TableCell>{renderPaymentBadge(o.paymentState)}</TableCell>
-                      <TableCell className="text-xs text-m-text-muted">
-                        {o.createdAt && mounted
-                          ? new Date(o.createdAt).toLocaleString(undefined, {
-                              month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
-                            })
-                          : o.createdAt ? o.createdAt.slice(0, 10) : "--"}
-                      </TableCell>
-                      <TableCell className="text-xs text-m-text-muted">
-                        {o.lastModifiedAt && mounted
-                          ? new Date(o.lastModifiedAt).toLocaleString(undefined, {
-                              month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
-                            })
-                          : o.lastModifiedAt ? o.lastModifiedAt.slice(0, 10) : "--"}
-                      </TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title={isB2b ? "Copy order" : "Duplicate order"}
-                          leftIcon={<Icon name="copy" size="xs" />}
-                          onClick={(e) => handleDuplicateOrder(e, o)}
-                        >
-                          {isB2b ? "Copy" : "Duplicate"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {paginatedOrders.map((o) => (
+                  <TableRow key={o.id} clickable onClick={() => router.push(`/orders/${o.id}`)}>
+                    {visibleOrderColumns.map((column) => (
+                      <Fragment key={column.key}>{renderOrderCell(o, column.key)}</Fragment>
+                    ))}
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
             <div className="border-t border-m-border/60 px-4 py-3">
               <TablePagination
                 page={currentPage}
                 totalPages={totalPages}
-                totalItems={sortedOrders.length}
+                totalItems={totalItems}
                 onPageChange={(page) => setCurrentPage(page)}
               />
             </div>

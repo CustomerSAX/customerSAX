@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   PageHeader,
   Card,
@@ -23,26 +23,51 @@ interface CartPlaceOrderViewProps {
 
 export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
-  const isB2b = pathname?.startsWith("/b2b");
 
   const {
-    carts,
+    loading,
+    error,
     getCartById,
     sendPaymentReminder,
     placeOrderFromCart,
   } = useCartStore();
 
-  const cart = getCartById(id) || carts[0];
+  const cart = getCartById(id);
 
-  const [altEmail, setAltEmail] = useState(cart.customerEmail || "");
+  const [altEmail, setAltEmail] = useState(cart?.customerEmail || "");
   const [reminderFeedback, setReminderFeedback] = useState("");
 
   const [placing, setPlacing] = useState(false);
   const [orderCreatedId, setOrderCreatedId] = useState<string | null>(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+
+  useEffect(() => {
+    setAltEmail(cart?.customerEmail || "");
+  }, [cart]);
+
+  if (!cart) {
+    return (
+      <div className="space-y-6 pb-20">
+        <Link
+          href="/cart"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-m-primary hover:text-m-primary-600 mb-3"
+        >
+          <Icon name="arrow-left" size="xs" />
+          Back to carts
+        </Link>
+        <Card variant="default">
+          <CardContent className="p-8 text-center space-y-2">
+            <div className="font-bold text-sm text-m-text">{loading ? "Loading cart" : "Cart not found"}</div>
+            <p className="text-xs text-m-text-muted">
+              {error || (loading ? "Fetching cart data from the commerce backend." : "No cart matched this ID.")}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleSendPaymentReminder = () => {
     if (!altEmail.trim()) return;
@@ -61,11 +86,10 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
     }, 600);
   };
 
-  const prefix = isB2b ? "/b2b" : "";
-  const backToAddressesHref = `${prefix}/cart/${cart.id}/address-details${customerIdParam ? `?customerId=${customerIdParam}` : ""}`;
+  const backToAddressesHref = `/cart/${cart.id}/address-details${customerIdParam ? `?customerId=${customerIdParam}` : ""}`;
   const backToCartHref = customerIdParam
     ? `/customers/${customerIdParam}`
-    : `${prefix}/cart`;
+    : "/cart";
 
   return (
     <div className="space-y-6 pb-20">
@@ -219,7 +243,7 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
               <Button
                 variant="primary"
                 size="md"
-                onClick={() => router.push(`${prefix}/orders/${orderCreatedId || cart.id}`)}
+                onClick={() => router.push(`/orders/${orderCreatedId || cart.id}`)}
               >
                 View order →
               </Button>

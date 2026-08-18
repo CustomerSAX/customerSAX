@@ -9,7 +9,13 @@ const HEADERS = bffJsonHeaders();
 
 // Only fields exposed by the BFF's Cart / CartLineItem schema.
 const CART_FIELDS = `
-  id version key customerId currencyCode
+  id version key customerId customerEmail createdAt lastModifiedAt cartState currencyCode
+  shippingAddress {
+    streetNumber streetName apartment building pOBox city state postalCode country phone mobile additionalStreetInfo additionalAddressInfo
+  }
+  billingAddress {
+    streetNumber streetName apartment building pOBox city state postalCode country phone mobile additionalStreetInfo additionalAddressInfo
+  }
   totalPrice { centAmount currencyCode fractionDigits }
   lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
 `;
@@ -137,15 +143,21 @@ export async function POST(
           }
         }
       } else if ('setShippingAddress' in action || 'setBillingAddress' in action) {
-        const addr = ('setShippingAddress' in action)
-          ? action.setShippingAddress.address
-          : (action as { setBillingAddress: { address: Record<string, unknown> } }).setBillingAddress.address;
-        await bff(
-          `mutation SetAddress($id: ID!, $address: Json!) {
-            updateCartAddresses(id: $id, shippingAddress: $address, billingAddress: $address) { id }
-          }`,
-          { id, address: addr },
-        );
+        if ('setShippingAddress' in action) {
+          await bff(
+            `mutation SetShippingAddress($id: ID!, $address: Json!) {
+              updateCartAddresses(id: $id, shippingAddress: $address) { id }
+            }`,
+            { id, address: action.setShippingAddress.address },
+          );
+        } else {
+          await bff(
+            `mutation SetBillingAddress($id: ID!, $address: Json!) {
+              updateCartAddresses(id: $id, billingAddress: $address) { id }
+            }`,
+            { id, address: action.setBillingAddress.address },
+          );
+        }
       } else if ('setShippingMethod' in action) {
         const smId = action.setShippingMethod.shippingMethod.id;
         await bff(

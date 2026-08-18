@@ -1,7 +1,3 @@
-'use client';
-
-import React from 'react';
-
 export interface PendingApprovalNoteProps {
   pendingApproval?: { action?: string; summary?: string } | null;
   isLoading: boolean;

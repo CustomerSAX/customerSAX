@@ -10,8 +10,9 @@ export type CurrentUser = {
   tenantId: string;
   activeClientId?: string;
   activeProjectKey?: string;
+  activeProjectShellMode?: "b2c" | "b2b";
   projectKey?: string;
-  projects: Array<{ clientId?: string; displayName?: string; projectKey: string; role: string }>;
+  projects: Array<{ clientId?: string; displayName?: string; projectKey: string; role: string; shellMode?: "b2c" | "b2b" }>;
   requiresProjectSelection: boolean;
 };
 

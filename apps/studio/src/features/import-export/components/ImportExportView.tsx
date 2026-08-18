@@ -17,6 +17,7 @@ import {
   TableCell,
   Tabs,
 } from "@csa/ui";
+import { formatDateTime } from "@/lib/format-date";
 import { useImportExport } from "../hooks/use-import-export";
 import type { B2BResourceType } from "../types/import-export-types";
 
@@ -26,6 +27,8 @@ const RESOURCE_OPTIONS = [
   { value: "cart", label: "Carts" },
   { value: "quote", label: "Quotes" },
 ];
+
+type ImportExportTab = "import" | "export";
 
 const COUNTRY_OPTIONS = [
   { value: "", label: "All Countries" },
@@ -57,7 +60,7 @@ export function ImportExportView() {
     triggerExport,
   } = useImportExport(initialResource);
 
-  const [activeTab, setActiveTab] = useState<"import" | "export">("import");
+  const [activeTab, setActiveTab] = useState<ImportExportTab>("import");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -87,10 +90,10 @@ export function ImportExportView() {
 
   const downloadSampleTemplate = () => {
     const sampleHeaders: Record<B2BResourceType, string> = {
-      company: "name,key,unitType,parentKey,status\nAcme Corp,acme-corp,Company,,Active\nAcme East,acme-east,Division,acme-corp,Active",
-      employee: "email,firstName,lastName,companyKey,roles\njane@acme.com,Jane,Doe,acme-corp,Admin,Buyer\njohn@acme.com,John,Smith,acme-corp,Buyer",
-      cart: "cartKey,customerEmail,companyKey,lineItemSku,quantity\nCRT-901,jane@acme.com,acme-corp,SKU-1001,2",
-      quote: "quoteKey,customerEmail,companyKey,targetPrice\nQ-501,jane@acme.com,acme-corp,4500.00",
+      company: "name,key,unitType,parentKey,status",
+      employee: "email,firstName,lastName,companyKey,roles",
+      cart: "cartKey,customerEmail,companyKey,lineItemSku,quantity",
+      quote: "quoteKey,customerEmail,companyKey,targetPrice",
     };
 
     const blob = new Blob([sampleHeaders[selectedResource]], { type: "text/csv" });
@@ -136,7 +139,9 @@ export function ImportExportView() {
       </Panel>
 
       {/* Import / Export Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+      <Tabs value={activeTab} onValueChange={(value) => {
+        if (value === "import" || value === "export") setActiveTab(value);
+      }}>
         <Tabs.List>
           <Tabs.Trigger value="import">Batch Import (CSV)</Tabs.Trigger>
           <Tabs.Trigger value="export">Data Export (CSV)</Tabs.Trigger>
@@ -289,7 +294,7 @@ export function ImportExportView() {
                         )}
                       </TableCell>
                       <TableCell className="text-m-text-muted">
-                        {new Date(job.timestamp).toLocaleString()}
+                        {formatDateTime(job.timestamp)}
                       </TableCell>
                       <TableCell>
                         <Badge variant={job.status === "Completed" ? "success" : "error"} size="sm">
@@ -371,7 +376,7 @@ export function ImportExportView() {
                       <TableCell className="text-m-text-muted">{exp.fileSize}</TableCell>
                       <TableCell>{exp.recordCount}</TableCell>
                       <TableCell className="text-m-text-muted">
-                        {new Date(exp.timestamp).toLocaleString()}
+                        {formatDateTime(exp.timestamp)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button

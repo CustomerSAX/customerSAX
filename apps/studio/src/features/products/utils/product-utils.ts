@@ -19,6 +19,7 @@ import type {
   ProductDetail,
   StandalonePriceResult,
 } from "../types/product-types";
+import { formatDate } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
 // Money formatting
@@ -202,12 +203,8 @@ export function mapRawToListRow(p: CtRawProduct): ProductListRow {
     description,
     categories: categoryNames.length > 0 ? categoryNames.join(", ") : "--",
     status: p.masterData?.hasStagedChanges ? "Modified" : "Published",
-    created: p.createdAt
-      ? new Date(p.createdAt).toLocaleDateString()
-      : "--",
-    modified: p.lastModifiedAt
-      ? new Date(p.lastModifiedAt).toLocaleDateString()
-      : "--",
+    created: formatDate(p.createdAt),
+    modified: formatDate(p.lastModifiedAt),
     variants: allVariants.map(
       (v): ProductVariantRow => ({
         id: v?.id != null ? String(v.id) : "--",

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useConversationStore } from '../store/conversation-store';
+import { formatDate } from '@/lib/format-date';
 
 interface EpisodicEntry {
   type: 'session_summary' | 'ticket_resolution' | 'customer_interaction';
@@ -36,7 +37,7 @@ function formatEntryDate(date: Date | string): string {
     const diffD = Math.floor(diffH / 24);
     if (diffD === 1) return 'Yesterday';
     if (diffD < 7)   return `${diffD} days ago`;
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return formatDate(d);
   } catch {
     return '';
   }
@@ -92,7 +93,7 @@ export function MemoryPanel({ sessionId }: MemoryPanelProps) {
       })
       .then((data) => {
         if (abortController.signal.aborted) return;
-        let episodicData = data.episodicMemory ?? [];
+        const episodicData = data.episodicMemory ?? [];
         setEpisodic(episodicData);
         setFetchState('done');
       })

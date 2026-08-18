@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { Fragment, useCallback, useState, useMemo } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   PageHeader,
   Card,
@@ -20,9 +20,13 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  TablePagination,
+  useDataTable,
 } from "@csa/ui";
+import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
 import { useCartStore } from "../hooks/use-carts";
 import type { Cart, CartState } from "../types/cart-types";
+import { formatDate } from "@/lib/format-date";
 
 const SEARCH_OPTIONS = [
   { value: "all", label: "All fields" },
@@ -30,25 +34,112 @@ const SEARCH_OPTIONS = [
   { value: "customerEmail", label: "Customer email" },
 ];
 
+function formatCurrency(value: number, currencyCode = "USD") {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode,
+  }).format(value);
+}
+
+type CartColumnKey =
+  | "id"
+  | "orderNumber"
+  | "customer"
+  | "customerEmail"
+  | "companyName"
+  | "store"
+  | "country"
+  | "grandTotal"
+  | "lineItemCount"
+  | "totalQuantity"
+  | "cartState"
+  | "createdAt"
+  | "lastModifiedAt";
+
+const CART_COLUMN_STORAGE_KEY = "csa_cart_columns";
+
+const CART_COLUMNS: ManagedColumn<CartColumnKey>[] = [
+  { key: "id", label: "Cart ID", pinned: true },
+  { key: "orderNumber", label: "Order Number" },
+  { key: "customer", label: "Customer" },
+  { key: "customerEmail", label: "Customer Email" },
+  { key: "companyName", label: "Company" },
+  { key: "store", label: "Store" },
+  { key: "country", label: "Country" },
+  { key: "grandTotal", label: "Cart Total" },
+  { key: "lineItemCount", label: "No. of Items" },
+  { key: "totalQuantity", label: "Total Items" },
+  { key: "cartState", label: "Cart Status" },
+  { key: "createdAt", label: "Created" },
+  { key: "lastModifiedAt", label: "Modified" },
+];
+
+const DEFAULT_CART_COLUMN_KEYS: CartColumnKey[] = [
+  "id",
+  "orderNumber",
+  "customer",
+  "grandTotal",
+  "lineItemCount",
+  "totalQuantity",
+  "cartState",
+  "createdAt",
+  "lastModifiedAt",
+];
+
+const SORTABLE_CART_COLUMN_KEYS = new Set<CartColumnKey>([
+  "id",
+  "orderNumber",
+  "customer",
+  "customerEmail",
+  "companyName",
+  "store",
+  "country",
+  "grandTotal",
+  "cartState",
+  "createdAt",
+  "lastModifiedAt",
+]);
+
+function readStoredColumnKeys<TKey extends string>(
+  storageKey: string,
+  columns: ManagedColumn<TKey>[],
+  defaultKeys: TKey[]
+) {
+  if (typeof window === "undefined") return defaultKeys;
+
+  const raw = window.localStorage.getItem(storageKey);
+  if (!raw) return defaultKeys;
+
+  try {
+    const parsed = JSON.parse(raw) as TKey[];
+    const allowed = new Set(columns.map((column) => column.key));
+    const filtered = parsed.filter((key) => allowed.has(key));
+    return filtered.length > 0 ? filtered : defaultKeys;
+  } catch {
+    return defaultKeys;
+  }
+}
+
 export function CartListView() {
   const router = useRouter();
-  const pathname = usePathname();
-  const isB2b = pathname?.startsWith("/b2b");
 
-  const { carts } = useCartStore();
+  const { carts, loading, error, reloadCarts } = useCartStore();
 
   const [searchOption, setSearchOption] = useState("id");
   const [searchText, setSearchText] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState<{ option: string; text: string } | null>(null);
+  const [visibleCartColumnKeys, setVisibleCartColumnKeys] = useState<CartColumnKey[]>(() =>
+    readStoredColumnKeys(CART_COLUMN_STORAGE_KEY, CART_COLUMNS, DEFAULT_CART_COLUMN_KEYS)
+  );
 
-  const [sortColumn, setSortColumn] = useState<keyof Cart>("createdAt");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
+  const visibleCartColumns = useMemo(() => {
+    const visibleSet = new Set(visibleCartColumnKeys);
+    return CART_COLUMNS.filter((column) => visibleSet.has(column.key));
+  }, [visibleCartColumnKeys]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setCurrentPage(1);
+    resetPage();
     setSubmittedSearch({ option: searchOption, text: searchText.trim().toLowerCase() });
   };
 
@@ -56,17 +147,15 @@ export function CartListView() {
     setSearchOption("id");
     setSearchText("");
     setSubmittedSearch(null);
-    setCurrentPage(1);
+    resetPage();
   };
 
   const filteredCarts = useMemo(() => {
-    let result = [...carts];
-
     if (submittedSearch && submittedSearch.text) {
       const q = submittedSearch.text;
       const opt = submittedSearch.option;
 
-      result = result.filter((cart) => {
+      return carts.filter((cart) => {
         if (opt === "id") {
           return (
             cart.id.toLowerCase().includes(q) ||
@@ -87,38 +176,32 @@ export function CartListView() {
       });
     }
 
-    result.sort((a, b) => {
-      let valA: any = a[sortColumn] ?? "";
-      let valB: any = b[sortColumn] ?? "";
+    return carts;
+  }, [carts, submittedSearch]);
 
-      if (sortColumn === "createdAt" || sortColumn === "lastModifiedAt") {
-        valA = new Date(valA).getTime();
-        valB = new Date(valB).getTime();
-      }
-
-      if (valA < valB) return sortDirection === "asc" ? -1 : 1;
-      if (valA > valB) return sortDirection === "asc" ? 1 : -1;
-      return 0;
-    });
-
-    return result;
-  }, [carts, submittedSearch, sortColumn, sortDirection]);
-
-  const totalItems = filteredCarts.length;
-  const totalPages = Math.ceil(totalItems / pageSize) || 1;
-  const paginatedCarts = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredCarts.slice(start, start + pageSize);
-  }, [filteredCarts, currentPage, pageSize]);
-
-  const handleSort = (col: keyof Cart) => {
-    if (sortColumn === col) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(col);
-      setSortDirection("desc");
-    }
-  };
+  const {
+    page: currentPage,
+    pageSize,
+    paginatedRows: paginatedCarts,
+    resetPage,
+    setPage: setCurrentPage,
+    sortDirection,
+    sortKey: sortColumn,
+    totalItems,
+    totalPages,
+    onSort: handleSort,
+  } = useDataTable<Cart, keyof Cart>({
+    rows: filteredCarts,
+    initialSortKey: "createdAt",
+    initialSortDirection: "desc",
+    newSortDirection: "desc",
+    pageSize: 20,
+    getSortValue: (cart, key) => {
+      const value = cart[key];
+      if (key === "createdAt" || key === "lastModifiedAt") return value ? new Date(String(value)).getTime() : 0;
+      return value;
+    },
+  });
 
   const renderStatusBadge = (state: CartState) => {
     switch (state) {
@@ -133,6 +216,104 @@ export function CartListView() {
       default:
         return <Badge variant="neutral" size="sm">{state}</Badge>;
     }
+  };
+
+  const handleCartColumnsChange = useCallback((keys: CartColumnKey[]) => {
+    const nextKeys = keys.length > 0 ? keys : DEFAULT_CART_COLUMN_KEYS;
+    setVisibleCartColumnKeys(nextKeys);
+    window.localStorage.setItem(CART_COLUMN_STORAGE_KEY, JSON.stringify(nextKeys));
+  }, []);
+
+  const renderSortIndicator = (key: CartColumnKey) => {
+    if (sortColumn !== key) return null;
+    return sortDirection === "asc" ? " ▲" : " ▼";
+  };
+
+  const renderCartCell = (cart: Cart, key: CartColumnKey) => {
+    const lineItemsCount = cart.lineItems.length;
+    const totalItemsQty = cart.lineItems.reduce((acc, i) => acc + i.quantity, 0);
+    const customerLabel = cart.customerName || cart.customerId || "Guest / unassigned";
+
+    if (key === "id") {
+      return (
+        <TableCell className="font-mono text-xs font-bold text-m-primary">
+          {cart.cartNumber || cart.id}
+        </TableCell>
+      );
+    }
+
+    if (key === "orderNumber") {
+      return (
+        <TableCell className="font-mono text-xs text-m-text-muted">
+          {cart.orderNumber || "--"}
+        </TableCell>
+      );
+    }
+
+    if (key === "customer") {
+      return (
+        <TableCell>
+          {cart.customerId ? (
+            <Link
+              href={`/customers/${cart.customerId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="font-semibold text-xs text-m-primary hover:underline"
+            >
+              {customerLabel}
+            </Link>
+          ) : (
+            <span className="text-xs text-m-text-muted italic">{customerLabel}</span>
+          )}
+          <div className="text-[10px] text-m-text-muted">{cart.customerEmail || "--"}</div>
+        </TableCell>
+      );
+    }
+
+    if (key === "customerEmail") {
+      return <TableCell className="text-xs text-m-text-muted">{cart.customerEmail || "--"}</TableCell>;
+    }
+
+    if (key === "companyName") {
+      return <TableCell className="text-xs text-m-text">{cart.companyName ?? "--"}</TableCell>;
+    }
+
+    if (key === "store") {
+      return <TableCell className="text-xs text-m-text">{cart.store || "--"}</TableCell>;
+    }
+
+    if (key === "country") {
+      return <TableCell className="text-xs text-m-text">{cart.country ?? "--"}</TableCell>;
+    }
+
+    if (key === "grandTotal") {
+      return (
+        <TableCell className="font-bold text-xs text-m-text font-mono">
+          {formatCurrency(cart.grandTotal, cart.currencyCode)}
+        </TableCell>
+      );
+    }
+
+    if (key === "lineItemCount") {
+      return <TableCell className="text-xs">{lineItemsCount}</TableCell>;
+    }
+
+    if (key === "totalQuantity") {
+      return <TableCell className="text-xs font-semibold">{totalItemsQty}</TableCell>;
+    }
+
+    if (key === "cartState") {
+      return <TableCell>{renderStatusBadge(cart.cartState)}</TableCell>;
+    }
+
+    if (key === "createdAt") {
+      return <TableCell className="text-xs text-m-text-muted">{formatDate(cart.createdAt)}</TableCell>;
+    }
+
+    return (
+      <TableCell className="text-xs text-m-text-muted">
+        {formatDate(cart.lastModifiedAt)}
+      </TableCell>
+    );
   };
 
   return (
@@ -178,80 +359,62 @@ export function CartListView() {
       <Card variant="default">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Shopping Carts ({filteredCarts.length})</CardTitle>
+          <ColumnManager
+            columns={CART_COLUMNS}
+            defaultVisibleKeys={DEFAULT_CART_COLUMN_KEYS}
+            title="Cart columns"
+            visibleKeys={visibleCartColumnKeys}
+            onChange={handleCartColumnsChange}
+          />
         </CardHeader>
         <CardContent className="p-0">
-          {paginatedCarts.length > 0 ? (
+          {loading ? (
+            <div className="p-8 text-center space-y-2">
+              <div className="font-bold text-sm text-m-text">Loading carts</div>
+              <p className="text-xs text-m-text-muted">Fetching carts from the commerce backend.</p>
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center space-y-3">
+              <div className="font-bold text-sm text-m-error">Unable to load carts</div>
+              <p className="text-xs text-m-text-muted">{error}</p>
+              <Button type="button" variant="secondary" size="sm" onClick={reloadCarts}>
+                Retry
+              </Button>
+            </div>
+          ) : paginatedCarts.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("id")}>
-                    Cart ID {sortColumn === "id" && (sortDirection === "asc" ? "▲" : "▼")}
-                  </TableHead>
-                  <TableHead>Order Number</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Cart Total</TableHead>
-                  <TableHead>No. of Items</TableHead>
-                  <TableHead>Total Items</TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("cartState")}>
-                    Cart Status {sortColumn === "cartState" && (sortDirection === "asc" ? "▲" : "▼")}
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("createdAt")}>
-                    Created {sortColumn === "createdAt" && (sortDirection === "asc" ? "▲" : "▼")}
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("lastModifiedAt")}>
-                    Modified {sortColumn === "lastModifiedAt" && (sortDirection === "asc" ? "▲" : "▼")}
-                  </TableHead>
+                  {visibleCartColumns.map((column) => {
+                    const isSortable = SORTABLE_CART_COLUMN_KEYS.has(column.key);
+                    const sortKey = column.key === "customer" ? "customerName" : column.key;
+                    return (
+                      <TableHead
+                        key={column.key}
+                        className={isSortable ? "cursor-pointer select-none" : undefined}
+                        onClick={isSortable ? () => handleSort(sortKey as keyof Cart) : undefined}
+                      >
+                        {column.label}
+                        {isSortable ? renderSortIndicator(sortKey as CartColumnKey) : null}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedCarts.map((cart) => {
-                  const lineItemsCount = cart.lineItems.length;
-                  const totalItemsQty = cart.lineItems.reduce((acc, i) => acc + i.quantity, 0);
-
-                  return (
-                    <TableRow
-                      key={cart.id}
-                      clickable
-                      onClick={() => {
-                        const prefix = isB2b ? "/b2b" : "";
-                        router.push(`${prefix}/cart/${cart.id}`);
-                      }}
-                    >
-                      <TableCell className="font-mono text-xs font-bold text-m-primary">
-                        {cart.cartNumber || cart.id}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-m-text-muted">
-                        {cart.orderNumber || "--"}
-                      </TableCell>
-                      <TableCell>
-                        {cart.customerId ? (
-                          <Link
-                            href={`/customers/${cart.customerId}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="font-semibold text-xs text-m-primary hover:underline"
-                          >
-                            {cart.customerName}
-                          </Link>
-                        ) : (
-                          <span className="text-xs text-m-text-muted italic">{cart.customerName}</span>
-                        )}
-                        <div className="text-[10px] text-m-text-muted">{cart.customerEmail}</div>
-                      </TableCell>
-                      <TableCell className="font-bold text-xs text-m-text font-mono">
-                        ${cart.grandTotal.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-xs">{lineItemsCount}</TableCell>
-                      <TableCell className="text-xs font-semibold">{totalItemsQty}</TableCell>
-                      <TableCell>{renderStatusBadge(cart.cartState)}</TableCell>
-                      <TableCell className="text-xs text-m-text-muted">
-                        {new Date(cart.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-xs text-m-text-muted">
-                        {new Date(cart.lastModifiedAt).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {paginatedCarts.map((cart) => (
+                  <TableRow
+                    key={cart.id}
+                    clickable
+                    onClick={() => {
+                      router.push(`/cart/${cart.id}`);
+                    }}
+                  >
+                    {visibleCartColumns.map((column) => (
+                      <Fragment key={column.key}>{renderCartCell(cart, column.key)}</Fragment>
+                    ))}
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           ) : (
@@ -268,32 +431,13 @@ export function CartListView() {
         </CardContent>
       </Card>
 
-      {/* Pagination Footer */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-2 text-xs text-m-text-muted">
-          <span>
-            Showing page {currentPage} of {totalPages} ({totalItems} carts total)
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      <TablePagination
+        page={currentPage}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }

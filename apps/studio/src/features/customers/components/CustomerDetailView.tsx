@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { useQuery } from "@apollo/client";
+import { Fragment, useEffect, useState, useMemo, useCallback } from "react";
+import { gql, useQuery } from "@apollo/client";
 import { CUSTOMER_ORDERS_QUERY, CUSTOMER_CARTS_QUERY, CUSTOMER_ADDRESSES_QUERY } from "../../orders/api/queries";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -22,6 +22,8 @@ import {
   FormField,
   Label,
 } from "@csa/ui";
+import { formatDate, formatDateTime } from "@/lib/format-date";
+import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
 import {
   DetailPage,
   BackLink,
@@ -44,7 +46,7 @@ import {
   PrimaryButton,
   MoreActionsMenu,
   CardEmpty,
-} from "@/components/detail";
+} from "@csa/ui";
 import { useCustomerStore } from "../hooks/use-customers";
 import type {
   CustomerAddress,
@@ -86,10 +88,145 @@ const CUSTOMER_TABS: EntityTab[] = [
   { id: "overview", label: "Overview", icon: "user" },
   { id: "orders", label: "Orders", icon: "shopping-bag" },
   { id: "returns", label: "Returns", icon: "rotate-ccw" },
+  { id: "quotes", label: "Quotes", icon: "file-text" },
   { id: "payments", label: "Payments", icon: "credit-card" },
   { id: "conversations", label: "Conversations", icon: "message-square" },
   { id: "notes", label: "Notes", icon: "file-text" },
 ];
+
+const CUSTOMER_QUOTES_QUERY = gql`
+  query CustomerQuotes($customerId: ID!, $limit: Int!) {
+    quotes(customerId: $customerId, limit: $limit, sortKey: "createdAt", sortOrder: "desc") {
+      results {
+        id
+        key
+        quoteNumber
+        companyName
+        customerEmail
+        lineItemCount
+        status
+        totalPrice {
+          centAmount
+          currencyCode
+          fractionDigits
+        }
+        createdAt
+      }
+    }
+  }
+`;
+
+type OrderColumnKey =
+  | "orderNumber"
+  | "totalPrice"
+  | "itemsCount"
+  | "orderState"
+  | "paymentState"
+  | "createdAt";
+
+type QuoteColumnKey =
+  | "id"
+  | "companyName"
+  | "customerEmail"
+  | "itemsCount"
+  | "totalPrice"
+  | "quoteState"
+  | "validUntil"
+  | "createdAt";
+
+type ReturnColumnKey =
+  | "orderNumber"
+  | "returnTrackingId"
+  | "returnDate"
+  | "itemsCount"
+  | "action";
+
+const ORDER_COLUMN_STORAGE_KEY = "csa_customer_order_columns";
+const QUOTE_COLUMN_STORAGE_KEY = "csa_customer_quote_columns";
+const RETURN_COLUMN_STORAGE_KEY = "csa_customer_return_columns";
+
+const ORDER_COLUMNS: ManagedColumn<OrderColumnKey>[] = [
+  { key: "orderNumber", label: "Order Number", pinned: true },
+  { key: "totalPrice", label: "Total" },
+  { key: "itemsCount", label: "Items" },
+  { key: "orderState", label: "Status" },
+  { key: "paymentState", label: "Payment" },
+  { key: "createdAt", label: "Date" },
+];
+
+const QUOTE_COLUMNS: ManagedColumn<QuoteColumnKey>[] = [
+  { key: "id", label: "Quote ID" },
+  { key: "companyName", label: "Company / Business Unit" },
+  { key: "customerEmail", label: "Customer" },
+  { key: "itemsCount", label: "Items" },
+  { key: "totalPrice", label: "Value / Total" },
+  { key: "quoteState", label: "Status" },
+  { key: "validUntil", label: "Valid Until" },
+  { key: "createdAt", label: "Requested Date" },
+];
+
+const RETURN_COLUMNS: ManagedColumn<ReturnColumnKey>[] = [
+  { key: "orderNumber", label: "Order Number", pinned: true },
+  { key: "returnTrackingId", label: "Return Tracking ID" },
+  { key: "returnDate", label: "Return Date" },
+  { key: "itemsCount", label: "Items Count" },
+  { key: "action", label: "Action" },
+];
+
+const DEFAULT_ORDER_COLUMN_KEYS: OrderColumnKey[] = [
+  "orderNumber",
+  "totalPrice",
+  "itemsCount",
+  "orderState",
+  "paymentState",
+  "createdAt",
+];
+
+const DEFAULT_QUOTE_COLUMN_KEYS: QuoteColumnKey[] = [
+  "id",
+  "companyName",
+  "customerEmail",
+  "itemsCount",
+  "totalPrice",
+  "quoteState",
+  "validUntil",
+  "createdAt",
+];
+
+const DEFAULT_RETURN_COLUMN_KEYS: ReturnColumnKey[] = [
+  "orderNumber",
+  "returnTrackingId",
+  "returnDate",
+  "itemsCount",
+  "action",
+];
+
+function loadColumnKeys<TKey extends string>(
+  storageKey: string,
+  columns: ManagedColumn<TKey>[],
+  defaultKeys: TKey[]
+): TKey[] {
+  if (typeof window === "undefined") return defaultKeys;
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return defaultKeys;
+    const parsed = JSON.parse(raw) as string[];
+    const allowed = new Set(columns.map((column) => column.key));
+    const next = parsed.filter((key): key is TKey => allowed.has(key as TKey));
+    return next.length > 0 ? next : defaultKeys;
+  } catch {
+    return defaultKeys;
+  }
+}
+
+function saveColumnKeys<TKey extends string>(storageKey: string, keys: TKey[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(keys));
+  } catch {
+    // localStorage is best-effort only.
+  }
+}
 
 function orderStateTone(state: string): StatusTone {
   switch (state) {
@@ -193,6 +330,21 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     { variables: { id } }
   );
 
+  type GqlQuote = {
+    createdAt?: string | null;
+    id: string;
+    key?: string | null;
+    quoteNumber?: string | null;
+    companyName?: string | null;
+    customerEmail?: string | null;
+    lineItemCount?: number | null;
+    status?: string | null;
+    totalPrice?: GqlMoney | null;
+  };
+  const { data: quotesGqlData } = useQuery<{ quotes: { results: GqlQuote[] } }>(CUSTOMER_QUOTES_QUERY, {
+    variables: { customerId: id, limit: 100 },
+  });
+
   // ── Real tickets from ticketing service (by customerEmail) ────────────────
   const [realTickets, setRealTickets] = useState<CustomerTicket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
@@ -214,7 +366,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           subject: t.subject,
           status: (t.status as CustomerTicket["status"]) ?? "Open",
           priority: (t.priority as CustomerTicket["priority"]) ?? "Medium",
-          createdAt: t.createdAt ? new Date(t.createdAt).toLocaleString() : "--",
+          createdAt: formatDateTime(t.createdAt),
         }))
       );
     } catch {
@@ -244,7 +396,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
         paymentState: o.paymentState ?? "Pending",
         totalPrice: formatMoney(o.totalPrice),
         itemsCount: o.lineItems?.length ?? 0,
-        createdAt: o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-US") : "--",
+        createdAt: formatDate(o.createdAt),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ordersGqlData]
@@ -279,7 +431,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           id: ri.returnTrackingId ?? `${o.id}-${results.length}`,
           orderNumber: o.orderNumber ?? o.id,
           returnTrackingId: ri.returnTrackingId ?? "--",
-          returnDate: ri.returnDate ? new Date(ri.returnDate).toLocaleDateString("en-US") : "--",
+          returnDate: formatDate(ri.returnDate),
           itemsCount: ri.items?.length ?? 0,
           items: (ri.items ?? []).map((item) => ({
             id: item.id,
@@ -293,7 +445,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       }
     }
     return results;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [ordersGqlData]);
 
   // Real carts from BFF
@@ -334,7 +486,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       isDefaultShipping: defaultShippingAddressId === a.id,
       isDefaultBilling: defaultBillingAddressId === a.id,
     }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [addressesGqlData, customer?.email]);
 
   // Local state for tabs and features
@@ -394,14 +546,55 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   // Orders State — derived from real BFF data (see realOrders above)
   const orders = realOrders;
   const [ordersSearch, setOrdersSearch] = useState("");
+  const [orderColumnKeys, setOrderColumnKeys] = useState<OrderColumnKey[]>(DEFAULT_ORDER_COLUMN_KEYS);
 
   // Returns State — derived from realReturns extracted from order returnInfo
   const returns = realReturns;
   const [returnsSearch, setReturnsSearch] = useState("");
   const [selectedReturn, setSelectedReturn] = useState<CustomerReturn | null>(null);
+  const [returnColumnKeys, setReturnColumnKeys] = useState<ReturnColumnKey[]>(DEFAULT_RETURN_COLUMN_KEYS);
+  const [quotesSearch, setQuotesSearch] = useState("");
+  const [quoteColumnKeys, setQuoteColumnKeys] = useState<QuoteColumnKey[]>(DEFAULT_QUOTE_COLUMN_KEYS);
 
-  // Quotes State — no real customer-level quotes API; start empty
-  const [quotes] = useState<CustomerQuote[]>([]);
+  useEffect(() => {
+    setOrderColumnKeys(loadColumnKeys(ORDER_COLUMN_STORAGE_KEY, ORDER_COLUMNS, DEFAULT_ORDER_COLUMN_KEYS));
+    setQuoteColumnKeys(loadColumnKeys(QUOTE_COLUMN_STORAGE_KEY, QUOTE_COLUMNS, DEFAULT_QUOTE_COLUMN_KEYS));
+    setReturnColumnKeys(loadColumnKeys(RETURN_COLUMN_STORAGE_KEY, RETURN_COLUMNS, DEFAULT_RETURN_COLUMN_KEYS));
+  }, []);
+
+  const handleOrderColumnChange = useCallback((keys: OrderColumnKey[]) => {
+    setOrderColumnKeys(keys);
+    saveColumnKeys(ORDER_COLUMN_STORAGE_KEY, keys);
+  }, []);
+
+  const handleQuoteColumnChange = useCallback((keys: QuoteColumnKey[]) => {
+    setQuoteColumnKeys(keys);
+    saveColumnKeys(QUOTE_COLUMN_STORAGE_KEY, keys);
+  }, []);
+
+  const handleReturnColumnChange = useCallback((keys: ReturnColumnKey[]) => {
+    setReturnColumnKeys(keys);
+    saveColumnKeys(RETURN_COLUMN_STORAGE_KEY, keys);
+  }, []);
+
+  // Quotes State — real quote requests from CT via BFF
+  const quotes: CustomerQuote[] = useMemo(
+    () =>
+      (quotesGqlData?.quotes.results ?? []).map((q) => ({
+        id: q.id,
+        companyName: q.companyName || "--",
+        customerEmail: q.customerEmail || customer?.email || "--",
+        displayId: q.quoteNumber || q.key || `#${q.id.slice(0, 8)}`,
+        itemsCount: q.lineItemCount ?? 0,
+        quoteKey: q.key || q.id,
+        quoteState: q.status || "Submitted",
+        totalPrice: formatMoney(q.totalPrice),
+        validUntil: "--",
+        createdAt: formatDateTime(q.createdAt),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [quotesGqlData, customer?.email]
+  );
 
   // Payments State — no real customer-level payment API; start empty
   const [payments] = useState<CustomerPayment[]>([]);
@@ -569,7 +762,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       sender: "agent",
       senderName: "Support Agent (John)",
       content: newMessageText.trim(),
-      createdAt: new Date().toLocaleString(),
+      createdAt: formatDateTime(new Date()),
     };
     setMessages((prev) => [...prev, newMsg]);
     setNewMessageText("");
@@ -625,6 +818,145 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     );
   }, [returns, returnsSearch]);
 
+  const visibleOrderColumns = useMemo(
+    () =>
+      orderColumnKeys
+        .map((key) => ORDER_COLUMNS.find((column) => column.key === key))
+        .filter((column): column is ManagedColumn<OrderColumnKey> => Boolean(column)),
+    [orderColumnKeys]
+  );
+
+  const renderOrderCell = (order: CustomerOrder, key: OrderColumnKey) => {
+    switch (key) {
+      case "orderNumber":
+        return (
+          <TableCell className="font-bold text-m-primary">
+            <Link href={`/orders/${order.orderNumber}`}>{order.orderNumber}</Link>
+          </TableCell>
+        );
+      case "totalPrice":
+        return <TableCell className="font-semibold">{order.totalPrice}</TableCell>;
+      case "itemsCount":
+        return <TableCell>{order.itemsCount}</TableCell>;
+      case "orderState":
+        return (
+          <TableCell>
+            <StatusPill tone={orderStateTone(order.orderState)}>{order.orderState}</StatusPill>
+          </TableCell>
+        );
+      case "paymentState":
+        return (
+          <TableCell>
+            <StatusPill tone={paymentStateTone(order.paymentState)}>{order.paymentState}</StatusPill>
+          </TableCell>
+        );
+      case "createdAt":
+        return <TableCell>{order.createdAt}</TableCell>;
+      default:
+        return null;
+    }
+  };
+
+  const visibleReturnColumns = useMemo(
+    () =>
+      returnColumnKeys
+        .map((key) => RETURN_COLUMNS.find((column) => column.key === key))
+        .filter((column): column is ManagedColumn<ReturnColumnKey> => Boolean(column)),
+    [returnColumnKeys]
+  );
+
+  const renderReturnCell = (returnRow: CustomerReturn, key: ReturnColumnKey) => {
+    switch (key) {
+      case "orderNumber":
+        return <TableCell className="font-bold text-m-primary">{returnRow.orderNumber}</TableCell>;
+      case "returnTrackingId":
+        return <TableCell className="font-mono text-xs font-semibold">{returnRow.returnTrackingId}</TableCell>;
+      case "returnDate":
+        return <TableCell>{returnRow.returnDate}</TableCell>;
+      case "itemsCount":
+        return <TableCell>{returnRow.itemsCount}</TableCell>;
+      case "action":
+        return (
+          <TableCell>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedReturn(returnRow);
+              }}
+            >
+              View Items Breakdown
+            </Button>
+          </TableCell>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const filteredQuotes = useMemo(() => {
+    if (!quotesSearch.trim()) return quotes;
+    const q = quotesSearch.toLowerCase();
+    return quotes.filter(
+      (quote) =>
+        quote.id.toLowerCase().includes(q) ||
+        (quote.displayId || "").toLowerCase().includes(q) ||
+        (quote.quoteKey || "").toLowerCase().includes(q) ||
+        quote.quoteState.toLowerCase().includes(q) ||
+        quote.totalPrice.toLowerCase().includes(q) ||
+        (quote.companyName || "").toLowerCase().includes(q) ||
+        (quote.customerEmail || "").toLowerCase().includes(q)
+    );
+  }, [quotes, quotesSearch]);
+
+  const visibleQuoteColumns = useMemo(
+    () =>
+      quoteColumnKeys
+        .map((key) => QUOTE_COLUMNS.find((column) => column.key === key))
+        .filter((column): column is ManagedColumn<QuoteColumnKey> => Boolean(column)),
+    [quoteColumnKeys]
+  );
+
+  const renderQuoteCell = (quote: CustomerQuote, key: QuoteColumnKey) => {
+    const quoteHref = `/b2b/quotes/${encodeURIComponent(quote.id)}`;
+
+    switch (key) {
+      case "id":
+        return (
+          <TableCell className="font-mono text-xs font-semibold">
+            <Link
+              href={quoteHref}
+              className="text-m-primary hover:underline"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {quote.displayId || quote.id}
+            </Link>
+          </TableCell>
+        );
+      case "companyName":
+        return <TableCell>{quote.companyName || "--"}</TableCell>;
+      case "customerEmail":
+        return <TableCell className="font-medium text-m-text">{quote.customerEmail || customer?.email || "--"}</TableCell>;
+      case "itemsCount":
+        return <TableCell>{quote.itemsCount ?? 0} items</TableCell>;
+      case "totalPrice":
+        return <TableCell className="font-semibold">{quote.totalPrice}</TableCell>;
+      case "quoteState":
+        return (
+          <TableCell>
+            <StatusPill tone="info">{quote.quoteState}</StatusPill>
+          </TableCell>
+        );
+      case "validUntil":
+        return <TableCell>{quote.validUntil || "--"}</TableCell>;
+      case "createdAt":
+        return <TableCell>{quote.createdAt}</TableCell>;
+      default:
+        return null;
+    }
+  };
+
   const filteredTickets = useMemo(() => {
     if (!ticketsSearch.trim()) return tickets;
     const q = ticketsSearch.toLowerCase();
@@ -644,7 +976,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     ? `${customer.firstName} ${customer.lastName}`
     : customer?.email || "Customer";
 
-  const customerSince = customer?.createdAt ? new Date(customer.createdAt).toLocaleDateString("en-US") : null;
+  const customerSince = customer?.createdAt ? formatDate(customer.createdAt) : null;
 
   return (
     <DetailPage>
@@ -916,7 +1248,18 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
             <SectionCard
               title="Recent Orders"
               icon="shopping-bag"
-              action={totalOrderCount > 0 ? <span className="text-[12px] text-m-text-muted">{totalOrderCount} total</span> : undefined}
+              action={
+                <div className="flex items-center gap-2">
+                  {totalOrderCount > 0 && <span className="text-[12px] text-m-text-muted">{totalOrderCount} total</span>}
+                  <ColumnManager
+                    columns={ORDER_COLUMNS}
+                    defaultVisibleKeys={DEFAULT_ORDER_COLUMN_KEYS}
+                    title="Order columns"
+                    visibleKeys={orderColumnKeys}
+                    onChange={handleOrderColumnChange}
+                  />
+                </div>
+              }
               bodyClassName="p-0"
             >
               <div className="border-b border-m-border/70 p-3">
@@ -935,29 +1278,17 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Order Number</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Items</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Payment</TableHead>
-                      <TableHead>Date</TableHead>
+                      {visibleOrderColumns.map((column) => (
+                        <TableHead key={column.key}>{column.label}</TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredOrders.map((row) => (
                       <TableRow key={row.id} clickable onClick={() => router.push(`/orders/${row.orderNumber}`)}>
-                        <TableCell className="font-bold text-m-primary">
-                          <Link href={`/orders/${row.orderNumber}`}>{row.orderNumber}</Link>
-                        </TableCell>
-                        <TableCell className="font-semibold">{row.totalPrice}</TableCell>
-                        <TableCell>{row.itemsCount}</TableCell>
-                        <TableCell>
-                          <StatusPill tone={orderStateTone(row.orderState)}>{row.orderState}</StatusPill>
-                        </TableCell>
-                        <TableCell>
-                          <StatusPill tone={paymentStateTone(row.paymentState)}>{row.paymentState}</StatusPill>
-                        </TableCell>
-                        <TableCell>{row.createdAt}</TableCell>
+                        {visibleOrderColumns.map((column) => (
+                          <Fragment key={column.key}>{renderOrderCell(row, column.key)}</Fragment>
+                        ))}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -965,38 +1296,6 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
               )}
             </SectionCard>
 
-            <SectionCard title="Quotes" icon="file-text">
-              {quotes.length === 0 ? (
-                <CardEmpty icon="file-text" title="No quotes on file" hint="Customer-level quotes aren't wired to a backend yet." />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Quote ID</TableHead>
-                      <TableHead>Quote Key</TableHead>
-                      <TableHead>Total Price</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Valid Until</TableHead>
-                      <TableHead>Created</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {quotes.map((q) => (
-                      <TableRow key={q.id}>
-                        <TableCell className="font-bold text-m-primary">{q.id}</TableCell>
-                        <TableCell className="font-mono text-xs">{q.quoteKey}</TableCell>
-                        <TableCell className="font-semibold">{q.totalPrice}</TableCell>
-                        <TableCell>
-                          <StatusPill tone="success">{q.quoteState}</StatusPill>
-                        </TableCell>
-                        <TableCell>{q.validUntil}</TableCell>
-                        <TableCell>{q.createdAt}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </SectionCard>
           </MainColumn>
 
           <SideColumn>
@@ -1061,9 +1360,88 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
         </ContentGrid>
       )}
 
+      {/* ── Quotes ──────────────────────────────────────────────────────── */}
+      {activeTab === "quotes" && (
+        <div className="space-y-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="w-full sm:w-44">
+              <Select
+                value="all"
+                onChange={() => undefined}
+                options={[{ value: "all", label: "All fields" }]}
+              />
+            </div>
+            <div className="w-full sm:max-w-xl">
+              <SearchBar
+                value={quotesSearch}
+                onChange={(val) => setQuotesSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
+                onClear={() => setQuotesSearch("")}
+                placeholder="Filter these quotes by ID, company, customer, status, total, or date..."
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-m-text">Quote requests</h2>
+              <ColumnManager
+                columns={QUOTE_COLUMNS}
+                defaultVisibleKeys={DEFAULT_QUOTE_COLUMN_KEYS}
+                title="Quote columns"
+                visibleKeys={quoteColumnKeys}
+                onChange={handleQuoteColumnChange}
+              />
+            </div>
+            {quotes.length === 0 ? (
+              <CardEmpty icon="file-text" title="No quotes on file" hint="No quote requests have been submitted for this customer." />
+            ) : filteredQuotes.length === 0 ? (
+              <CardEmpty icon="search" title="No matching quotes" hint="Adjust the quote filter to see more results." />
+            ) : (
+              <div className="overflow-hidden rounded-m-lg border border-m-border bg-m-surface shadow-m-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {visibleQuoteColumns.map((column) => (
+                        <TableHead key={column.key}>{column.label}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredQuotes.map((q) => (
+                      <TableRow
+                        key={q.id}
+                        clickable
+                        onClick={() => router.push(`/b2b/quotes/${encodeURIComponent(q.id)}`)}
+                      >
+                        {visibleQuoteColumns.map((column) => (
+                          <Fragment key={column.key}>{renderQuoteCell(q, column.key)}</Fragment>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Returns ──────────────────────────────────────────────────────── */}
       {activeTab === "returns" && (
-        <SectionCard title="Return History" icon="rotate-ccw" bodyClassName="p-0">
+        <SectionCard
+          title="Return History"
+          icon="rotate-ccw"
+          action={
+            <ColumnManager
+              columns={RETURN_COLUMNS}
+              defaultVisibleKeys={DEFAULT_RETURN_COLUMN_KEYS}
+              title="Return columns"
+              visibleKeys={returnColumnKeys}
+              onChange={handleReturnColumnChange}
+            />
+          }
+          bodyClassName="p-0"
+        >
           <div className="border-b border-m-border/70 p-3">
             <SearchBar
               value={returnsSearch}
@@ -1078,25 +1456,17 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order Number</TableHead>
-                  <TableHead>Return Tracking ID</TableHead>
-                  <TableHead>Return Date</TableHead>
-                  <TableHead>Items Count</TableHead>
-                  <TableHead>Action</TableHead>
+                  {visibleReturnColumns.map((column) => (
+                    <TableHead key={column.key}>{column.label}</TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredReturns.map((row) => (
                   <TableRow key={row.id} clickable onClick={() => setSelectedReturn(row)}>
-                    <TableCell className="font-bold text-m-primary">{row.orderNumber}</TableCell>
-                    <TableCell className="font-mono text-xs font-semibold">{row.returnTrackingId}</TableCell>
-                    <TableCell>{row.returnDate}</TableCell>
-                    <TableCell>{row.itemsCount}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedReturn(row)}>
-                        View Items Breakdown
-                      </Button>
-                    </TableCell>
+                    {visibleReturnColumns.map((column) => (
+                      <Fragment key={column.key}>{renderReturnCell(row, column.key)}</Fragment>
+                    ))}
                   </TableRow>
                 ))}
               </TableBody>

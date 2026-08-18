@@ -18,17 +18,21 @@
  */
 import { agent } from "./agent/index.js";
 import { cart } from "./cart/index.js";
+import { company } from "./company/index.js";
 import { customer } from "./customer/index.js";
 import { healthcheckResolvers } from "./healthcheck/healthcheck.resolvers.js";
 import { order } from "./order/index.js";
 import { product } from "./product/index.js";
+import { quote } from "./quote/index.js";
 import { jsonScalar } from "./shared/json-scalar.js";
 
 const agentResolvers = agent.resolvers;
 const cartResolvers = cart.resolvers;
+const companyResolvers = company.resolvers;
 const customerResolvers = customer.resolvers;
 const orderResolvers = order.resolvers;
 const productResolvers = product.resolvers;
+const quoteResolvers = quote.resolvers;
 
 export const resolvers = {
   Json: jsonScalar,
@@ -38,6 +42,7 @@ export const resolvers = {
     changeCartLineItemQuantity: cartResolvers.changeCartLineItemQuantity,
     createB2bCart: cartResolvers.createB2bCart,
     createCustomer: customerResolvers.createCustomer,
+    createQuoteRequest: quoteResolvers.createQuoteRequest,
     placeOrderFromCart: cartResolvers.placeOrderFromCart,
     removeCartLineItem: cartResolvers.removeCartLineItem,
     removeCustomerAddress: customerResolvers.removeCustomerAddress,
@@ -60,6 +65,10 @@ export const resolvers = {
     cart: cartResolvers.cart,
     cartPage: cartResolvers.cartPage,
     carts: cartResolvers.carts,
+    companies: companyResolvers.companies,
+    company: companyResolvers.company,
+    companyCarts: companyResolvers.companyCarts,
+    companyOrders: companyResolvers.companyOrders,
     customer: customerResolvers.customer,
     customerAddresses: customerResolvers.customerAddresses,
     customerPage: customerResolvers.customerPage,
@@ -67,6 +76,7 @@ export const resolvers = {
     customerShoppingLists: customerResolvers.customerShoppingLists,
     customers: customerResolvers.customers,
     customersByEmails: customerResolvers.customersByEmails,
+    discountCodes: cartResolvers.discountCodes,
     order: orderResolvers.order,
     orderCount: orderResolvers.orderCount,
     orderPage: orderResolvers.orderPage,
@@ -79,6 +89,8 @@ export const resolvers = {
     productPage: productResolvers.productPage,
     productSearch: productResolvers.productSearch,
     products: productResolvers.products,
+    quote: quoteResolvers.quote,
+    quotes: quoteResolvers.quotes,
     quickSearchProducts: productResolvers.quickSearchProducts,
     searchCarts: cartResolvers.searchCarts,
     searchCustomers: customerResolvers.searchCustomers,

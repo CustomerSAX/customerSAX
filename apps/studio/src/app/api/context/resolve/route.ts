@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
 import { bffJsonHeaders } from '@/lib/commerce-headers';
+import { formatDate } from '@/lib/format-date';
 
 /**
  * GET /api/context/resolve?email=<email>&customerId=<id>&ticketId=<id>
@@ -17,6 +18,16 @@ import { bffJsonHeaders } from '@/lib/commerce-headers';
  */
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
+type Money = { centAmount?: number; currencyCode?: string; fractionDigits?: number };
+type CustomerContextRecord = {
+  id: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
+  createdAt?: string;
+  customerGroup?: { name?: string } | null;
+};
 
 async function bffQuery<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
   try {
@@ -69,7 +80,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Step 1: resolve the real customer record (id-first, falling back to email).
-  const customerData = await bffQuery<{ customer: any }>(
+  const customerData = await bffQuery<{ customer: CustomerContextRecord | null }>(
     `query Customer($id: ID, $email: String) {
       customer(id: $id, email: $email) {
         id email firstName lastName companyName createdAt customerGroup { name }
@@ -84,7 +95,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Step 2: order count + lifetime value for this customer.
-  const ordersData = await bffQuery<{ orderPage: { total: number; results: Array<{ totalPrice: any }> } }>(
+  const ordersData = await bffQuery<{ orderPage: { total: number; results: Array<{ totalPrice?: Money }> } }>(
     `query CustomerOrders($customerId: ID) {
       orderPage(customerId: $customerId, limit: 100) {
         total
@@ -125,9 +136,7 @@ export async function GET(request: NextRequest) {
         name,
         email: customer.email,
         tier: customer.customerGroup?.name || 'Active',
-        createdAt: customer.createdAt
-          ? new Date(customer.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-          : null,
+        createdAt: customer.createdAt ? formatDate(customer.createdAt) : null,
         orderCount: page?.total ?? page?.results?.length ?? 0,
         lifetimeValue,
       },

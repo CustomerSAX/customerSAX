@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { Fragment, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -20,8 +20,11 @@ import {
   Skeleton,
   EmptyState,
   Panel,
+  useDataTable,
 } from "@csa/ui";
-import { SectionCard } from "@/components/detail";
+import { formatDate } from "@/lib/format-date";
+import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
+import { SectionCard } from "@csa/ui";
 import { useCustomerStore } from "../hooks/use-customers";
 import type { Customer, CustomerListFilters } from "../types/customer-types";
 
@@ -52,6 +55,79 @@ const INITIAL_FILTERS: CustomerListFilters = {
   dateModifiedTo: "",
 };
 
+type CustomerColumnKey =
+  | "id"
+  | "customerNumber"
+  | "firstName"
+  | "lastName"
+  | "companyName"
+  | "email"
+  | "customerGroup"
+  | "createdAt"
+  | "lastModifiedAt"
+  | "externalId"
+  | "key";
+
+const CUSTOMER_COLUMN_STORAGE_KEY = "csa_customer_directory_columns";
+
+const CUSTOMER_COLUMNS: ManagedColumn<CustomerColumnKey>[] = [
+  { key: "id", label: "Customer ID", pinned: true },
+  { key: "customerNumber", label: "Customer No" },
+  { key: "firstName", label: "First Name" },
+  { key: "lastName", label: "Last Name" },
+  { key: "companyName", label: "Company" },
+  { key: "email", label: "Email" },
+  { key: "customerGroup", label: "Customer Group" },
+  { key: "createdAt", label: "Date Created" },
+  { key: "lastModifiedAt", label: "Date Modified" },
+  { key: "externalId", label: "External ID" },
+  { key: "key", label: "Customer Key" },
+];
+
+const DEFAULT_CUSTOMER_COLUMN_KEYS: CustomerColumnKey[] = [
+  "id",
+  "customerNumber",
+  "firstName",
+  "lastName",
+  "companyName",
+  "email",
+  "customerGroup",
+  "createdAt",
+];
+
+const SORTABLE_CUSTOMER_COLUMN_KEYS = new Set<CustomerColumnKey>([
+  "id",
+  "customerNumber",
+  "firstName",
+  "lastName",
+  "companyName",
+  "email",
+  "createdAt",
+  "lastModifiedAt",
+  "externalId",
+  "key",
+]);
+
+function readStoredColumnKeys<TKey extends string>(
+  storageKey: string,
+  columns: ManagedColumn<TKey>[],
+  defaultKeys: TKey[]
+) {
+  if (typeof window === "undefined") return defaultKeys;
+
+  const raw = window.localStorage.getItem(storageKey);
+  if (!raw) return defaultKeys;
+
+  try {
+    const parsed = JSON.parse(raw) as TKey[];
+    const allowed = new Set(columns.map((column) => column.key));
+    const filtered = parsed.filter((key) => allowed.has(key));
+    return filtered.length > 0 ? filtered : defaultKeys;
+  } catch {
+    return defaultKeys;
+  }
+}
+
 export function CustomerListView() {
   const router = useRouter();
   const { customers, groups, loading, error, refetch } = useCustomerStore();
@@ -59,11 +135,20 @@ export function CustomerListView() {
   const [filters, setFilters] = useState<CustomerListFilters>(INITIAL_FILTERS);
   const [draftFilters, setDraftFilters] = useState<CustomerListFilters>(INITIAL_FILTERS);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
-  const [sortColumn, setSortColumn] = useState<keyof Customer>("createdAt");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [visibleCustomerColumnKeys, setVisibleCustomerColumnKeys] = useState<CustomerColumnKey[]>(
+    () =>
+      readStoredColumnKeys(
+        CUSTOMER_COLUMN_STORAGE_KEY,
+        CUSTOMER_COLUMNS,
+        DEFAULT_CUSTOMER_COLUMN_KEYS
+      )
+  );
+
+  const visibleCustomerColumns = useMemo(() => {
+    const visibleSet = new Set(visibleCustomerColumnKeys);
+    return CUSTOMER_COLUMNS.filter((column) => visibleSet.has(column.key));
+  }, [visibleCustomerColumnKeys]);
 
   const groupSelectOptions = useMemo(() => {
     return [
@@ -92,15 +177,6 @@ export function CustomerListView() {
       setIsRefreshing(false);
     }
   }, [refetch]);
-
-  const handleSort = (column: keyof Customer) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((cust) => {
@@ -161,27 +237,29 @@ export function CustomerListView() {
     });
   }, [customers, filters]);
 
-  const sortedCustomers = useMemo(() => {
-    return [...filteredCustomers].sort((a, b) => {
-      const valA = String(a[sortColumn] ?? "");
-      const valB = String(b[sortColumn] ?? "");
-      const res = valA.localeCompare(valB, undefined, { numeric: true });
-      return sortDirection === "asc" ? res : -res;
-    });
-  }, [filteredCustomers, sortColumn, sortDirection]);
-
-  const paginatedCustomers = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedCustomers.slice(start, start + pageSize);
-  }, [sortedCustomers, currentPage, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedCustomers.length / pageSize));
+  const {
+    page: currentPage,
+    paginatedRows: paginatedCustomers,
+    resetPage,
+    setPage: setCurrentPage,
+    sortDirection,
+    sortKey: sortColumn,
+    sortedRows: sortedCustomers,
+    totalItems,
+    totalPages,
+    onSort: handleSort,
+  } = useDataTable<Customer, keyof Customer>({
+    rows: filteredCustomers,
+    initialSortKey: "createdAt",
+    initialSortDirection: "desc",
+    pageSize: 10,
+  });
   const isLoading = loading || isRefreshing;
 
   const applyAdvancedFilters = () => {
     setFilters(draftFilters);
     setShowFiltersPanel(false);
-    setCurrentPage(1);
+    resetPage();
   };
 
   const clearAdvancedFilters = () => {
@@ -198,7 +276,86 @@ export function CustomerListView() {
     };
     setDraftFilters(reset);
     setFilters(reset);
-    setCurrentPage(1);
+    resetPage();
+  };
+
+  const handleCustomerColumnsChange = useCallback((keys: CustomerColumnKey[]) => {
+    const nextKeys = keys.length > 0 ? keys : DEFAULT_CUSTOMER_COLUMN_KEYS;
+    setVisibleCustomerColumnKeys(nextKeys);
+    window.localStorage.setItem(CUSTOMER_COLUMN_STORAGE_KEY, JSON.stringify(nextKeys));
+  }, []);
+
+  const renderSortIndicator = (key: CustomerColumnKey) => {
+    if (sortColumn !== key) return null;
+    return sortDirection === "asc" ? " ↑" : " ↓";
+  };
+
+  const renderCustomerCell = (cust: Customer, key: CustomerColumnKey) => {
+    if (key === "id") {
+      return (
+        <TableCell className="font-mono text-xs font-bold text-m-primary">
+          <Link href={`/customers/${cust.id}`} className="hover:underline">
+            {cust.id}
+          </Link>
+        </TableCell>
+      );
+    }
+
+    if (key === "customerNumber") {
+      return (
+        <TableCell className="font-mono text-xs font-medium text-m-text">
+          {cust.customerNumber ?? "--"}
+        </TableCell>
+      );
+    }
+
+    if (key === "firstName") {
+      return <TableCell className="font-semibold text-m-text">{cust.firstName ?? "--"}</TableCell>;
+    }
+
+    if (key === "lastName") {
+      return <TableCell className="font-semibold text-m-text">{cust.lastName ?? "--"}</TableCell>;
+    }
+
+    if (key === "companyName") {
+      return <TableCell className="text-m-text">{cust.companyName ?? "--"}</TableCell>;
+    }
+
+    if (key === "email") {
+      return <TableCell className="text-m-primary font-medium">{cust.email}</TableCell>;
+    }
+
+    if (key === "customerGroup") {
+      return (
+        <TableCell>
+          {cust.customerGroup ? (
+            <Badge variant="neutral" size="sm">
+              {cust.customerGroup.name}
+            </Badge>
+          ) : (
+            "--"
+          )}
+        </TableCell>
+      );
+    }
+
+    if (key === "createdAt") {
+      return <TableCell className="text-xs text-m-text-muted">{formatDate(cust.createdAt)}</TableCell>;
+    }
+
+    if (key === "lastModifiedAt") {
+      return (
+        <TableCell className="text-xs text-m-text-muted">
+          {cust.lastModifiedAt ? formatDate(cust.lastModifiedAt) : "--"}
+        </TableCell>
+      );
+    }
+
+    if (key === "externalId") {
+      return <TableCell className="font-mono text-xs text-m-text">{cust.externalId ?? "--"}</TableCell>;
+    }
+
+    return <TableCell className="font-mono text-xs text-m-text">{cust.key ?? "--"}</TableCell>;
   };
 
   return (
@@ -233,7 +390,10 @@ export function CustomerListView() {
           <div className="w-full sm:w-48">
             <Select
               value={filters.searchOption}
-              onChange={(e) => setFilters((prev) => ({ ...prev, searchOption: e.target.value }))}
+              onChange={(e) => {
+                setFilters((prev) => ({ ...prev, searchOption: e.target.value }));
+                resetPage();
+              }}
               options={SEARCH_OPTIONS}
             />
           </div>
@@ -243,11 +403,11 @@ export function CustomerListView() {
               onChange={(val) => {
                 const text = typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value;
                 setFilters((prev) => ({ ...prev, searchText: text }));
-                setCurrentPage(1);
+                resetPage();
               }}
               onClear={() => {
                 setFilters((prev) => ({ ...prev, searchText: "" }));
-                setCurrentPage(1);
+                resetPage();
               }}
               placeholder="Search customers by email, name, number..."
             />
@@ -257,7 +417,7 @@ export function CustomerListView() {
               value={filters.customerGroupId}
               onChange={(e) => {
                 setFilters((prev) => ({ ...prev, customerGroupId: e.target.value }));
-                setCurrentPage(1);
+                resetPage();
               }}
               options={groupSelectOptions}
             />
@@ -405,6 +565,15 @@ export function CustomerListView() {
       {/* Records — one quiet container */}
       <SectionCard
         title={`Customers${sortedCustomers.length ? ` (${sortedCustomers.length})` : ""}`}
+        action={
+          <ColumnManager
+            columns={CUSTOMER_COLUMNS}
+            defaultVisibleKeys={DEFAULT_CUSTOMER_COLUMN_KEYS}
+            title="Customer columns"
+            visibleKeys={visibleCustomerColumnKeys}
+            onChange={handleCustomerColumnsChange}
+          />
+        }
         bodyClassName={isLoading || sortedCustomers.length === 0 ? "p-4" : "p-0"}
       >
         {isLoading ? (
@@ -435,28 +604,21 @@ export function CustomerListView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead onClick={() => handleSort("id")} className="cursor-pointer">
-                    Customer ID {sortColumn === "id" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("customerNumber")} className="cursor-pointer">
-                    Customer No {sortColumn === "customerNumber" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("firstName")} className="cursor-pointer">
-                    First Name {sortColumn === "firstName" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("lastName")} className="cursor-pointer">
-                    Last Name {sortColumn === "lastName" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("companyName")} className="cursor-pointer">
-                    Company {sortColumn === "companyName" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort("email")} className="cursor-pointer">
-                    Email {sortColumn === "email" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
-                  <TableHead>Customer Group</TableHead>
-                  <TableHead onClick={() => handleSort("createdAt")} className="cursor-pointer">
-                    Date Created {sortColumn === "createdAt" && (sortDirection === "asc" ? "↑" : "↓")}
-                  </TableHead>
+                  {visibleCustomerColumns.map((column) => {
+                    const isSortable = SORTABLE_CUSTOMER_COLUMN_KEYS.has(column.key);
+                    return (
+                      <TableHead
+                        key={column.key}
+                        onClick={
+                          isSortable ? () => handleSort(column.key as keyof Customer) : undefined
+                        }
+                        className={isSortable ? "cursor-pointer" : undefined}
+                      >
+                        {column.label}
+                        {isSortable ? renderSortIndicator(column.key) : null}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -466,30 +628,9 @@ export function CustomerListView() {
                     clickable
                     onClick={() => router.push(`/customers/${cust.id}`)}
                   >
-                    <TableCell className="font-mono text-xs font-bold text-m-primary">
-                      <Link href={`/customers/${cust.id}`} className="hover:underline">
-                        {cust.id}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs font-medium text-m-text">
-                      {cust.customerNumber ?? "--"}
-                    </TableCell>
-                    <TableCell className="font-semibold text-m-text">{cust.firstName ?? "--"}</TableCell>
-                    <TableCell className="font-semibold text-m-text">{cust.lastName ?? "--"}</TableCell>
-                    <TableCell className="text-m-text">{cust.companyName ?? "--"}</TableCell>
-                    <TableCell className="text-m-primary font-medium">{cust.email}</TableCell>
-                    <TableCell>
-                      {cust.customerGroup ? (
-                        <Badge variant="neutral" size="sm">
-                          {cust.customerGroup.name}
-                        </Badge>
-                      ) : (
-                        "--"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-m-text-muted">
-                      {cust.createdAt ? new Date(cust.createdAt).toLocaleDateString() : "--"}
-                    </TableCell>
+                    {visibleCustomerColumns.map((column) => (
+                      <Fragment key={column.key}>{renderCustomerCell(cust, column.key)}</Fragment>
+                    ))}
                   </TableRow>
                 ))}
               </TableBody>
@@ -498,7 +639,7 @@ export function CustomerListView() {
               <TablePagination
                 page={currentPage}
                 totalPages={totalPages}
-                totalItems={sortedCustomers.length}
+                totalItems={totalItems}
                 onPageChange={(page) => setCurrentPage(page)}
               />
             </div>
