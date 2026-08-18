@@ -78,7 +78,7 @@ export interface OrderGeneralTabProps {
   handleApplyDiscountCode: () => void;
 
   // Timeline
-  orderTimeline: import("@/components/detail").TimelineItem[];
+  orderTimeline: import("@csa/ui").TimelineItem[];
 }
 
 // ── Shipping Tab ────────────────────────────────────────────────────

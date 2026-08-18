@@ -45,7 +45,7 @@ import {
   PrimaryButton,
   MoreActionsMenu,
   CardEmpty,
-} from "@/components/detail";
+} from "@csa/ui";
 import { useCustomerStore } from "../hooks/use-customers";
 import type {
   CustomerAddress,

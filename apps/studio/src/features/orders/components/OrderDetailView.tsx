@@ -16,7 +16,7 @@ import {
   MoreActionsMenu,
   SummaryGrid,
   SummaryCard,
-} from "@/components/detail";
+} from "@csa/ui";
 import { useOrderStore } from "../hooks/use-orders";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import type {
@@ -450,7 +450,8 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     ? order.payments.find((p) => p.id === selectedPaymentId)
     : null;
 
-  const returnTrackingIdPreview = `RTN-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${order.orderNumber}-${(order.returnInfo?.length || 0) + 1}`;
+  const returnTrackingDate = returnDateInput.replace(/-/g, "") || "YYYYMMDD";
+  const returnTrackingIdPreview = `RTN-${returnTrackingDate}-${order.orderNumber}-${(order.returnInfo?.length || 0) + 1}`;
 
   const orderTimeline: TimelineItem[] = useMemo(
     () => [

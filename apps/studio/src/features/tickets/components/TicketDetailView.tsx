@@ -4,7 +4,7 @@
  * TicketDetailView — Ticket Detail Page
  *
  * Restyled onto the shared entity-detail design system
- * (`@/components/detail`: DetailPage / EntityHeader / EntityTabs / SummaryGrid /
+ * (`@csa/ui`: DetailPage / EntityHeader / EntityTabs / SummaryGrid /
  * ContentGrid / SectionCard / QuickActions …). Presentation only — every data
  * hook, state var, and handler below is unchanged in behavior from the
  * previous implementation:
@@ -66,7 +66,7 @@ import {
   CardEmpty,
   type EntityTab,
   type StatusTone,
-} from "@/components/detail";
+} from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../hooks/use-tickets";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import type { TicketStatus, TicketPriority, WorklogComment } from "../types/ticket-types";

@@ -29,7 +29,7 @@ import {
   SecondaryButton,
   InfoList,
   InfoRow,
-} from "@/components/detail";
+} from "@csa/ui";
 import { formatDateTime } from "@/lib/format-date";
 import {
   useCartStore,

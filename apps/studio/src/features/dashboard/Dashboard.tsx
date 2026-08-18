@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
 import { PageHeader } from "../workspace/PageHeader";
-import { SectionCard, SummaryCard, SummaryGrid } from "@/components/detail";
+import { SectionCard, SummaryCard, SummaryGrid } from "@csa/ui";
 import { useTicketStore } from "../tickets/hooks/use-tickets";
 import type { Ticket, TicketPriority } from "../tickets/types/ticket-types";
 

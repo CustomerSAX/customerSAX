@@ -21,7 +21,7 @@ import {
   EmptyState,
   useDataTable,
 } from "@csa/ui";
-import { SectionCard } from "@/components/detail";
+import { SectionCard } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES } from "../hooks/use-tickets";
 import type { Ticket, TicketStatus, TicketPriority } from "../types/ticket-types";
 import { formatDateTime } from "@/lib/format-date";

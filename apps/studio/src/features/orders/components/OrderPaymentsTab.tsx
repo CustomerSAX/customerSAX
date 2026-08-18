@@ -15,7 +15,7 @@ import {
   StatusPill,
   type StatusTone,
   CardEmpty,
-} from "@/components/detail";
+} from "@csa/ui";
 import type { OrderPayment } from "../types/order-types";
 import type { OrderPaymentsTabProps } from "./order-tab-types";
 

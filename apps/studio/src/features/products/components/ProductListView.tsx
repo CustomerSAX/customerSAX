@@ -37,7 +37,7 @@ import {
   TableCell,
   TablePagination,
 } from "@csa/ui";
-import { SectionCard } from "@/components/detail";
+import { SectionCard } from "@csa/ui";
 import { useProductList } from "../hooks/use-products";
 import { SelectableSearchInput } from "./SelectableSearchInput";
 import type {

@@ -23,7 +23,7 @@ import {
   useDataTable,
 } from "@csa/ui";
 import { formatDate } from "@/lib/format-date";
-import { SectionCard } from "@/components/detail";
+import { SectionCard } from "@csa/ui";
 import { useCustomerStore } from "../hooks/use-customers";
 import type { Customer, CustomerListFilters } from "../types/customer-types";
 

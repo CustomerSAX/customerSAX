@@ -16,9 +16,9 @@ import {
   InfoRow,
   Timeline,
   CardEmpty,
-} from "@/components/detail";
+} from "@csa/ui";
 import type { OrderShippingTabProps } from "./order-tab-types";
-import type { TimelineItem } from "@/components/detail";
+import type { TimelineItem } from "@csa/ui";
 
 export function OrderShippingTab(props: OrderShippingTabProps & { orderTimeline: TimelineItem[] }) {
   const {

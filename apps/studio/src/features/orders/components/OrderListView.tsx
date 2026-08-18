@@ -22,7 +22,7 @@ import {
   Panel,
   useDataTable,
 } from "@csa/ui";
-import { SectionCard } from "@/components/detail";
+import { SectionCard } from "@csa/ui";
 import { useOrderStore } from "../hooks/use-orders";
 import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
 import { formatDateTime } from "@/lib/format-date";

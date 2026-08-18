@@ -4,7 +4,7 @@
  * ProductDetailView — Product Detail Page
  *
  * Restyled onto the shared entity-detail design system
- * (`@/components/detail`: DetailPage / EntityHeader / EntityTabs / SummaryGrid /
+ * (`@csa/ui`: DetailPage / EntityHeader / EntityTabs / SummaryGrid /
  * ContentGrid / SectionCard / QuickActions …). Presentation only — every data
  * hook, field, and behavior below is unchanged from the previous implementation:
  *
@@ -49,7 +49,7 @@ import {
   InfoRow,
   CardEmpty,
   type EntityTab,
-} from "@/components/detail";
+} from "@csa/ui";
 import { useProductDetail } from "../hooks/use-products";
 import type { VariantDetailRow, CategoryBreadcrumb } from "../types/product-types";
 

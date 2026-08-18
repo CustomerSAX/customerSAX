@@ -634,7 +634,7 @@ export function EmployeeDetailView({ id }: { id: string }) {
                     <TableCell>
                       <Badge variant="success" size="sm">Settled</Badge>
                     </TableCell>
-                    <TableCell>{formatDate(new Date())}</TableCell>
+                    <TableCell>{formatDate(employee.createdAt)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -666,7 +666,7 @@ export function EmployeeDetailView({ id }: { id: string }) {
                     <TableCell>
                       <Badge variant="info" size="sm">In Progress</Badge>
                     </TableCell>
-                    <TableCell>{formatDate(new Date())}</TableCell>
+                    <TableCell>{formatDate(employee.createdAt)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>

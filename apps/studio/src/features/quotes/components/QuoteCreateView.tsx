@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
@@ -30,12 +30,14 @@ export function QuoteCreateView() {
   const [companyId, setCompanyId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [discountPct, setDiscountPct] = useState(10);
-  const [validUntil, setValidUntil] = useState(
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  );
+  const [validUntil, setValidUntil] = useState("");
   const [note, setNote] = useState("");
 
   const [lineItems, setLineItems] = useState<QuoteLineItem[]>([]);
+
+  useEffect(() => {
+    setValidUntil((current) => current || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  }, []);
 
   const companyOptions = [
     { value: "", label: "Select Company / Business Unit" },

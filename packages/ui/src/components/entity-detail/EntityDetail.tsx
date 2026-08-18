@@ -22,9 +22,9 @@
  *   - amber is reserved for "these controls change something" (Quick Actions).
  */
 
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { Icon, Dropdown } from "@csa/ui";
+import { Icon } from "../../icons/Icon";
+import { Dropdown } from "../overlays/Dropdown";
 
 /* ------------------------------------------------------------------ *
  * Page shell + rhythm
@@ -38,13 +38,13 @@ export function DetailPage({ children }: { children: ReactNode }) {
 
 export function BackLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link
+    <a
       href={href}
       className="inline-flex w-fit items-center gap-1.5 text-[13px] font-semibold text-m-primary transition-colors hover:text-m-primary-600"
     >
       <Icon name="arrow-left" size={15} />
       {children}
-    </Link>
+    </a>
   );
 }
 
@@ -301,9 +301,9 @@ export function CardAction({
     "inline-flex items-center gap-1 text-[12px] font-semibold text-m-primary transition-colors hover:text-m-primary-600";
   if (href) {
     return (
-      <Link href={href} className={cls}>
+      <a href={href} className={cls}>
         {children}
-      </Link>
+      </a>
     );
   }
   return (

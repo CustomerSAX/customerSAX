@@ -18,7 +18,7 @@ import {
   QuickActions,
   QuickAction,
   CardEmpty,
-} from "@/components/detail";
+} from "@csa/ui";
 import { Avatar, Skeleton } from "@csa/ui";
 import { useRouter } from "next/navigation";
 

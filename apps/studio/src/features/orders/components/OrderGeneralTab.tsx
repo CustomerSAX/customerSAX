@@ -31,7 +31,7 @@ import {
   QuickActions,
   QuickAction,
   CardEmpty,
-} from "@/components/detail";
+} from "@csa/ui";
 import { formatTime } from "@/lib/format-date";
 import type { OrderState, ShipmentState, PaymentState, OrderLineItem } from "../types/order-types";
 import type { OrderGeneralTabProps } from "./order-tab-types";
