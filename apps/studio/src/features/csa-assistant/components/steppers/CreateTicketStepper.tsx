@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useConversationStore, type TicketWorkflowSnapshot } from '../../store/conversation-store';
 import { useAgentPresence, type AgentPresenceStatus } from '../../hooks/use-agent-presence';
 import {
@@ -11,6 +11,7 @@ import {
   useCustomerOrders,
   type CustomerSearchResult,
 } from './stepper-shared';
+import { formatTime } from '@/lib/format-date';
 
 const STEP_ORDER = ['customer', 'classify', 'details', 'extras', 'review', 'done'];
 
@@ -116,9 +117,9 @@ export function CreateTicketStepper({
     let cancelled = false;
     fetch('/api/agent-registry/users')
       .then(res => res.ok ? res.json() : { users: [] })
-      .then((data: any) => {
+      .then((data: { users?: Array<{ email?: string }> }) => {
         if (!cancelled && data && Array.isArray(data.users)) {
-          const list = data.users.map((u: any) => u.email).filter(Boolean);
+          const list = data.users.map((u) => u.email).filter((email): email is string => Boolean(email));
           setAssignees(prev => Array.from(new Set([...prev, ...list])));
         }
       })
@@ -464,7 +465,7 @@ export function CreateTicketStepper({
                       localDraft.worklogs.map((w, idx) => (
                         <tr key={idx}>
                           <td className="text">{w.text}</td>
-                          <td>{new Date(w.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                          <td>{formatTime(w.created)}</td>
                           <td>
                             <span className="rm" style={{ cursor: 'pointer', color: 'var(--color-text-subtle)' }} onClick={() => removeWorklog(idx)}>Remove</span>
                           </td>

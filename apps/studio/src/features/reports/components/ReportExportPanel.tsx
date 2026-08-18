@@ -15,7 +15,7 @@ import {
   Select,
   Toast,
 } from "@csa/ui";
-import { REPORT_TYPES, getMockReportRows, useReportPermissions } from "../hooks/use-reports";
+import { REPORT_TYPES, getReportRows, useReportPermissions } from "../hooks/use-reports";
 import { useReportToasts } from "../hooks/use-report-toasts";
 import { exportRowsToExcel, formatDdMmYyyy } from "../utils/export-report";
 import type { ReportTypeKey } from "../types/report-types";
@@ -59,7 +59,7 @@ export function ReportExportPanel() {
     window.setTimeout(async () => {
       const fileName = `Report - ${selectedReportValue} (${formatDdMmYyyy(fromDate)} to ${formatDdMmYyyy(toDate)})`;
       try {
-        await exportRowsToExcel(getMockReportRows(selectedReportValue), fileName);
+        await exportRowsToExcel(getReportRows(selectedReportValue), fileName);
         pushToast("success", `${fileName} exported successfully!`);
       } catch (err) {
         pushToast("error", "No data to export");

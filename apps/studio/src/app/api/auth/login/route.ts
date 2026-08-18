@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authServiceUrl, setSessionCookie } from "../shared";
+import { authServiceUrl, ensureDefaultProjectSelection, setSessionCookie } from "../shared";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -23,7 +23,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const nextResponse = NextResponse.json({ expiresAt: payload.expiresAt, user: payload.user });
+  const user = await ensureDefaultProjectSelection(payload.token, payload.user);
+  const nextResponse = NextResponse.json({ expiresAt: payload.expiresAt, user });
   setSessionCookie(nextResponse, payload.token, payload.expiresAt);
 
   return nextResponse;

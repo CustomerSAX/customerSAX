@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { authServiceUrl, clearSessionCookie, currentSessionToken } from "../shared";
 
 export async function POST() {
-  const token = currentSessionToken();
+  const token = await currentSessionToken();
 
   if (token) {
     await fetch(`${authServiceUrl()}/sessions/current`, {

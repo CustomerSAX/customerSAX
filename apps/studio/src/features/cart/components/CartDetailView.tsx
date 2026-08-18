@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Button,
   Input,
-  Select,
-  FormField,
   Label,
   Table,
   TableHeader,
@@ -32,15 +30,47 @@ import {
   InfoList,
   InfoRow,
 } from "@/components/detail";
+import { formatDateTime } from "@/lib/format-date";
 import {
   useCartStore,
-  MOCK_CATALOG_PRODUCTS,
-  MOCK_AVAILABLE_DISCOUNTS,
 } from "../hooks/use-carts";
 import type { CartLineItem } from "../types/cart-types";
 
 interface CartDetailViewProps {
   id: string;
+}
+
+type CatalogProduct = {
+  productId: string;
+  name: string;
+  sku: string;
+  key?: string;
+  unitPrice: number;
+  imageUrl?: string;
+};
+
+type ProductSearchResult = {
+  id?: string;
+  sku?: string;
+  name?: string;
+  imageUrl?: string;
+  price?: {
+    centAmount?: number;
+    currencyCode?: string;
+    fractionDigits?: number;
+  };
+};
+
+function toCatalogProduct(product: ProductSearchResult): CatalogProduct {
+  const centAmount = product.price?.centAmount ?? 0;
+  const fractionDigits = product.price?.fractionDigits ?? 2;
+  return {
+    productId: product.id || product.sku || "",
+    name: product.name || product.sku || "Unnamed product",
+    sku: product.sku || "",
+    unitPrice: centAmount / 10 ** fractionDigits,
+    imageUrl: product.imageUrl,
+  };
 }
 
 function ProductThumbnail({ src }: { src?: string }) {
@@ -70,14 +100,14 @@ export function CartDetailView({ id }: CartDetailViewProps) {
   const isB2b = pathname?.startsWith("/b2b");
 
   const {
-    carts,
+    loading,
+    error,
     getCartById,
     updateLineItemQuantity,
     addLineItemToCart,
-    applyDiscountCode,
   } = useCartStore();
 
-  const cart = getCartById(id) || carts[0];
+  const cart = getCartById(id);
 
   // Staged quantity input state
   const [stagedQuantities, setStagedQuantities] = useState<Record<string, number>>(() => {
@@ -90,32 +120,47 @@ export function CartDetailView({ id }: CartDetailViewProps) {
 
   // Catalog search state
   const [searchCatalogText, setSearchCatalogText] = useState("");
-  const [searchCatalogResults, setSearchCatalogResults] = useState<typeof MOCK_CATALOG_PRODUCTS>([]);
+  const [searchCatalogResults, setSearchCatalogResults] = useState<CatalogProduct[]>([]);
   const [searchSelectedQty, setSearchSelectedQty] = useState<Record<string, number>>({});
   const [catalogFeedback, setCatalogFeedback] = useState("");
 
-  // Discount code state
-  const [selectedDiscountCode, setSelectedDiscountCode] = useState("");
-  const [discountFeedback, setDiscountFeedback] = useState("");
+  useEffect(() => {
+    if (!cart) return;
+    const next: Record<string, number> = {};
+    cart.lineItems.forEach((li) => {
+      next[li.id] = li.quantity;
+    });
+    setStagedQuantities(next);
+  }, [cart]);
+
+  if (!cart) {
+    return (
+      <DetailPage>
+        <BackLink href={isB2b ? "/b2b/cart" : "/cart"}>Back to Carts</BackLink>
+        <CardEmpty
+          icon="shopping-cart"
+          title={loading ? "Loading cart" : "Cart not found"}
+          hint={error || (loading ? "Fetching cart data from the commerce backend." : "No cart matched this ID.")}
+        />
+      </DetailPage>
+    );
+  }
 
   const handleUpdateLineItem = (lineItemId: string) => {
     const newQty = stagedQuantities[lineItemId] ?? 1;
     updateLineItemQuantity(cart.id, lineItemId, newQty);
   };
 
-  const handleCatalogSearch = (e: React.FormEvent) => {
+  const handleCatalogSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const q = searchCatalogText.trim().toLowerCase();
+    const q = searchCatalogText.trim();
     if (!q) {
       setSearchCatalogResults([]);
       return;
     }
-    const results = MOCK_CATALOG_PRODUCTS.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        p.key.toLowerCase().includes(q)
-    );
+    const response = await fetch(`/api/product-search?q=${encodeURIComponent(q)}`);
+    const payload = (await response.json().catch(() => ({}))) as { results?: ProductSearchResult[] };
+    const results = (payload.results ?? []).map(toCatalogProduct).filter((product) => product.productId);
     setSearchCatalogResults(results);
     const initialQty: Record<string, number> = {};
     results.forEach((r) => {
@@ -124,7 +169,7 @@ export function CartDetailView({ id }: CartDetailViewProps) {
     setSearchSelectedQty(initialQty);
   };
 
-  const handleAddCatalogItemToCart = (prod: typeof MOCK_CATALOG_PRODUCTS[number]) => {
+  const handleAddCatalogItemToCart = (prod: CatalogProduct) => {
     const qty = searchSelectedQty[prod.productId] || 1;
     addLineItemToCart(cart.id, {
       productId: prod.productId,
@@ -137,14 +182,6 @@ export function CartDetailView({ id }: CartDetailViewProps) {
     });
     setCatalogFeedback(`Added ${qty} × ${prod.name} to cart.`);
     setTimeout(() => setCatalogFeedback(""), 3500);
-  };
-
-  const handleApplyDiscountCode = () => {
-    if (!selectedDiscountCode) return;
-    applyDiscountCode(cart.id, selectedDiscountCode);
-    setDiscountFeedback(`Applied promotional code ${selectedDiscountCode}.`);
-    setSelectedDiscountCode("");
-    setTimeout(() => setDiscountFeedback(""), 3500);
   };
 
   const canEditCart = cart.cartState === "Active" || cart.cartState === "Merged";
@@ -168,7 +205,7 @@ export function CartDetailView({ id }: CartDetailViewProps) {
             {cart.cartState}
           </StatusPill>
         }
-        meta={`Active cart for ${cart.customerName} (${cart.customerEmail}) • Created ${new Date(cart.createdAt).toLocaleString()}`}
+        meta={`Active cart for ${cart.customerName} (${cart.customerEmail}) • Created ${formatDateTime(cart.createdAt)}`}
         actions={
           <>
             {showConfigureQuote && (
@@ -407,45 +444,8 @@ export function CartDetailView({ id }: CartDetailViewProps) {
           {/* Cart Discounts Section */}
           <SectionCard title="Discounts" icon="tag">
             <div className="space-y-4">
-              {discountFeedback && (
-                <div className="p-2 bg-m-success-surface text-m-success text-xs font-semibold rounded">
-                  {discountFeedback}
-                </div>
-              )}
-              <FormField>
-                <Label>Promotional Code</Label>
-                <Select
-                  value={selectedDiscountCode}
-                  disabled={!canEditCart}
-                  onChange={(e) => setSelectedDiscountCode(e.target.value)}
-                  options={[
-                    { value: "", label: "Select discount code..." },
-                    ...MOCK_AVAILABLE_DISCOUNTS.map((d) => ({
-                      value: d.code,
-                      label: `${d.code} — ${d.name} (${d.value})`,
-                    })),
-                  ]}
-                />
-              </FormField>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  disabled={!canEditCart || !selectedDiscountCode}
-                  onClick={handleApplyDiscountCode}
-                >
-                  Apply Code
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setSelectedDiscountCode("")}
-                >
-                  Reset
-                </Button>
+              <div className="rounded border border-m-border bg-m-surface-2 p-3 text-xs text-m-text-muted">
+                Discount code lookup is not exposed by the commerce backend yet.
               </div>
 
               {/* Applied discounts */}

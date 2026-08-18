@@ -172,7 +172,7 @@ export const csaTailwindPreset = {
         display: [t.typography.fontFamily.display],
       },
 
-      fontSize: t.typography.fontSize as any,
+      fontSize: t.typography.fontSize,
 
       fontWeight: t.typography.fontWeight,
 

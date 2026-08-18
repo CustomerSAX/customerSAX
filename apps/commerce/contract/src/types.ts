@@ -41,6 +41,54 @@ export type Cart = {
   version: number;
 };
 
+export type CompanyReference = {
+  id?: string;
+  key?: string;
+  name?: string;
+};
+
+export type CompanyAddress = {
+  city?: string;
+  company?: string;
+  country?: string;
+  email?: string;
+  firstName?: string;
+  id?: string;
+  key?: string;
+  lastName?: string;
+  phone?: string;
+  postalCode?: string;
+  state?: string;
+  streetName?: string;
+  streetNumber?: string;
+};
+
+export type CompanyAssociate = {
+  customerId?: string;
+  email?: string;
+  firstName?: string;
+  id?: string;
+  lastName?: string;
+  roles: string[];
+};
+
+export type Company = {
+  addresses: CompanyAddress[];
+  approvalRuleMode?: string;
+  associateMode?: string;
+  associates: CompanyAssociate[];
+  contactEmail?: string;
+  createdAt?: string;
+  id: string;
+  key: string;
+  lastModifiedAt?: string;
+  name: string;
+  parentUnit?: CompanyReference;
+  status?: string;
+  storeMode?: string;
+  unitType?: string;
+};
+
 export type OrderReturnItem = {
   id: string;
   type?: string | null;
@@ -101,6 +149,20 @@ export type Customer = {
   version?: number;
   createdAt?: string;
   lastModifiedAt?: string;
+};
+
+export type Quote = {
+  companyKey?: string;
+  companyName?: string;
+  createdAt?: string;
+  customerEmail?: string;
+  customerId?: string;
+  id: string;
+  key?: string;
+  lastModifiedAt?: string;
+  quoteNumber?: string;
+  status?: string;
+  totalPrice?: Money;
 };
 
 /**

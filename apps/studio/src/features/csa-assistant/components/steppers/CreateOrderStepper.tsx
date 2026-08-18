@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import './stepper.css';
 import type { OrderWorkflowSnapshot } from '../../store/conversation-store';
 import {
@@ -77,7 +77,7 @@ export function CreateOrderStepper({
   onClose,
 }: CreateOrderStepperProps) {
   const [productSearch, setProductSearch] = useState('');
-  const [searchedProducts, setSearchedProducts] = useState<any[]>([]);
+  const [searchedProducts, setSearchedProducts] = useState<Array<{ sku: string; name: string; price: number; stock: number }>>([]);
   const [isSearchingProducts, setIsSearchingProducts] = useState(false);
   const [qtyDraft, setQtyDraft] = useState<Record<string, number>>({});
   const [customerSearch, setCustomerSearch] = useState('');
@@ -123,7 +123,27 @@ export function CreateOrderStepper({
           body: JSON.stringify({ text: trimmed, limit: 12, offset: 0 })
         });
         if (hits.ok) {
-          const data = await hits.json();
+          const data = (await hits.json()) as {
+            results?: Array<{
+              id?: string;
+              key?: string;
+              sku?: string;
+              name?: string;
+              price?: number | string;
+              inStock?: boolean;
+              masterData?: {
+                current?: {
+                  nameAllLocales?: Array<{ locale?: string; value?: string }>;
+                  allVariants?: Array<{ sku?: string }>;
+                  masterVariant?: {
+                    sku?: string;
+                    prices?: Array<{ value?: { centAmount?: number; fractionDigits?: number } }>;
+                  };
+                };
+              };
+              nameAllLocales?: Array<{ locale?: string; value?: string }>;
+            }>;
+          };
           // /api/product-search returns a flat shape ({id, sku, name, price
           // as a formatted "$X.XX" string, inStock}), not a raw commercetools
           // product projection ({masterVariant, variants: [...]}) — the old
@@ -131,7 +151,7 @@ export function CreateOrderStepper({
           // dropped every real result, showing "No products found" even when
           // the API genuinely had matches.
           const results = (data.results || [])
-            .map((p: any) => {
+            .map((p) => {
               const current = p.masterData?.current;
               const masterVariant = current?.masterVariant;
 
@@ -145,7 +165,7 @@ export function CreateOrderStepper({
 
               const rawNameLocales = current?.nameAllLocales ?? p.nameAllLocales;
               const localeName = Array.isArray(rawNameLocales)
-                ? (rawNameLocales.find((l: any) => l.locale === 'en')?.value || rawNameLocales[0]?.value)
+                ? (rawNameLocales.find((l) => l.locale === 'en')?.value || rawNameLocales[0]?.value)
                 : '';
               const name = p.name ? String(p.name) : (localeName || sku || '');
 

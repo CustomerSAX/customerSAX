@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { Button, FormField } from "@csa/ui";
 import { SectionCard, PrimaryButton, CardEmpty } from "@/components/detail";
 import type { OrderCommentsTabProps } from "./order-tab-types";

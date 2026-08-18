@@ -68,6 +68,7 @@ import {
   type StatusTone,
 } from "@/components/detail";
 import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../hooks/use-tickets";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 import type { TicketStatus, TicketPriority, WorklogComment } from "../types/ticket-types";
 
 interface TicketDetailViewProps {
@@ -149,13 +150,8 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const [priority, setPriority] = useState<TicketPriority>(ticket?.priority || "High");
   const [solution, setSolution] = useState(ticket?.solution || "");
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   const fmtDate = (v?: string | null, style: "date" | "full" = "full") => {
-    if (!v) return "—";
-    if (!mounted) return v.slice(0, 10);
-    const d = new Date(v);
-    return style === "date" ? d.toLocaleDateString() : d.toLocaleString();
+    return style === "date" ? formatDate(v) : formatDateTime(v);
   };
   const [worklogInput, setWorklogInput] = useState("");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");

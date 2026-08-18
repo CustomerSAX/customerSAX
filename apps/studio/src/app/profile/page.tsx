@@ -130,11 +130,6 @@ export default function ProfilePage() {
 
               <SideColumn>
                 <QuickActions>
-                  <QuickAction
-                    icon="folder"
-                    label="Switch project"
-                    onClick={() => router.push("/select-project")}
-                  />
                   <QuickAction icon="log-out" label="Sign out" tone="danger" onClick={handleLogout} />
                 </QuickActions>
 

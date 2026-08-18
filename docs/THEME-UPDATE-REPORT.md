@@ -41,7 +41,7 @@ fully token-driven so a parent-level change cascades across the whole app. Verif
 
 ## Remaining (small, honest)
 - **3 documented hardcode exceptions**: the conversation-list avatar hash palette (2 distinct hues for customer differentiation) and `ProductDetailDrawer` `stockColor` (concatenates a hex-alpha suffix `${c}40`, which CSS vars can't do). Both are deliberate.
-- **Pre-existing bug** (not mine): `ui/status-card.tsx` references undefined utilities (`primary-100`, `csa-border`, `csa-muted`) — its blue/slate variants render as unstyled. Worth a quick follow-up.
+- **Status card compatibility wrapper fixed later**: `ui/status-card.tsx` now delegates to the shared `CardMetric` pattern and no longer references undefined old utility classes.
 - **The 3 hand-copied palettes still need to be edited in lockstep** — I kept them in sync, but the durable fix is a build step generating `tokens.css`/`styles.css` from `tokens.ts` (recommended in the audit).
 - **Login still needs the backend** (auth + Mongo) to actually sign in — unchanged; that's the Mongo unblock.
 

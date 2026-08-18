@@ -116,6 +116,7 @@ export interface TablePaginationProps {
   onPageSizeChange?: (pageSize: number) => void;
   pageSizeOptions?: number[];
   className?: string;
+  as?: 'div' | 'tfoot';
 }
 
 export function TablePagination({
@@ -127,15 +128,13 @@ export function TablePagination({
   onPageSizeChange,
   pageSizeOptions = [10, 25, 50, 100],
   className,
+  as = 'div',
 }: TablePaginationProps) {
   const startItem = totalItems ? (page - 1) * pageSize + 1 : 0;
   const endItem = totalItems ? Math.min(page * pageSize, totalItems) : 0;
 
-  return (
-    <tfoot>
-      <tr>
-        <td colSpan={100} className="p-0">
-          <div className={cn('flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-m-border bg-m-surface-2/40 text-xs text-m-text-muted', className)}>
+  const content = (
+    <div className={cn('flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-m-border bg-m-surface-2/40 text-xs text-m-text-muted', className)}>
       <div className="flex items-center gap-4">
         {totalItems !== undefined && (
           <span>
@@ -185,11 +184,22 @@ export function TablePagination({
           aria-label="Next page"
         />
       </div>
-          </div>
+    </div>
+  );
+
+  if (as === 'tfoot') {
+    return (
+      <tfoot>
+        <tr>
+          <td colSpan={100} className="p-0">
+            {content}
         </td>
       </tr>
     </tfoot>
-  );
+    );
+  }
+
+  return content;
 }
 
 Table.Header = TableHeader;

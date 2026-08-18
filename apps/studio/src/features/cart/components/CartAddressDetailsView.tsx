@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
@@ -16,7 +16,7 @@ import {
   FormField,
   Label,
 } from "@csa/ui";
-import { useCartStore, MOCK_SHIPPING_METHODS } from "../hooks/use-carts";
+import { useCartStore } from "../hooks/use-carts";
 import type { CartAddress } from "../types/cart-types";
 
 interface CartAddressDetailsViewProps {
@@ -30,6 +30,11 @@ const COUNTRY_OPTIONS = [
   { value: "DE", label: "Germany (DE)" },
 ];
 
+type ShippingMethodOption = {
+  id: string;
+  name: string;
+};
+
 export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -38,14 +43,15 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
   const isB2b = pathname?.startsWith("/b2b");
 
   const {
-    carts,
+    loading,
+    error,
     getCartById,
     updateShippingAddress,
     updateBillingAddress,
     updateShippingMethod,
   } = useCartStore();
 
-  const cart = getCartById(id) || carts[0];
+  const cart = getCartById(id);
 
   const [shippingChoice, setShippingChoice] = useState("__new__");
   const [billingChoice, setBillingChoice] = useState("__new__");
@@ -53,38 +59,120 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
 
   // Address forms
   const [shippingForm, setShippingForm] = useState<CartAddress>({
-    streetNumber: cart.shippingAddress?.streetNumber || "742",
-    streetName: cart.shippingAddress?.streetName || "Evergreen Terrace",
-    apartment: cart.shippingAddress?.apartment || "Apt 4B",
-    building: cart.shippingAddress?.building || "Building C",
-    pOBox: cart.shippingAddress?.pOBox || "",
-    city: cart.shippingAddress?.city || "Springfield",
-    state: cart.shippingAddress?.state || "IL",
-    postalCode: cart.shippingAddress?.postalCode || "62704",
-    country: cart.shippingAddress?.country || "US",
-    phone: cart.shippingAddress?.phone || "+1 555-0192",
+    streetNumber: cart?.shippingAddress?.streetNumber || "",
+    streetName: cart?.shippingAddress?.streetName || "",
+    apartment: cart?.shippingAddress?.apartment || "",
+    building: cart?.shippingAddress?.building || "",
+    pOBox: cart?.shippingAddress?.pOBox || "",
+    city: cart?.shippingAddress?.city || "",
+    state: cart?.shippingAddress?.state || "",
+    postalCode: cart?.shippingAddress?.postalCode || "",
+    country: cart?.shippingAddress?.country || cart?.country || "US",
+    phone: cart?.shippingAddress?.phone || "",
   });
   const [shippingAddressFeedback, setShippingAddressFeedback] = useState("");
 
   const [billingForm, setBillingForm] = useState<CartAddress>({
-    streetNumber: cart.billingAddress?.streetNumber || "742",
-    streetName: cart.billingAddress?.streetName || "Evergreen Terrace",
-    apartment: cart.billingAddress?.apartment || "Apt 4B",
-    building: cart.billingAddress?.building || "Building C",
-    pOBox: cart.billingAddress?.pOBox || "",
-    city: cart.billingAddress?.city || "Springfield",
-    state: cart.billingAddress?.state || "IL",
-    postalCode: cart.billingAddress?.postalCode || "62704",
-    country: cart.billingAddress?.country || "US",
-    phone: cart.billingAddress?.phone || "+1 555-0192",
+    streetNumber: cart?.billingAddress?.streetNumber || "",
+    streetName: cart?.billingAddress?.streetName || "",
+    apartment: cart?.billingAddress?.apartment || "",
+    building: cart?.billingAddress?.building || "",
+    pOBox: cart?.billingAddress?.pOBox || "",
+    city: cart?.billingAddress?.city || "",
+    state: cart?.billingAddress?.state || "",
+    postalCode: cart?.billingAddress?.postalCode || "",
+    country: cart?.billingAddress?.country || cart?.country || "US",
+    phone: cart?.billingAddress?.phone || "",
   });
   const [billingAddressFeedback, setBillingAddressFeedback] = useState("");
 
   // Shipping Method
-  const [selectedMethodId, setSelectedMethodId] = useState(
-    cart.shippingInfo.shippingMethodId || MOCK_SHIPPING_METHODS[0].id
-  );
+  const [selectedMethodId, setSelectedMethodId] = useState(cart?.shippingInfo.shippingMethodId || "");
   const [shippingMethodFeedback, setShippingMethodFeedback] = useState("");
+  const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>([]);
+  const [shippingMethodsError, setShippingMethodsError] = useState("");
+
+  useEffect(() => {
+    if (!cart) return;
+    setShippingForm({
+      streetNumber: cart.shippingAddress?.streetNumber || "",
+      streetName: cart.shippingAddress?.streetName || "",
+      apartment: cart.shippingAddress?.apartment || "",
+      building: cart.shippingAddress?.building || "",
+      pOBox: cart.shippingAddress?.pOBox || "",
+      city: cart.shippingAddress?.city || "",
+      state: cart.shippingAddress?.state || "",
+      postalCode: cart.shippingAddress?.postalCode || "",
+      country: cart.shippingAddress?.country || cart.country || "US",
+      phone: cart.shippingAddress?.phone || "",
+    });
+    setBillingForm({
+      streetNumber: cart.billingAddress?.streetNumber || "",
+      streetName: cart.billingAddress?.streetName || "",
+      apartment: cart.billingAddress?.apartment || "",
+      building: cart.billingAddress?.building || "",
+      pOBox: cart.billingAddress?.pOBox || "",
+      city: cart.billingAddress?.city || "",
+      state: cart.billingAddress?.state || "",
+      postalCode: cart.billingAddress?.postalCode || "",
+      country: cart.billingAddress?.country || cart.country || "US",
+      phone: cart.billingAddress?.phone || "",
+    });
+    setSelectedMethodId(cart.shippingInfo.shippingMethodId || "");
+  }, [cart]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadShippingMethods() {
+      try {
+        const response = await fetch("/api/shipping-methods");
+        const payload = (await response.json().catch(() => [])) as ShippingMethodOption[] | { error?: string };
+
+        if (!response.ok || !Array.isArray(payload)) {
+          throw new Error(Array.isArray(payload) ? "Unable to load shipping methods." : payload.error || "Unable to load shipping methods.");
+        }
+
+        if (!cancelled) {
+          setShippingMethods(payload);
+          setShippingMethodsError("");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setShippingMethods([]);
+          setShippingMethodsError(err instanceof Error ? err.message : "Unable to load shipping methods.");
+        }
+      }
+    }
+
+    void loadShippingMethods();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!cart) {
+    return (
+      <div className="space-y-6 pb-20">
+        <Link
+          href={`${isB2b ? "/b2b" : ""}/cart`}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-m-primary hover:text-m-primary-600 mb-3"
+        >
+          <Icon name="arrow-left" size="xs" />
+          Back to carts
+        </Link>
+        <Card variant="default">
+          <CardContent className="p-8 text-center space-y-2">
+            <div className="font-bold text-sm text-m-text">{loading ? "Loading cart" : "Cart not found"}</div>
+            <p className="text-xs text-m-text-muted">
+              {error || (loading ? "Fetching cart data from the commerce backend." : "No cart matched this ID.")}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleSaveShippingAddress = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,8 +193,9 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
   };
 
   const handleSaveShippingMethod = () => {
-    updateShippingMethod(cart.id, selectedMethodId);
-    const m = MOCK_SHIPPING_METHODS.find((x) => x.id === selectedMethodId);
+    const m = shippingMethods.find((x) => x.id === selectedMethodId);
+    if (!m) return;
+    updateShippingMethod(cart.id, selectedMethodId, m.name);
     setShippingMethodFeedback(`Shipping method updated to ${m?.name || selectedMethodId}.`);
     setTimeout(() => setShippingMethodFeedback(""), 3500);
   };
@@ -118,7 +207,10 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
     }
     updateShippingAddress(cart.id, shippingForm);
     updateBillingAddress(cart.id, isBillingSameAsShipping ? shippingForm : billingForm);
-    updateShippingMethod(cart.id, selectedMethodId);
+    const m = shippingMethods.find((x) => x.id === selectedMethodId);
+    if (m) {
+      updateShippingMethod(cart.id, selectedMethodId, m.name);
+    }
 
     const prefix = isB2b ? "/b2b" : "";
     router.push(`${prefix}/cart/${cart.id}/place-order${customerIdParam ? `?customerId=${customerIdParam}` : ""}`);
@@ -166,7 +258,6 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
               onChange={(e) => setShippingChoice(e.target.value)}
               options={[
                 { value: "__new__", label: "New address (Manual entry)" },
-                { value: "addr-saved-1", label: "Primary Office — 742 Evergreen Terrace, Springfield IL 62704" },
               ]}
             />
           </FormField>
@@ -303,7 +394,6 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
                   onChange={(e) => setBillingChoice(e.target.value)}
                   options={[
                     { value: "__new__", label: "New address (Manual entry)" },
-                    { value: "addr-saved-1", label: "Primary Office — 742 Evergreen Terrace, Springfield IL 62704" },
                   ]}
                 />
               </FormField>
@@ -385,21 +475,24 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
             <Select
               value={selectedMethodId}
               onChange={(e) => setSelectedMethodId(e.target.value)}
-              options={MOCK_SHIPPING_METHODS.map((m) => ({
+              options={shippingMethods.map((m) => ({
                 value: m.id,
-                label: `${m.name} — $${m.price.toFixed(2)} (${m.carrier})`,
+                label: m.name,
               }))}
             />
+            {shippingMethodsError && (
+              <p className="text-xs font-semibold text-m-error">{shippingMethodsError}</p>
+            )}
           </FormField>
           <div className="flex items-center gap-3">
-            <Button type="button" variant="primary" size="md" onClick={handleSaveShippingMethod}>
+            <Button type="button" variant="primary" size="md" disabled={!selectedMethodId} onClick={handleSaveShippingMethod}>
               Save Shipping Method
             </Button>
             <Button
               type="button"
               variant="secondary"
               size="md"
-              onClick={() => setSelectedMethodId(cart.shippingInfo.shippingMethodId || MOCK_SHIPPING_METHODS[0].id)}
+              onClick={() => setSelectedMethodId(cart.shippingInfo.shippingMethodId || "")}
             >
               Reset
             </Button>

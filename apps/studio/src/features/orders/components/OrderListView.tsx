@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -20,10 +20,12 @@ import {
   Skeleton,
   EmptyState,
   Panel,
+  useDataTable,
 } from "@csa/ui";
 import { SectionCard } from "@/components/detail";
 import { useOrderStore } from "../hooks/use-orders";
 import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
+import { formatDateTime } from "@/lib/format-date";
 
 const B2C_SEARCH_FIELD_OPTIONS = [
   { value: "all", label: "All fields" },
@@ -60,18 +62,11 @@ export function OrderListView() {
 
   const { orders, duplicateOrder, loading, error, refetch } = useOrderStore();
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   const [searchOption, setSearchOption] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
   const [orderStateFilter, setOrderStateFilter] = useState("");
   const [paymentStateFilter, setPaymentStateFilter] = useState("");
 
-  const [sortColumn, setSortColumn] = useState<keyof Order>("createdAt");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = useCallback(async () => {
@@ -82,15 +77,6 @@ export function OrderListView() {
       setIsRefreshing(false);
     }
   }, [refetch]);
-
-  const handleSort = (column: keyof Order) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
 
   const handleDuplicateOrder = (e: React.MouseEvent, order: Order) => {
     e.stopPropagation();
@@ -150,21 +136,22 @@ export function OrderListView() {
     });
   }, [orders, orderStateFilter, paymentStateFilter, searchText, searchOption]);
 
-  const sortedOrders = useMemo(() => {
-    return [...filteredOrders].sort((a, b) => {
-      const valA = String(a[sortColumn] ?? "");
-      const valB = String(b[sortColumn] ?? "");
-      const res = valA.localeCompare(valB, undefined, { numeric: true });
-      return sortDirection === "asc" ? res : -res;
-    });
-  }, [filteredOrders, sortColumn, sortDirection]);
-
-  const paginatedOrders = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedOrders.slice(start, start + pageSize);
-  }, [sortedOrders, currentPage, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / pageSize));
+  const {
+    page: currentPage,
+    paginatedRows: paginatedOrders,
+    resetPage,
+    setPage: setCurrentPage,
+    sortDirection,
+    sortKey: sortColumn,
+    totalItems,
+    totalPages,
+    onSort: handleSort,
+  } = useDataTable<Order, keyof Order>({
+    rows: filteredOrders,
+    initialSortKey: "createdAt",
+    initialSortDirection: "desc",
+    pageSize: 20,
+  });
   const isLoading = loading || isRefreshing;
 
   const renderOrderStateBadge = (state: OrderState) => {
@@ -220,7 +207,7 @@ export function OrderListView() {
         title={isB2b ? "B2B Orders Commerce" : "Orders Operations"}
         subtitle={
           isB2b
-            ? `${sortedOrders.length} result${sortedOrders.length === 1 ? "" : "s"} — search, inspect, and copy orders for follow-up work.`
+            ? `${totalItems} result${totalItems === 1 ? "" : "s"} — search, inspect, and copy orders for follow-up work.`
             : "Find orders, inspect fulfillment state, and duplicate carts for follow-up work."
         }
         badge={<Badge variant="primary">{isB2b ? "B2B Commerce" : "Order Operations"}</Badge>}
@@ -252,7 +239,10 @@ export function OrderListView() {
         <div className="w-full sm:w-48">
           <Select
             value={searchOption}
-            onChange={(e) => setSearchOption(e.target.value)}
+            onChange={(e) => {
+              setSearchOption(e.target.value);
+              resetPage();
+            }}
             options={B2C_SEARCH_FIELD_OPTIONS}
           />
         </div>
@@ -261,11 +251,11 @@ export function OrderListView() {
             value={searchText}
             onChange={(val) => {
               setSearchText(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value);
-              setCurrentPage(1);
+              resetPage();
             }}
             onClear={() => {
               setSearchText("");
-              setCurrentPage(1);
+              resetPage();
             }}
             placeholder={
               isB2b
@@ -279,7 +269,7 @@ export function OrderListView() {
             value={orderStateFilter}
             onChange={(e) => {
               setOrderStateFilter(e.target.value);
-              setCurrentPage(1);
+              resetPage();
             }}
             options={ORDER_STATE_OPTIONS}
           />
@@ -289,7 +279,7 @@ export function OrderListView() {
             value={paymentStateFilter}
             onChange={(e) => {
               setPaymentStateFilter(e.target.value);
-              setCurrentPage(1);
+              resetPage();
             }}
             options={PAYMENT_STATE_OPTIONS}
           />
@@ -304,7 +294,7 @@ export function OrderListView() {
 
       {/* Orders — one quiet container */}
       <SectionCard
-        title={`Orders${!isLoading ? ` (${sortedOrders.length})` : ""}`}
+        title={`Orders${!isLoading ? ` (${totalItems})` : ""}`}
         bodyClassName="p-0"
       >
         {isLoading ? (
@@ -313,7 +303,7 @@ export function OrderListView() {
               <Skeleton key={i} height={40} className="w-full rounded-md" />
             ))}
           </div>
-        ) : sortedOrders.length === 0 ? (
+        ) : totalItems === 0 ? (
           <div className="p-8">
             <EmptyState
               title="No Orders Found"
@@ -401,18 +391,10 @@ export function OrderListView() {
                       <TableCell>{renderShipmentBadge(o.shipmentState)}</TableCell>
                       <TableCell>{renderPaymentBadge(o.paymentState)}</TableCell>
                       <TableCell className="text-xs text-m-text-muted">
-                        {o.createdAt && mounted
-                          ? new Date(o.createdAt).toLocaleString(undefined, {
-                              month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
-                            })
-                          : o.createdAt ? o.createdAt.slice(0, 10) : "--"}
+                        {formatDateTime(o.createdAt)}
                       </TableCell>
                       <TableCell className="text-xs text-m-text-muted">
-                        {o.lastModifiedAt && mounted
-                          ? new Date(o.lastModifiedAt).toLocaleString(undefined, {
-                              month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit",
-                            })
-                          : o.lastModifiedAt ? o.lastModifiedAt.slice(0, 10) : "--"}
+                        {formatDateTime(o.lastModifiedAt)}
                       </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <Button
@@ -434,7 +416,7 @@ export function OrderListView() {
               <TablePagination
                 page={currentPage}
                 totalPages={totalPages}
-                totalItems={sortedOrders.length}
+                totalItems={totalItems}
                 onPageChange={(page) => setCurrentPage(page)}
               />
             </div>

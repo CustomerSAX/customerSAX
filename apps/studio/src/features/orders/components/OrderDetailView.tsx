@@ -17,7 +17,8 @@ import {
   SummaryGrid,
   SummaryCard,
 } from "@/components/detail";
-import { useOrderStore, MOCK_SHIPPING_METHODS, MOCK_CATALOG_PRODUCTS } from "../hooks/use-orders";
+import { useOrderStore } from "../hooks/use-orders";
+import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import type {
   Order,
   OrderState,
@@ -26,6 +27,7 @@ import type {
   OrderReturnItem,
   OrderAddress,
 } from "../types/order-types";
+import type { CatalogProduct, ShippingMethodOption } from "./order-tab-types";
 
 // ── Tab Sub-Components ───────────────────────────────────────────────
 import { OrderGeneralTab } from "./OrderGeneralTab";
@@ -38,6 +40,29 @@ import { OrderCommentsTab } from "./OrderCommentsTab";
 
 interface OrderDetailViewProps {
   id: string;
+}
+
+type ProductSearchResult = {
+  id?: string;
+  sku?: string;
+  name?: string;
+  imageUrl?: string;
+  price?: {
+    centAmount?: number;
+    fractionDigits?: number;
+  };
+};
+
+function toCatalogProduct(product: ProductSearchResult): CatalogProduct {
+  const centAmount = product.price?.centAmount ?? 0;
+  const fractionDigits = product.price?.fractionDigits ?? 2;
+  return {
+    productId: product.id || product.sku || "",
+    name: product.name || product.sku || "Unnamed product",
+    sku: product.sku || "",
+    imageUrl: product.imageUrl,
+    unitPrice: centAmount / 10 ** fractionDigits,
+  };
 }
 
 function createEmptyOrder(id: string): Order {
@@ -156,15 +181,9 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   const fallbackOrder = useMemo(() => createEmptyOrder(id), [id]);
   const order = getOrderById(id) || orders[0] || fallbackOrder;
 
-  // ── Hydration-safe date formatting ──────────────────────────────
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   const fmtDate = useCallback((v?: string | null, style: "date" | "full" = "full") => {
-    if (!v) return "—";
-    if (!mounted) return v.slice(0, 10);
-    const d = new Date(v);
-    return style === "date" ? d.toLocaleDateString() : d.toLocaleString();
-  }, [mounted]);
+    return style === "date" ? formatDate(v) : formatDateTime(v);
+  }, []);
 
   // ── Tabs ────────────────────────────────────────────────────────
   const TABS: EntityTab[] = useMemo(
@@ -195,15 +214,17 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     return initial;
   });
   const [searchCatalogText, setSearchCatalogText] = useState("");
-  const [searchCatalogResults, setSearchCatalogResults] = useState<typeof MOCK_CATALOG_PRODUCTS>([]);
+  const [searchCatalogResults, setSearchCatalogResults] = useState<CatalogProduct[]>([]);
   const [searchSelectedQty, setSearchSelectedQty] = useState<Record<string, number>>({});
   const [catalogFeedback, setCatalogFeedback] = useState("");
   const [giftMessageInput, setGiftMessageInput] = useState(order?.giftMessage || "");
   const [giftMsgFeedback, setGiftMsgFeedback] = useState("");
   const [selectedDiscountCode, setSelectedDiscountCode] = useState("");
   const [discountFeedback, setDiscountFeedback] = useState("");
-  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(order?.shippingInfo.shippingMethodId || MOCK_SHIPPING_METHODS[0].id);
+  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(order?.shippingInfo.shippingMethodId || "");
   const [shippingMethodFeedback, setShippingMethodFeedback] = useState("");
+  const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>([]);
+  const [shippingMethodsError, setShippingMethodsError] = useState("");
   const [addressForm, setAddressForm] = useState<OrderAddress>({
     streetNumber: order?.shippingAddress.streetNumber || "",
     streetName: order?.shippingAddress.streetName || "",
@@ -232,7 +253,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     setPaymentState(order.paymentState);
     setAltEmail(order.customerEmail || "");
     setGiftMessageInput(order.giftMessage || "");
-    setSelectedShippingMethodId(order.shippingInfo.shippingMethodId || MOCK_SHIPPING_METHODS[0].id);
+    setSelectedShippingMethodId(order.shippingInfo.shippingMethodId || "");
     setAddressForm({
       streetNumber: order.shippingAddress.streetNumber || "",
       streetName: order.shippingAddress.streetName || "",
@@ -249,6 +270,37 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
       }, {})
     );
   }, [order]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadShippingMethods() {
+      try {
+        const response = await fetch("/api/shipping-methods");
+        const payload = (await response.json().catch(() => [])) as ShippingMethodOption[] | { error?: string };
+
+        if (!response.ok || !Array.isArray(payload)) {
+          throw new Error(Array.isArray(payload) ? "Unable to load shipping methods." : payload.error || "Unable to load shipping methods.");
+        }
+
+        if (!cancelled) {
+          setShippingMethods(payload);
+          setShippingMethodsError("");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setShippingMethods([]);
+          setShippingMethodsError(err instanceof Error ? err.message : "Unable to load shipping methods.");
+        }
+      }
+    }
+
+    void loadShippingMethods();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── Handlers ────────────────────────────────────────────────────
 
@@ -278,20 +330,20 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     updateLineItemQuantity(order.id, lineItemId, newQty);
   };
 
-  const handleCatalogSearch = (e: React.FormEvent) => {
+  const handleCatalogSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const q = searchCatalogText.trim().toLowerCase();
+    const q = searchCatalogText.trim();
     if (!q) { setSearchCatalogResults([]); return; }
-    const results = MOCK_CATALOG_PRODUCTS.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.key.toLowerCase().includes(q)
-    );
+    const response = await fetch(`/api/product-search?q=${encodeURIComponent(q)}`);
+    const payload = (await response.json().catch(() => ({}))) as { results?: ProductSearchResult[] };
+    const results = (payload.results ?? []).map(toCatalogProduct).filter((product) => product.productId);
     setSearchCatalogResults(results);
     const initialQty: Record<string, number> = {};
     results.forEach((r) => { initialQty[r.productId] = 1; });
     setSearchSelectedQty(initialQty);
   };
 
-  const handleAddCatalogItemToOrder = (prod: typeof MOCK_CATALOG_PRODUCTS[number]) => {
+  const handleAddCatalogItemToOrder = (prod: CatalogProduct) => {
     const qty = searchSelectedQty[prod.productId] || 1;
     addLineItemToOrder(order.id, {
       productId: prod.productId, key: prod.key, name: prod.name,
@@ -316,7 +368,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   };
 
   const handleSaveShippingMethod = () => {
-    const method = MOCK_SHIPPING_METHODS.find((m) => m.id === selectedShippingMethodId);
+    const method = shippingMethods.find((m) => m.id === selectedShippingMethodId);
     if (method) {
       updateShippingMethod(order.id, method.id, method.name);
       setShippingMethodFeedback(`Shipping method updated to ${method.name}.`);
@@ -429,16 +481,6 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
 
   // ── Render ───────────────────────────────────────────────────────
 
-  if (!mounted) {
-    return (
-      <DetailPage>
-        <div className="flex h-32 items-center justify-center rounded-xl border border-m-border bg-m-surface">
-          <p className="text-sm text-m-text-muted">Loading order data...</p>
-        </div>
-      </DetailPage>
-    );
-  }
-
   return (
     <DetailPage>
       <BackLink href={backHref}>{backLabel}</BackLink>
@@ -496,8 +538,8 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           <SummaryCard
             icon="calendar"
             label="Order Date"
-            value={order.createdAt ? fmtDate(order.createdAt, "date") : "—"}
-            sub={order.createdAt && mounted ? new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+            value={formatDate(order.createdAt)}
+            sub={order.createdAt ? formatTime(order.createdAt) : ""}
           />
           <SummaryCard
             icon="hash"
@@ -536,7 +578,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
       {/* ── Tab 1: General ── */}
       {activeTab === "General" && (
         <OrderGeneralTab
-          order={order} fmtDate={fmtDate} mounted={mounted}
+          order={order} fmtDate={fmtDate}
           orderState={orderState} setOrderState={setOrderState}
           shipmentState={shipmentState} setShipmentState={setShipmentState}
           paymentState={paymentState} setPaymentState={setPaymentState}
@@ -568,6 +610,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           order={order} fmtDate={fmtDate}
           selectedShippingMethodId={selectedShippingMethodId} setSelectedShippingMethodId={setSelectedShippingMethodId}
           shippingMethodFeedback={shippingMethodFeedback} handleSaveShippingMethod={handleSaveShippingMethod}
+          shippingMethods={shippingMethods} shippingMethodsError={shippingMethodsError}
           addressForm={addressForm} setAddressForm={setAddressForm}
           addressFeedback={addressFeedback} handleSaveShippingAddress={handleSaveShippingAddress}
           orderTimeline={orderTimeline}

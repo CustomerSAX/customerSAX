@@ -30,17 +30,16 @@ export function MeridianProvider({
   storageKey = 'meridian-theme',
   tokensOverride,
 }: MeridianProviderProps) {
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(storageKey);
-      if (stored === 'light' || stored === 'dark' || stored === 'system') {
-        return stored;
-      }
-    }
-    return defaultTheme;
-  });
+  const [theme, setThemeState] = useState<ThemeMode>(defaultTheme);
 
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    const stored = localStorage.getItem(storageKey);
+    if (stored === 'light' || stored === 'dark' || stored === 'system') {
+      setThemeState(stored);
+    }
+  }, [storageKey]);
 
   useEffect(() => {
     const root = document.documentElement;

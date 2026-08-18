@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { StepDots, type StepDotsProps } from './StepDots';
 
 export interface StepperHeaderProps {

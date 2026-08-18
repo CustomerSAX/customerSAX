@@ -22,6 +22,7 @@ import {
   FormField,
   Label,
 } from "@csa/ui";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 import {
   DetailPage,
   BackLink,
@@ -214,7 +215,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           subject: t.subject,
           status: (t.status as CustomerTicket["status"]) ?? "Open",
           priority: (t.priority as CustomerTicket["priority"]) ?? "Medium",
-          createdAt: t.createdAt ? new Date(t.createdAt).toLocaleString() : "--",
+          createdAt: formatDateTime(t.createdAt),
         }))
       );
     } catch {
@@ -244,7 +245,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
         paymentState: o.paymentState ?? "Pending",
         totalPrice: formatMoney(o.totalPrice),
         itemsCount: o.lineItems?.length ?? 0,
-        createdAt: o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-US") : "--",
+        createdAt: formatDate(o.createdAt),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ordersGqlData]
@@ -279,7 +280,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           id: ri.returnTrackingId ?? `${o.id}-${results.length}`,
           orderNumber: o.orderNumber ?? o.id,
           returnTrackingId: ri.returnTrackingId ?? "--",
-          returnDate: ri.returnDate ? new Date(ri.returnDate).toLocaleDateString("en-US") : "--",
+          returnDate: formatDate(ri.returnDate),
           itemsCount: ri.items?.length ?? 0,
           items: (ri.items ?? []).map((item) => ({
             id: item.id,
@@ -293,7 +294,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       }
     }
     return results;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [ordersGqlData]);
 
   // Real carts from BFF
@@ -334,7 +335,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       isDefaultShipping: defaultShippingAddressId === a.id,
       isDefaultBilling: defaultBillingAddressId === a.id,
     }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [addressesGqlData, customer?.email]);
 
   // Local state for tabs and features
@@ -569,7 +570,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       sender: "agent",
       senderName: "Support Agent (John)",
       content: newMessageText.trim(),
-      createdAt: new Date().toLocaleString(),
+      createdAt: formatDateTime(new Date()),
     };
     setMessages((prev) => [...prev, newMsg]);
     setNewMessageText("");
@@ -644,7 +645,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     ? `${customer.firstName} ${customer.lastName}`
     : customer?.email || "Customer";
 
-  const customerSince = customer?.createdAt ? new Date(customer.createdAt).toLocaleDateString("en-US") : null;
+  const customerSince = customer?.createdAt ? formatDate(customer.createdAt) : null;
 
   return (
     <DetailPage>

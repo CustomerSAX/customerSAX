@@ -20,6 +20,7 @@ export type {
   Company,
   CompanyAddress,
   CompanyAssociate,
+  CompanyReference,
   CommerceLineItem,
   CommerceProvider,
   Customer,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,10 +19,12 @@ import {
   Badge,
   Skeleton,
   EmptyState,
+  useDataTable,
 } from "@csa/ui";
 import { SectionCard } from "@/components/detail";
 import { useTicketStore, TICKET_CATEGORIES } from "../hooks/use-tickets";
 import type { Ticket, TicketStatus, TicketPriority } from "../types/ticket-types";
+import { formatDateTime } from "@/lib/format-date";
 
 const SEARCH_FIELD_OPTIONS = [
   { value: "ticketNumber", label: "Ticket Number" },
@@ -52,30 +54,14 @@ export function TicketListView() {
   const router = useRouter();
   const { tickets, loading, error, refetch } = useTicketStore();
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   const [searchOption, setSearchOption] = useState<"ticketNumber" | "email" | "subject" | "allFields">("ticketNumber");
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
 
-  const [sortColumn, setSortColumn] = useState<keyof Ticket>("createdAt");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(10);
   const handleRefresh = useCallback(() => {
     void refetch();
   }, [refetch]);
-
-  const handleSort = (column: keyof Ticket) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((t) => {
@@ -115,21 +101,22 @@ export function TicketListView() {
     });
   }, [tickets, statusFilter, priorityFilter, searchText, searchOption]);
 
-  const sortedTickets = useMemo(() => {
-    return [...filteredTickets].sort((a, b) => {
-      const valA = String(a[sortColumn] ?? "");
-      const valB = String(b[sortColumn] ?? "");
-      const res = valA.localeCompare(valB, undefined, { numeric: true });
-      return sortDirection === "asc" ? res : -res;
-    });
-  }, [filteredTickets, sortColumn, sortDirection]);
-
-  const paginatedTickets = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedTickets.slice(start, start + pageSize);
-  }, [sortedTickets, currentPage, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedTickets.length / pageSize));
+  const {
+    page: currentPage,
+    paginatedRows: paginatedTickets,
+    resetPage,
+    setPage: setCurrentPage,
+    sortDirection,
+    sortKey: sortColumn,
+    totalItems,
+    totalPages,
+    onSort: handleSort,
+  } = useDataTable<Ticket, keyof Ticket>({
+    rows: filteredTickets,
+    initialSortKey: "createdAt",
+    initialSortDirection: "desc",
+    pageSize: 10,
+  });
 
   const renderStatusBadge = (status: TicketStatus) => {
     switch (status) {
@@ -194,7 +181,10 @@ export function TicketListView() {
         <div className="w-full sm:w-48">
           <Select
             value={searchOption}
-            onChange={(e) => setSearchOption(e.target.value as any)}
+            onChange={(e) => {
+              setSearchOption(e.target.value as "ticketNumber" | "email" | "subject" | "allFields");
+              resetPage();
+            }}
             options={SEARCH_FIELD_OPTIONS}
           />
         </div>
@@ -203,11 +193,11 @@ export function TicketListView() {
             value={searchText}
             onChange={(val) => {
               setSearchText(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value);
-              setCurrentPage(1);
+              resetPage();
             }}
             onClear={() => {
               setSearchText("");
-              setCurrentPage(1);
+              resetPage();
             }}
             placeholder="Search tickets by number, email, or subject..."
           />
@@ -217,7 +207,7 @@ export function TicketListView() {
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
-              setCurrentPage(1);
+              resetPage();
             }}
             options={STATUS_FILTER_OPTIONS}
           />
@@ -227,7 +217,7 @@ export function TicketListView() {
             value={priorityFilter}
             onChange={(e) => {
               setPriorityFilter(e.target.value);
-              setCurrentPage(1);
+              resetPage();
             }}
             options={PRIORITY_FILTER_OPTIONS}
           />
@@ -245,7 +235,7 @@ export function TicketListView() {
         <SectionCard title="Tickets">
           <EmptyState title="Unable to load tickets" description={error.message} action={<Button variant="primary" size="sm" onClick={handleRefresh}>Retry</Button>} />
         </SectionCard>
-      ) : sortedTickets.length === 0 ? (
+      ) : totalItems === 0 ? (
         <SectionCard title="Tickets">
           <EmptyState
             title="No Tickets Found"
@@ -266,7 +256,7 @@ export function TicketListView() {
           />
         </SectionCard>
       ) : (
-        <SectionCard title={`Tickets (${sortedTickets.length})`} bodyClassName="p-0">
+        <SectionCard title={`Tickets (${totalItems})`} bodyClassName="p-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -304,10 +294,10 @@ export function TicketListView() {
                   </TableCell>
                   <TableCell className="font-medium text-m-primary">{t.email}</TableCell>
                   <TableCell className="text-xs text-m-text-muted">
-                    {mounted ? new Date(t.createdAt).toLocaleString() : t.createdAt.slice(0, 10)}
+                    {formatDateTime(t.createdAt)}
                   </TableCell>
                   <TableCell className="text-xs text-m-text-muted">
-                    {t.lastModifiedAt && mounted ? new Date(t.lastModifiedAt).toLocaleString() : t.lastModifiedAt ? t.lastModifiedAt.slice(0, 10) : "--"}
+                    {formatDateTime(t.lastModifiedAt)}
                   </TableCell>
                   <TableCell>{t.contactType}</TableCell>
                   <TableCell>{renderStatusBadge(t.status)}</TableCell>
@@ -328,7 +318,7 @@ export function TicketListView() {
             <TablePagination
               page={currentPage}
               totalPages={totalPages}
-              totalItems={sortedTickets.length}
+              totalItems={totalItems}
               onPageChange={(page) => setCurrentPage(page)}
             />
           </div>

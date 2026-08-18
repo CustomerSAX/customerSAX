@@ -74,7 +74,7 @@ export function EntityHeader({
           </h1>
           {status}
         </div>
-        {meta && <p className="text-[13px] leading-snug text-m-text-muted">{meta}</p>}
+        {meta && <div className="text-[13px] leading-snug text-m-text-muted">{meta}</div>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2.5">{actions}</div>}
     </div>

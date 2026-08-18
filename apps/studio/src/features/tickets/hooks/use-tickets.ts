@@ -14,7 +14,30 @@ export const TICKET_WORKFLOW: Record<TicketStatus, TicketStatus[]> = {
   Pending: ["Pending", "In Progress", "Resolved", "Closed"], Resolved: ["Resolved", "In Progress", "Closed"], Closed: ["Closed", "Open"],
 };
 
-type ServerTicket = Record<string, any>;
+type ServerTicket = Partial<{
+  id: string;
+  ticketNumber: string;
+  customerEmail: string;
+  customerId: string;
+  contactType: string;
+  source: string;
+  category: string;
+  orderNumber: string;
+  priority: string;
+  status: string;
+  assignee: string;
+  createdBy: string;
+  subject: string;
+  message: string;
+  solution: string;
+  timeSpentOnTicket: string;
+  createdAt: string;
+  lastModifiedAt: string;
+  resolutionDate: string;
+  comments: WorklogComment[];
+  attachments: Ticket["attachments"];
+  history: ServerTicket[];
+}>;
 type NewTicket = Omit<Ticket, "id" | "ticketNumber" | "createdAt" | "comments" | "history"> & { comments?: WorklogComment[] };
 
 export function useTicketStore() {
@@ -74,9 +97,20 @@ function mapTicket(ticket: ServerTicket): Ticket {
     solution: ticket.solution ?? undefined, timeSpentOnTicket: ticket.timeSpentOnTicket ?? undefined,
     createdAt: ticket.createdAt ?? new Date(0).toISOString(), lastModifiedAt: ticket.lastModifiedAt ?? undefined,
     resolutionDate: ticket.resolutionDate ?? undefined, comments: ticket.comments ?? [], attachments: ticket.attachments ?? [],
-    history: (ticket.history ?? []).map((entry: ServerTicket) => ({ ...entry, status: normalizeStatus(entry.status), priority: normalizePriority(entry.priority) })),
+    history: (ticket.history ?? []).map((entry: ServerTicket) => ({
+      id: entry.id ?? `history-${ticket.id ?? ticket.ticketNumber ?? "ticket"}`,
+      ticketNumber: entry.ticketNumber ?? ticket.ticketNumber ?? "",
+      operationDate: entry.createdAt ?? ticket.createdAt ?? new Date(0).toISOString(),
+      reason: entry.message ?? entry.subject ?? "Ticket update",
+      solution: entry.solution,
+      status: normalizeStatus(entry.status),
+      priority: normalizePriority(entry.priority),
+      assignedTo: entry.assignee ?? ticket.assignee ?? "Support Desk",
+      worklog: entry.timeSpentOnTicket,
+      timeSpent: entry.timeSpentOnTicket,
+    })),
   };
 }
-function normalizeStatus(value: string): TicketStatus { const key = String(value ?? "open").toLowerCase().replace(/[_-]/g, " "); return ({ open: "Open", "in progress": "In Progress", waiting: "Pending", pending: "Pending", resolved: "Resolved", closed: "Closed" } as Record<string, TicketStatus>)[key] ?? "Open"; }
-function normalizePriority(value: string): TicketPriority { const key = String(value ?? "medium").toLowerCase(); return ({ low: "Low", normal: "Medium", medium: "Medium", high: "High", urgent: "Urgent" } as Record<string, TicketPriority>)[key] ?? "Medium"; }
-function normalizeContact(value: string) { const normalized = String(value ?? "Email"); return (["Email", "Phone", "Chat", "Web", "Social"].find((item) => item.toLowerCase() === normalized.toLowerCase()) ?? "Email") as Ticket["contactType"]; }
+function normalizeStatus(value: unknown): TicketStatus { const key = String(value ?? "open").toLowerCase().replace(/[_-]/g, " "); return ({ open: "Open", "in progress": "In Progress", waiting: "Pending", pending: "Pending", resolved: "Resolved", closed: "Closed" } as Record<string, TicketStatus>)[key] ?? "Open"; }
+function normalizePriority(value: unknown): TicketPriority { const key = String(value ?? "medium").toLowerCase(); return ({ low: "Low", normal: "Medium", medium: "Medium", high: "High", urgent: "Urgent" } as Record<string, TicketPriority>)[key] ?? "Medium"; }
+function normalizeContact(value: unknown) { const normalized = String(value ?? "Email"); return (["Email", "Phone", "Chat", "Web", "Social"].find((item) => item.toLowerCase() === normalized.toLowerCase()) ?? "Email") as Ticket["contactType"]; }

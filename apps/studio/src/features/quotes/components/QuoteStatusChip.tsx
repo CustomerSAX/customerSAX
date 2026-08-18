@@ -1,5 +1,3 @@
-"use client";
-
 import { Badge } from "@csa/ui";
 import type { QuoteStatus } from "../types/quote-types";
 

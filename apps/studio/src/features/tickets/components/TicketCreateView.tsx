@@ -23,8 +23,10 @@ import {
   TableHead,
   TableCell,
 } from "@csa/ui";
+import { formatTime } from "@/lib/format-date";
 import { useTicketStore } from "../hooks/use-tickets";
 import { useCustomerStore } from "../../customers/hooks/use-customers";
+import type { Customer } from "../../customers/types/customer-types";
 import type {
   TicketCategoryKey,
   TicketContactType,
@@ -33,7 +35,7 @@ import type {
   TicketAttachment,
 } from "../types/ticket-types";
 
-const CONTACT_TYPE_OPTIONS = [
+const CONTACT_TYPE_OPTIONS: Array<{ value: TicketContactType; label: string }> = [
   { value: "Email", label: "Email" },
   { value: "Phone", label: "Phone" },
   { value: "Chat", label: "Chat" },
@@ -41,7 +43,7 @@ const CONTACT_TYPE_OPTIONS = [
   { value: "Social", label: "Social Media" },
 ];
 
-const CATEGORY_OPTIONS = [
+const CATEGORY_OPTIONS: Array<{ value: TicketCategoryKey; label: string }> = [
   { value: "order_inquiry", label: "Order Inquiry" },
   { value: "payment_methods", label: "Payment Methods" },
   { value: "returns_refunds", label: "Returns & Refunds" },
@@ -50,7 +52,7 @@ const CATEGORY_OPTIONS = [
   { value: "account_management", label: "Account Management" },
 ];
 
-const PRIORITY_OPTIONS = [
+const PRIORITY_OPTIONS: Array<{ value: TicketPriority; label: string }> = [
   { value: "Low", label: "Low" },
   { value: "Medium", label: "Medium" },
   { value: "High", label: "High" },
@@ -82,7 +84,7 @@ export function TicketCreateView() {
   const [email, setEmail] = useState(prefillEmail);
   const [customerFound, setCustomerFound] = useState<boolean>(Boolean(prefillEmail));
   const [customerLookupMsg, setCustomerLookupMsg] = useState("");
-  const [matchedCustomer, setMatchedCustomer] = useState<any>(
+  const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(
     prefillEmail ? customers.find((c) => c.email.toLowerCase() === prefillEmail.toLowerCase()) || customers[0] : null
   );
 
@@ -149,7 +151,7 @@ export function TicketCreateView() {
     const newWorklog: WorklogComment = {
       id: `wl-${Date.now()}`,
       comment: worklogText.trim(),
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: formatTime(new Date()),
       status: "Pending submit",
       author: "Current Agent",
     };
@@ -288,7 +290,7 @@ export function TicketCreateView() {
                 </div>
                 <div>
                   <span className="text-m-text-muted block">Company</span>
-                  <span className="font-semibold text-m-text">{matchedCustomer.companyName || "Northwind Retail"}</span>
+                  <span className="font-semibold text-m-text">{matchedCustomer.companyName || "--"}</span>
                 </div>
               </div>
             )}
@@ -306,7 +308,7 @@ export function TicketCreateView() {
                 <Label required>Contact Type</Label>
                 <Select
                   value={contactType}
-                  onChange={(e) => setContactType(e.target.value as any)}
+                  onChange={(e) => setContactType(e.target.value as TicketContactType)}
                   options={CONTACT_TYPE_OPTIONS}
                 />
               </FormField>
@@ -316,7 +318,7 @@ export function TicketCreateView() {
                 <Select
                   value={category}
                   onChange={(e) => {
-                    setCategory(e.target.value as any);
+                    setCategory(e.target.value as TicketCategoryKey);
                     if (!ORDER_LINKED_CATEGORIES.includes(e.target.value as TicketCategoryKey)) {
                       clearError("orderNumber");
                     }
@@ -345,7 +347,7 @@ export function TicketCreateView() {
                 <Label required>Priority</Label>
                 <Select
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value as any)}
+                  onChange={(e) => setPriority(e.target.value as TicketPriority)}
                   options={PRIORITY_OPTIONS}
                 />
               </FormField>

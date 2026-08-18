@@ -124,7 +124,7 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
     setTicketLocalDraft({ ...EMPTY_LOCAL_TICKET_DRAFT });
     setCreateReturnStep('order');
     setReturnLocalDraft({ ...EMPTY_LOCAL_RETURN_DRAFT });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [newConversationNonce]);
 
   const sendAction = (action: Record<string, unknown>) => {

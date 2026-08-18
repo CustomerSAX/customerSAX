@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConversationStore } from "../store/conversation-store";
 import { useCurrentUser } from "@/lib/use-current-user";
+import { formatDate } from "@/lib/format-date";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ function formatRelativeTime(iso?: string): string {
     const diffD = Math.floor(diffH / 24);
     if (diffD === 1) return "Yesterday";
     if (diffD < 7) return `${diffD}d ago`;
-    return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    return formatDate(iso);
   } catch { return ""; }
 }
 

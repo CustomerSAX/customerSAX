@@ -123,7 +123,7 @@ export function CompanyListView() {
             <Select
               value={searchField}
               options={SEARCH_OPTIONS}
-              onChange={(e) => setSearchField(e.target.value as any)}
+              onChange={(e) => setSearchField(e.target.value as "all" | "name" | "key")}
               size="md"
             />
           </div>

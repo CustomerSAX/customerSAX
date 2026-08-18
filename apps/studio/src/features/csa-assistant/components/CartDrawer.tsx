@@ -155,7 +155,7 @@ export function CartDrawer() {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [cart.isCartOpen]);
 
   if (!cart.isCartOpen && !closing) return null;

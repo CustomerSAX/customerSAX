@@ -9,7 +9,7 @@
  * talks to MongoDB or changes how login/logout/session issuance works.
  */
 
-import { authServiceUrl, currentSessionToken } from '@/app/api/auth/shared';
+import { authServiceUrl, currentSessionToken, ensureDefaultProjectSelection } from '@/app/api/auth/shared';
 
 export type CurrentUser = {
   email: string;
@@ -26,7 +26,7 @@ export type CurrentUser = {
 };
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const token = currentSessionToken();
+  const token = await currentSessionToken();
 
   // Dev bypass — mirror middleware.ts's SKIP_AUTH gate so server-derived
   // identity is available for the happy path without a login. Gated exactly
@@ -59,7 +59,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     if (!response.ok) return null;
 
     const payload = (await response.json().catch(() => null)) as { user?: CurrentUser } | null;
-    return payload?.user ?? null;
+    return (await ensureDefaultProjectSelection(token, payload?.user)) ?? null;
   } catch (error) {
     console.error('[get-current-user] failed to reach auth service:', error);
     return null;

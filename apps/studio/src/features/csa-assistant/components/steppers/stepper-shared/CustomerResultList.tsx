@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { useCustomerSearch, type CustomerSearchResult } from './useCustomerSearch';
 
 export interface CustomerResultListProps {

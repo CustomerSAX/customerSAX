@@ -5,8 +5,22 @@ import { createPortal } from 'react-dom';
 import { useCartStore } from '../store/cart-store';
 import { useConversationStore } from '../store/conversation-store';
 import type { ProductCardArgs } from '../types';
-import type { ProductDetail } from '../../products/types/product-types';
+import type { CtRawProduct, ProductDetail } from '../../products/types/product-types';
 import { mapRawToDetail } from '../../products/utils/product-utils';
+
+type ProductSearchVariant = { sku?: string };
+type ProductSearchCurrent = {
+  masterVariant?: ProductSearchVariant;
+  allVariants?: ProductSearchVariant[];
+};
+type ProductSearchResult = CtRawProduct & {
+  masterData?: CtRawProduct["masterData"] & {
+    current?: ProductSearchCurrent;
+  };
+};
+type ProductSearchResponse = {
+  results?: ProductSearchResult[];
+};
 
 // ─── Spinner ──────────────────────────────────────────────────────────────────
 
@@ -116,15 +130,15 @@ export function ProductDetailDrawer({
             body: JSON.stringify({ text: queryText, limit: 5 }),
           });
           if (!res.ok) return;
-          const json = await res.json();
+          const json = (await res.json()) as ProductSearchResponse;
           const results = json.results || [];
 
           // Match by SKU, key, or name, falling back to first match
-          const match = results.find((r: any) => {
+          const match = results.find((r) => {
             const current = r.masterData?.current;
             const skus = [
               current?.masterVariant?.sku,
-              ...(current?.allVariants?.map((v: any) => v.sku) || [])
+              ...(current?.allVariants?.map((v) => v.sku) || [])
             ].filter(Boolean);
             return (
               (product.sku && skus.includes(product.sku)) ||

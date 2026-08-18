@@ -10,13 +10,25 @@ import type {
   OrderAddress,
   OrderPayment,
 } from "../types/order-types";
-import { MOCK_CATALOG_PRODUCTS } from "../hooks/use-orders";
+
+export interface CatalogProduct {
+  productId: string;
+  name: string;
+  sku: string;
+  key?: string;
+  imageUrl?: string;
+  unitPrice: number;
+}
+
+export interface ShippingMethodOption {
+  id: string;
+  name: string;
+}
 
 // ── General Tab ─────────────────────────────────────────────────────
 export interface OrderGeneralTabProps {
   order: Order;
   fmtDate: (v?: string | null, style?: "date" | "full") => string;
-  mounted: boolean;
 
   // State management form
   orderState: OrderState;
@@ -48,12 +60,12 @@ export interface OrderGeneralTabProps {
   // Catalog search
   searchCatalogText: string;
   setSearchCatalogText: (v: string) => void;
-  searchCatalogResults: typeof MOCK_CATALOG_PRODUCTS;
+  searchCatalogResults: CatalogProduct[];
   handleCatalogSearch: (e: React.FormEvent) => void;
   searchSelectedQty: Record<string, number>;
   setSearchSelectedQty: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   catalogFeedback: string;
-  handleAddCatalogItemToOrder: (prod: typeof MOCK_CATALOG_PRODUCTS[number]) => void;
+  handleAddCatalogItemToOrder: (prod: CatalogProduct) => void;
 
   // Gift & Discount
   giftMessageInput: string;
@@ -77,6 +89,8 @@ export interface OrderShippingTabProps {
   setSelectedShippingMethodId: (v: string) => void;
   shippingMethodFeedback: string;
   handleSaveShippingMethod: () => void;
+  shippingMethods: ShippingMethodOption[];
+  shippingMethodsError: string;
   addressForm: OrderAddress;
   setAddressForm: React.Dispatch<React.SetStateAction<OrderAddress>>;
   addressFeedback: string;

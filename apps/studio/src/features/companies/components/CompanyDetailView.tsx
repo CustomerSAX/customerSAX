@@ -31,30 +31,6 @@ import { useCompanies, useCompanyCommerceActivity } from "../hooks/use-companies
 
 type DetailTab = "general" | "address" | "cart" | "order" | "quote" | "employees";
 
-// Mock carts & orders for company detail parity view
-const MOCK_COMPANY_CARTS = [
-  {
-    id: "cart-c1001",
-    customerEmail: "shivam.soni@royalcyber.com",
-    itemCount: 4,
-    totalPrice: 1250.0,
-    cartState: "Active",
-    createdAt: "2026-08-01T10:00:00Z",
-  },
-];
-
-const MOCK_COMPANY_ORDERS = [
-  {
-    id: "ord-1001",
-    orderNumber: "ORD-99210",
-    customerEmail: "shivam.soni@royalcyber.com",
-    orderState: "Complete",
-    paymentState: "Paid",
-    totalPrice: 4200.0,
-    createdAt: "2026-07-28T14:30:00Z",
-  },
-];
-
 const formatCurrencyNumber = (value: number) => value.toLocaleString("en-US");
 
 export function CompanyDetailView({ id }: { id: string }) {
@@ -89,8 +65,8 @@ export function CompanyDetailView({ id }: { id: string }) {
   const [assocEmail, setAssocEmail] = useState("");
   const [assocRole, setAssocRole] = useState("Buyer");
 
-  const companyCarts = activityError ? MOCK_COMPANY_CARTS : activityCarts;
-  const companyOrders = activityError ? MOCK_COMPANY_ORDERS : activityOrders;
+  const companyCarts = activityError ? [] : activityCarts;
+  const companyOrders = activityError ? [] : activityOrders;
   const companyQuotes = activityError ? [] : activityQuotes;
 
   if (loading && !company) {
@@ -590,7 +566,7 @@ export function CompanyDetailView({ id }: { id: string }) {
                     { value: "Active", label: "Active" },
                     { value: "Inactive", label: "Inactive" },
                   ]}
-                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  onChange={(e) => setEditStatus(e.target.value as "Active" | "Inactive")}
                 />
               </div>
 

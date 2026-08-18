@@ -5,10 +5,36 @@ import { requestLogger } from '@/lib/request-logger';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
-type BffResult = { ok: true; orders: any[] } | { ok: false; reason: string };
+type Money = { centAmount?: number; currencyCode?: string; fractionDigits?: number };
+type BffLineItem = {
+  id?: string;
+  name?: string;
+  sku?: string;
+  quantity?: number;
+  totalPrice?: Money;
+};
+type BffOrder = {
+  id?: string;
+  orderNumber?: string;
+  customerId?: string;
+  customerEmail?: string;
+  state?: string;
+  createdAt?: string;
+  totalPrice?: Money;
+  lineItems?: BffLineItem[];
+};
+type GraphqlError = { message?: string };
+type GraphqlResponse<T> = { data?: T; errors?: GraphqlError[] };
+type MappedOrder = ReturnType<typeof mapOrder>;
+type BffResult = { ok: true; orders: MappedOrder[] } | { ok: false; reason: string };
 
-function mapOrder(ord: any) {
-  const val = ord.totalPrice ? (ord.totalPrice.centAmount / Math.pow(10, ord.totalPrice.fractionDigits || 2)).toFixed(2) : '0.00';
+function graphqlErrorMessage(errors: GraphqlError[]) {
+  return errors.map((error) => error.message ?? 'Unknown GraphQL error').join('; ');
+}
+
+function mapOrder(ord: BffOrder) {
+  const totalCentAmount = ord.totalPrice?.centAmount ?? 0;
+  const val = (totalCentAmount / Math.pow(10, ord.totalPrice?.fractionDigits || 2)).toFixed(2);
 
   return {
     id: ord.id,
@@ -22,12 +48,12 @@ function mapOrder(ord: any) {
     status: ord.state || 'Complete',
     totalPrice: `$${val}`,
     lineItems: Array.isArray(ord.lineItems)
-      ? ord.lineItems.map((li: any) => ({
+      ? ord.lineItems.map((li) => ({
           id: li.id,
           name: li.name || 'Line Item',
           sku: li.sku || 'SKU',
           quantity: li.quantity || 1,
-          price: li.totalPrice ? `$${(li.totalPrice.centAmount / Math.pow(10, li.totalPrice.fractionDigits || 2)).toFixed(2)}` : '$45.00',
+          price: li.totalPrice ? `$${((li.totalPrice.centAmount ?? 0) / Math.pow(10, li.totalPrice.fractionDigits || 2)).toFixed(2)}` : '$0.00',
           image: 'https://images.unsplash.com/photo-1585336261026-6757c54e3ed7?w=150',
         }))
       : [],
@@ -70,8 +96,8 @@ async function queryBffOrderByNumber(orderNumber: string, requestId: string): Pr
       }),
     }, requestId);
     if (!res.ok) return { ok: false, reason: `BFF returned HTTP ${res.status}` };
-    const data = await res.json();
-    if (data?.errors?.length) return { ok: false, reason: data.errors.map((e: any) => e.message).join('; ') };
+    const data = (await res.json()) as GraphqlResponse<{ order?: BffOrder | null }>;
+    if (data.errors?.length) return { ok: false, reason: graphqlErrorMessage(data.errors) };
     const ord = data?.data?.order;
 
     // Real, reachable BFF says this order doesn't exist — that's a
@@ -101,8 +127,8 @@ async function queryBffOrdersByCustomer(customerId: string, requestId: string): 
       }),
     }, requestId);
     if (!res.ok) return { ok: false, reason: `BFF returned HTTP ${res.status}` };
-    const data = await res.json();
-    if (data?.errors?.length) return { ok: false, reason: data.errors.map((e: any) => e.message).join('; ') };
+    const data = (await res.json()) as GraphqlResponse<{ orderPage?: { results?: BffOrder[] } }>;
+    if (data.errors?.length) return { ok: false, reason: graphqlErrorMessage(data.errors) };
     const results = data?.data?.orderPage?.results;
     if (!Array.isArray(results)) return { ok: false, reason: 'Malformed response from commerce backend' };
 

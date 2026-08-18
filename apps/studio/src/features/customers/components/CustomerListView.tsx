@@ -20,7 +20,9 @@ import {
   Skeleton,
   EmptyState,
   Panel,
+  useDataTable,
 } from "@csa/ui";
+import { formatDate } from "@/lib/format-date";
 import { SectionCard } from "@/components/detail";
 import { useCustomerStore } from "../hooks/use-customers";
 import type { Customer, CustomerListFilters } from "../types/customer-types";
@@ -59,10 +61,6 @@ export function CustomerListView() {
   const [filters, setFilters] = useState<CustomerListFilters>(INITIAL_FILTERS);
   const [draftFilters, setDraftFilters] = useState<CustomerListFilters>(INITIAL_FILTERS);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
-  const [sortColumn, setSortColumn] = useState<keyof Customer>("createdAt");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const groupSelectOptions = useMemo(() => {
@@ -92,15 +90,6 @@ export function CustomerListView() {
       setIsRefreshing(false);
     }
   }, [refetch]);
-
-  const handleSort = (column: keyof Customer) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((cust) => {
@@ -161,27 +150,29 @@ export function CustomerListView() {
     });
   }, [customers, filters]);
 
-  const sortedCustomers = useMemo(() => {
-    return [...filteredCustomers].sort((a, b) => {
-      const valA = String(a[sortColumn] ?? "");
-      const valB = String(b[sortColumn] ?? "");
-      const res = valA.localeCompare(valB, undefined, { numeric: true });
-      return sortDirection === "asc" ? res : -res;
-    });
-  }, [filteredCustomers, sortColumn, sortDirection]);
-
-  const paginatedCustomers = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedCustomers.slice(start, start + pageSize);
-  }, [sortedCustomers, currentPage, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedCustomers.length / pageSize));
+  const {
+    page: currentPage,
+    paginatedRows: paginatedCustomers,
+    resetPage,
+    setPage: setCurrentPage,
+    sortDirection,
+    sortKey: sortColumn,
+    sortedRows: sortedCustomers,
+    totalItems,
+    totalPages,
+    onSort: handleSort,
+  } = useDataTable<Customer, keyof Customer>({
+    rows: filteredCustomers,
+    initialSortKey: "createdAt",
+    initialSortDirection: "desc",
+    pageSize: 10,
+  });
   const isLoading = loading || isRefreshing;
 
   const applyAdvancedFilters = () => {
     setFilters(draftFilters);
     setShowFiltersPanel(false);
-    setCurrentPage(1);
+    resetPage();
   };
 
   const clearAdvancedFilters = () => {
@@ -198,7 +189,7 @@ export function CustomerListView() {
     };
     setDraftFilters(reset);
     setFilters(reset);
-    setCurrentPage(1);
+    resetPage();
   };
 
   return (
@@ -233,7 +224,10 @@ export function CustomerListView() {
           <div className="w-full sm:w-48">
             <Select
               value={filters.searchOption}
-              onChange={(e) => setFilters((prev) => ({ ...prev, searchOption: e.target.value }))}
+              onChange={(e) => {
+                setFilters((prev) => ({ ...prev, searchOption: e.target.value }));
+                resetPage();
+              }}
               options={SEARCH_OPTIONS}
             />
           </div>
@@ -243,11 +237,11 @@ export function CustomerListView() {
               onChange={(val) => {
                 const text = typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value;
                 setFilters((prev) => ({ ...prev, searchText: text }));
-                setCurrentPage(1);
+                resetPage();
               }}
               onClear={() => {
                 setFilters((prev) => ({ ...prev, searchText: "" }));
-                setCurrentPage(1);
+                resetPage();
               }}
               placeholder="Search customers by email, name, number..."
             />
@@ -257,7 +251,7 @@ export function CustomerListView() {
               value={filters.customerGroupId}
               onChange={(e) => {
                 setFilters((prev) => ({ ...prev, customerGroupId: e.target.value }));
-                setCurrentPage(1);
+                resetPage();
               }}
               options={groupSelectOptions}
             />
@@ -488,7 +482,7 @@ export function CustomerListView() {
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-m-text-muted">
-                      {cust.createdAt ? new Date(cust.createdAt).toLocaleDateString() : "--"}
+                      {formatDate(cust.createdAt)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -498,7 +492,7 @@ export function CustomerListView() {
               <TablePagination
                 page={currentPage}
                 totalPages={totalPages}
-                totalItems={sortedCustomers.length}
+                totalItems={totalItems}
                 onPageChange={(page) => setCurrentPage(page)}
               />
             </div>

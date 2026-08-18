@@ -242,7 +242,7 @@ export function useProductList(): UseProductListReturn {
       setPage(1);
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [search.text, search.option, appliedSearch.text, appliedSearch.option]);
 
   // -------------------------------------------------------------------------

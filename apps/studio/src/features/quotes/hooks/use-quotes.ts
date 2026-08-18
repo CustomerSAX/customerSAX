@@ -1,16 +1,120 @@
 "use client";
 
+import { gql, useQuery } from "@apollo/client";
 import { useState, useCallback, useMemo } from "react";
 import type { Quote, QuoteFilter, QuoteSort, QuoteStatus, QuoteNegotiationTurn, QuoteLineItem } from "../types/quote-types";
-import { INITIAL_QUOTES } from "../constants/mock-quotes";
+
+type MoneyResult = {
+  centAmount: number;
+  fractionDigits: number;
+};
+
+type QuoteResult = {
+  id: string;
+  key?: string | null;
+  quoteNumber?: string | null;
+  companyKey?: string | null;
+  companyName?: string | null;
+  customerId?: string | null;
+  customerEmail?: string | null;
+  status?: string | null;
+  totalPrice?: MoneyResult | null;
+  createdAt?: string | null;
+  lastModifiedAt?: string | null;
+};
+
+type QuotesData = {
+  quotes: {
+    results: QuoteResult[];
+  };
+};
+
+const QUOTES_QUERY = gql`
+  query QuotesPage($limit: Int!, $offset: Int!, $sortKey: String, $sortOrder: String) {
+    quotes(limit: $limit, offset: $offset, sortKey: $sortKey, sortOrder: $sortOrder) {
+      results {
+        id
+        key
+        quoteNumber
+        companyKey
+        companyName
+        customerId
+        customerEmail
+        status
+        totalPrice {
+          centAmount
+          fractionDigits
+        }
+        createdAt
+        lastModifiedAt
+      }
+    }
+  }
+`;
+
+function moneyToNumber(money?: MoneyResult | null) {
+  if (!money) return 0;
+  return money.centAmount / 10 ** money.fractionDigits;
+}
+
+function toQuoteStatus(status?: string | null): QuoteStatus {
+  if (
+    status === "Draft" ||
+    status === "Submitted" ||
+    status === "In Review" ||
+    status === "Approved" ||
+    status === "Declined" ||
+    status === "Cancelled" ||
+    status === "Converted"
+  ) {
+    return status;
+  }
+
+  return "Submitted";
+}
+
+function mapQuote(quote: QuoteResult): Quote {
+  const total = moneyToNumber(quote.totalPrice);
+
+  return {
+    id: quote.id,
+    quoteNumber: quote.quoteNumber || quote.key || quote.id,
+    companyId: quote.companyKey || "",
+    companyName: quote.companyName || quote.companyKey || "--",
+    companyKey: quote.companyKey || "",
+    customerId: quote.customerId || "",
+    customerName: quote.customerEmail || quote.customerId || "--",
+    customerEmail: quote.customerEmail || "",
+    status: toQuoteStatus(quote.status),
+    lineItems: [],
+    subtotal: total,
+    discountPct: 0,
+    negotiatedTotal: total,
+    validUntil: "",
+    createdAt: quote.createdAt || "",
+    lastModifiedAt: quote.lastModifiedAt || quote.createdAt || "",
+    negotiationTurns: [],
+  };
+}
 
 export function useQuotes() {
-  const [quotes, setQuotes] = useState<Quote[]>(INITIAL_QUOTES);
-  const loading = false;
+  const { data, loading } = useQuery<QuotesData>(QUOTES_QUERY, {
+    fetchPolicy: "cache-and-network",
+    variables: {
+      limit: 100,
+      offset: 0,
+      sortKey: "createdAt",
+      sortOrder: "desc",
+    },
+  });
+  const [localQuotes, setLocalQuotes] = useState<Quote[]>([]);
   const [filter, setFilter] = useState<QuoteFilter>({ searchText: "" });
   const [sort, setSort] = useState<QuoteSort>({ key: "createdAt", order: "desc" });
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+
+  const serverQuotes = useMemo(() => (data?.quotes.results ?? []).map(mapQuote), [data?.quotes.results]);
+  const quotes = useMemo(() => [...localQuotes, ...serverQuotes], [localQuotes, serverQuotes]);
 
   const filteredQuotes = useMemo(() => {
     let result = [...quotes];
@@ -61,19 +165,19 @@ export function useQuotes() {
       const created: Quote = {
         ...newQuote,
         id: `quote-${Date.now()}`,
-        quoteNumber: `Q-100${26 + count}`,
+        quoteNumber: `Q-${Date.now().toString().slice(-6)}-${count}`,
         createdAt: new Date().toISOString(),
         lastModifiedAt: new Date().toISOString(),
         negotiationTurns: [],
       };
-      setQuotes((prev) => [created, ...prev]);
+      setLocalQuotes((prev) => [created, ...prev]);
       return created;
     },
     [quotes.length]
   );
 
   const updateQuoteStatus = useCallback((id: string, status: QuoteStatus, turnComment?: string, authorRole: "Buyer" | "Seller" = "Seller") => {
-    setQuotes((prev) =>
+    setLocalQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== id && q.quoteNumber !== id) return q;
 
@@ -100,7 +204,7 @@ export function useQuotes() {
 
   const addNegotiationTurn = useCallback(
     (id: string, comment: string, authorRole: "Buyer" | "Seller" = "Seller", offeredSubtotal?: number) => {
-      setQuotes((prev) =>
+      setLocalQuotes((prev) =>
         prev.map((q) => {
           if (q.id !== id && q.quoteNumber !== id) return q;
 
@@ -128,7 +232,7 @@ export function useQuotes() {
 
   const updateQuoteLineItems = useCallback((id: string, lineItems: QuoteLineItem[]) => {
     const subtotal = lineItems.reduce((sum, item) => sum + item.subtotal, 0);
-    setQuotes((prev) =>
+    setLocalQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== id && q.quoteNumber !== id) return q;
         const discountMult = (100 - q.discountPct) / 100;

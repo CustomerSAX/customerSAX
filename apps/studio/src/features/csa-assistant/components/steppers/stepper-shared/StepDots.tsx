@@ -1,7 +1,5 @@
 'use client';
 
-import React from 'react';
-
 export interface StepDotsProps {
   /** Full ordered list of step ids (may include a trailing 'done' not shown in the track). */
   steps: string[];

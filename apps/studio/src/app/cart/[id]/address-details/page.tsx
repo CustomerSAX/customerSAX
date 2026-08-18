@@ -3,11 +3,13 @@ import { AppShell } from "../../../../components/shell/AppShell";
 import { CartAddressDetailsView } from "../../../../features/cart/components/CartAddressDetailsView";
 import { Skeleton } from "@csa/ui";
 
-export default function CartAddressDetailsPage({ params }: { params: { id: string } }) {
+export default async function CartAddressDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
   return (
     <AppShell>
       <Suspense fallback={<Skeleton height={400} className="w-full" />}>
-        <CartAddressDetailsView id={params.id} />
+        <CartAddressDetailsView id={id} />
       </Suspense>
     </AppShell>
   );

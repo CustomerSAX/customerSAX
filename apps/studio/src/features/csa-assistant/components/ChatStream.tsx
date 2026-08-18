@@ -6,6 +6,13 @@ import type { UIMessage } from "ai";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { useConversationStore } from "../store/conversation-store";
 import type {
+  InsightInfo,
+  OrderWorkflowSnapshot,
+  ResolutionInfo,
+  ReturnWorkflowSnapshot,
+  TicketWorkflowSnapshot
+} from "../store/conversation-store";
+import type {
   ActionApprovalArgs,
   CartSummaryArgs,
   CaseBriefingArgs,
@@ -70,6 +77,23 @@ function isFullyInternalMessage(message: UIMessage): boolean {
 interface ChatStreamProps {
   chat: CsaChat;
   sessionCustomerName?: string;
+}
+
+type JsonRecord = Record<string, unknown>;
+type McpContentNode = { type?: string; text?: string };
+type McpWrappedResult = { content?: McpContentNode[] };
+type CustomerToolResult = { id?: string; firstName?: string; lastName?: string; email?: string; customers?: CustomerToolResult[] };
+type CartSummaryToolArgs = { customer?: { name?: string }; cartId?: string; items?: Array<{ sku?: string; name?: string; lineTotal?: string; price?: string; quantity?: number; qty?: number }>; itemCount?: number; total?: string };
+type ActionApprovalToolArgs = { title?: string; description?: string };
+type OrderConfirmationToolArgs = { orderId?: string; orderNumber?: string; total?: string };
+type TicketCreatedToolResult = { ticketNumber?: string; id?: string; _id?: string };
+type ReturnEligibilityToolResult = { eligible?: boolean; reason?: string; reasons?: string[]; order?: { id?: string; orderNumber?: string; totalPrice?: string; lineItems?: Array<{ lineItemId?: string; name?: string; quantity?: number; price?: string }> } };
+type StartReturnToolResult = { success?: boolean; returnTrackingId?: string };
+
+declare global {
+  interface Window {
+    __csaClearBriefing?: () => void;
+  }
 }
 
 // ─── Tool card dispatcher ─────────────────────────────────────────────────────
@@ -371,10 +395,14 @@ function ThinkingIndicator() {
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
-function unwrapMcpResult(raw: unknown): any {
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === 'object' && value !== null;
+}
+
+function unwrapMcpResult(raw: unknown): unknown {
   if (!raw) return null;
-  if (typeof raw === 'object' && 'content' in raw && Array.isArray((raw as any).content)) {
-    const textNode = (raw as any).content.find((c: any) => c.type === 'text' || c.type === 'json');
+  if (isRecord(raw) && Array.isArray((raw as McpWrappedResult).content)) {
+    const textNode = (raw as McpWrappedResult).content?.find((c) => c.type === 'text' || c.type === 'json');
     if (textNode?.text) {
       try { return JSON.parse(textNode.text); } catch { return textNode.text; }
     }
@@ -438,8 +466,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   // ── Parse tool calls → ConversationStore ─────────────────
   useEffect(() => {
     let newMachineState: string | undefined;
-    let newInsights: any = undefined;
-    let newResolution: any = undefined;
+    let newInsights: InsightInfo | undefined;
+    let newResolution: ResolutionInfo | undefined;
 
     // Customer identified this turn — the ONLY thing that ever populates
     // orderWorkflow.customer.id (cart_summary's `customer` field is name/email
@@ -448,19 +476,19 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
     let newCustomerId: string | undefined;
     let newCustomerEmail: string | undefined;
     let orderCustomerName: string | undefined;
-    let orderCartValue: any = undefined;
-    let orderPendingApproval: any = undefined;
-    let orderPlaced: any = undefined;
+    let orderCartValue: OrderWorkflowSnapshot["cart"] | undefined;
+    let orderPendingApproval: OrderWorkflowSnapshot["pendingApproval"] | undefined;
+    let orderPlaced: OrderWorkflowSnapshot["placedOrder"] | undefined;
     let sawAnyOrderSignal = false;
 
-    let ticketPendingApproval: any = undefined;
-    let ticketCreated: any = undefined;
+    let ticketPendingApproval: TicketWorkflowSnapshot["pendingApproval"] | undefined;
+    let ticketCreated: TicketWorkflowSnapshot["createdTicket"] | undefined;
     let sawAnyTicketSignal = false;
 
-    let returnOrder: any = undefined;
-    let returnCompleted: any = undefined;
-    let returnEligibility: any = undefined;
-    let returnPendingApproval: any = undefined;
+    let returnOrder: ReturnWorkflowSnapshot["order"] | undefined;
+    let returnCompleted: ReturnWorkflowSnapshot["completed"] | undefined;
+    let returnEligibility: ReturnWorkflowSnapshot["eligibility"] | undefined;
+    let returnPendingApproval: ReturnWorkflowSnapshot["pendingApproval"] | undefined;
     let sawAnyReturnSignal = false;
 
     for (const msg of messages) {
@@ -523,7 +551,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         // (processed earlier in the same loop iteration) always takes priority
         // because it arrives *after* find_customer in the same assistant turn.
         if (toolName === 'find_customer' && p.output) {
-          const result = unwrapMcpResult(p.output);
+          const result = unwrapMcpResult(p.output) as CustomerToolResult | null;
           const first = result?.customers?.[0] ?? (result?.id ? result : null);
           if (first?.id) {
             newCustomerId = String(first.id);
@@ -533,7 +561,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         }
 
         if (toolName === 'cart_summary' && p.input) {
-          const args = p.input as any;
+          const args = p.input as CartSummaryToolArgs;
           sawAnyOrderSignal = true;
           // cart_summary's `customer` field is an object ({name, email} — see
           // cartSummarySchema), not a plain string. Assigning it directly
@@ -541,7 +569,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           orderCustomerName = args.customer?.name || orderCustomerName;
           orderCartValue = {
             cartId: args.cartId,
-            items: (args.items || []).map((it: any) => ({ sku: it.sku, name: it.name, price: it.lineTotal ?? it.price, quantity: it.quantity ?? it.qty })),
+            items: (args.items || []).map((it) => ({ sku: it.sku, name: it.name ?? "Item", price: it.lineTotal ?? it.price, quantity: it.quantity ?? it.qty ?? 1 })),
             itemCount: args.itemCount,
             total: args.total,
           };
@@ -549,7 +577,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         }
 
         if (toolName === 'action_approval' && p.input) {
-          const args = p.input as any;
+          const args = p.input as ActionApprovalToolArgs;
           sawAnyOrderSignal = true;
           orderPendingApproval = { action: args.title, summary: args.description };
           sawAnyTicketSignal = true;
@@ -559,14 +587,14 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         }
 
         if (toolName === 'order_confirmation' && p.input) {
-          const args = p.input as any;
+          const args = p.input as OrderConfirmationToolArgs;
           sawAnyOrderSignal = true;
           orderPlaced = { orderId: args.orderId, orderNumber: args.orderNumber, total: args.total };
           orderPendingApproval = undefined;
         }
 
         if (toolName === 'create_ticket' && p.output) {
-          const result = unwrapMcpResult(p.output);
+          const result = unwrapMcpResult(p.output) as TicketCreatedToolResult | null;
           if (result && (result.ticketNumber || result.id || result._id)) {
             sawAnyTicketSignal = true;
             ticketCreated = { ticketNumber: result.ticketNumber, id: result.id || result._id };
@@ -575,7 +603,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         }
 
         if (toolName === 'check_return_eligibility' && p.output) {
-          const result = unwrapMcpResult(p.output);
+          const result = unwrapMcpResult(p.output) as ReturnEligibilityToolResult | null;
           if (result && typeof result.eligible === 'boolean') {
             sawAnyReturnSignal = true;
             returnEligibility = { eligible: result.eligible, reason: result.eligible ? undefined : (result.reason ?? (Array.isArray(result.reasons) ? result.reasons.join(' ') : undefined)) };
@@ -584,7 +612,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                 id: result.order.id,
                 orderNumber: result.order.orderNumber,
                 total: result.order.totalPrice,
-                lineItems: Array.isArray(result.order.lineItems) ? result.order.lineItems.map((li: any) => ({ lineItemId: li.lineItemId, name: li.name, quantity: li.quantity, price: li.price })) : []
+                lineItems: Array.isArray(result.order.lineItems) ? result.order.lineItems.map((li) => ({ lineItemId: li.lineItemId, name: li.name, quantity: li.quantity ?? 1, price: li.price })) : []
               };
             }
           }
@@ -597,7 +625,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         // returnWorkflow.completed could never populate, leaving the
         // stepper stuck showing "Submitting…" even after a real success.
         if (toolName === 'start_return' && p.output) {
-          const result = unwrapMcpResult(p.output);
+          const result = unwrapMcpResult(p.output) as StartReturnToolResult | null;
           if (result?.success) {
             sawAnyReturnSignal = true;
             returnCompleted = {
@@ -870,7 +898,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             {messages.length > 0 && (
               <button 
                 onClick={() => {
-                  (window as any).__csaClearBriefing?.();
+                  window.__csaClearBriefing?.();
                   window.location.reload(); // Simple clear for now
                 }}
                 className="text-[10px] text-m-text-muted hover:text-m-text flex items-center gap-1 transition-colors"
@@ -973,7 +1001,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                 onClick={() => action.onClick(action.steer)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white text-m-text border border-m-border transition-colors whitespace-nowrap text-xs font-medium shadow-sm hover:shadow-md ${action.hoverClass}`}
               >
-                <Icon name={action.icon as any} size="xs" className={action.iconClass} />
+                <Icon name={action.icon} size="xs" className={action.iconClass} />
                 {action.title}
               </button>
             ))}

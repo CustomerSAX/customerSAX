@@ -16,43 +16,9 @@ import {
   Button,
   SearchBar,
   Select,
-  Avatar,
   Icon
 } from "@csa/ui";
 import { PageHeader } from "./PageHeader";
-
-const ticketsData = [
-  ["CSA-1024", "Mia Johnson", "Phone", "Open", "High", "Delivery", "Order delayed after payment capture", "A. Kumar"],
-  ["CSA-1025", "Rahul Mehta", "Email", "In progress", "Normal", "Cart", "Discount code not applied", "S. Patel"],
-  ["CSA-1026", "Sofia Garcia", "Chat", "Waiting", "Low", "Product", "Availability confirmation", "Queue"]
-];
-
-const customersData = [
-  ["cst-1001", "Mia", "Johnson", "Northwind Retail", "mia@example.com", "Gold", "2026-08-01"],
-  ["cst-1002", "Rahul", "Mehta", "Acme Supply", "rahul@example.com", "B2B buyer", "2026-07-29"],
-  ["cst-1003", "Sofia", "Garcia", "Individual", "sofia@example.com", "Retail", "2026-07-25"]
-];
-
-const ordersData = [
-  ["ORD-54019", "Mia Johnson", "mia@example.com", "$342.20", "4", "Processing", "Pending", "2026-08-05"],
-  ["ORD-54020", "Rahul Mehta", "rahul@example.com", "$89.00", "2", "Shipped", "Paid", "2026-08-05"],
-  ["ORD-54021", "Sofia Garcia", "sofia@example.com", "$1,240.00", "6", "Payment review", "Review", "2026-08-04"]
-];
-
-const cartsData = [
-  ["CRT-881", "--", "Mia Johnson", "$184.20", "4", "Active", "2026-08-05", "2026-08-05"],
-  ["CRT-882", "--", "Rahul Mehta", "$89.00", "2", "Merged", "2026-08-04", "2026-08-05"],
-  ["CRT-883", "--", "Sofia Garcia", "$1,240.00", "6", "Quote requested", "2026-08-03", "2026-08-04"]
-];
-
-const productsData = [
-  ["Warehouse Trolley", "Industrial equipment", "warehouse-trolley", "WT-100", "$249.00", "In stock", "Published"],
-  ["Safety Gloves", "PPE", "safety-gloves", "SG-240", "$12.50", "In stock", "Published"],
-  ["Packing Tape", "Packaging", "packing-tape", "PT-500", "$6.20", "Low stock", "Published"]
-];
-// Note: productsData is kept for reference only; ProductsPageView now delegates to
-// the full-parity ProductListView (features/products/components/ProductListView.tsx).
-void productsData;
 
 function ModuleToolbar({
   actionLabel,
@@ -150,6 +116,7 @@ function ModuleDataTable({
         ))}
       </TableBody>
       <TablePagination
+        as="tfoot"
         page={page}
         totalPages={1}
         totalItems={rows.length}
@@ -175,7 +142,7 @@ export function TicketsPageView() {
       />
       <ModuleDataTable
         columns={["Ticket Number", "Customer", "Source", "Status", "Priority", "Category", "Subject", "Assignee"]}
-        rows={ticketsData}
+        rows={[]}
         routePrefix="/tickets"
       />
     </>
@@ -183,7 +150,6 @@ export function TicketsPageView() {
 }
 
 export function CustomersPageView() {
-  const router = useRouter();
   return (
     <>
       <PageHeader
@@ -196,34 +162,11 @@ export function CustomersPageView() {
         options={["All Fields", "Email", "First Name", "Last Name", "Company"]}
         searchPlaceholder="Search customers..."
       />
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {["Customer ID", "First Name", "Last Name", "Company", "Email", "Group", "Date Created"].map((col) => (
-              <TableHead key={col}>{col}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {customersData.map((row, idx) => (
-            <TableRow key={idx} clickable onClick={() => router.push(`/customers/${row[0]}`)}>
-              <TableCell className="font-bold text-m-primary">{row[0]}</TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Avatar name={`${row[1]} ${row[2]}`} size="xs" />
-                  <span>{row[1]}</span>
-                </div>
-              </TableCell>
-              <TableCell>{row[2]}</TableCell>
-              <TableCell>{row[3]}</TableCell>
-              <TableCell>{row[4]}</TableCell>
-              <TableCell><Badge variant="primary" size="sm">{row[5]}</Badge></TableCell>
-              <TableCell>{row[6]}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-        <TablePagination page={1} totalPages={1} totalItems={customersData.length} onPageChange={() => {}} />
-      </Table>
+      <ModuleDataTable
+        columns={["Customer ID", "First Name", "Last Name", "Company", "Email", "Group", "Date Created"]}
+        rows={[]}
+        routePrefix="/customers"
+      />
     </>
   );
 }
@@ -239,7 +182,7 @@ export function OrdersPageView() {
       <ModuleToolbar options={["All Fields", "Customer Email", "Order Number", "SKU", "Order Status"]} searchPlaceholder="Search orders..." />
       <ModuleDataTable
         columns={["Order Number", "Customer", "Customer Email", "Order Total", "Items", "Order Status", "Payment Status", "Created"]}
-        rows={ordersData}
+        rows={[]}
         routePrefix="/orders"
       />
     </>
@@ -257,7 +200,7 @@ export function CartPageView() {
       <ModuleToolbar options={["Cart ID", "Customer Email"]} searchPlaceholder="Search carts..." />
       <ModuleDataTable
         columns={["Cart ID", "Order Number", "Customer", "Cart Total", "Items", "Cart Status", "Created", "Modified"]}
-        rows={cartsData}
+        rows={[]}
         routePrefix="/cart"
       />
     </>
@@ -272,4 +215,3 @@ export function CsaAssistantPageView() {
     <CsaAssistant />
   );
 }
-

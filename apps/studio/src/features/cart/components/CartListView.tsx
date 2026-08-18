@@ -20,9 +20,12 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  TablePagination,
+  useDataTable,
 } from "@csa/ui";
 import { useCartStore } from "../hooks/use-carts";
 import type { Cart, CartState } from "../types/cart-types";
+import { formatDate } from "@/lib/format-date";
 
 const SEARCH_OPTIONS = [
   { value: "all", label: "All fields" },
@@ -30,25 +33,27 @@ const SEARCH_OPTIONS = [
   { value: "customerEmail", label: "Customer email" },
 ];
 
+function formatCurrency(value: number, currencyCode = "USD") {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode,
+  }).format(value);
+}
+
 export function CartListView() {
   const router = useRouter();
   const pathname = usePathname();
   const isB2b = pathname?.startsWith("/b2b");
 
-  const { carts } = useCartStore();
+  const { carts, loading, error, reloadCarts } = useCartStore();
 
   const [searchOption, setSearchOption] = useState("id");
   const [searchText, setSearchText] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState<{ option: string; text: string } | null>(null);
 
-  const [sortColumn, setSortColumn] = useState<keyof Cart>("createdAt");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
-
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setCurrentPage(1);
+    resetPage();
     setSubmittedSearch({ option: searchOption, text: searchText.trim().toLowerCase() });
   };
 
@@ -56,17 +61,15 @@ export function CartListView() {
     setSearchOption("id");
     setSearchText("");
     setSubmittedSearch(null);
-    setCurrentPage(1);
+    resetPage();
   };
 
   const filteredCarts = useMemo(() => {
-    let result = [...carts];
-
     if (submittedSearch && submittedSearch.text) {
       const q = submittedSearch.text;
       const opt = submittedSearch.option;
 
-      result = result.filter((cart) => {
+      return carts.filter((cart) => {
         if (opt === "id") {
           return (
             cart.id.toLowerCase().includes(q) ||
@@ -87,38 +90,32 @@ export function CartListView() {
       });
     }
 
-    result.sort((a, b) => {
-      let valA: any = a[sortColumn] ?? "";
-      let valB: any = b[sortColumn] ?? "";
+    return carts;
+  }, [carts, submittedSearch]);
 
-      if (sortColumn === "createdAt" || sortColumn === "lastModifiedAt") {
-        valA = new Date(valA).getTime();
-        valB = new Date(valB).getTime();
-      }
-
-      if (valA < valB) return sortDirection === "asc" ? -1 : 1;
-      if (valA > valB) return sortDirection === "asc" ? 1 : -1;
-      return 0;
-    });
-
-    return result;
-  }, [carts, submittedSearch, sortColumn, sortDirection]);
-
-  const totalItems = filteredCarts.length;
-  const totalPages = Math.ceil(totalItems / pageSize) || 1;
-  const paginatedCarts = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredCarts.slice(start, start + pageSize);
-  }, [filteredCarts, currentPage, pageSize]);
-
-  const handleSort = (col: keyof Cart) => {
-    if (sortColumn === col) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(col);
-      setSortDirection("desc");
-    }
-  };
+  const {
+    page: currentPage,
+    pageSize,
+    paginatedRows: paginatedCarts,
+    resetPage,
+    setPage: setCurrentPage,
+    sortDirection,
+    sortKey: sortColumn,
+    totalItems,
+    totalPages,
+    onSort: handleSort,
+  } = useDataTable<Cart, keyof Cart>({
+    rows: filteredCarts,
+    initialSortKey: "createdAt",
+    initialSortDirection: "desc",
+    newSortDirection: "desc",
+    pageSize: 20,
+    getSortValue: (cart, key) => {
+      const value = cart[key];
+      if (key === "createdAt" || key === "lastModifiedAt") return value ? new Date(String(value)).getTime() : 0;
+      return value;
+    },
+  });
 
   const renderStatusBadge = (state: CartState) => {
     switch (state) {
@@ -180,7 +177,20 @@ export function CartListView() {
           <CardTitle>Shopping Carts ({filteredCarts.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {paginatedCarts.length > 0 ? (
+          {loading ? (
+            <div className="p-8 text-center space-y-2">
+              <div className="font-bold text-sm text-m-text">Loading carts</div>
+              <p className="text-xs text-m-text-muted">Fetching carts from the commerce backend.</p>
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center space-y-3">
+              <div className="font-bold text-sm text-m-error">Unable to load carts</div>
+              <p className="text-xs text-m-text-muted">{error}</p>
+              <Button type="button" variant="secondary" size="sm" onClick={reloadCarts}>
+                Retry
+              </Button>
+            </div>
+          ) : paginatedCarts.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -207,6 +217,7 @@ export function CartListView() {
                 {paginatedCarts.map((cart) => {
                   const lineItemsCount = cart.lineItems.length;
                   const totalItemsQty = cart.lineItems.reduce((acc, i) => acc + i.quantity, 0);
+                  const customerLabel = cart.customerName || cart.customerId || "Guest / unassigned";
 
                   return (
                     <TableRow
@@ -230,24 +241,24 @@ export function CartListView() {
                             onClick={(e) => e.stopPropagation()}
                             className="font-semibold text-xs text-m-primary hover:underline"
                           >
-                            {cart.customerName}
+                            {customerLabel}
                           </Link>
                         ) : (
-                          <span className="text-xs text-m-text-muted italic">{cart.customerName}</span>
+                          <span className="text-xs text-m-text-muted italic">{customerLabel}</span>
                         )}
-                        <div className="text-[10px] text-m-text-muted">{cart.customerEmail}</div>
+                        <div className="text-[10px] text-m-text-muted">{cart.customerEmail || "--"}</div>
                       </TableCell>
                       <TableCell className="font-bold text-xs text-m-text font-mono">
-                        ${cart.grandTotal.toFixed(2)}
+                        {formatCurrency(cart.grandTotal, cart.currencyCode)}
                       </TableCell>
                       <TableCell className="text-xs">{lineItemsCount}</TableCell>
                       <TableCell className="text-xs font-semibold">{totalItemsQty}</TableCell>
                       <TableCell>{renderStatusBadge(cart.cartState)}</TableCell>
                       <TableCell className="text-xs text-m-text-muted">
-                        {new Date(cart.createdAt).toLocaleDateString()}
+                        {formatDate(cart.createdAt)}
                       </TableCell>
                       <TableCell className="text-xs text-m-text-muted">
-                        {new Date(cart.lastModifiedAt).toLocaleDateString()}
+                        {formatDate(cart.lastModifiedAt)}
                       </TableCell>
                     </TableRow>
                   );
@@ -268,32 +279,13 @@ export function CartListView() {
         </CardContent>
       </Card>
 
-      {/* Pagination Footer */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-2 text-xs text-m-text-muted">
-          <span>
-            Showing page {currentPage} of {totalPages} ({totalItems} carts total)
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      <TablePagination
+        page={currentPage}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }

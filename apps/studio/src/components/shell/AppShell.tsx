@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import {
   Sidebar,
@@ -81,12 +81,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user } = useCurrentUser();
   const currentUser = user ?? fallbackUser;
-
-  useEffect(() => {
-    if (user?.requiresProjectSelection) {
-      router.replace(`/select-project?callbackUrl=${encodeURIComponent(pathname || "/dashboard")}`);
-    }
-  }, [pathname, router, user?.requiresProjectSelection]);
 
   const userDisplayName = currentUser.name || currentUser.email;
   const userSubtitle = useMemo(() => roleLabel(currentUser.role), [currentUser.role]);
@@ -317,7 +311,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                     cursor: 'pointer',
                   }}
                 >
-                  {!currentUser.activeProjectKey && <option value="">Select project</option>}
                   {uniqueProjects.map((project) => (
                     <option
                       key={`${project.clientId ?? "legacy"}:${project.projectKey}`}

@@ -2,11 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
 import { bffJsonHeaders } from '@/lib/commerce-headers';
 import { requestLogger } from '@/lib/request-logger';
+import { formatDate } from '@/lib/format-date';
 import type { Logger } from '@csa/logger/client';
 
 const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/graphql';
 
-type BffResult = { ok: true; results: any[] } | { ok: false; reason: string };
+type BffCustomer = {
+  id?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
+  createdAt?: string;
+};
+type GraphqlError = { message?: string };
+type GraphqlResponse<T> = { data?: T; errors?: GraphqlError[] };
+type CustomerSearchResult = {
+  id: string;
+  name: string;
+  email: string;
+  initials: string;
+  phone: null;
+  createdAt: string | null;
+  orderCount: null;
+  lifetimeValue: null;
+  status: 'Active';
+};
+type BffResult = { ok: true; results: CustomerSearchResult[] } | { ok: false; reason: string };
+
+function graphqlErrorMessage(errors: GraphqlError[]) {
+  return errors.map((error) => error.message ?? 'Unknown GraphQL error').join('; ');
+}
 
 // No mock data here. `ok` distinguishes "BFF reachable, genuinely zero
 // matches" (real empty result, returned as-is) from "BFF unreachable/erroring"
@@ -29,15 +55,15 @@ async function queryBffCustomers(query: string, requestId: string): Promise<BffR
       }),
     }, requestId);
     if (!res.ok) return { ok: false, reason: `BFF returned HTTP ${res.status}` };
-    const data = await res.json();
-    if (data?.errors?.length) return { ok: false, reason: data.errors.map((e: any) => e.message).join('; ') };
+    const data = (await res.json()) as GraphqlResponse<{ searchCustomers?: { results?: BffCustomer[] } }>;
+    if (data.errors?.length) return { ok: false, reason: graphqlErrorMessage(data.errors) };
     const results = data?.data?.searchCustomers?.results;
     if (!Array.isArray(results)) return { ok: false, reason: 'Malformed response from commerce backend' };
 
     return {
       ok: true,
-      results: results.map((c: any) => ({
-        id: c.id,
+      results: results.map((c) => ({
+        id: c.id ?? '',
         name: [c.firstName, c.lastName].filter(Boolean).join(' ') || c.companyName || c.email || 'Customer',
         email: c.email || '',
         initials: (c.firstName?.[0] || c.email?.[0] || 'C').toUpperCase(),
@@ -45,7 +71,7 @@ async function queryBffCustomers(query: string, requestId: string): Promise<BffR
         // searchCustomers query — they are genuinely absent, not fabricated.
         // Callers must treat null as "data unavailable", not "no orders / no phone".
         phone: null,
-        createdAt: c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
+        createdAt: c.createdAt ? formatDate(c.createdAt) : null,
         orderCount: null,
         lifetimeValue: null,
         status: 'Active', // all customers returned by CT search are active

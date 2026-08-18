@@ -20,7 +20,7 @@
  * - TablePagination (resets to page 1 on search/sort)
  */
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { Fragment, useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
@@ -604,9 +604,8 @@ export function ProductListView() {
                 const hasVariants = product.variantCount > 0;
 
                 return (
-                  <>
+                  <Fragment key={product.id}>
                     <TableRow
-                      key={product.id}
                       clickable
                       onClick={() => handleRowClick(product.id)}
                     >
@@ -660,7 +659,7 @@ export function ProductListView() {
                         colSpan={totalColCount}
                       />
                     )}
-                  </>
+                  </Fragment>
                 );
               })
             )}

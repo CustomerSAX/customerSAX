@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
@@ -29,20 +29,47 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
   const isB2b = pathname?.startsWith("/b2b");
 
   const {
-    carts,
+    loading,
+    error,
     getCartById,
     sendPaymentReminder,
     placeOrderFromCart,
   } = useCartStore();
 
-  const cart = getCartById(id) || carts[0];
+  const cart = getCartById(id);
 
-  const [altEmail, setAltEmail] = useState(cart.customerEmail || "");
+  const [altEmail, setAltEmail] = useState(cart?.customerEmail || "");
   const [reminderFeedback, setReminderFeedback] = useState("");
 
   const [placing, setPlacing] = useState(false);
   const [orderCreatedId, setOrderCreatedId] = useState<string | null>(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+
+  useEffect(() => {
+    setAltEmail(cart?.customerEmail || "");
+  }, [cart]);
+
+  if (!cart) {
+    return (
+      <div className="space-y-6 pb-20">
+        <Link
+          href={`${isB2b ? "/b2b" : ""}/cart`}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-m-primary hover:text-m-primary-600 mb-3"
+        >
+          <Icon name="arrow-left" size="xs" />
+          Back to carts
+        </Link>
+        <Card variant="default">
+          <CardContent className="p-8 text-center space-y-2">
+            <div className="font-bold text-sm text-m-text">{loading ? "Loading cart" : "Cart not found"}</div>
+            <p className="text-xs text-m-text-muted">
+              {error || (loading ? "Fetching cart data from the commerce backend." : "No cart matched this ID.")}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleSendPaymentReminder = () => {
     if (!altEmail.trim()) return;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@apollo/client";
 import {
   PageHeader,
   Panel,
@@ -29,6 +30,7 @@ import { formatDate } from "@/lib/format-date";
 import { useEmployees } from "../hooks/use-employees";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
 import { useQuotes } from "@/features/quotes/hooks/use-quotes";
+import { CUSTOMER_CARTS_QUERY, CUSTOMER_ORDERS_QUERY } from "@/features/orders/api/queries";
 
 type EmployeeTab =
   | "profile"
@@ -43,27 +45,39 @@ type EmployeeTab =
   | "ticket"
   | "custom-attributes";
 
-const MOCK_CUSTOMER_CARTS = [
-  {
-    id: "cart-e991",
-    itemCount: 3,
-    totalPrice: 890.5,
-    cartState: "Active",
-    createdAt: "2026-08-05T11:20:00Z",
-  },
-];
+type MoneyResult = {
+  centAmount: number;
+  fractionDigits: number;
+};
 
-const MOCK_CUSTOMER_ORDERS = [
-  {
-    id: "ord-8812",
-    orderNumber: "ORD-10924",
-    companyName: "Royal Cyber Inc",
-    orderState: "Complete",
-    paymentState: "Paid",
-    totalPrice: 2450.0,
-    createdAt: "2026-07-15T09:45:00Z",
-  },
-];
+type EmployeeCartsData = {
+  b2bCarts: {
+    results: Array<{
+      id: string;
+      key?: string | null;
+      totalPrice?: MoneyResult | null;
+      lineItems?: Array<{ quantity?: number | null }> | null;
+    }>;
+  };
+};
+
+type EmployeeOrdersData = {
+  orderPage: {
+    results: Array<{
+      id: string;
+      orderNumber?: string | null;
+      orderState?: string | null;
+      paymentState?: string | null;
+      createdAt?: string | null;
+      totalPrice?: MoneyResult | null;
+    }>;
+  };
+};
+
+const moneyToNumber = (money?: MoneyResult | null) => {
+  if (!money) return 0;
+  return money.centAmount / 10 ** money.fractionDigits;
+};
 
 export function EmployeeDetailView({ id }: { id: string }) {
   const router = useRouter();
@@ -72,6 +86,16 @@ export function EmployeeDetailView({ id }: { id: string }) {
   const { quotes } = useQuotes();
 
   const employee = getEmployeeById(id);
+  const { data: cartsData } = useQuery<EmployeeCartsData>(CUSTOMER_CARTS_QUERY, {
+    fetchPolicy: "cache-and-network",
+    skip: !employee?.id,
+    variables: { customerId: employee?.id, limit: 20 },
+  });
+  const { data: ordersData } = useQuery<EmployeeOrdersData>(CUSTOMER_ORDERS_QUERY, {
+    fetchPolicy: "cache-and-network",
+    skip: !employee?.id,
+    variables: { customerId: employee?.id, limit: 20, offset: 0 },
+  });
   const [activeTab, setActiveTab] = useState<EmployeeTab>("profile");
 
   // Profile Edit drawer
@@ -120,8 +144,22 @@ export function EmployeeDetailView({ id }: { id: string }) {
   }
 
   // Related data for this customer/employee
-  const customerCarts = MOCK_CUSTOMER_CARTS;
-  const customerOrders = MOCK_CUSTOMER_ORDERS;
+  const customerCarts = (cartsData?.b2bCarts.results ?? []).map((cart) => ({
+    id: cart.key || cart.id,
+    itemCount: (cart.lineItems ?? []).reduce((total, item) => total + (item.quantity ?? 0), 0),
+    totalPrice: moneyToNumber(cart.totalPrice),
+    cartState: "Active",
+    createdAt: "",
+  }));
+  const customerOrders = (ordersData?.orderPage.results ?? []).map((order) => ({
+    id: order.id,
+    orderNumber: order.orderNumber || order.id,
+    companyName: employee.memberships[0]?.companyName || "--",
+    orderState: order.orderState || "--",
+    paymentState: order.paymentState || "--",
+    totalPrice: moneyToNumber(order.totalPrice),
+    createdAt: order.createdAt || "",
+  }));
   const customerQuotes = quotes.filter((q) => q.customerEmail === employee.email || q.customerId === employee.id);
 
   const handleUpdateProfile = () => {

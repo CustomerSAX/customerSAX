@@ -1,5 +1,3 @@
-"use client";
-
 import { Badge, PageHeader } from "@csa/ui";
 import { AuditLogListView } from "./AuditLogListView";
 

@@ -4,7 +4,6 @@ import { useQuery } from "@apollo/client";
 import { useState, useCallback, useMemo } from "react";
 import type { Company, CompanyAddress, CompanyAssociate, CompanyFilter, CompanySort } from "../types/company-types";
 import { COMPANIES_QUERY, COMPANY_ACTIVITY_QUERY } from "../api/queries";
-import { INITIAL_COMPANIES } from "../constants/mock-companies";
 
 type MoneyResult = {
   centAmount: number;
@@ -164,8 +163,7 @@ export function useCompanies() {
     });
 
     if (serverCompanies.length > 0) return [...companies.map(applyOverrides), ...serverCompanies.map(applyOverrides)];
-    const fallbackCompanies = companies.length > 0 ? companies : INITIAL_COMPANIES;
-    return fallbackCompanies.map(applyOverrides);
+    return companies.map(applyOverrides);
   }, [companies, companyOverrides, serverCompanies]);
 
   const loading = queryLoading && !error && serverCompanies.length === 0;

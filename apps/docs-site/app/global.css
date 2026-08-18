@@ -9,6 +9,7 @@
    4. csa-theme.css maps Fumadocs' --color-fd-* family onto the CSA tokens.
    =========================================================================== */
 @import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 @import "@csa/ui/styles/tokens.css";
 @import "./csa-theme.css";

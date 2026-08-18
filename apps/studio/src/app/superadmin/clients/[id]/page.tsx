@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { Fragment, use, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@apollo/client";
 import { PageShell, Button, Icon, EmptyState, LoadingSpinner } from "@csa/ui";
@@ -24,6 +24,7 @@ import {
   ADMIN_REMOVE_USER_FROM_CLIENT
 } from "@/features/superadmin/api/queries";
 import { useCurrentUser } from "@/lib/use-current-user";
+import { formatDate } from "@/lib/format-date";
 
 // ─── Types (mirror the apps/admin GraphQL schema) ──────────────────────────
 
@@ -110,8 +111,8 @@ function shellModeFromFlags(p: { standaloneB2cEnabled?: boolean | null; standalo
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
-export default function ClientDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [tab, setTab] = useState<TabKey>("overview");
 
   const { data, loading, error, refetch } = useQuery<{
@@ -370,7 +371,7 @@ function OverviewTab({
         <div className="grid grid-cols-2 gap-3 p-5">
           {[
             ["Created by", client.createdBy || "—"],
-            ["Created at", client.createdAt ? new Date(client.createdAt).toLocaleDateString() : "—"],
+            ["Created at", formatDate(client.createdAt)],
             ["Projects", String(projectCount)],
             ["Users", String(userCount)]
           ].map(([label, value]) => (
@@ -725,7 +726,7 @@ function ProjectsTab({
                       <td className="px-4 py-3">
                         <ShellModePicker name={`shell-${p.id}`} value={shellModeFromFlags(p)} onChange={(mode) => void handleShellChange(p, mode)} compact />
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-m-text-muted">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-m-text-muted">{formatDate(p.createdAt)}</td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <Button variant="danger" size="sm" onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
                           Remove

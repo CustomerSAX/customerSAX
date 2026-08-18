@@ -2,6 +2,19 @@
 
 import { useEffect, useState } from 'react';
 
+export type CustomerOrderSummary = {
+  id: string;
+  orderNumber?: string;
+  totalPrice?: string;
+  createdAt?: string;
+  status?: string;
+};
+
+type CustomerOrdersResponse = {
+  error?: string;
+  orders?: CustomerOrderSummary[];
+};
+
 /**
  * Fetches a customer's recent orders — same read-only BFF endpoint
  * (`/api/orders?limit=50&customerId=...`) the Orders page uses. Read-only
@@ -14,7 +27,7 @@ import { useEffect, useState } from 'react';
  * reintroduce the same fetch a second time.
  */
 export function useCustomerOrders(customerId: string | undefined | null, enabled: boolean) {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<CustomerOrderSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   // Distinct from "zero orders" — true only when the lookup itself couldn't
   // be completed (backend unreachable), never when it ran fine and the
@@ -32,7 +45,7 @@ export function useCustomerOrders(customerId: string | undefined | null, enabled
     setIsLoading(true);
     fetch(`/api/orders?limit=50&customerId=${customerId}`)
       .then(async (res) => {
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as CustomerOrdersResponse;
         if (cancelled) return;
         if (!res.ok) {
           setOrders([]);

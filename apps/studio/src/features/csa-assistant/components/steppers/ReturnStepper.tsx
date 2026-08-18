@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useConversationStore, type ReturnWorkflowSnapshot } from '../../store/conversation-store';
 import { RESOLUTION_REASONS } from './stepper-shared/resolution-reasons';
 import {

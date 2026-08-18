@@ -1,4 +1,4 @@
-export type CartState = "Active" | "Merged" | "Frozen" | "Ordered";
+export type CartState = "Active" | "Merged" | "Frozen" | "Ordered" | "Unknown";
 
 export interface CartLineItem {
   id: string;

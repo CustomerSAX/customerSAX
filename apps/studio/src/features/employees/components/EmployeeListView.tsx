@@ -33,6 +33,8 @@ const SEARCH_OPTIONS = [
   { value: "externalId", label: "External Id" },
 ];
 
+type EmployeeSearchField = "all" | "firstName" | "lastName" | "email" | "customerNumber" | "externalId";
+
 const ROLE_OPTIONS = [
   { value: "", label: "All Roles" },
   { value: "Admin", label: "Admin" },
@@ -58,7 +60,7 @@ export function EmployeeListView() {
 
   const { allCompanies } = useCompanies();
 
-  const [searchField, setSearchField] = useState<any>("all");
+  const [searchField, setSearchField] = useState<EmployeeSearchField>("all");
   const [searchText, setSearchText] = useState("");
 
   const companyOptions = [
@@ -129,7 +131,7 @@ export function EmployeeListView() {
             <Select
               value={searchField}
               options={SEARCH_OPTIONS}
-              onChange={(e) => setSearchField(e.target.value as any)}
+              onChange={(e) => setSearchField(e.target.value as EmployeeSearchField)}
               size="md"
             />
           </div>
