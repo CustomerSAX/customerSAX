@@ -41,6 +41,8 @@ export interface Quote {
   customerId: string;
   customerName: string;
   customerEmail: string;
+  currencyCode?: string;
+  itemCount?: number;
   status: QuoteStatus;
   lineItems: QuoteLineItem[];
   subtotal: number;

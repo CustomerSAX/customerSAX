@@ -31,12 +31,34 @@ export type CommerceLineItem = {
   totalPrice: Money;
 };
 
+export type CartAddress = {
+  streetNumber?: string | null;
+  streetName?: string | null;
+  apartment?: string | null;
+  building?: string | null;
+  pOBox?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  additionalStreetInfo?: string | null;
+  additionalAddressInfo?: string | null;
+};
+
 export type Cart = {
+  billingAddress?: CartAddress | null;
+  cartState?: string;
+  createdAt?: string;
   currencyCode: string;
   customerId?: string;
+  customerEmail?: string;
   id: string;
   key?: string;
+  lastModifiedAt?: string;
   lineItems: CommerceLineItem[];
+  shippingAddress?: CartAddress | null;
   totalPrice: Money;
   version: number;
 };

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { Button } from '@csa/ui';
 import { useConversationStore, type ReturnWorkflowSnapshot } from '../../store/conversation-store';
 import { RESOLUTION_REASONS } from './stepper-shared/resolution-reasons';
 import {
@@ -345,14 +346,15 @@ export function ReturnStepper({
                 <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--color-text-subtle)', marginBottom: '4px' }}>{cat}</div>
                 <div className="chip-group">
                   {RESOLUTION_REASONS[cat].map((r) => (
-                    <button
+                    <Button
                       key={r}
                       type="button"
-                      className={`chip-select ${localDraft.reason === r ? 'selected' : ''}`}
+                      variant="ghost"
+                      className={`chip-select hover:translate-y-0 ${localDraft.reason === r ? 'selected' : ''}`}
                       onClick={() => setReason(cat, r)}
                     >
                       {r}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -393,32 +395,32 @@ export function ReturnStepper({
       {(step !== 'order' || (eligibilityForSelectedOrder && !eligibilityForSelectedOrder.eligible)) && (
         <div className="options-foot">
           {step === 'order' && eligibilityForSelectedOrder && !eligibilityForSelectedOrder.eligible && (
-            <button type="button" className="btn btn-primary" onClick={backToOrderList}>
+            <Button type="button" variant="primary" onClick={backToOrderList}>
               Choose a different order
-            </button>
+            </Button>
           )}
 
           {step === 'reason' && (
-            <button className="btn btn-primary" disabled={!isReasonStepReady()} onClick={() => setStep('review')}>
+            <Button variant="primary" disabled={!isReasonStepReady()} onClick={() => setStep('review')}>
               Continue to review
-            </button>
+            </Button>
           )}
 
           {step === 'review' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <button type="button" className="btn" onClick={() => setStep('reason')}>
+              <Button type="button" variant="secondary" onClick={() => setStep('reason')}>
                 Back
-              </button>
-              <button type="button" className="btn btn-primary" disabled={isSubmitting || isLoading} onClick={submitReturn}>
+              </Button>
+              <Button type="button" variant="primary" disabled={isSubmitting || isLoading} onClick={submitReturn}>
                 {isSubmitting || isLoading ? 'Submitting…' : 'Submit for approval'}
-              </button>
+              </Button>
             </div>
           )}
 
           {step === 'done' && (
-            <button type="button" className="btn btn-primary" onClick={startNew}>
+            <Button type="button" variant="primary" onClick={startNew}>
               Start another return
-            </button>
+            </Button>
           )}
         </div>
       )}

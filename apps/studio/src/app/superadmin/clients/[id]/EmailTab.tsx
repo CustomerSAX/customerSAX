@@ -2,7 +2,20 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@apollo/client";
-import { Button, EmptyState, Icon } from "@csa/ui";
+import {
+  Button,
+  Checkbox,
+  EmptyState,
+  Icon,
+  Input,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@csa/ui";
 import {
   ADMIN_CREATE_SMTP_PROFILE,
   ADMIN_DELETE_SMTP_PROFILE,
@@ -11,7 +24,7 @@ import {
   ADMIN_UPDATE_SMTP_PROFILE,
 } from "@/features/superadmin/api/queries";
 import type { ProjectRow, SmtpProfileRow } from "./types";
-import { CARD_CLASS, INPUT_CLASS, LABEL_CLASS, PANEL_HEADER_CLASS } from "./styles";
+import { CARD_CLASS, LABEL_CLASS, PANEL_HEADER_CLASS } from "./styles";
 
 export function EmailTab({
   clientId,
@@ -83,33 +96,30 @@ export function EmailTab({
             <EmptyState icon="mail" title="No SMTP profiles yet" description="Add one (e.g. SendGrid SMTP) so CSA can send email for this client." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-m-border/60 bg-m-neutral-50">
-                  {["Label", "Host", "From", "Default", ""].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-2">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
+          <Table className="min-w-[720px]">
+            <TableHeader>
+              <TableRow>
+                {["Label", "Host", "From", "Default", ""].map((h) => (
+                  <TableHead key={h}>{h}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                 {profiles.map((s, idx) => (
                   <Fragment key={s.id}>
-                    <tr className={idx < profiles.length - 1 ? "border-b border-m-border/40" : ""}>
-                      <td className="whitespace-nowrap px-4 py-3 font-semibold">{s.name}</td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-m-text-muted">
+                    <TableRow key={s.id} className={idx < profiles.length - 1 ? "border-b border-m-border/40" : ""}>
+                      <TableCell className="whitespace-nowrap font-semibold">{s.name}</TableCell>
+                      <TableCell className="whitespace-nowrap font-mono text-m-text-muted">
                         {s.smtpHost}:{s.smtpPort}
                         {s.smtpSecure ? " (TLS)" : ""}
-                      </td>
-                      <td className="max-w-[220px] truncate px-4 py-3" title={s.emailFrom}>
+                      </TableCell>
+                      <TableCell className="max-w-[220px] truncate" title={s.emailFrom}>
                         {s.emailFrom}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell>
                         {s.isDefault ? <span className="text-[11px] font-semibold text-m-success">Default</span> : <span className="text-m-text-subtle">-</span>}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <div className="flex gap-1.5">
                           <Button variant="outline" size="sm" onClick={() => void handleTest(s)} disabled={testingId === s.id || removingId === s.id}>
                             {testingId === s.id ? "Sending..." : "Test"}
@@ -121,20 +131,19 @@ export function EmailTab({
                             Delete
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                     {testResult[s.id] && (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-2 text-[11px] text-m-text-muted">
+                      <TableRow key={`${s.id}-result`}>
+                        <TableCell colSpan={5} className="py-2 text-[11px] text-m-text-muted">
                           {testResult[s.id]}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )}
                   </Fragment>
                 ))}
-              </tbody>
-            </table>
-          </div>
+            </TableBody>
+          </Table>
         )}
       </div>
 
@@ -148,26 +157,24 @@ export function EmailTab({
         {projects.length === 0 ? (
           <div className="px-5 py-8 text-center text-xs text-m-text-muted">Add a project first to assign SMTP routing.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-xs">
-              <thead>
-                <tr className="border-b border-m-border/60 bg-m-neutral-50">
-                  {["Project key", "SMTP profile"].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-m-text-2">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
+          <Table className="min-w-[520px]">
+            <TableHeader>
+              <TableRow>
+                {["Project key", "SMTP profile"].map((h) => (
+                  <TableHead key={h}>{h}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                 {projects.map((p, idx) => (
-                  <tr key={p.id} className={idx < projects.length - 1 ? "border-b border-m-border/40" : ""}>
-                    <td className="px-4 py-3 font-mono font-semibold">{p.projectKey}</td>
-                    <td className="px-4 py-3">
-                      <select
+                  <TableRow key={p.id} className={idx < projects.length - 1 ? "border-b border-m-border/40" : ""}>
+                    <TableCell className="font-mono font-semibold">{p.projectKey}</TableCell>
+                    <TableCell>
+                      <Select
                         value={p.smtpProfileId ?? ""}
                         onChange={(e) => void handleAssignRouting(p, e.target.value)}
-                        className="h-8 max-w-[320px] cursor-pointer rounded-m-md border border-m-border bg-m-surface px-2 text-xs"
+                        size="sm"
+                        className="max-w-[320px]"
                       >
                         <option value="">Client default</option>
                         {profiles.map((s) => (
@@ -175,13 +182,12 @@ export function EmailTab({
                             {s.name} ({s.emailFrom})
                           </option>
                         ))}
-                      </select>
-                    </td>
-                  </tr>
+                      </Select>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+            </TableBody>
+          </Table>
         )}
       </div>
 
@@ -282,43 +288,37 @@ function SmtpProfileModal({
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
           <div>
             <label className={LABEL_CLASS}>Label</label>
-            <input className={INPUT_CLASS} value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={LABEL_CLASS}>Host</label>
-              <input className={INPUT_CLASS} value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} required />
+              <Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} required />
             </div>
             <div>
               <label className={LABEL_CLASS}>Port</label>
-              <input type="number" className={INPUT_CLASS} value={smtpPort} onChange={(e) => setSmtpPort(Number(e.target.value) || 587)} required />
+              <Input type="number" value={smtpPort} onChange={(e) => setSmtpPort(Number(e.target.value) || 587)} required />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={LABEL_CLASS}>Username</label>
-              <input className={INPUT_CLASS} value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} required />
+              <Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} required />
             </div>
             <div>
               <label className={LABEL_CLASS}>
                 Password {isEdit && <span className="font-normal text-m-text-muted">(leave blank to keep)</span>}
               </label>
-              <input type="password" className={INPUT_CLASS} value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)} required={!isEdit} />
+              <Input type="password" value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)} required={!isEdit} />
             </div>
           </div>
           <div>
             <label className={LABEL_CLASS}>From header</label>
-            <input className={INPUT_CLASS} placeholder="Support <noreply@example.com>" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} required />
+            <Input placeholder="Support <noreply@example.com>" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} required />
           </div>
           <div className="flex items-center gap-5">
-            <label className="flex items-center gap-2 text-xs text-m-text">
-              <input type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} className="h-3.5 w-3.5 accent-m-primary" />
-              Use TLS (typically port 465)
-            </label>
-            <label className="flex items-center gap-2 text-xs text-m-text">
-              <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} className="h-3.5 w-3.5 accent-m-primary" />
-              Default profile for this client
-            </label>
+            <Checkbox checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} label="Use TLS (typically port 465)" />
+            <Checkbox checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} label="Default profile for this client" />
           </div>
 
           {error && <p className="text-xs text-m-error">{error}</p>}

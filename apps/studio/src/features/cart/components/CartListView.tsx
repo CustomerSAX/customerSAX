@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   PageHeader,
   Card,
@@ -42,8 +42,6 @@ function formatCurrency(value: number, currencyCode = "USD") {
 
 export function CartListView() {
   const router = useRouter();
-  const pathname = usePathname();
-  const isB2b = pathname?.startsWith("/b2b");
 
   const { carts, loading, error, reloadCarts } = useCartStore();
 
@@ -224,8 +222,7 @@ export function CartListView() {
                       key={cart.id}
                       clickable
                       onClick={() => {
-                        const prefix = isB2b ? "/b2b" : "";
-                        router.push(`${prefix}/cart/${cart.id}`);
+                        router.push(`/cart/${cart.id}`);
                       }}
                     >
                       <TableCell className="font-mono text-xs font-bold text-m-primary">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Button, Checkbox, Input, Select } from '@csa/ui';
 import './stepper.css';
 import type { OrderWorkflowSnapshot } from '../../store/conversation-store';
 import {
@@ -373,7 +374,7 @@ export function CreateOrderStepper({
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.3-4.3" />
               </svg>
-              <input
+              <Input
                 className="search-input"
                 placeholder="Search products by name or SKU..."
                 value={productSearch}
@@ -413,12 +414,12 @@ export function CreateOrderStepper({
                       <div className="product-price">{money(p.price)}</div>
                       {stockLabel}
                       <div className="qty-row">
-                        <button className="qty-btn" onClick={() => changeQty(p.sku, -1)} disabled={p.stock <= 0}>−</button>
+                        <Button className="qty-btn hover:translate-y-0" variant="secondary" size="sm" onClick={() => changeQty(p.sku, -1)} disabled={p.stock <= 0}>−</Button>
                         <span className="qty-val">{q}</span>
-                        <button className="qty-btn" onClick={() => changeQty(p.sku, 1)} disabled={p.stock <= 0}>+</button>
-                        <button className="add-btn" onClick={() => addToCart(p.sku, p.name)} disabled={p.stock <= 0}>
+                        <Button className="qty-btn hover:translate-y-0" variant="secondary" size="sm" onClick={() => changeQty(p.sku, 1)} disabled={p.stock <= 0}>+</Button>
+                        <Button className="add-btn hover:translate-y-0" variant="primary" size="sm" onClick={() => addToCart(p.sku, p.name)} disabled={p.stock <= 0}>
                           {inCart ? 'Add more' : 'Add to Cart'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   );
@@ -470,7 +471,7 @@ export function CreateOrderStepper({
                   {localDraft.discount.type === 'percent' && '✓'}
                 </div>
                 {localDraft.discount.type === 'percent' && (
-                  <input
+                  <Input
                     className="discount-input"
                     type="number"
                     placeholder="%"
@@ -488,7 +489,7 @@ export function CreateOrderStepper({
                   {localDraft.discount.type === 'fixed' && '✓'}
                 </div>
                 {localDraft.discount.type === 'fixed' && (
-                  <input
+                  <Input
                     className="discount-input"
                     type="number"
                     placeholder="$"
@@ -510,34 +511,34 @@ export function CreateOrderStepper({
             <div className="form-grid">
               <div>
                 <label className="field-label">Full name</label>
-                <input className="input" onChange={(e) => updateField('billing', 'name', e.target.value)} value={localDraft.billing.name} />
+                <Input onChange={(e) => updateField('billing', 'name', e.target.value)} value={localDraft.billing.name} />
               </div>
               <div>
                 <label className="field-label">Country</label>
-                <select className="input" onChange={(e) => updateField('billing', 'country', e.target.value)} value={localDraft.billing.country}>
+                <Select onChange={(e) => updateField('billing', 'country', e.target.value)} value={localDraft.billing.country}>
                   {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-                </select>
+                </Select>
               </div>
             </div>
             <div className="form-grid">
               <div style={{ gridColumn: 'span 2' }}>
                 <label className="field-label">Street address</label>
-                <input className="input" onChange={(e) => updateField('billing', 'street', e.target.value)} value={localDraft.billing.street} />
+                <Input onChange={(e) => updateField('billing', 'street', e.target.value)} value={localDraft.billing.street} />
               </div>
             </div>
             <div className="form-grid">
               <div>
                 <label className="field-label">City</label>
-                <input className="input" onChange={(e) => updateField('billing', 'city', e.target.value)} value={localDraft.billing.city} />
+                <Input onChange={(e) => updateField('billing', 'city', e.target.value)} value={localDraft.billing.city} />
               </div>
               <div>
                 <label className="field-label">Postal code</label>
-                <input className="input" onChange={(e) => updateField('billing', 'postal', e.target.value)} value={localDraft.billing.postal} />
+                <Input onChange={(e) => updateField('billing', 'postal', e.target.value)} value={localDraft.billing.postal} />
               </div>
             </div>
 
             <div className="toggle-row" onClick={toggleSameAsBilling}>
-              <input type="checkbox" checked={localDraft.sameAsBilling} readOnly />
+              <Checkbox checked={localDraft.sameAsBilling} readOnly size="sm" />
               Shipping address is the same as billing
             </div>
 
@@ -547,29 +548,29 @@ export function CreateOrderStepper({
                 <div className="form-grid">
                   <div>
                     <label className="field-label">Full name</label>
-                    <input className="input" onChange={(e) => updateField('shipping', 'name', e.target.value)} value={localDraft.shipping.name} />
+                    <Input onChange={(e) => updateField('shipping', 'name', e.target.value)} value={localDraft.shipping.name} />
                   </div>
                   <div>
                     <label className="field-label">Country</label>
-                    <select className="input" onChange={(e) => updateField('shipping', 'country', e.target.value)} value={localDraft.shipping.country}>
+                    <Select onChange={(e) => updateField('shipping', 'country', e.target.value)} value={localDraft.shipping.country}>
                       {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-                    </select>
+                    </Select>
                   </div>
                 </div>
                 <div className="form-grid">
                   <div style={{ gridColumn: 'span 2' }}>
                     <label className="field-label">Street address</label>
-                    <input className="input" onChange={(e) => updateField('shipping', 'street', e.target.value)} value={localDraft.shipping.street} />
+                    <Input onChange={(e) => updateField('shipping', 'street', e.target.value)} value={localDraft.shipping.street} />
                   </div>
                 </div>
                 <div className="form-grid">
                   <div>
                     <label className="field-label">City</label>
-                    <input className="input" onChange={(e) => updateField('shipping', 'city', e.target.value)} value={localDraft.shipping.city} />
+                    <Input onChange={(e) => updateField('shipping', 'city', e.target.value)} value={localDraft.shipping.city} />
                   </div>
                   <div>
                     <label className="field-label">Postal code</label>
-                    <input className="input" onChange={(e) => updateField('shipping', 'postal', e.target.value)} value={localDraft.shipping.postal} />
+                    <Input onChange={(e) => updateField('shipping', 'postal', e.target.value)} value={localDraft.shipping.postal} />
                   </div>
                 </div>
               </>
@@ -664,12 +665,12 @@ export function CreateOrderStepper({
             </div>
 
             <div className="btn-row" style={{ marginTop: '9px', marginBottom: '9px' }}>
-              <button className="btn" onClick={() => setStep('shipping')}>Back</button>
-              <button className="btn" onClick={requestPaymentReminder}>Send payment reminder</button>
+              <Button variant="secondary" onClick={() => setStep('shipping')}>Back</Button>
+              <Button variant="secondary" onClick={requestPaymentReminder}>Send payment reminder</Button>
             </div>
-            <button className="btn btn-primary" disabled={isPlacingOrder || cartItems.length === 0} onClick={placeOrder}>
+            <Button variant="primary" disabled={isPlacingOrder || cartItems.length === 0} onClick={placeOrder}>
               {isPlacingOrder ? 'Placing your order…' : 'Place order'}
-            </button>
+            </Button>
           </>
         )}
 
@@ -685,27 +686,27 @@ export function CreateOrderStepper({
       {step !== 'customer' && step !== 'shipping' && step !== 'review' && (
         <div className="options-foot">
           {step === 'items' && (
-            <button className="btn btn-primary" disabled={cartItems.length === 0} onClick={continueToDiscount}>
+            <Button variant="primary" disabled={cartItems.length === 0} onClick={continueToDiscount}>
               Continue to discounts
-            </button>
+            </Button>
           )}
 
           {step === 'discount' && (
-            <button className="btn btn-primary" onClick={continueToAddress}>
+            <Button variant="primary" onClick={continueToAddress}>
               Continue to addresses
-            </button>
+            </Button>
           )}
 
           {step === 'address' && (
-            <button className="btn btn-primary" onClick={continueToShipping}>
+            <Button variant="primary" onClick={continueToShipping}>
               Continue to shipping method
-            </button>
+            </Button>
           )}
 
           {step === 'done' && (
-            <button className="btn btn-primary" onClick={startNew}>
+            <Button variant="primary" onClick={startNew}>
               Start another order
-            </button>
+            </Button>
           )}
         </div>
       )}

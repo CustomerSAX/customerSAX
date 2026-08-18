@@ -50,16 +50,45 @@ const sidebarGroups: SidebarGroup[] = [
   }
 ];
 
-const b2bSidebarGroup: SidebarGroup = {
-  id: "b2b-operations",
-  title: "B2B Operations",
-  items: [
-    { id: "b2b-company", href: "/b2b/company", label: "Companies", icon: "building-2" },
-    { id: "b2b-employees", href: "/b2b/employees", label: "Employees", icon: "user-check" },
-    { id: "b2b-quotes", href: "/b2b/quotes", label: "Quotes", icon: "file-text" },
-    { id: "b2b-import-export", href: "/b2b/import-export", label: "Import / Export", icon: "arrow-left-right" }
-  ]
-};
+const b2bSidebarGroups: SidebarGroup[] = [
+  {
+    id: "operations",
+    title: "Operations",
+    items: [
+      { id: "dashboard", href: "/dashboard", label: "Dashboard", icon: "layout-dashboard" },
+      { id: "tickets", href: "/tickets", label: "Tickets", icon: "ticket-check" }
+    ]
+  },
+  {
+    id: "business-unit",
+    title: "Business Unit",
+    items: [
+      { id: "b2b-company", href: "/b2b/company", label: "Companies", icon: "building-2" },
+      { id: "b2b-employees", href: "/b2b/employees", label: "Employees", icon: "users" },
+      { id: "b2b-import-export", href: "/b2b/import-export", label: "Import / Export", icon: "upload" }
+    ]
+  },
+  {
+    id: "commerce",
+    title: "Commerce",
+    items: [
+      { id: "orders", href: "/orders", label: "Orders", icon: "shopping-bag" },
+      { id: "cart", href: "/cart", label: "Cart", icon: "shopping-cart" },
+      { id: "b2b-quotes", href: "/b2b/quotes", label: "Quotes", icon: "file-text" },
+      { id: "products", href: "/products", label: "Products", icon: "package" }
+    ]
+  },
+  {
+    id: "intelligence",
+    title: "Intelligence",
+    items: [{ id: "csa-assistant", href: "/csa-assistant", label: "CSA Assistant", icon: "sparkles" }]
+  },
+  {
+    id: "administration",
+    title: "Administration",
+    items: [{ id: "audit-log", href: "/admin/audit-log", label: "Audit Log", icon: "lock" }]
+  }
+];
 
 // FAIL-CLOSED: when /api/auth/me hasn't resolved (or failed), we must NOT render
 // the console as an administrator. This fallback is a NON-privileged identity —
@@ -86,24 +115,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   const userSubtitle = useMemo(() => roleLabel(currentUser.role), [currentUser.role]);
 
   const isB2bMode = useMemo(() => {
+    const activeProject = currentUser.projects.find(
+      (project) =>
+        project.projectKey === currentUser.activeProjectKey &&
+        (project.clientId ?? "") === (currentUser.activeClientId ?? "")
+    );
+    const activeShellMode = currentUser.activeProjectShellMode ?? activeProject?.shellMode;
+    const activeProjectKey = currentUser.activeProjectKey ?? currentUser.projectKey ?? activeProject?.projectKey ?? "";
+
     return (
+      activeShellMode === "b2b" ||
+      activeProjectKey.toLowerCase().includes("b2b") ||
       process.env.NEXT_PUBLIC_PROJECT_TYPE === "B2B" ||
       process.env.NEXT_PUBLIC_CT_BUSINESS_TYPE === "B2B" ||
       pathname?.startsWith("/b2b")
     );
-  }, [pathname]);
+  }, [
+    currentUser.activeClientId,
+    currentUser.activeProjectKey,
+    currentUser.activeProjectShellMode,
+    currentUser.projectKey,
+    currentUser.projects,
+    pathname
+  ]);
 
   const groups = useMemo(() => {
-    let baseGroups = [...sidebarGroups];
-    if (isB2bMode) {
-      // Insert B2B Operations right after Commerce
-      const commerceIdx = baseGroups.findIndex((g) => g.id === "commerce");
-      if (commerceIdx !== -1) {
-        baseGroups.splice(commerceIdx + 1, 0, b2bSidebarGroup);
-      } else {
-        baseGroups.push(b2bSidebarGroup);
-      }
-    }
+    let baseGroups = isB2bMode ? [...b2bSidebarGroups] : [...sidebarGroups];
     baseGroups = baseGroups.map((group) =>
       group.id === "administration"
         ? {
@@ -198,6 +235,47 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   };
 
+  const sidebarBrand = (
+    <div className="flex items-center gap-2.5">
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 'var(--radius-lg)',
+          background: 'var(--csa-yellow-500)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--csa-navy-950)', lineHeight: 1 }}>C</span>
+      </div>
+      <div className="flex flex-col min-w-0">
+        <span
+          style={{
+            fontSize: 'var(--text-base)',
+            fontWeight: 'var(--weight-bold)',
+            color: 'var(--csa-white)',
+            letterSpacing: '-0.02em',
+            lineHeight: 1.1,
+          }}
+        >
+          customerSAX
+        </span>
+        <span
+          style={{
+            fontSize: 'var(--text-xs)',
+            color: 'var(--sidebar-text)',
+            marginTop: 1,
+          }}
+        >
+          Studio
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <div
       className="flex h-screen overflow-hidden font-sans"
@@ -205,46 +283,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     >
       {/* ── CSA Sidebar ──────────────────────────── */}
       <Sidebar
-        brand={
-          <div className="flex items-center gap-2.5">
-            <div
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 'var(--radius-lg)',
-                background: 'var(--csa-yellow-500)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--csa-navy-950)', lineHeight: 1 }}>C</span>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span
-                style={{
-                  fontSize: 'var(--text-base)',
-                  fontWeight: 'var(--weight-bold)',
-                  color: 'var(--csa-white)',
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.1,
-                }}
-              >
-                customerSAX
-              </span>
-              <span
-                style={{
-                  fontSize: 'var(--text-xs)',
-                  color: 'var(--sidebar-text)',
-                  marginTop: 1,
-                }}
-              >
-                Studio
-              </span>
-            </div>
-          </div>
-        }
+        brand={sidebarBrand}
         groups={groups}
         activeItemId={activeItemId}
         onSelectItem={handleSelectItem}

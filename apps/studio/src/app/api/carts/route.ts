@@ -8,10 +8,15 @@ const BFF_URL = process.env.AI_COMMERCE_SERVICE_URL ?? 'http://localhost:4000/gr
 const HEADERS = bffJsonHeaders();
 
 // Only fields exposed by the BFF's Cart / CartLineItem schema.
-// Cart: id, version, key, customerId, currencyCode, totalPrice, lineItems
 // CartLineItem: id, productId, sku, name, quantity, totalPrice
 const CART_FIELDS = `
-  id version key customerId currencyCode
+  id version key customerId customerEmail createdAt lastModifiedAt cartState currencyCode
+  shippingAddress {
+    streetNumber streetName apartment building pOBox city state postalCode country phone mobile additionalStreetInfo additionalAddressInfo
+  }
+  billingAddress {
+    streetNumber streetName apartment building pOBox city state postalCode country phone mobile additionalStreetInfo additionalAddressInfo
+  }
   totalPrice { centAmount currencyCode fractionDigits }
   lineItems { id productId sku name quantity totalPrice { centAmount currencyCode fractionDigits } }
 `;

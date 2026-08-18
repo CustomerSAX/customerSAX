@@ -1,7 +1,5 @@
 import type {
-  ReportExportRow,
   ReportPermissions,
-  ReportTypeKey,
   ReportTypeOption,
 } from "../types/report-types";
 
@@ -30,8 +28,4 @@ const DEFAULT_PERMISSIONS: ReportPermissions = {
 
 export function useReportPermissions(): ReportPermissions {
   return DEFAULT_PERMISSIONS;
-}
-
-export function getReportRows(_type: ReportTypeKey): ReportExportRow[] {
-  return [];
 }

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Button,
   Input,
   Label,
+  Select,
   Table,
   TableHeader,
   TableBody,
@@ -61,6 +62,13 @@ type ProductSearchResult = {
   };
 };
 
+type DiscountCodeOption = {
+  id?: string;
+  code: string;
+  name?: string;
+  isActive?: boolean;
+};
+
 function toCatalogProduct(product: ProductSearchResult): CatalogProduct {
   const centAmount = product.price?.centAmount ?? 0;
   const fractionDigits = product.price?.fractionDigits ?? 2;
@@ -94,10 +102,8 @@ function ProductThumbnail({ src }: { src?: string }) {
 
 export function CartDetailView({ id }: CartDetailViewProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
-  const isB2b = pathname?.startsWith("/b2b");
 
   const {
     loading,
@@ -105,6 +111,7 @@ export function CartDetailView({ id }: CartDetailViewProps) {
     getCartById,
     updateLineItemQuantity,
     addLineItemToCart,
+    applyDiscountCode,
   } = useCartStore();
 
   const cart = getCartById(id);
@@ -123,6 +130,11 @@ export function CartDetailView({ id }: CartDetailViewProps) {
   const [searchCatalogResults, setSearchCatalogResults] = useState<CatalogProduct[]>([]);
   const [searchSelectedQty, setSearchSelectedQty] = useState<Record<string, number>>({});
   const [catalogFeedback, setCatalogFeedback] = useState("");
+  const [discountCodes, setDiscountCodes] = useState<DiscountCodeOption[]>([]);
+  const [selectedDiscountCode, setSelectedDiscountCode] = useState("");
+  const [discountCodesLoading, setDiscountCodesLoading] = useState(false);
+  const [discountCodesError, setDiscountCodesError] = useState("");
+  const [discountFeedback, setDiscountFeedback] = useState("");
 
   useEffect(() => {
     if (!cart) return;
@@ -133,10 +145,49 @@ export function CartDetailView({ id }: CartDetailViewProps) {
     setStagedQuantities(next);
   }, [cart]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDiscountCodes() {
+      setDiscountCodesLoading(true);
+      setDiscountCodesError("");
+      try {
+        const response = await fetch("/api/discount-codes");
+        const payload = (await response.json().catch(() => ({}))) as {
+          results?: DiscountCodeOption[];
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Unable to load discount codes.");
+        }
+
+        if (!cancelled) {
+          setDiscountCodes(Array.isArray(payload.results) ? payload.results : []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDiscountCodes([]);
+          setDiscountCodesError(error instanceof Error ? error.message : "Unable to load discount codes.");
+        }
+      } finally {
+        if (!cancelled) {
+          setDiscountCodesLoading(false);
+        }
+      }
+    }
+
+    void loadDiscountCodes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!cart) {
     return (
       <DetailPage>
-        <BackLink href={isB2b ? "/b2b/cart" : "/cart"}>Back to Carts</BackLink>
+        <BackLink href="/cart">Back to Carts</BackLink>
         <CardEmpty
           icon="shopping-cart"
           title={loading ? "Loading cart" : "Cart not found"}
@@ -184,13 +235,27 @@ export function CartDetailView({ id }: CartDetailViewProps) {
     setTimeout(() => setCatalogFeedback(""), 3500);
   };
 
-  const canEditCart = cart.cartState === "Active" || cart.cartState === "Merged";
-  const showConfigureQuote = isB2b && canEditCart && Boolean(cart.customerId) && cart.discountCodes.length === 0;
+  const handleApplyDiscountCode = () => {
+    if (!selectedDiscountCode) return;
+    applyDiscountCode(cart.id, selectedDiscountCode);
+    setDiscountFeedback(`Selected code ${selectedDiscountCode}.`);
+    setSelectedDiscountCode("");
+    setTimeout(() => setDiscountFeedback(""), 3500);
+  };
 
-  const prefix = isB2b ? "/b2b" : "";
+  const canEditCart = cart.cartState === "Active" || cart.cartState === "Merged";
+  const discountDisabledReason = !canEditCart
+    ? "The cart is not in active state."
+    : discountCodesLoading
+      ? "Loading discount codes."
+      : discountCodes.length === 0
+        ? "No discount codes are available for this project."
+        : "";
+  const showConfigureQuote = canEditCart && Boolean(cart.customerId) && cart.discountCodes.length === 0;
+
   const backTarget = customerIdParam
     ? `/customers/${customerIdParam}`
-    : `${prefix}/cart`;
+    : "/cart";
 
   return (
     <DetailPage>
@@ -209,13 +274,21 @@ export function CartDetailView({ id }: CartDetailViewProps) {
         actions={
           <>
             {showConfigureQuote && (
-              <SecondaryButton onClick={() => router.push(`${prefix}/cart/${cart.id}/address-details`)}>
+              <SecondaryButton
+                onClick={() =>
+                  router.push(
+                    `/cart/${cart.id}/address-details-for-quotes${
+                      customerIdParam ? `?customerId=${customerIdParam}` : ""
+                    }`
+                  )
+                }
+              >
                 Configure Quote
               </SecondaryButton>
             )}
             <PrimaryButton
               disabled={!canEditCart || cart.lineItems.length === 0}
-              onClick={() => router.push(`${prefix}/cart/${cart.id}/address-details`)}
+              onClick={() => router.push(`/cart/${cart.id}/address-details`)}
             >
               Place Order →
             </PrimaryButton>
@@ -444,9 +517,76 @@ export function CartDetailView({ id }: CartDetailViewProps) {
           {/* Cart Discounts Section */}
           <SectionCard title="Discounts" icon="tag">
             <div className="space-y-4">
-              <div className="rounded border border-m-border bg-m-surface-2 p-3 text-xs text-m-text-muted">
-                Discount code lookup is not exposed by the commerce backend yet.
-              </div>
+              {discountCodesError ? (
+                <div className="rounded border border-m-warning-border bg-m-warning-light p-3 text-xs text-m-warning-dark">
+                  {discountCodesError}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Add discount code</Label>
+                  <div className="flex gap-2">
+                    <Select
+                      value={selectedDiscountCode}
+                      onChange={(event) => setSelectedDiscountCode(event.target.value)}
+                      disabled={Boolean(discountDisabledReason)}
+                    >
+                      <option value="">
+                        {discountCodesLoading
+                          ? "Loading discount codes..."
+                          : discountCodes.length === 0
+                            ? "No discount codes available"
+                            : "-- Select discount --"}
+                      </option>
+                      {discountCodes.map((discount) => (
+                        <option
+                          key={discount.id ?? discount.code}
+                          value={discount.code}
+                          disabled={discount.isActive === false}
+                        >
+                          {discount.name ? `${discount.name} (${discount.code})` : discount.code}
+                        </option>
+                      ))}
+                    </Select>
+                    <Button
+                      variant="primary"
+                      disabled={!canEditCart || !selectedDiscountCode}
+                      onClick={handleApplyDiscountCode}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                  {discountDisabledReason && (
+                    <div
+                      className={
+                        canEditCart
+                          ? "rounded border border-m-border bg-m-surface-2 px-3 py-2 text-xs text-m-text-muted"
+                          : "rounded border border-m-error-border bg-m-error-light px-3 py-2 text-xs font-semibold text-m-error"
+                      }
+                    >
+                      {discountDisabledReason}
+                    </div>
+                  )}
+                  {discountFeedback && (
+                    <div className="rounded border border-m-success-border bg-m-success-light px-3 py-2 text-xs font-semibold text-m-success">
+                      {discountFeedback}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Selected discount codes */}
+              {cart.discountCodes.length > 0 && (
+                <div className="pt-3 mt-2 border-t border-m-border space-y-1">
+                  <span className="text-[10px] font-bold text-m-text-muted uppercase tracking-wider block">
+                    Selected Discount Codes
+                  </span>
+                  {cart.discountCodes.map((code) => (
+                    <div key={code} className="rounded border border-m-border bg-m-surface-2 px-3 py-2 text-xs font-semibold text-m-text">
+                      {code}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Applied discounts */}
               {cart.appliedDiscounts && cart.appliedDiscounts.length > 0 && (

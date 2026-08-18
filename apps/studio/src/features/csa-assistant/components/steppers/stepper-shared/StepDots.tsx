@@ -1,5 +1,7 @@
 'use client';
 
+import { Button } from '@csa/ui';
+
 export interface StepDotsProps {
   /** Full ordered list of step ids (may include a trailing 'done' not shown in the track). */
   steps: string[];
@@ -33,9 +35,11 @@ export function StepDots({
         const cls = i < currentIdx ? 'done' : i === currentIdx ? 'active' : '';
         const clickable = isStepClickable(i);
         return (
-          <button
+          <Button
             key={s}
             type="button"
+            variant="ghost"
+            iconOnly
             className={`step-dot ${cls}`}
             onClick={() => clickable && onStepClick(s)}
             disabled={!clickable}

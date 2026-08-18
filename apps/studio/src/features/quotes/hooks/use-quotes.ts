@@ -6,6 +6,7 @@ import type { Quote, QuoteFilter, QuoteSort, QuoteStatus, QuoteNegotiationTurn, 
 
 type MoneyResult = {
   centAmount: number;
+  currencyCode?: string | null;
   fractionDigits: number;
 };
 
@@ -21,6 +22,7 @@ type QuoteResult = {
   totalPrice?: MoneyResult | null;
   createdAt?: string | null;
   lastModifiedAt?: string | null;
+  lineItemCount?: number | null;
 };
 
 type QuotesData = {
@@ -41,8 +43,10 @@ const QUOTES_QUERY = gql`
         customerId
         customerEmail
         status
+        lineItemCount
         totalPrice {
           centAmount
+          currencyCode
           fractionDigits
         }
         createdAt
@@ -85,6 +89,8 @@ function mapQuote(quote: QuoteResult): Quote {
     customerId: quote.customerId || "",
     customerName: quote.customerEmail || quote.customerId || "--",
     customerEmail: quote.customerEmail || "",
+    currencyCode: quote.totalPrice?.currencyCode || "USD",
+    itemCount: quote.lineItemCount ?? 0,
     status: toQuoteStatus(quote.status),
     lineItems: [],
     subtotal: total,

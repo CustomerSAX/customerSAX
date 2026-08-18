@@ -6,7 +6,6 @@ import type {
   CartState,
   CartLineItem,
   CartAddress,
-  CartIneffectiveDiscountRow,
 } from "../types/cart-types";
 
 type ApiMoney = {
@@ -28,9 +27,15 @@ type ApiCart = {
   id: string;
   key?: string | null;
   customerId?: string | null;
+  customerEmail?: string | null;
+  createdAt?: string | null;
+  lastModifiedAt?: string | null;
+  cartState?: CartState | null;
   currencyCode?: string | null;
   totalPrice?: ApiMoney | null;
   lineItems?: ApiCartLineItem[] | null;
+  shippingAddress?: CartAddress | null;
+  billingAddress?: CartAddress | null;
 };
 
 type ApiCartListResponse = {
@@ -68,13 +73,15 @@ function mapApiCart(cart: ApiCart): Cart {
     cartNumber: cart.key || undefined,
     customerId: cart.customerId || undefined,
     customerName: cart.customerId ? `Customer ${cart.customerId}` : "Guest / unassigned",
-    customerEmail: "",
+    customerEmail: cart.customerEmail || "",
     store: "",
     currencyCode,
-    createdAt: "",
-    lastModifiedAt: "",
-    cartState: "Unknown",
+    createdAt: cart.createdAt || "",
+    lastModifiedAt: cart.lastModifiedAt || "",
+    cartState: cart.cartState || "Unknown",
     lineItems,
+    shippingAddress: cart.shippingAddress ?? undefined,
+    billingAddress: cart.billingAddress ?? undefined,
     shippingInfo: {
       shippingMethodName: "",
       price: 0,
@@ -211,17 +218,9 @@ export function useCartStore() {
           return c;
         }
 
-        const updatedCodes = [...c.discountCodes, uppercaseCode];
-        const newIneffectiveRow: CartIneffectiveDiscountRow = {
-          code: uppercaseCode,
-          message: "Discount validation is not available from the commerce backend yet.",
-        };
-        const ineffectiveDiscounts = [...(c.ineffectiveDiscounts || []), newIneffectiveRow];
-
         return {
           ...c,
-          discountCodes: updatedCodes,
-          ineffectiveDiscounts,
+          discountCodes: [...c.discountCodes, uppercaseCode],
           lastModifiedAt: new Date().toISOString(),
         };
       })

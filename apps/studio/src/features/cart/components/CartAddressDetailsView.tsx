@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   PageHeader,
   Card,
@@ -21,6 +21,7 @@ import type { CartAddress } from "../types/cart-types";
 
 interface CartAddressDetailsViewProps {
   id: string;
+  mode?: "order" | "quote";
 }
 
 const COUNTRY_OPTIONS = [
@@ -35,12 +36,11 @@ type ShippingMethodOption = {
   name: string;
 };
 
-export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
+export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetailsViewProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
-  const isB2b = pathname?.startsWith("/b2b");
+  const isQuoteFlow = mode === "quote";
 
   const {
     loading,
@@ -91,6 +91,7 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
   const [shippingMethodFeedback, setShippingMethodFeedback] = useState("");
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>([]);
   const [shippingMethodsError, setShippingMethodsError] = useState("");
+  const [savingNext, setSavingNext] = useState(false);
 
   useEffect(() => {
     if (!cart) return;
@@ -156,7 +157,7 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
     return (
       <div className="space-y-6 pb-20">
         <Link
-          href={`${isB2b ? "/b2b" : ""}/cart`}
+          href="/cart"
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-m-primary hover:text-m-primary-600 mb-3"
         >
           <Icon name="arrow-left" size="xs" />
@@ -200,30 +201,52 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
     setTimeout(() => setShippingMethodFeedback(""), 3500);
   };
 
-  const handleNext = () => {
-    if (!shippingForm.streetName || !shippingForm.city || !shippingForm.postalCode) {
-      alert("Please complete required shipping address fields (Street Name, City, Postal Code).");
+  const handleNext = async () => {
+    if (!shippingForm.streetName || !shippingForm.city || !shippingForm.postalCode || !shippingForm.country) {
+      alert("Please complete required shipping address fields (Street Name, City, Postal Code, Country).");
       return;
     }
+    setSavingNext(true);
     updateShippingAddress(cart.id, shippingForm);
-    updateBillingAddress(cart.id, isBillingSameAsShipping ? shippingForm : billingForm);
-    const m = shippingMethods.find((x) => x.id === selectedMethodId);
-    if (m) {
-      updateShippingMethod(cart.id, selectedMethodId, m.name);
+    const nextBillingAddress = isBillingSameAsShipping ? shippingForm : billingForm;
+    updateBillingAddress(cart.id, nextBillingAddress);
+
+    try {
+      const actions: Array<Record<string, unknown>> = [
+        { setShippingAddress: { address: shippingForm } },
+        { setBillingAddress: { address: nextBillingAddress } },
+      ];
+      const m = shippingMethods.find((x) => x.id === selectedMethodId);
+      if (m) {
+        actions.push({ setShippingMethod: { shippingMethod: { typeId: "shipping-method", id: selectedMethodId } } });
+        updateShippingMethod(cart.id, selectedMethodId, m.name);
+      }
+
+      const response = await fetch(`/api/carts/${encodeURIComponent(cart.id)}/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actions }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to save cart addresses.");
+      }
+
+      const nextPath = isQuoteFlow ? "create-quote-request" : "place-order";
+      router.push(`/cart/${cart.id}/${nextPath}${customerIdParam ? `?customerId=${customerIdParam}` : ""}`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Unable to save cart addresses.");
+      setSavingNext(false);
     }
-
-    const prefix = isB2b ? "/b2b" : "";
-    router.push(`${prefix}/cart/${cart.id}/place-order${customerIdParam ? `?customerId=${customerIdParam}` : ""}`);
   };
-
-  const prefix = isB2b ? "/b2b" : "";
 
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
       <div>
         <Link
-          href={`${prefix}/cart/${cart.id}${customerIdParam ? `?customerId=${customerIdParam}` : ""}`}
+          href={`/cart/${cart.id}${customerIdParam ? `?customerId=${customerIdParam}` : ""}`}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-m-primary hover:text-m-primary-600 mb-3"
         >
           <Icon name="arrow-left" size="xs" />
@@ -232,12 +255,16 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
 
         <PageHeader
           title="Addresses & shipping"
-          subtitle="Confirm addresses and shipping method before placing the order."
+          subtitle={
+            isQuoteFlow
+              ? "Confirm addresses and shipping before requesting a quote."
+              : "Confirm addresses and shipping method before placing the order."
+          }
           actions={
             <Button
               variant="secondary"
               size="md"
-              onClick={() => router.push(`${prefix}/cart/${cart.id}`)}
+              onClick={() => router.push(`/cart/${cart.id}`)}
             >
               ← Back to cart
             </Button>
@@ -503,15 +530,15 @@ export function CartAddressDetailsView({ id }: CartAddressDetailsViewProps) {
       {/* Sticky Action Footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-m-border shadow-lg flex items-center justify-between z-40 px-8">
         <div className="flex items-center gap-3">
-          <Button variant="secondary" size="md" onClick={() => router.push(`${prefix}/cart/${cart.id}`)}>
+          <Button variant="secondary" size="md" onClick={() => router.push(`/cart/${cart.id}`)}>
             Cancel
           </Button>
           <Button variant="secondary" size="md" onClick={() => router.back()}>
             Back
           </Button>
         </div>
-        <Button variant="primary" size="md" onClick={handleNext}>
-          Next →
+        <Button variant="primary" size="md" disabled={savingNext} onClick={handleNext}>
+          {savingNext ? "Saving..." : "Next →"}
         </Button>
       </div>
     </div>

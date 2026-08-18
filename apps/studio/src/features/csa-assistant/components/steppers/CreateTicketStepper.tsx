@@ -4,6 +4,17 @@ import { useState, useEffect } from 'react';
 import { useConversationStore, type TicketWorkflowSnapshot } from '../../store/conversation-store';
 import { useAgentPresence, type AgentPresenceStatus } from '../../hooks/use-agent-presence';
 import {
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TextArea,
+} from '@csa/ui';
+import {
   CustomerResultList,
   StepperHeader,
   SuccessBox,
@@ -305,28 +316,30 @@ export function CreateTicketStepper({
             <div className="section-label">Contact type</div>
             <div className="chip-group">
               {CONTACT_TYPES.map(t => (
-                <button
+                <Button
                   key={t.id}
                   type="button"
-                  className={`chip-select ${localDraft.contactType === t.id ? 'selected' : ''}`}
+                  variant="ghost"
+                  className={`chip-select hover:translate-y-0 ${localDraft.contactType === t.id ? 'selected' : ''}`}
                   onClick={() => setLocalDraft((prev) => ({ ...prev, contactType: t.id }))}
                 >
                   {t.label}
-                </button>
+                </Button>
               ))}
             </div>
 
             <div className="section-label">Ticket category</div>
             <div className="chip-group">
               {CATEGORIES.map(c => (
-                <button
+                <Button
                   key={c.id}
                   type="button"
-                  className={`chip-select ${localDraft.category === c.id ? 'selected' : ''}`}
+                  variant="ghost"
+                  className={`chip-select hover:translate-y-0 ${localDraft.category === c.id ? 'selected' : ''}`}
                   onClick={() => handleCategorySelect(c.id)}
                 >
                   {c.label}
-                </button>
+                </Button>
               ))}
             </div>
 
@@ -371,24 +384,26 @@ export function CreateTicketStepper({
             <div className="section-label">Priority</div>
             <div className="chip-group">
               {PRIORITIES.map(p => (
-                <button
+                <Button
                   key={p.id}
                   type="button"
-                  className={`chip-select pri-${p.id.toLowerCase()} ${localDraft.priority === p.id ? 'selected' : ''}`}
+                  variant="ghost"
+                  className={`chip-select hover:translate-y-0 pri-${p.id.toLowerCase()} ${localDraft.priority === p.id ? 'selected' : ''}`}
                   onClick={() => setLocalDraft((prev) => ({ ...prev, priority: p.id }))}
                 >
                   {p.label}
-                </button>
+                </Button>
               ))}
             </div>
 
             <div className="section-label">Assign to</div>
             <div className="chip-group">
               {assignees.map(a => (
-                <button
+                <Button
                   key={a}
                   type="button"
-                  className={`chip-select ${localDraft.assignTo === a ? 'selected' : ''}`}
+                  variant="ghost"
+                  className={`chip-select hover:translate-y-0 ${localDraft.assignTo === a ? 'selected' : ''}`}
                   onClick={() => setLocalDraft((prev) => ({ ...prev, assignTo: a }))}
                 >
                   {a.includes('@') && (
@@ -406,7 +421,7 @@ export function CreateTicketStepper({
                     />
                   )}
                   {a}
-                </button>
+                </Button>
               ))}
             </div>
           </>
@@ -416,17 +431,15 @@ export function CreateTicketStepper({
           <>
             <div className="field-block">
               <label className="field-label">Subject</label>
-              <input
-                className="input"
+              <Input
                 value={localDraft.subject}
                 onChange={e => setLocalDraft((prev) => ({ ...prev, subject: e.target.value }))}
               />
             </div>
             <div className="field-block">
               <label className="field-label">Message</label>
-              <textarea
-                className="input"
-                style={{ resize: 'vertical', minHeight: '120px' }}
+              <TextArea
+                className="min-h-[120px]"
                 value={localDraft.message}
                 onChange={e => setLocalDraft((prev) => ({ ...prev, message: e.target.value }))}
               />
@@ -438,46 +451,45 @@ export function CreateTicketStepper({
           <>
             <div className="section-label">Worklog</div>
             <div className="worklog-row">
-              <input
-                className="input"
+              <Input
                 placeholder="Add a note about this call..."
                 value={worklogInput}
                 onChange={e => setWorklogInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addWorklog()}
               />
-              <button type="button" className="btn" style={{ width: 'auto', padding: '9px 16px' }} onClick={addWorklog}>Add</button>
+              <Button type="button" variant="secondary" size="md" onClick={addWorklog}>Add</Button>
             </div>
             <div className="worklog-toggle" onClick={() => setWorklogHistoryOpen(!worklogHistoryOpen)}>
               {worklogHistoryOpen ? '▼' : '▶'} Worklog History
             </div>
             {worklogHistoryOpen && (
               <div className="worklog-table-wrap">
-                <table className="worklog-table">
-                  <thead>
-                    <tr>
-                      <th>Worklog</th>
-                      <th>Created</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Worklog</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {localDraft.worklogs.length > 0 ? (
                       localDraft.worklogs.map((w, idx) => (
-                        <tr key={idx}>
-                          <td className="text">{w.text}</td>
-                          <td>{formatTime(w.created)}</td>
-                          <td>
+                        <TableRow key={idx}>
+                          <TableCell className="text">{w.text}</TableCell>
+                          <TableCell>{formatTime(w.created)}</TableCell>
+                          <TableCell>
                             <span className="rm" style={{ cursor: 'pointer', color: 'var(--color-text-subtle)' }} onClick={() => removeWorklog(idx)}>Remove</span>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))
                     ) : (
-                      <tr>
-                        <td colSpan={3} style={{ textAlign: 'center', color: 'var(--color-text-subtle)', padding: '12px' }}>No worklog entries yet</td>
-                      </tr>
+                      <TableRow>
+                        <TableCell colSpan={3} className="py-3 text-center text-m-text-subtle">No worklog entries yet</TableCell>
+                      </TableRow>
                     )}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </>
@@ -545,65 +557,65 @@ export function CreateTicketStepper({
 
       <div className="options-foot">
         {step === 'classify' && (
-          <button
+          <Button
             type="button"
-            className="btn btn-primary"
+            variant="primary"
             disabled={!isClassifyStepReady()}
             onClick={() => setStep('details')}
           >
             Continue to subject &amp; message
-          </button>
+          </Button>
         )}
 
         {step === 'details' && (
-          <button
+          <Button
             type="button"
-            className="btn btn-primary"
+            variant="primary"
             disabled={!localDraft.subject.trim() || !localDraft.message.trim()}
             onClick={() => setStep('extras')}
           >
             Continue
-          </button>
+          </Button>
         )}
 
         {step === 'extras' && (
-          <button
+          <Button
             type="button"
-            className="btn btn-primary"
+            variant="primary"
             onClick={() => setStep('review')}
           >
             Continue to review
-          </button>
+          </Button>
         )}
 
         {step === 'review' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <button
+            <Button
               type="button"
-              className="btn"
+              variant="secondary"
               onClick={() => setStep('extras')}
             >
               Back
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="btn btn-primary"
+              variant="primary"
               disabled={isCreatingTicket || isLoading}
               onClick={createTicket}
             >
               {isCreatingTicket || isLoading ? 'Creating ticket...' : 'Create ticket'}
-            </button>
+            </Button>
           </div>
         )}
 
         {step === 'done' && (
-          <button
+          <Button
             type="button"
-            className="btn btn-primary"
+            variant="primary"
             onClick={startNew}
           >
             Create another ticket
-          </button>
+          </Button>
         )}
       </div>
     </div>
