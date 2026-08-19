@@ -35,6 +35,7 @@ COPY --from=build /app/packages/headers /app/packages/headers
 COPY --from=build /app/packages/logger /app/packages/logger
 COPY --from=build /app/packages/mongodb /app/packages/mongodb
 COPY --from=build /app/packages/service-bootstrap /app/packages/service-bootstrap
+COPY --from=build /app/apps/admin/node_modules /app/apps/admin/node_modules
 COPY --from=build /app/apps/admin/package.json /app/apps/admin/package.json
 COPY --from=build /app/apps/admin/src /app/apps/admin/src
 COPY --from=build /app/apps/admin/dist /app/apps/admin/dist
