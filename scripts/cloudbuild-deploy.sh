@@ -108,24 +108,17 @@ deploy_service() {
       SVC_ENV="${SVC_ENV},FEDERATED_SERVICES=${FED_SERVICES}" ;;
   esac
 
-  # ── Public vs private ─────────────────────────────────────────────────────
-  # bff  = public (GraphQL gateway — external entry point)
-  # auth = public (login/register endpoints need direct access)
-  # all others = private (called by bff via Google ID token)
-  if [ "${SVC}" = "bff" ] || [ "${SVC}" = "auth" ]; then
-    AUTH_FLAG="--allow-unauthenticated"
-  else
-    AUTH_FLAG="--no-allow-unauthenticated"
-  fi
-
   # ── Build gcloud run deploy command ───────────────────────────────────────
+  # Authentication/IAM is managed outside this deploy step. Passing
+  # --allow-unauthenticated, --no-allow-unauthenticated, or
+  # --no-invoker-iam-check causes gcloud to call SetIamPolicy, which is blocked
+  # for the Cloud Build deploy identity in this project.
   DEPLOY_CMD=(
     gcloud run deploy "${RUN_SVC_NAME}"
     --image="${IMAGE}:${COMMIT_SHA}"
     --region="${REGION}"
     --project="${PROJECT_ID}"
     --platform=managed
-    "${AUTH_FLAG}"
     --min-instances="${MIN}"
     --max-instances="${MAX}"
     --memory="${MEM}"
@@ -168,19 +161,6 @@ deploy_service() {
     --format='value(status.url)' 2>/dev/null || echo "")
   [ -n "${SVC_URL}" ] && echo "✅ ${RUN_SVC_NAME} → ${SVC_URL}"
 
-  # ── Ensure public access for auth + bff ──────────────────────────────────
-  # gcloud run deploy --allow-unauthenticated can be silently blocked by org
-  # policy (constraints/iam.allowedPolicyMemberDomains). When that happens,
-  # it REMOVES any existing allUsers binding. Explicitly re-apply it here.
-  if [ "${SVC}" = "bff" ] || [ "${SVC}" = "auth" ]; then
-    echo "🔓 Ensuring public access for ${RUN_SVC_NAME}..."
-    gcloud run services add-iam-policy-binding "${RUN_SVC_NAME}" \
-      --region="${REGION}" --project="${PROJECT_ID}" \
-      --member="allUsers" \
-      --role="roles/run.invoker" \
-      --quiet 2>/dev/null \
-      || echo "  ⚠️  allUsers binding failed (check org policy)"
-  fi
 }
 
 for SVC in "${SERVICES[@]}"; do
