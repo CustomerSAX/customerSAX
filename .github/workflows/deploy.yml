@@ -49,7 +49,8 @@ jobs:
             cloudbuild.googleapis.com \
             --project="${{ env.PROJECT_ID }}" --quiet
 
-          # Public services (allow unauthenticated — frontend calls these directly)
+          # Public services. Domain restricted sharing blocks allUsers IAM
+          # bindings, so use Cloud Run's public-access mode instead.
           PUBLIC_SERVICES=(
             "${PREFIX}-bff"
             "${PREFIX}-auth"
@@ -77,17 +78,15 @@ jobs:
                 --image="${{ env.PLACEHOLDER_IMAGE }}" \
                 --region="${{ env.REGION }}" \
                 --project="${{ env.PROJECT_ID }}" \
-                --allow-unauthenticated \
+                --no-invoker-iam-check \
                 --quiet
             else
               echo "  ✓ ${SVC} exists — ensuring public access"
             fi
-            # Always grant allUsers (idempotent)
-            gcloud run services add-iam-policy-binding "${SVC}" \
+            gcloud run services update "${SVC}" \
               --region="${{ env.REGION }}" \
               --project="${{ env.PROJECT_ID }}" \
-              --member="allUsers" \
-              --role="roles/run.invoker" \
+              --no-invoker-iam-check \
               --quiet 2>/dev/null || true
           done
 
