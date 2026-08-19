@@ -22,8 +22,7 @@ COPY packages/mongodb packages/mongodb
 COPY packages/service-bootstrap packages/service-bootstrap
 COPY apps/commerce/contract apps/commerce/contract
 COPY apps/commerce/commercetools apps/commerce/commercetools
-RUN pnpm --filter @csa/commerce-contract build
-RUN pnpm --filter @csa/commerce-commercetools build
+RUN pnpm --filter @csa/commerce-commercetools... --if-present build
 
 FROM node:20-slim
 WORKDIR /app

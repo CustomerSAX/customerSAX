@@ -16,8 +16,7 @@ COPY packages/logger packages/logger
 COPY packages/service-bootstrap packages/service-bootstrap
 COPY apps/commerce/contract apps/commerce/contract
 COPY apps/commerce/bigcommerce apps/commerce/bigcommerce
-RUN pnpm --filter @csa/commerce-contract build
-RUN pnpm --filter @csa/commerce-bigcommerce build
+RUN pnpm --filter @csa/commerce-bigcommerce... --if-present build
 
 FROM node:20-slim
 WORKDIR /app
