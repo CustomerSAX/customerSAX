@@ -3,6 +3,7 @@
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { ORDERS_PAGE_QUERY } from "../api/queries";
+import { CUSTOMERS_PAGE_QUERY } from "../../customers/api/queries";
 import type {
   Order,
   OrderState,
@@ -81,6 +82,17 @@ type OrdersPageData = {
   };
 };
 
+type OrderCustomersPageData = {
+  customerPage: {
+    results: Array<{
+      id: string;
+      email?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+    }>;
+  };
+};
+
 function moneyToNumber(money?: CommerceMoney | null) {
   if (!money) return 0;
   return money.centAmount / 10 ** money.fractionDigits;
@@ -123,7 +135,7 @@ function toPaymentState(state?: string | null): PaymentState {
   return "Pending";
 }
 
-function normalizeOrder(order: CommerceOrder): Order {
+function normalizeOrder(order: CommerceOrder, customerNames: Map<string, string>): Order {
   const lineItems = (order.lineItems ?? []).map((item) => {
     const total = moneyToNumber(item.totalPrice);
     const quantity = item.quantity ?? 0;
@@ -161,7 +173,7 @@ function normalizeOrder(order: CommerceOrder): Order {
     createdAt: order.createdAt ?? "",
     customerEmail: order.customerEmail ?? "",
     customerId: order.customerId ?? undefined,
-    customerName: order.customerEmail ?? order.customerId ?? "--",
+    customerName: (order.customerId ? customerNames.get(order.customerId) : undefined) ?? order.customerEmail ?? "--",
     discountCodes: [],
     discountTotal: 0,
     grandTotal,
@@ -215,6 +227,10 @@ export function useOrderStore() {
     },
   });
   const [orders, setOrders] = useState<Order[]>([]);
+  const { data: customersData } = useQuery<OrderCustomersPageData>(CUSTOMERS_PAGE_QUERY, {
+    fetchPolicy: "cache-and-network",
+    variables: { limit: 500, offset: 0, sortKey: "createdAt", sortOrder: "desc" },
+  });
   const [updateOrderMutation] = useMutation(UPDATE_ORDER_MUTATION);
 
   const runOrderUpdate = useCallback(
@@ -226,8 +242,13 @@ export function useOrderStore() {
   );
 
   const serverOrders = useMemo(() => {
-    return (data?.orderPage.results ?? []).map(normalizeOrder);
-  }, [data?.orderPage.results]);
+    const customerNames = new Map<string, string>();
+    for (const customer of customersData?.customerPage.results ?? []) {
+      const fullName = [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim();
+      customerNames.set(customer.id, fullName || customer.email || "--");
+    }
+    return (data?.orderPage.results ?? []).map((order) => normalizeOrder(order, customerNames));
+  }, [customersData?.customerPage.results, data?.orderPage.results]);
 
   useEffect(() => {
     if (serverOrders.length > 0) {
