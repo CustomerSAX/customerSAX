@@ -34,6 +34,11 @@ import {
   to = google_secret_manager_secret.commerce["commercetools_client_secret"]
 }
 
+import {
+  id = "projects/customerservice-505511/secrets/csa-${var.environment}-ticketing-mongo-uri"
+  to = google_secret_manager_secret.ticketing["ticketing_mongo_uri"]
+}
+
 # ── Cloud Run Services ─────────────────────────────────────
 import {
   id = "projects/customerservice-505511/locations/us-central1/services/csa-${var.environment}-bff"
