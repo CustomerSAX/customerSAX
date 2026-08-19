@@ -32,6 +32,7 @@ COPY --from=build /app/packages/headers /app/packages/headers
 COPY --from=build /app/packages/logger /app/packages/logger
 COPY --from=build /app/packages/mongodb /app/packages/mongodb
 COPY --from=build /app/packages/service-bootstrap /app/packages/service-bootstrap
+COPY --from=build /app/apps/ticketing/node_modules /app/apps/ticketing/node_modules
 COPY --from=build /app/apps/ticketing/package.json /app/apps/ticketing/package.json
 COPY --from=build /app/apps/ticketing/src /app/apps/ticketing/src
 COPY --from=build /app/apps/ticketing/dist /app/apps/ticketing/dist
