@@ -33,7 +33,6 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps) {
   const {
     order, fmtDate, selectedPaymentId, setSelectedPaymentId,
     selectedPayment, paymentActionFeedback,
-    handleGetLatestPspStatus, handleSendPaymentLink,
   } = props;
 
   return (
@@ -101,16 +100,16 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps) {
                   <Button variant="secondary" size="sm" onClick={() => setSelectedPaymentId(null)}>
                     Close
                   </Button>
-                  <Button variant="secondary" size="sm" onClick={() => handleGetLatestPspStatus(selectedPayment.id)}>
-                    Get latest status
+                  <Button variant="secondary" size="sm" disabled>
+                    PSP Sync Not Configured
                   </Button>
                   <Button
                     variant="secondary"
                     size="sm"
                     leftIcon={<Icon name="mail" size="xs" />}
-                    onClick={() => handleSendPaymentLink(selectedPayment.id)}
+                    disabled
                   >
-                    Send payment link
+                    Payment Link Not Configured
                   </Button>
                 </div>
               }

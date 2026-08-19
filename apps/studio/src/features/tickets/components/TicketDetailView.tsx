@@ -68,19 +68,14 @@ import {
   type StatusTone,
 } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../hooks/use-tickets";
+import { useAssignees } from "../hooks/use-assignees";
 import { formatDate, formatDateTime } from "@/lib/format-date";
+import { useCurrentUser } from "@/lib/use-current-user";
 import type { TicketStatus, TicketPriority, WorklogComment } from "../types/ticket-types";
 
 interface TicketDetailViewProps {
   id: string;
 }
-
-const AGENT_OPTIONS = [
-  { value: "John Agent (john.agent@csa.com)", label: "John Agent" },
-  { value: "Sarah Jenkins (sarah.jenkins@csa.com)", label: "Sarah Jenkins" },
-  { value: "Tech Support Team", label: "Tech Support Team" },
-  { value: "Support Desk", label: "Support Desk (Unassigned)" },
-];
 
 const PRIORITY_OPTIONS = [
   { value: "Low", label: "Low" },
@@ -139,13 +134,15 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const backLabel = customerIdParam ? "Back to customer" : "Back to Tickets";
 
   const { getTicketById, updateTicket, addWorklog, loading, error } = useTicketStore();
+  const { user: currentUser } = useCurrentUser();
 
   const ticket = getTicketById(id);
 
   const [activeTab, setActiveTab] = useState<string>("conversation");
 
   // Editable Form State
-  const [assignedTo, setAssignedTo] = useState(ticket?.assignedTo || AGENT_OPTIONS[0].value);
+  const [assignedTo, setAssignedTo] = useState(ticket?.assignedTo || "Queue");
+  const { options: assigneeOptions, isLoading: assigneesLoading } = useAssignees(assignedTo);
   const [status, setStatus] = useState<TicketStatus>(ticket?.status || "Open");
   const [priority, setPriority] = useState<TicketPriority>(ticket?.priority || "High");
   const [solution, setSolution] = useState(ticket?.solution || "");
@@ -198,7 +195,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const handleAddWorklog = async () => {
     if (!worklogInput.trim()) return;
     if (!ticket) return;
-    await addWorklog(ticket.id, worklogInput.trim(), "John Agent");
+    await addWorklog(ticket.id, worklogInput.trim(), currentUser?.name || currentUser?.email || "Unknown agent");
     setWorklogInput("");
   };
 
@@ -226,8 +223,8 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   // Quick Actions — thin wrappers around the same real updateTicket mutation
   // the workflow form uses; each is a genuine backend write, not local-only.
   const handleQuickAssignToMe = async () => {
-    if (!ticket) return;
-    await updateTicket(ticket.id, { assignedTo: AGENT_OPTIONS[0].value });
+    if (!ticket || !currentUser?.email) return;
+    await updateTicket(ticket.id, { assignedTo: currentUser.email });
   };
   const handleQuickEscalate = async () => {
     if (!ticket) return;
@@ -600,7 +597,12 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
             <form id="ticket-workflow-form" onSubmit={handleSaveChanges} className="flex flex-col gap-4">
               <FormField>
                 <Label>Assign To Agent</Label>
-                <Select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} options={AGENT_OPTIONS} />
+                <Select
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  options={assigneeOptions}
+                  disabled={assigneesLoading}
+                />
               </FormField>
 
               <FormField>

@@ -43,6 +43,7 @@ export const customerTypeDefs = gql`
 
   extend type Mutation {
     createCustomer(draft: Json!): Customer
+    createEmployee(draft: Json!, companyId: ID!, role: String!): Customer
     updateCustomer(id: ID!, draft: Json!): Customer
     updateCustomerProfile(id: ID!, draft: Json!): Customer
     addCustomerAddress(id: ID!, address: Json!, addressType: String): Json!

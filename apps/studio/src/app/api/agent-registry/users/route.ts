@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { forwardRequestId, requestLogger } from '@/lib/request-logger';
-import { bffJsonHeaders } from '@/lib/commerce-headers';
+import { requestLogger } from '@/lib/request-logger';
+import { projectScopedBffFetch, ProjectSessionError } from '@/lib/project-scoped-bff';
 
 /**
  * GET /api/agent-registry/users[?q=partial+name]
@@ -44,15 +44,15 @@ interface AgentUserGql {
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { log, requestId } = requestLogger(request, 'api/agent-registry/users');
   try {
-    const res = await fetch(BFF_URL, {
+    const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
-      headers: forwardRequestId(requestId, bffJsonHeaders()),
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         query: AGENT_LIST_QUERY,
         variables: { container: AGENT_CONTAINER },
       }),
       cache: 'no-store',
-    });
+    }, requestId);
 
     if (!res.ok) {
       log.warn('BFF returned non-ok', { status: res.status });
@@ -91,6 +91,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (err) {
+    if (err instanceof ProjectSessionError) {
+      return NextResponse.json({ error: err.message, users: [], total: 0 }, { status: err.status });
+    }
     log.error('failed', err);
     return NextResponse.json({ users: [], total: 0 });
   }

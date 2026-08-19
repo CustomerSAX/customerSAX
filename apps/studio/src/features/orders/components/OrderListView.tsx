@@ -351,21 +351,7 @@ export function OrderListView() {
     }
 
     if (key === "customer") {
-      return (
-        <TableCell className="font-medium text-m-primary">
-          {order.customerId ? (
-            <Link
-              href={`/customers/${order.customerId}`}
-              onClick={(e) => e.stopPropagation()}
-              className="hover:underline text-m-primary"
-            >
-              {order.customerName}
-            </Link>
-          ) : (
-            order.customerName
-          )}
-        </TableCell>
-      );
+      return <TableCell className="font-medium text-m-text">{order.customerName}</TableCell>;
     }
 
     if (key === "customerEmail") {

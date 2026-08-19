@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState, useMemo, useCallback } from "react";
-import { gql, useQuery } from "@apollo/client";
+import { gql, useMutation, useQuery } from "@apollo/client";
 import { CUSTOMER_ORDERS_QUERY, CUSTOMER_CARTS_QUERY, CUSTOMER_ADDRESSES_QUERY } from "../../orders/api/queries";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -90,6 +90,7 @@ const CUSTOMER_TABS: EntityTab[] = [
   { id: "returns", label: "Returns", icon: "rotate-ccw" },
   { id: "quotes", label: "Quotes", icon: "file-text" },
   { id: "payments", label: "Payments", icon: "credit-card" },
+  { id: "tickets", label: "Tickets", icon: "life-buoy" },
   { id: "conversations", label: "Conversations", icon: "message-square" },
   { id: "notes", label: "Notes", icon: "file-text" },
 ];
@@ -115,6 +116,12 @@ const CUSTOMER_QUOTES_QUERY = gql`
     }
   }
 `;
+
+const ADD_CUSTOMER_ADDRESS = gql`mutation AddCustomerAddress($id: ID!, $address: Json!, $addressType: String) { addCustomerAddress(id: $id, address: $address, addressType: $addressType) }`;
+const UPDATE_CUSTOMER_ADDRESS = gql`mutation UpdateCustomerAddress($id: ID!, $addressId: ID!, $address: Json!) { updateCustomerAddress(id: $id, addressId: $addressId, address: $address) }`;
+const REMOVE_CUSTOMER_ADDRESS = gql`mutation RemoveCustomerAddress($id: ID!, $addressId: ID!) { removeCustomerAddress(id: $id, addressId: $addressId) }`;
+const SET_DEFAULT_CUSTOMER_ADDRESS = gql`mutation SetDefaultCustomerAddress($id: ID!, $addressId: ID!, $kind: String!) { setDefaultCustomerAddress(id: $id, addressId: $addressId, kind: $kind) }`;
+const CREATE_CUSTOMER_CART = gql`mutation CreateCustomerCart($currency: String!, $customerId: ID, $customerEmail: String) { createB2bCart(currency: $currency, customerId: $customerId, customerEmail: $customerEmail) { id } }`;
 
 type OrderColumnKey =
   | "orderNumber"
@@ -316,19 +323,24 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   // ── Real carts from BFF (filtered by customerId) ──────────────────────────
   type GqlCartLineItem = { id: string; name?: string | null; quantity: number };
   type GqlCart = { id: string; key?: string | null; currencyCode: string; totalPrice: GqlMoney; lineItems: GqlCartLineItem[] };
-  const { data: cartsGqlData } = useQuery<{
+  const { data: cartsGqlData, refetch: refetchCarts } = useQuery<{
     b2bCarts: { total: number; results: GqlCart[] };
   }>(CUSTOMER_CARTS_QUERY, {
     variables: { customerId: id, limit: 50 },
   });
+  const [createCustomerCartMutation] = useMutation(CREATE_CUSTOMER_CART);
 
   // ── Real addresses from CT via BFF (includes default IDs) ────────────────
   type CtAddrRaw = { id: string; streetName?: string | null; streetNumber?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; country?: string | null; phone?: string | null; email?: string | null };
   type CustomerAddressesResult = { addresses: CtAddrRaw[]; defaultShippingAddressId: string | null; defaultBillingAddressId: string | null; shippingAddressIds: string[]; billingAddressIds: string[] };
-  const { data: addressesGqlData } = useQuery<{ customerAddresses: CustomerAddressesResult }>(
+  const { data: addressesGqlData, refetch: refetchAddresses } = useQuery<{ customerAddresses: CustomerAddressesResult }>(
     CUSTOMER_ADDRESSES_QUERY,
     { variables: { id } }
   );
+  const [addCustomerAddressMutation] = useMutation(ADD_CUSTOMER_ADDRESS);
+  const [updateCustomerAddressMutation] = useMutation(UPDATE_CUSTOMER_ADDRESS);
+  const [removeCustomerAddressMutation] = useMutation(REMOVE_CUSTOMER_ADDRESS);
+  const [setDefaultCustomerAddressMutation] = useMutation(SET_DEFAULT_CUSTOMER_ADDRESS);
 
   type GqlQuote = {
     createdAt?: string | null;
@@ -537,8 +549,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const [deleteConfirmAddrId, setDeleteConfirmAddrId] = useState<string | null>(null);
 
   // Carts State — seeded from real CT carts, agent-created carts are prepended
-  const [agentCreatedCarts, setAgentCreatedCarts] = useState<CustomerCart[]>([]);
-  const carts = [...agentCreatedCarts, ...realCarts];
+  const carts = realCarts;
   const [cartCountry, setCartCountry] = useState("US");
   const [cartCurrency, setCartCurrency] = useState("USD");
   const [showOrderBehalfPanel, setShowOrderBehalfPanel] = useState(false);
@@ -604,11 +615,10 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const [ticketsSearch, setTicketsSearch] = useState("");
 
   // Messages State — no real messaging backend; starts empty for agents to type fresh replies
-  const [messages, setMessages] = useState<CustomerMessage[]>([]);
+  const [messages] = useState<CustomerMessage[]>([]);
   const [newMessageText, setNewMessageText] = useState("");
 
   // Password Reset State
-  const [passwordResetStatus, setPasswordResetStatus] = useState<"" | "sending" | "sent">("");
 
   // Promotions State — no real promotion-per-customer API; starts empty
   const [couponCodeInput, setCouponCodeInput] = useState("");
@@ -618,36 +628,35 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const [promotionUsages] = useState<PromotionUsage[]>([]);
 
   // Handlers
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!customer) return;
 
     const selGroup = groups.find((g) => g.id === profileGroup);
-    updateCustomerProfile(customer.id, {
-      firstName: profileFirstName,
-      lastName: profileLastName,
-      email: profileEmail,
-      phone: profilePhone,
-      companyName: profileCompany,
-      customerGroup: selGroup ? { id: selGroup.id, name: selGroup.name, key: selGroup.key } : undefined,
-    });
-    setProfileSavedMsg("Customer profile saved successfully.");
+    try {
+      await updateCustomerProfile(customer.id, {
+        firstName: profileFirstName,
+        lastName: profileLastName,
+        email: profileEmail,
+        companyName: profileCompany,
+        customerGroup: selGroup ? { id: selGroup.id, name: selGroup.name, key: selGroup.key } : undefined,
+      });
+      setProfileSavedMsg("Customer profile saved successfully.");
+    } catch (error) {
+      setProfileSavedMsg(error instanceof Error ? error.message : "Unable to save customer profile.");
+    }
     setTimeout(() => setProfileSavedMsg(""), 3000);
   };
 
-  const handleCreateCart = () => {
-    const newCart: CustomerCart = {
-      id: `CRT-${Math.floor(100 + Math.random() * 900)}`,
-      cartState: "Active",
-      orderNumber: "--",
-      totalPrice: "$0.00",
-      lineItemsCount: 0,
-      createdAt: new Date().toISOString().slice(0, 10),
-      currency: cartCurrency,
-      country: cartCountry,
-    };
-    setAgentCreatedCarts((prev) => [newCart, ...prev]);
-    setShowOrderBehalfPanel(false);
+  const handleCreateCart = async () => {
+    if (!customer) return;
+    try {
+      await createCustomerCartMutation({ variables: { currency: cartCurrency, customerId: customer.id, customerEmail: customer.email } });
+      await refetchCarts();
+      setShowOrderBehalfPanel(false);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Unable to create cart.");
+    }
   };
 
   const handleOpenAddAddress = () => {
@@ -684,93 +693,57 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     setShowAddressModal(true);
   };
 
-  const handleSaveAddress = (e: React.FormEvent) => {
+  const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingAddrId) {
-      setAddresses((prev) =>
-        prev.map((a) =>
-          a.id === editingAddrId
-            ? {
-                ...a,
-                streetName: addrStreetName,
-                streetNumber: addrStreetNumber,
-                city: addrCity,
-                state: addrState,
-                postalCode: addrPostalCode,
-                country: addrCountry,
-                email: addrEmail,
-                phone: addrPhone,
-                isShipping: addrIsShipping,
-                isBilling: addrIsBilling,
-                isDefaultShipping: addrIsDefaultShip,
-                isDefaultBilling: addrIsDefaultBill,
-              }
-            : a
-        )
-      );
-    } else {
-      const newAddr: CustomerAddress = {
-        id: `addr-${Date.now()}`,
-        streetName: addrStreetName,
-        streetNumber: addrStreetNumber,
-        city: addrCity,
-        state: addrState,
-        postalCode: addrPostalCode,
-        country: addrCountry,
-        email: addrEmail,
-        phone: addrPhone,
-        isShipping: addrIsShipping,
-        isBilling: addrIsBilling,
-        isDefaultShipping: addrIsDefaultShip,
-        isDefaultBilling: addrIsDefaultBill,
-      };
-      setAddresses((prev) => [...prev, newAddr]);
+    const address = { streetName: addrStreetName, streetNumber: addrStreetNumber, city: addrCity,
+      state: addrState, postalCode: addrPostalCode, country: addrCountry, email: addrEmail, phone: addrPhone };
+    try {
+      let addressId = editingAddrId;
+      if (editingAddrId) {
+        await updateCustomerAddressMutation({ variables: { id, addressId: editingAddrId, address } });
+      } else {
+        const result = await addCustomerAddressMutation({ variables: {
+          id, address, addressType: addrIsShipping ? "shipping" : addrIsBilling ? "billing" : undefined,
+        } });
+        const returned = result.data?.addCustomerAddress as { addresses?: Array<{ id?: string }> } | undefined;
+        addressId = returned?.addresses?.at(-1)?.id ?? null;
+      }
+      if (addressId && addrIsDefaultShip) await setDefaultCustomerAddressMutation({ variables: { id, addressId, kind: "shipping" } });
+      if (addressId && addrIsDefaultBill) await setDefaultCustomerAddressMutation({ variables: { id, addressId, kind: "billing" } });
+      await refetchAddresses();
+      setShowAddressModal(false);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Unable to save address.");
     }
-    setShowAddressModal(false);
   };
 
-  const handleDeleteAddress = (addrId: string) => {
-    setAddresses((prev) => prev.filter((a) => a.id !== addrId));
-    setDeleteConfirmAddrId(null);
+  const handleDeleteAddress = async (addrId: string) => {
+    try {
+      await removeCustomerAddressMutation({ variables: { id, addressId: addrId } });
+      await refetchAddresses();
+      setDeleteConfirmAddrId(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Unable to delete address.");
+    }
   };
 
-  const handleSetDefaultShipping = (addrId: string) => {
-    setAddresses((prev) =>
-      prev.map((a) => ({
-        ...a,
-        isDefaultShipping: a.id === addrId,
-        isShipping: a.id === addrId ? true : a.isShipping,
-      }))
-    );
+  const handleSetDefaultShipping = async (addrId: string) => {
+    await setDefaultCustomerAddressMutation({ variables: { id, addressId: addrId, kind: "shipping" } });
+    await refetchAddresses();
   };
 
-  const handleSetDefaultBilling = (addrId: string) => {
-    setAddresses((prev) =>
-      prev.map((a) => ({
-        ...a,
-        isDefaultBilling: a.id === addrId,
-        isBilling: a.id === addrId ? true : a.isBilling,
-      }))
-    );
+  const handleSetDefaultBilling = async (addrId: string) => {
+    await setDefaultCustomerAddressMutation({ variables: { id, addressId: addrId, kind: "billing" } });
+    await refetchAddresses();
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessageText.trim()) return;
-    const newMsg: CustomerMessage = {
-      id: `msg-${Date.now()}`,
-      sender: "agent",
-      senderName: "Support Agent (John)",
-      content: newMessageText.trim(),
-      createdAt: formatDateTime(new Date()),
-    };
-    setMessages((prev) => [...prev, newMsg]);
-    setNewMessageText("");
+    alert("Customer messaging is not configured for this workspace.");
   };
 
   const handleSendPasswordReset = () => {
-    setPasswordResetStatus("sending");
-    setTimeout(() => setPasswordResetStatus("sent"), 600);
+    alert("Password reset email delivery is not configured for this workspace.");
   };
 
   const handleValidateCoupon = () => {
@@ -1021,7 +994,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   id: "password-reset",
                   label: "Send Password Reset",
                   icon: "key-round",
-                  disabled: passwordResetStatus === "sending",
+                  disabled: true,
                   onClick: () => {
                     setActiveTab("notes");
                     handleSendPasswordReset();
@@ -1097,7 +1070,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                     </FormField>
                     <FormField>
                       <Label>Phone Number</Label>
-                      <Input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} />
+                      <Input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} disabled />
                     </FormField>
                   </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1115,7 +1088,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                     </FormField>
                   </div>
                   <div className="flex justify-end pt-1">
-                    <Button type="submit" variant="primary" size="md">
+                    <Button type="button" variant="primary" size="md" onClick={() => void handleSaveProfile()}>
                       Save Profile Changes
                     </Button>
                   </div>
@@ -1208,7 +1181,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                     setActiveTab("notes");
                     handleSendPasswordReset();
                   }}
-                  disabled={passwordResetStatus === "sending"}
+                  disabled
                 />
               </QuickActions>
 
@@ -1560,7 +1533,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       )}
 
       {/* ── Conversations ────────────────────────────────────────────────── */}
-      {activeTab === "conversations" && (
+      {(activeTab === "tickets" || activeTab === "conversations") && (
         <ContentGrid>
           <MainColumn>
             <SectionCard
@@ -1653,11 +1626,12 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   rows={3}
                   value={newMessageText}
                   onChange={(e) => setNewMessageText(e.target.value)}
+                  disabled
                   placeholder="Type a support reply to send to customer..."
                 />
                 <div className="flex justify-end">
-                  <Button variant="primary" size="sm" type="submit">
-                    Send Message
+                  <Button variant="primary" size="sm" type="submit" disabled>
+                    Messaging Not Configured
                   </Button>
                 </div>
               </form>
@@ -1695,20 +1669,13 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   The customer will receive an automated email containing a single-use secure link to generate a new password.
                 </p>
 
-                {passwordResetStatus === "sent" && (
-                  <div className="rounded-m-md bg-m-success-light px-3 py-2 text-[12.5px] font-semibold text-m-success">
-                    Password reset link sent successfully!
-                  </div>
-                )}
-
                 <Button
                   variant="primary"
                   size="md"
-                  loading={passwordResetStatus === "sending"}
-                  disabled={passwordResetStatus === "sent"}
+                  disabled
                   onClick={handleSendPasswordReset}
                 >
-                  {passwordResetStatus === "sent" ? "Reset Link Sent" : "Send Password Reset Link"}
+                  Password Reset Not Configured
                 </Button>
               </div>
             </SectionCard>

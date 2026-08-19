@@ -9,10 +9,14 @@ const customerFields = `#graphql
   id
   customerNumber
   externalId
+  key
   email
   firstName
   lastName
   companyName
+  version
+  createdAt
+  lastModifiedAt
 `;
 
 export const resolvers = {
@@ -140,6 +144,47 @@ export const resolvers = {
 
     return mapCustomer(data.customerSignUp.customer);
   },
+  createEmployee: async (
+    _parent: unknown,
+    args: { companyId: string; draft: Record<string, unknown>; role: string }
+  ) => {
+    const assignment = await resolveEmployeeAssignment(args.companyId, args.role);
+    const customerData = await commercetoolsGraphql<{ customerSignUp: { customer: CtCustomer } }>(
+      `#graphql
+        mutation CreateEmployeeCustomer($draft: CustomerSignUpDraft!) {
+          customerSignUp(draft: $draft) { customer { ${customerFields} } }
+        }
+      `,
+      { draft: args.draft }
+    );
+    const customer = customerData.customerSignUp.customer;
+
+    await commercetoolsGraphql(
+      `#graphql
+        mutation AddBusinessUnitAssociate($id: String!, $version: Long!, $actions: [BusinessUnitUpdateAction!]!) {
+          updateBusinessUnit(id: $id, version: $version, actions: $actions) { id version }
+        }
+      `,
+      {
+        id: assignment.businessUnit.id,
+        version: assignment.businessUnit.version,
+        actions: [
+          {
+            addAssociate: {
+              associate: {
+                customer: { id: customer.id },
+                associateRoleAssignments: [
+                  { associateRole: { id: assignment.role.id }, inheritance: "Enabled" }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    );
+
+    return mapCustomer(customer);
+  },
   updateCustomer: async (_parent: unknown, args: { draft: Record<string, unknown>; id: string }) =>
     updateCustomer(args.id, customerUpdateActions(args.draft)),
   updateCustomerProfile: async (_parent: unknown, args: { draft: Record<string, unknown>; id: string }) =>
@@ -173,6 +218,31 @@ export const resolvers = {
         : { setDefaultShippingAddress: { addressId: args.addressId } }
     ])
 };
+
+async function resolveEmployeeAssignment(companyId: string, requestedRole: string) {
+  const data = await commercetoolsGraphql<{
+    associateRoles: { results: Array<{ id: string; key?: string; name: string }> };
+    businessUnit: { id: string; version: number } | null;
+  }>(
+    `#graphql
+      query EmployeeAssignmentResources($companyId: String!) {
+        businessUnit(id: $companyId) { id version }
+        associateRoles(limit: 500) { results { id key name } }
+      }
+    `,
+    { companyId }
+  );
+
+  if (!data.businessUnit) throw new Error("The selected business unit was not found.");
+  const wanted = requestedRole.trim().toLowerCase();
+  const role = data.associateRoles.results.find(
+    (candidate) =>
+      candidate.name?.trim().toLowerCase() === wanted || candidate.key?.trim().toLowerCase() === wanted
+  );
+  if (!role) throw new Error(`No commercetools associate role matches "${requestedRole}".`);
+
+  return { businessUnit: data.businessUnit, role };
+}
 
 // commercetools Query Predicates only support exact, case-sensitive matches
 // on Customer fields — there is no substring or case-insensitive operator
@@ -289,8 +359,10 @@ function customerProfileActions(draft: Record<string, unknown>) {
   return [
     fieldAction("setFirstName", "firstName", draft.firstName),
     fieldAction("setLastName", "lastName", draft.lastName),
+    fieldAction("changeEmail", "email", draft.email),
     fieldAction("setCompanyName", "companyName", draft.companyName),
-    fieldAction("setDateOfBirth", "dateOfBirth", draft.dateOfBirth)
+    fieldAction("setDateOfBirth", "dateOfBirth", draft.dateOfBirth),
+    fieldAction("setCustomerGroup", "customerGroup", draft.customerGroup)
   ].filter(Boolean);
 }
 

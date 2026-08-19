@@ -13,8 +13,8 @@ export function OrderCommentsTab(props: OrderCommentsTabProps) {
   return (
         <div className="flex flex-col gap-5">
           <div className="flex justify-end">
-            <PrimaryButton icon={showCommentForm ? "x" : "plus"} onClick={() => setShowCommentForm(!showCommentForm)}>
-              {showCommentForm ? "Cancel Comment" : "Add Comment"}
+            <PrimaryButton icon="message-square" disabled>
+              Comments Not Configured
             </PrimaryButton>
           </div>
 
