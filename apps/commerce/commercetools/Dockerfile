@@ -37,6 +37,7 @@ COPY --from=build /app/packages/headers /app/packages/headers
 COPY --from=build /app/packages/logger /app/packages/logger
 COPY --from=build /app/packages/mongodb /app/packages/mongodb
 COPY --from=build /app/packages/service-bootstrap /app/packages/service-bootstrap
+COPY --from=build /app/apps/commerce/contract/node_modules /app/apps/commerce/contract/node_modules
 COPY --from=build /app/apps/commerce/contract/package.json /app/apps/commerce/contract/package.json
 COPY --from=build /app/apps/commerce/contract/dist /app/apps/commerce/contract/dist
 COPY --from=build /app/apps/commerce/commercetools/node_modules /app/apps/commerce/commercetools/node_modules
