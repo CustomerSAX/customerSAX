@@ -190,8 +190,9 @@ resource "google_bigquery_dataset" "analytics" {
 
 
 resource "google_cloud_run_v2_service" "bff" {
-  name     = "${local.name_prefix}-bff"
-  location = var.region
+  name                 = "${local.name_prefix}-bff"
+  location             = var.region
+  invoker_iam_disabled = true
 
   template {
     containers {
@@ -385,8 +386,9 @@ resource "google_cloud_run_v2_service" "ai_assist" {
 }
 
 resource "google_cloud_run_v2_service" "auth" {
-  name     = "${local.name_prefix}-auth"
-  location = var.region
+  name                 = "${local.name_prefix}-auth"
+  location             = var.region
+  invoker_iam_disabled = true
 
   template {
     containers {

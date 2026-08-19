@@ -109,11 +109,11 @@ deploy_service() {
   esac
 
   # ── Public vs private ─────────────────────────────────────────────────────
-  # bff  = public (GraphQL gateway — external entry point)
-  # auth = public (login/register endpoints need direct access)
-  # all others = private (called by bff via Google ID token)
+  # bff/auth are public entry points. Domain restricted sharing blocks allUsers
+  # IAM bindings, so public access is configured by disabling the Cloud Run
+  # Invoker IAM check. All others remain private and are called by BFF via ID token.
   if [ "${SVC}" = "bff" ] || [ "${SVC}" = "auth" ]; then
-    AUTH_FLAG="--allow-unauthenticated"
+    AUTH_FLAG="--no-invoker-iam-check"
   else
     AUTH_FLAG="--no-allow-unauthenticated"
   fi
@@ -168,19 +168,6 @@ deploy_service() {
     --format='value(status.url)' 2>/dev/null || echo "")
   [ -n "${SVC_URL}" ] && echo "✅ ${RUN_SVC_NAME} → ${SVC_URL}"
 
-  # ── Ensure public access for auth + bff ──────────────────────────────────
-  # gcloud run deploy --allow-unauthenticated can be silently blocked by org
-  # policy (constraints/iam.allowedPolicyMemberDomains). When that happens,
-  # it REMOVES any existing allUsers binding. Explicitly re-apply it here.
-  if [ "${SVC}" = "bff" ] || [ "${SVC}" = "auth" ]; then
-    echo "🔓 Ensuring public access for ${RUN_SVC_NAME}..."
-    gcloud run services add-iam-policy-binding "${RUN_SVC_NAME}" \
-      --region="${REGION}" --project="${PROJECT_ID}" \
-      --member="allUsers" \
-      --role="roles/run.invoker" \
-      --quiet 2>/dev/null \
-      || echo "  ⚠️  allUsers binding failed (check org policy)"
-  fi
 }
 
 for SVC in "${SERVICES[@]}"; do
