@@ -28,7 +28,7 @@ COPY packages/headers packages/headers
 COPY packages/logger packages/logger
 COPY packages/ui packages/ui
 COPY apps/studio apps/studio
-RUN pnpm --filter @csa/studio build
+RUN pnpm --filter @csa/studio... --if-present build
 
 FROM node:20-slim
 WORKDIR /app

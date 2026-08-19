@@ -18,7 +18,7 @@ COPY packages/headers packages/headers
 COPY packages/logger packages/logger
 COPY packages/mongodb packages/mongodb
 COPY apps/auth apps/auth
-RUN pnpm --filter @csa/auth build
+RUN pnpm --filter @csa/auth... --if-present build
 
 FROM node:20-slim
 WORKDIR /app

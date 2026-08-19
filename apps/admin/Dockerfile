@@ -20,7 +20,7 @@ COPY packages/logger packages/logger
 COPY packages/mongodb packages/mongodb
 COPY packages/service-bootstrap packages/service-bootstrap
 COPY apps/admin apps/admin
-RUN pnpm --filter @csa/admin build
+RUN pnpm --filter @csa/admin... --if-present build
 
 FROM node:20-slim
 WORKDIR /app

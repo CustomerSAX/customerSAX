@@ -16,7 +16,7 @@ COPY packages/config packages/config
 COPY packages/headers packages/headers
 COPY packages/logger packages/logger
 COPY apps/bff apps/bff
-RUN pnpm --filter @csa/bff build
+RUN pnpm --filter @csa/bff... --if-present build
 
 FROM node:20-slim
 WORKDIR /app

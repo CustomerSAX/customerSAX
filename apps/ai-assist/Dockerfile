@@ -18,7 +18,7 @@ COPY packages/headers packages/headers
 COPY packages/logger packages/logger
 COPY packages/mongodb packages/mongodb
 COPY apps/ai-assist apps/ai-assist
-RUN pnpm --filter @csa/ai-assist build
+RUN pnpm --filter @csa/ai-assist... --if-present build
 
 FROM node:20-slim
 WORKDIR /app
