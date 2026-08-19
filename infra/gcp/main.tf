@@ -11,6 +11,10 @@ locals {
     commercetools_client_secret = "COMMERCETOOLS_CLIENT_SECRET"
   }
 
+  ticketing_secrets = {
+    ticketing_mongo_uri = "MONGO_URI"
+  }
+
   services = [
     "artifactregistry.googleapis.com",
     "bigquery.googleapis.com",
@@ -131,6 +135,32 @@ resource "google_secret_manager_secret_version" "commerce_dummy" {
   lifecycle {
     ignore_changes = [secret_data]
   }
+}
+
+resource "google_secret_manager_secret" "ticketing" {
+  for_each = local.ticketing_secrets
+
+  secret_id = "${local.name_prefix}-${replace(each.key, "_", "-")}"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_secret_manager_secret_iam_member" "ticketing_keys" {
+  for_each = google_secret_manager_secret.ticketing
+
+  secret_id = each.value.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${local.compute_sa_email}"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_storage_bucket" "documents" {
