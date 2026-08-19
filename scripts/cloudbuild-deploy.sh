@@ -108,24 +108,17 @@ deploy_service() {
       SVC_ENV="${SVC_ENV},FEDERATED_SERVICES=${FED_SERVICES}" ;;
   esac
 
-  # ── Public vs private ─────────────────────────────────────────────────────
-  # bff/auth are public entry points. Domain restricted sharing blocks allUsers
-  # IAM bindings, so public access is configured by disabling the Cloud Run
-  # Invoker IAM check. All others remain private and are called by BFF via ID token.
-  if [ "${SVC}" = "bff" ] || [ "${SVC}" = "auth" ]; then
-    AUTH_FLAG="--no-invoker-iam-check"
-  else
-    AUTH_FLAG="--no-allow-unauthenticated"
-  fi
-
   # ── Build gcloud run deploy command ───────────────────────────────────────
+  # Authentication/IAM is managed outside this deploy step. Passing
+  # --allow-unauthenticated, --no-allow-unauthenticated, or
+  # --no-invoker-iam-check causes gcloud to call SetIamPolicy, which is blocked
+  # for the Cloud Build deploy identity in this project.
   DEPLOY_CMD=(
     gcloud run deploy "${RUN_SVC_NAME}"
     --image="${IMAGE}:${COMMIT_SHA}"
     --region="${REGION}"
     --project="${PROJECT_ID}"
     --platform=managed
-    "${AUTH_FLAG}"
     --min-instances="${MIN}"
     --max-instances="${MAX}"
     --memory="${MEM}"
