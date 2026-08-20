@@ -78,7 +78,7 @@ build_push_svc() {
 export -f build_push_svc
 export REGISTRY PROJECT_ID ARTIFACT_REPO COMMIT_SHA
 
-MAX_PARALLEL=4
+MAX_PARALLEL=2
 declare -a PIDS=()
 declare -a FAILED_SVCS=()
 
