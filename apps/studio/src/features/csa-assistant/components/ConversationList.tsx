@@ -147,10 +147,12 @@ export function ConversationList() {
     contextLines: string;
   } | null>(null);
   // expose so ChatStream can consume it
-  if (typeof window !== "undefined") {
-    (window as unknown as Record<string, unknown>).__csaPendingBriefing = pendingBriefing;
-    (window as unknown as Record<string, unknown>).__csaClearBriefing = () => setPendingBriefing(null);
-  }
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as unknown as Record<string, unknown>).__csaPendingBriefing = pendingBriefing;
+      (window as unknown as Record<string, unknown>).__csaClearBriefing = () => setPendingBriefing(null);
+    }
+  }, [pendingBriefing]);
 
   const fetchTickets = useCallback(async (tab: FilterTab) => {
     setLoading(true);
@@ -180,7 +182,11 @@ export function ConversationList() {
     }
   }, []);
 
-  useEffect(() => { void fetchTickets(filter); }, [filter, fetchTickets]);
+  useEffect(() => {
+    queueMicrotask(() => {
+      void fetchTickets(filter);
+    });
+  }, [filter, fetchTickets]);
 
   // Re-fetch "Assigned to Me" once the user email resolves — the initial fetch
   // fires before useCurrentUser completes, so the first call has no email and
@@ -190,7 +196,9 @@ export function ConversationList() {
     if (!user?.email || user.email === prevEmailRef.current) return;
     prevEmailRef.current = user.email;
     if (filter === "assigned_to_me") {
-      void fetchTickets("assigned_to_me");
+      queueMicrotask(() => {
+        void fetchTickets("assigned_to_me");
+      });
     }
   }, [user?.email, filter, fetchTickets]);
 
@@ -267,7 +275,9 @@ export function ConversationList() {
   );
 
   const storeRef = useRef({ setActiveTicketId, resetTicketContext, setRightPanelOpen });
-  storeRef.current = { setActiveTicketId, resetTicketContext, setRightPanelOpen };
+  useEffect(() => {
+    storeRef.current = { setActiveTicketId, resetTicketContext, setRightPanelOpen };
+  });
 
   const openCount = customers.filter((c) => c.openCount > 0).length;
 

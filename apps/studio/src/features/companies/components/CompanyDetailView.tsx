@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
@@ -64,6 +64,21 @@ export function CompanyDetailView({ id }: { id: string }) {
   const [assocName, setAssocName] = useState("");
   const [assocEmail, setAssocEmail] = useState("");
   const [assocRole, setAssocRole] = useState("Buyer");
+
+  const handleSaveAssociate = useCallback(() => {
+    if (!company || !assocName || !assocEmail) return;
+    const newId = `cst-${Date.now()}`;
+    addCompanyAssociate(company.id, {
+      customerId: newId,
+      name: assocName,
+      email: assocEmail,
+      roles: [assocRole],
+      status: "Active",
+    });
+    setAssocName("");
+    setAssocEmail("");
+    setShowAddAssociateModal(false);
+  }, [addCompanyAssociate, assocEmail, assocName, assocRole, company]);
 
   const companyCarts = activityError ? [] : activityCarts;
   const companyOrders = activityError ? [] : activityOrders;
@@ -131,20 +146,6 @@ export function CompanyDetailView({ id }: { id: string }) {
     setState("");
     setPostalCode("");
     setShowAddAddressModal(false);
-  };
-
-  const handleSaveAssociate = () => {
-    if (!assocName || !assocEmail) return;
-    addCompanyAssociate(company.id, {
-      customerId: `cst-${Date.now()}`,
-      name: assocName,
-      email: assocEmail,
-      roles: [assocRole],
-      status: "Active",
-    });
-    setAssocName("");
-    setAssocEmail("");
-    setShowAddAssociateModal(false);
   };
 
   return (

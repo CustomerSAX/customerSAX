@@ -92,7 +92,7 @@ export function CreateOrderStepper({
   // express/overnight options.
   useEffect(() => {
     let cancelled = false;
-    setIsLoadingShipMethods(true);
+    queueMicrotask(() => setIsLoadingShipMethods(true));
     fetch('/api/shipping-methods')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
@@ -111,11 +111,11 @@ export function CreateOrderStepper({
   useEffect(() => {
     const trimmed = productSearch.trim();
     if (trimmed.length < 3) {
-      setSearchedProducts([]);
+      queueMicrotask(() => setSearchedProducts([]));
       return;
     }
 
-    setIsSearchingProducts(true);
+    queueMicrotask(() => setIsSearchingProducts(true));
     const timer = setTimeout(async () => {
       try {
         const hits = await fetch('/api/product-search', {
@@ -284,7 +284,7 @@ export function CreateOrderStepper({
   };
 
   useEffect(() => {
-    if (workflow?.placedOrder) setIsPlacingOrder(false);
+    if (workflow?.placedOrder) queueMicrotask(() => setIsPlacingOrder(false));
   }, [workflow?.placedOrder]);
 
   // Safety net: if the AI stream ends (isLoading → false) while we're still
@@ -292,10 +292,9 @@ export function CreateOrderStepper({
   // so the rep can retry instead of being stuck with a permanently disabled CTA.
   useEffect(() => {
     if (!isLoading && isPlacingOrder && !workflow?.placedOrder) {
-      setIsPlacingOrder(false);
+      queueMicrotask(() => setIsPlacingOrder(false));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [isLoading, isPlacingOrder, workflow?.placedOrder]);
 
   const startNew = () => {
     setLocalDraft(() => ({ ...EMPTY_LOCAL_ORDER_DRAFT }));

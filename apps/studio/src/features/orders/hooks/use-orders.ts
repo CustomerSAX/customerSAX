@@ -190,7 +190,9 @@ export function useOrderStore() {
 
   useEffect(() => {
     if (serverOrders.length > 0) {
-      setOrders(serverOrders);
+      queueMicrotask(() => {
+        setOrders(serverOrders);
+      });
     }
   }, [serverOrders]);
 
@@ -476,7 +478,7 @@ export function useOrderStore() {
     return nextStatus;
   }, []);
 
-  const sendPaymentLink = useCallback((orderId: string, paymentId: string, _customerId?: string): boolean => {
+  const sendPaymentLink = useCallback((orderId: string, paymentId: string): boolean => {
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id !== orderId && o.orderNumber !== orderId) return o;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Button,
@@ -91,9 +92,12 @@ function ProductThumbnail({ src }: { src?: string }) {
     );
   }
   return (
-    <img
+    <Image
       src={src}
       alt=""
+      width={48}
+      height={48}
+      unoptimized
       className="w-12 h-12 object-contain rounded border border-m-border bg-white shrink-0"
       onError={() => setFailed(true)}
     />
@@ -142,7 +146,9 @@ export function CartDetailView({ id }: CartDetailViewProps) {
     cart.lineItems.forEach((li) => {
       next[li.id] = li.quantity;
     });
-    setStagedQuantities(next);
+    queueMicrotask(() => {
+      setStagedQuantities(next);
+    });
   }, [cart]);
 
   useEffect(() => {

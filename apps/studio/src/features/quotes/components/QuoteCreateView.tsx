@@ -36,7 +36,9 @@ export function QuoteCreateView() {
   const [lineItems, setLineItems] = useState<QuoteLineItem[]>([]);
 
   useEffect(() => {
-    setValidUntil((current) => current || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+    queueMicrotask(() => {
+      setValidUntil((current) => current || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+    });
   }, []);
 
   const companyOptions = [

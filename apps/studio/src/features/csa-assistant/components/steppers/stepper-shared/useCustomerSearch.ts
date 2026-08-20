@@ -36,12 +36,14 @@ export function useCustomerSearch(query: string) {
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 3) {
-      setResults([]);
-      setError(null);
+      queueMicrotask(() => {
+        setResults([]);
+        setError(null);
+      });
       return;
     }
 
-    setIsLoading(true);
+    queueMicrotask(() => setIsLoading(true));
     const timer = setTimeout(async () => {
       try {
         const res = await fetch('/api/customers/search', {

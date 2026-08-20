@@ -118,12 +118,17 @@ export function CartDrawer() {
 
   useEffect(() => {
     if (cart.isCartOpen) {
-      setClosing(false);
       previouslyFocused.current = document.activeElement as HTMLElement | null;
-      const raf = requestAnimationFrame(() => setVisible(true));
+      const raf = requestAnimationFrame(() => {
+        setClosing(false);
+        setVisible(true);
+      });
       return () => cancelAnimationFrame(raf);
     }
-    setVisible(false);
+    const raf = requestAnimationFrame(() => {
+      setVisible(false);
+    });
+    return () => cancelAnimationFrame(raf);
   }, [cart.isCartOpen]);
 
   useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);

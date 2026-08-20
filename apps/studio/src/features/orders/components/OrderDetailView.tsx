@@ -248,27 +248,29 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   const [commentInput, setCommentInput] = useState("");
 
   useEffect(() => {
-    setOrderState(order.orderState);
-    setShipmentState(order.shipmentState);
-    setPaymentState(order.paymentState);
-    setAltEmail(order.customerEmail || "");
-    setGiftMessageInput(order.giftMessage || "");
-    setSelectedShippingMethodId(order.shippingInfo.shippingMethodId || "");
-    setAddressForm({
-      streetNumber: order.shippingAddress.streetNumber || "",
-      streetName: order.shippingAddress.streetName || "",
-      building: order.shippingAddress.building || "",
-      city: order.shippingAddress.city || "",
-      state: order.shippingAddress.state || "",
-      postalCode: order.shippingAddress.postalCode || "",
-      country: order.shippingAddress.country || "US",
+    queueMicrotask(() => {
+      setOrderState(order.orderState);
+      setShipmentState(order.shipmentState);
+      setPaymentState(order.paymentState);
+      setAltEmail(order.customerEmail || "");
+      setGiftMessageInput(order.giftMessage || "");
+      setSelectedShippingMethodId(order.shippingInfo.shippingMethodId || "");
+      setAddressForm({
+        streetNumber: order.shippingAddress.streetNumber || "",
+        streetName: order.shippingAddress.streetName || "",
+        building: order.shippingAddress.building || "",
+        city: order.shippingAddress.city || "",
+        state: order.shippingAddress.state || "",
+        postalCode: order.shippingAddress.postalCode || "",
+        country: order.shippingAddress.country || "US",
+      });
+      setStagedLineQuantities(
+        order.lineItems.reduce<Record<string, number>>((acc, lineItem) => {
+          acc[lineItem.id] = lineItem.quantity;
+          return acc;
+        }, {})
+      );
     });
-    setStagedLineQuantities(
-      order.lineItems.reduce<Record<string, number>>((acc, lineItem) => {
-        acc[lineItem.id] = lineItem.quantity;
-        return acc;
-      }, {})
-    );
   }, [order]);
 
   useEffect(() => {
@@ -427,7 +429,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   };
 
   const handleSendPaymentLink = (paymentId: string) => {
-    sendPaymentLink(order.id, paymentId, order.customerId);
+    sendPaymentLink(order.id, paymentId);
     setPaymentActionFeedback(`Payment link email sent to ${order.customerEmail}.`);
     setTimeout(() => setPaymentActionFeedback(""), 3500);
   };

@@ -377,7 +377,11 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   }, []);
 
   useEffect(() => {
-    if (customer?.email) void fetchCustomerTickets(customer.email);
+    if (customer?.email) {
+      queueMicrotask(() => {
+        void fetchCustomerTickets(customer.email);
+      });
+    }
   }, [customer?.email, fetchCustomerTickets]);
 
   // Map BFF orders to the CustomerOrder shape used in tabs / metrics
@@ -504,12 +508,14 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   useEffect(() => {
     if (!customer) return;
 
-    setProfileFirstName(customer.firstName || "");
-    setProfileLastName(customer.lastName || "");
-    setProfileEmail(customer.email || "");
-    setProfilePhone(customer.phone || "");
-    setProfileCompany(customer.companyName || "");
-    setProfileGroup(customer.customerGroup?.id || "grp-vip");
+    queueMicrotask(() => {
+      setProfileFirstName(customer.firstName || "");
+      setProfileLastName(customer.lastName || "");
+      setProfileEmail(customer.email || "");
+      setProfilePhone(customer.phone || "");
+      setProfileCompany(customer.companyName || "");
+      setProfileGroup(customer.customerGroup?.id || "grp-vip");
+    });
   }, [customer]);
 
   // Addresses State — seeded empty, synced from real CT data via realAddresses memo
@@ -517,9 +523,10 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
   // Sync real addresses from CT whenever the query resolves
   useEffect(() => {
-    if (realAddresses.length > 0) setAddresses(realAddresses);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addressesGqlData]);
+    if (realAddresses.length > 0) {
+      queueMicrotask(() => setAddresses(realAddresses));
+    }
+  }, [realAddresses]);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddrId, setEditingAddrId] = useState<string | null>(null);
   const [addrStreetName, setAddrStreetName] = useState("");
@@ -557,9 +564,11 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const [quoteColumnKeys, setQuoteColumnKeys] = useState<QuoteColumnKey[]>(DEFAULT_QUOTE_COLUMN_KEYS);
 
   useEffect(() => {
-    setOrderColumnKeys(loadColumnKeys(ORDER_COLUMN_STORAGE_KEY, ORDER_COLUMNS, DEFAULT_ORDER_COLUMN_KEYS));
-    setQuoteColumnKeys(loadColumnKeys(QUOTE_COLUMN_STORAGE_KEY, QUOTE_COLUMNS, DEFAULT_QUOTE_COLUMN_KEYS));
-    setReturnColumnKeys(loadColumnKeys(RETURN_COLUMN_STORAGE_KEY, RETURN_COLUMNS, DEFAULT_RETURN_COLUMN_KEYS));
+    queueMicrotask(() => {
+      setOrderColumnKeys(loadColumnKeys(ORDER_COLUMN_STORAGE_KEY, ORDER_COLUMNS, DEFAULT_ORDER_COLUMN_KEYS));
+      setQuoteColumnKeys(loadColumnKeys(QUOTE_COLUMN_STORAGE_KEY, QUOTE_COLUMNS, DEFAULT_QUOTE_COLUMN_KEYS));
+      setReturnColumnKeys(loadColumnKeys(RETURN_COLUMN_STORAGE_KEY, RETURN_COLUMNS, DEFAULT_RETURN_COLUMN_KEYS));
+    });
   }, []);
 
   const handleOrderColumnChange = useCallback((keys: OrderColumnKey[]) => {

@@ -410,19 +410,21 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isSearchOpen) return;
-    setActiveCommandIndex(0);
+    queueMicrotask(() => setActiveCommandIndex(0));
     window.requestAnimationFrame(() => commandSearchRef.current?.focus());
   }, [isSearchOpen]);
 
   useEffect(() => {
-    setActiveCommandIndex(0);
+    queueMicrotask(() => setActiveCommandIndex(0));
   }, [globalSearch]);
 
   useEffect(() => {
     const query = globalSearch.trim();
     if (!isSearchOpen || query.length < 2) {
-      setEntityResults([]);
-      setIsEntitySearchLoading(false);
+      queueMicrotask(() => {
+        setEntityResults([]);
+        setIsEntitySearchLoading(false);
+      });
       return;
     }
 

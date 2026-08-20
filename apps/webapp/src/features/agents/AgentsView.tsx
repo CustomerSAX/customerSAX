@@ -47,7 +47,9 @@ export function AgentsView() {
   }, []);
 
   useEffect(() => {
-    void loadAgents();
+    queueMicrotask(() => {
+      void loadAgents();
+    });
     const interval = window.setInterval(() => void loadAgents(), 30_000);
 
     return () => window.clearInterval(interval);

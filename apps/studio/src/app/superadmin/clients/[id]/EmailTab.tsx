@@ -242,15 +242,17 @@ function SmtpProfileModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setName(existing?.name ?? "");
-    setSmtpHost(existing?.smtpHost ?? "");
-    setSmtpPort(existing?.smtpPort ?? 587);
-    setSmtpSecure(existing?.smtpSecure ?? false);
-    setSmtpUser(existing?.smtpUser ?? "");
-    setSmtpPassword("");
-    setEmailFrom(existing?.emailFrom ?? "");
-    setIsDefault(existing?.isDefault ?? profileCount === 0);
-    setError(null);
+    queueMicrotask(() => {
+      setName(existing?.name ?? "");
+      setSmtpHost(existing?.smtpHost ?? "");
+      setSmtpPort(existing?.smtpPort ?? 587);
+      setSmtpSecure(existing?.smtpSecure ?? false);
+      setSmtpUser(existing?.smtpUser ?? "");
+      setSmtpPassword("");
+      setEmailFrom(existing?.emailFrom ?? "");
+      setIsDefault(existing?.isDefault ?? profileCount === 0);
+      setError(null);
+    });
   }, [isOpen, existing, profileCount]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {

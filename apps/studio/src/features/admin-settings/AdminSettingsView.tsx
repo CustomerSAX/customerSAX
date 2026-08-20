@@ -66,7 +66,7 @@ export function AdminSettingsView({ section }: { section: Section }) {
   const { data, loading, error, refetch } = useQuery<WorkspaceAdminData>(WORKSPACE_ADMIN, { variables: { clientId, projectKey }, skip: !clientId || !projectKey || !allowed, fetchPolicy: "cache-and-network" });
 
   useEffect(() => {
-    setActiveSection(section);
+    queueMicrotask(() => setActiveSection(section));
   }, [section]);
 
   if (userLoading) return <AppShell><State text="Checking administrator access…" /></AppShell>;

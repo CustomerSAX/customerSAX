@@ -403,8 +403,10 @@ export function ProductListView() {
 
   // Load persisted settings from storage after mount (post-hydration).
   useEffect(() => {
-    setSettings(loadSettings());
-    setMounted(true);
+    queueMicrotask(() => {
+      setSettings(loadSettings());
+      setMounted(true);
+    });
   }, []);
 
   const isSearchActive = appliedSearch.text.trim().length > 0;

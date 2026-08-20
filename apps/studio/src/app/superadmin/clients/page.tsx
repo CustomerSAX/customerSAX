@@ -301,10 +301,12 @@ function AddClientModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setName("");
-      setSlug("");
-      setContactEmail("");
-      setError(null);
+      queueMicrotask(() => {
+        setName("");
+        setSlug("");
+        setContactEmail("");
+        setError(null);
+      });
     }
   }, [isOpen]);
 

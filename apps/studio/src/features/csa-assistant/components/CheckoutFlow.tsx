@@ -145,17 +145,17 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
     return null;
   }, [co.customer, convCustomer]);
 
-  // Reset local state each time the flow (re)opens.
   useEffect(() => {
     if (co.isOpen) {
-      setCustomerMode(identified?.id || identified?.email ? 'identified' : 'manual');
-      setManualInput('');
-      setShowManualAddress(false);
-      setManualAddr(emptyManual);
-      setSelectedShip(null);
+      queueMicrotask(() => {
+        setCustomerMode(identified?.id || identified?.email ? 'identified' : 'manual');
+        setManualInput('');
+        setShowManualAddress(false);
+        setManualAddr(emptyManual);
+        setSelectedShip(null);
+      });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [co.isOpen]);
+  }, [co.isOpen, identified]);
 
   if (!co.isOpen) return null;
 

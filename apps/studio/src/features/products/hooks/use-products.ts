@@ -250,9 +250,10 @@ export function useProductList(): UseProductListReturn {
   // -------------------------------------------------------------------------
 
   useEffect(() => {
-    void doSearch(appliedSearch, sort, page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch.text, appliedSearch.option, page, sort?.key, sort?.order]);
+    queueMicrotask(() => {
+      void doSearch(appliedSearch, sort, page);
+    });
+  }, [appliedSearch, doSearch, page, sort]);
 
   // -------------------------------------------------------------------------
   // Handlers
@@ -283,7 +284,7 @@ export function useProductList(): UseProductListReturn {
   }, []);
 
   const onPageChange = useCallback((p: number) => setPage(p), []);
-  const onPerPageChange = useCallback((_pp: number) => setPage(1), []);
+  const onPerPageChange = useCallback(() => setPage(1), []);
 
   const toggleExpanded = useCallback((id: string) => {
     setExpanded((prev) => {
@@ -332,13 +333,15 @@ export function useProductDetail(id: string): UseProductDetailReturn {
 
   useEffect(() => {
     if (!id) {
-      setLoading(false);
+      queueMicrotask(() => setLoading(false));
       return;
     }
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
 
     fetch(`/api/products/${encodeURIComponent(id)}`, {
       credentials: "same-origin",

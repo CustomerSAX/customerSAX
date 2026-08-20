@@ -126,7 +126,9 @@ export function useCartStore() {
   }, []);
 
   useEffect(() => {
-    void reloadCarts();
+    queueMicrotask(() => {
+      void reloadCarts();
+    });
   }, [reloadCarts]);
 
   const getCartById = useCallback(
@@ -274,7 +276,8 @@ export function useCartStore() {
     );
   }, []);
 
-  const sendPaymentReminder = useCallback((cartId: string, _altEmail: string): boolean => {
+  const sendPaymentReminder = useCallback((cartId: string, altEmail?: string): boolean => {
+    void altEmail;
     setCarts((prev) =>
       prev.map((c) => {
         if (c.id !== cartId && c.cartNumber !== cartId) return c;

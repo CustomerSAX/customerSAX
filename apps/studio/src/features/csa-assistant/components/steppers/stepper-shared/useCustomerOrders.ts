@@ -36,13 +36,18 @@ export function useCustomerOrders(customerId: string | undefined | null, enabled
 
   useEffect(() => {
     if (!enabled || !customerId) {
-      setOrders([]);
-      setError(null);
+      queueMicrotask(() => {
+        setOrders([]);
+        setError(null);
+      });
       return;
     }
 
     let cancelled = false;
-    setIsLoading(true);
+    queueMicrotask(() => {
+      setIsLoading(true);
+      setError(null);
+    });
     fetch(`/api/orders?limit=50&customerId=${customerId}`)
       .then(async (res) => {
         const data = (await res.json().catch(() => ({}))) as CustomerOrdersResponse;

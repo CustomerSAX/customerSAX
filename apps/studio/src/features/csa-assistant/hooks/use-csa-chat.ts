@@ -71,9 +71,12 @@ export function useCsaChat(sessionContext: SessionContext) {
           get sessionId() { return sessionIdRef.current || getOrCreateSessionId(); }
         }
       }),
-    // Re-create transport only when sessionContext identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(sessionContext)]
+    [
+      sessionContext.businessType,
+      sessionContext.pageContext,
+      sessionContext.proactiveHint,
+      sessionContext.vipThreshold,
+    ]
   );
 
   const chat = useChat({ transport });

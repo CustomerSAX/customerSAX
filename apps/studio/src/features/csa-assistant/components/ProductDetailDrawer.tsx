@@ -102,12 +102,12 @@ export function ProductDetailDrawer({
   // Slide-in animation.
   useEffect(() => {
     if (isOpen) {
-      setClosing(false);
+      queueMicrotask(() => setClosing(false));
       previouslyFocused.current = document.activeElement as HTMLElement | null;
       const raf = requestAnimationFrame(() => setVisible(true));
       return () => cancelAnimationFrame(raf);
     }
-    setVisible(false);
+    queueMicrotask(() => setVisible(false));
   }, [isOpen]);
 
   // Fetch full product details

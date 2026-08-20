@@ -97,7 +97,11 @@ export function ChatHistory({ onContinue }: ChatHistoryProps) {
     }
   }, []);
 
-  useEffect(() => { void fetchSessions(); }, [fetchSessions]);
+  useEffect(() => {
+    queueMicrotask(() => {
+      void fetchSessions();
+    });
+  }, [fetchSessions]);
 
   const openSession = useCallback(async (s: SessionSummary) => {
     setActiveSession(s);

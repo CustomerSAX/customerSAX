@@ -196,8 +196,10 @@ function OverviewTab({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setName(client.name);
-    setContactEmail(client.contactEmail);
+    queueMicrotask(() => {
+      setName(client.name);
+      setContactEmail(client.contactEmail);
+    });
   }, [client]);
 
   const isDirty = name.trim() !== client.name || contactEmail.trim() !== client.contactEmail;
@@ -342,7 +344,9 @@ function SsoFederationCard({ client, onUpdated }: { client: ClientDetail; onUpda
   const idpCertSet = stored.idpCertSet ?? false;
 
   useEffect(() => {
-    setRedirectUri(`${window.location.origin}/api/sso/oidc/callback`);
+    queueMicrotask(() => {
+      setRedirectUri(`${window.location.origin}/api/sso/oidc/callback`);
+    });
   }, []);
 
   async function handleSave() {
@@ -722,25 +726,31 @@ function ProjectModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setError(null);
-      setTestResult(null);
+      queueMicrotask(() => {
+        setError(null);
+        setTestResult(null);
+      });
       return;
     }
-    setPlatform(existing?.platform ?? "commercetools");
-    setProjectKey(existing?.projectKey ?? "");
-    setDisplayName(existing?.displayName ?? "");
-    setCtApiUrl(existing?.ctApiUrl ?? "");
-    setCtAuthUrl(existing?.ctAuthUrl ?? "");
-    setCtClientId(existing?.ctClientId ?? "");
-    setCtClientSecret("");
-    setScopes(existing?.scopes ?? "");
-    setShopifyStoreDomain(existing?.shopifyStoreDomain ?? "");
-    setShopifyAdminAccessToken("");
-    setShopifyApiVersion(existing?.shopifyApiVersion ?? "2024-01");
-    setBigcommerceStoreHash(existing?.bigcommerceStoreHash ?? "");
-    setBigcommerceClientId(existing?.bigcommerceClientId ?? "");
-    setBigcommerceAccessToken("");
-    setShell(existing ? shellModeFromFlags(existing) : "b2c");
+    queueMicrotask(() => {
+      setPlatform(existing?.platform ?? "commercetools");
+      setProjectKey(existing?.projectKey ?? "");
+      setDisplayName(existing?.displayName ?? "");
+      setCtApiUrl(existing?.ctApiUrl ?? "");
+      setCtAuthUrl(existing?.ctAuthUrl ?? "");
+      setCtClientId(existing?.ctClientId ?? "");
+      setCtClientSecret("");
+      setScopes(existing?.scopes ?? "");
+      setShopifyStoreDomain(existing?.shopifyStoreDomain ?? "");
+      setShopifyAdminAccessToken("");
+      setShopifyApiVersion(existing?.shopifyApiVersion ?? "2024-01");
+      setBigcommerceStoreHash(existing?.bigcommerceStoreHash ?? "");
+      setBigcommerceClientId(existing?.bigcommerceClientId ?? "");
+      setBigcommerceAccessToken("");
+      setShell(existing ? shellModeFromFlags(existing) : "b2c");
+      setError(null);
+      setTestResult(null);
+    });
   }, [isOpen, existing]);
 
   async function handleTest() {
@@ -1142,17 +1152,19 @@ function UserModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setMode("create");
-    setEmail(existing?.email ?? "");
-    setFirstName(existing?.firstName ?? "");
-    setLastName(existing?.lastName ?? "");
-    setPassword("");
-    setBulkRole("admin");
-    setSelectedKeys(existing ? existing.clientProjects.map((p) => p.projectKey) : []);
-    const roles: Record<string, string> = {};
-    for (const p of existing?.clientProjects ?? []) roles[p.projectKey] = p.role;
-    setEditRoles(roles);
-    setError(null);
+    queueMicrotask(() => {
+      setMode("create");
+      setEmail(existing?.email ?? "");
+      setFirstName(existing?.firstName ?? "");
+      setLastName(existing?.lastName ?? "");
+      setPassword("");
+      setBulkRole("admin");
+      setSelectedKeys(existing ? existing.clientProjects.map((p) => p.projectKey) : []);
+      const roles: Record<string, string> = {};
+      for (const p of existing?.clientProjects ?? []) roles[p.projectKey] = p.role;
+      setEditRoles(roles);
+      setError(null);
+    });
   }, [isOpen, existing]);
 
   function toggleProject(projectKey: string) {

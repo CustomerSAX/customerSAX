@@ -76,8 +76,10 @@ export function MemoryPanel({ sessionId }: MemoryPanelProps) {
       return;
     }
 
-    setFetchState('loading');
-    setFetchError(null);
+    queueMicrotask(() => {
+      setFetchState('loading');
+      setFetchError(null);
+    });
 
     const abortController = new AbortController();
     const params = new URLSearchParams();

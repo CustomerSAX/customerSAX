@@ -159,10 +159,12 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
 
   useEffect(() => {
     if (!ticket) return;
-    setAssignedTo(ticket.assignedTo);
-    setStatus(ticket.status);
-    setPriority(ticket.priority);
-    setSolution(ticket.solution || "");
+    queueMicrotask(() => {
+      setAssignedTo(ticket.assignedTo);
+      setStatus(ticket.status);
+      setPriority(ticket.priority);
+      setSolution(ticket.solution || "");
+    });
   }, [ticket]);
 
   // Audit Search State

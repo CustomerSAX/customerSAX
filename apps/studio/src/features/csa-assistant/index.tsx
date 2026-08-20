@@ -92,7 +92,9 @@ export function CsaAssistant() {
   const [rightPanelOpen, setRightPanelOpenLocal] = useState(false);
 
   // Sync right panel open state from the store — force open when a stepper is active
-  useEffect(() => { setRightPanelOpenLocal(storeRightOpen || !!activeStepper); }, [storeRightOpen, activeStepper]);
+  useEffect(() => {
+    queueMicrotask(() => setRightPanelOpenLocal(storeRightOpen || !!activeStepper));
+  }, [storeRightOpen, activeStepper]);
 
   // ── Pending briefing: auto-send when user selects a ticket ────────────────
   const prevTicketId = useRef<string | null>(null);

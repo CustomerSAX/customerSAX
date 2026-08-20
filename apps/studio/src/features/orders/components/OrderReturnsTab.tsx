@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import {
   Button,
   Icon,
@@ -38,7 +40,7 @@ function ProductThumbnail({ src }: { src?: string }) {
   return (
     <div className="w-10 h-10 rounded-m-md overflow-hidden bg-m-surface-2 border border-m-border flex-shrink-0 flex items-center justify-center">
       {src ? (
-        <img src={src} alt="" className="w-full h-full object-cover" />
+        <Image src={src} alt="" width={40} height={40} unoptimized className="w-full h-full object-cover" />
       ) : (
         <Icon name="image" size="sm" className="text-m-text-muted" />
       )}

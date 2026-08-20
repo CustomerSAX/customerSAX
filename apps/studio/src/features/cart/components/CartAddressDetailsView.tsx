@@ -95,31 +95,33 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
 
   useEffect(() => {
     if (!cart) return;
-    setShippingForm({
-      streetNumber: cart.shippingAddress?.streetNumber || "",
-      streetName: cart.shippingAddress?.streetName || "",
-      apartment: cart.shippingAddress?.apartment || "",
-      building: cart.shippingAddress?.building || "",
-      pOBox: cart.shippingAddress?.pOBox || "",
-      city: cart.shippingAddress?.city || "",
-      state: cart.shippingAddress?.state || "",
-      postalCode: cart.shippingAddress?.postalCode || "",
-      country: cart.shippingAddress?.country || cart.country || "US",
-      phone: cart.shippingAddress?.phone || "",
+    queueMicrotask(() => {
+      setShippingForm({
+        streetNumber: cart.shippingAddress?.streetNumber || "",
+        streetName: cart.shippingAddress?.streetName || "",
+        apartment: cart.shippingAddress?.apartment || "",
+        building: cart.shippingAddress?.building || "",
+        pOBox: cart.shippingAddress?.pOBox || "",
+        city: cart.shippingAddress?.city || "",
+        state: cart.shippingAddress?.state || "",
+        postalCode: cart.shippingAddress?.postalCode || "",
+        country: cart.shippingAddress?.country || cart.country || "US",
+        phone: cart.shippingAddress?.phone || "",
+      });
+      setBillingForm({
+        streetNumber: cart.billingAddress?.streetNumber || "",
+        streetName: cart.billingAddress?.streetName || "",
+        apartment: cart.billingAddress?.apartment || "",
+        building: cart.billingAddress?.building || "",
+        pOBox: cart.billingAddress?.pOBox || "",
+        city: cart.billingAddress?.city || "",
+        state: cart.billingAddress?.state || "",
+        postalCode: cart.billingAddress?.postalCode || "",
+        country: cart.billingAddress?.country || cart.country || "US",
+        phone: cart.billingAddress?.phone || "",
+      });
+      setSelectedMethodId(cart.shippingInfo.shippingMethodId || "");
     });
-    setBillingForm({
-      streetNumber: cart.billingAddress?.streetNumber || "",
-      streetName: cart.billingAddress?.streetName || "",
-      apartment: cart.billingAddress?.apartment || "",
-      building: cart.billingAddress?.building || "",
-      pOBox: cart.billingAddress?.pOBox || "",
-      city: cart.billingAddress?.city || "",
-      state: cart.billingAddress?.state || "",
-      postalCode: cart.billingAddress?.postalCode || "",
-      country: cart.billingAddress?.country || cart.country || "US",
-      phone: cart.billingAddress?.phone || "",
-    });
-    setSelectedMethodId(cart.shippingInfo.shippingMethodId || "");
   }, [cart]);
 
   useEffect(() => {

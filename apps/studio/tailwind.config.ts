@@ -2,7 +2,7 @@ import type { Config } from "tailwindcss";
 import { csaTailwindPreset } from "@csa/ui/preset";
 
 const config: Config = {
-  presets: [csaTailwindPreset as any],
+  presets: [csaTailwindPreset as unknown as Config],
   darkMode: ["class"],
   content: [
     "./src/**/*.{js,ts,jsx,tsx,mdx}",

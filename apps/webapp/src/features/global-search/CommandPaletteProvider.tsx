@@ -164,8 +164,10 @@ function CommandPalette({ isB2bMode, onClose }: { isB2bMode: boolean; onClose: (
 
   useEffect(() => {
     requestAnimationFrame(() => inputRef.current?.focus());
-    setRecentResults(readRecentResults());
-    setRecentSearches(readRecentSearches());
+    queueMicrotask(() => {
+      setRecentResults(readRecentResults());
+      setRecentSearches(readRecentSearches());
+    });
   }, []);
 
   useEffect(() => {
@@ -185,16 +187,18 @@ function CommandPalette({ isB2bMode, onClose }: { isB2bMode: boolean; onClose: (
   const flatResults = useMemo(() => visibleGroups.flatMap((group) => group.results), [visibleGroups]);
 
   useEffect(() => {
-    setFocusedIndex(0);
+    queueMicrotask(() => setFocusedIndex(0));
   }, [query, activeEntity]);
 
   useEffect(() => {
     const normalizedQuery = query.trim();
     if (normalizedQuery.length < MIN_QUERY_LENGTH) {
       abortRef.current?.abort();
-      setGroups([]);
-      setLoading(false);
-      setHasSearched(false);
+      queueMicrotask(() => {
+        setGroups([]);
+        setLoading(false);
+        setHasSearched(false);
+      });
       return;
     }
 

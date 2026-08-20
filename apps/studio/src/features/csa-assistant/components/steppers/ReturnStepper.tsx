@@ -94,21 +94,20 @@ export function ReturnStepper({
   }, [workflow?.order?.id, workflow?.eligibility?.eligible, localDraft.order?.id, setStep]);
 
   useEffect(() => {
-    if (workflow?.completed && step !== 'done') setStep('done');
+    if (workflow?.completed && step !== 'done') queueMicrotask(() => setStep('done'));
   }, [workflow?.completed, step, setStep]);
 
   useEffect(() => {
-    if (workflow?.completed) setIsSubmitting(false);
+    if (workflow?.completed) queueMicrotask(() => setIsSubmitting(false));
   }, [workflow?.completed]);
 
   // Safety net: if the AI stream ends (isLoading → false) while we're still
   // waiting for confirmation, the stream must have failed — unlock the button.
   useEffect(() => {
     if (!isLoading && isSubmitting && !workflow?.completed) {
-      setIsSubmitting(false);
+      queueMicrotask(() => setIsSubmitting(false));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [isLoading, isSubmitting, workflow?.completed]);
 
   const selectCustomer = (c: CustomerSearchResult) => {
     setSelectedCustomer(c);

@@ -150,10 +150,9 @@ export function CreateTicketStepper({
   // waiting for a created ticket, the stream must have failed — unlock the button.
   useEffect(() => {
     if (!isLoading && isCreatingTicket && !workflow?.createdTicket) {
-      setIsCreatingTicket(false);
+      queueMicrotask(() => setIsCreatingTicket(false));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [isLoading, isCreatingTicket, workflow?.createdTicket]);
 
   const selectCustomer = (cust: CustomerSearchResult) => {
     setLocalDraft((prev) => ({ ...prev, customer: cust }));

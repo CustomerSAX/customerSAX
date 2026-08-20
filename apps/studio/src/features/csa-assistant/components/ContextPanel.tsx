@@ -118,13 +118,14 @@ export function ContextPanel({ onSendMessage, isLoading = false, onContinueConve
   // effect syncs the React useState drafts/steps to match so reopening a
   // stepper after a new conversation always starts from step 1 with no stale data.
   useEffect(() => {
-    setCreateOrderStep('customer');
-    setOrderLocalDraft({ ...EMPTY_LOCAL_ORDER_DRAFT });
-    setCreateTicketStep('customer');
-    setTicketLocalDraft({ ...EMPTY_LOCAL_TICKET_DRAFT });
-    setCreateReturnStep('order');
-    setReturnLocalDraft({ ...EMPTY_LOCAL_RETURN_DRAFT });
-
+    queueMicrotask(() => {
+      setCreateOrderStep('customer');
+      setOrderLocalDraft({ ...EMPTY_LOCAL_ORDER_DRAFT });
+      setCreateTicketStep('customer');
+      setTicketLocalDraft({ ...EMPTY_LOCAL_TICKET_DRAFT });
+      setCreateReturnStep('order');
+      setReturnLocalDraft({ ...EMPTY_LOCAL_RETURN_DRAFT });
+    });
   }, [newConversationNonce]);
 
   const sendAction = (action: Record<string, unknown>) => {

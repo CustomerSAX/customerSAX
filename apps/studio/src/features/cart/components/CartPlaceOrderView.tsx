@@ -44,7 +44,7 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
 
   useEffect(() => {
-    setAltEmail(cart?.customerEmail || "");
+    queueMicrotask(() => setAltEmail(cart?.customerEmail || ""));
   }, [cart]);
 
   if (!cart) {
