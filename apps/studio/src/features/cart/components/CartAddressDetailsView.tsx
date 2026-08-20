@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -14,7 +14,7 @@ import {
   Input,
   Select,
   FormField,
-  Label,
+  Label
 } from "@csa/ui";
 import { useCartStore } from "../hooks/use-carts";
 import type { CartAddress } from "../types/cart-types";
@@ -28,7 +28,7 @@ const COUNTRY_OPTIONS = [
   { value: "US", label: "United States (US)" },
   { value: "CA", label: "Canada (CA)" },
   { value: "GB", label: "United Kingdom (GB)" },
-  { value: "DE", label: "Germany (DE)" },
+  { value: "DE", label: "Germany (DE)" }
 ];
 
 type ShippingMethodOption = {
@@ -36,7 +36,18 @@ type ShippingMethodOption = {
   name: string;
 };
 
-export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetailsViewProps) {
+function compactAddress(address: CartAddress): CartAddress {
+  return Object.fromEntries(
+    Object.entries(address).filter(
+      ([, value]) => typeof value !== "string" || value.trim().length > 0
+    )
+  ) as CartAddress;
+}
+
+export function CartAddressDetailsView({
+  id,
+  mode = "order"
+}: CartAddressDetailsViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
@@ -46,9 +57,9 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
     loading,
     error,
     getCartById,
-    updateShippingAddress,
     updateBillingAddress,
     updateShippingMethod,
+    updateCart
   } = useCartStore();
 
   const cart = getCartById(id);
@@ -68,7 +79,7 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
     state: cart?.shippingAddress?.state || "",
     postalCode: cart?.shippingAddress?.postalCode || "",
     country: cart?.shippingAddress?.country || cart?.country || "US",
-    phone: cart?.shippingAddress?.phone || "",
+    phone: cart?.shippingAddress?.phone || ""
   });
   const [shippingAddressFeedback, setShippingAddressFeedback] = useState("");
 
@@ -82,16 +93,23 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
     state: cart?.billingAddress?.state || "",
     postalCode: cart?.billingAddress?.postalCode || "",
     country: cart?.billingAddress?.country || cart?.country || "US",
-    phone: cart?.billingAddress?.phone || "",
+    phone: cart?.billingAddress?.phone || ""
   });
   const [billingAddressFeedback, setBillingAddressFeedback] = useState("");
 
   // Shipping Method
-  const [selectedMethodId, setSelectedMethodId] = useState(cart?.shippingInfo.shippingMethodId || "");
+  const [selectedMethodId, setSelectedMethodId] = useState(
+    cart?.shippingInfo.shippingMethodId || ""
+  );
   const [shippingMethodFeedback, setShippingMethodFeedback] = useState("");
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>([]);
   const [shippingMethodsError, setShippingMethodsError] = useState("");
   const [savingNext, setSavingNext] = useState(false);
+  const savingNextRef = useRef(false);
+  const [savingSection, setSavingSection] = useState<
+    "shipping" | "billing" | "method" | null
+  >(null);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     if (!cart) return;
@@ -105,7 +123,7 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
       state: cart.shippingAddress?.state || "",
       postalCode: cart.shippingAddress?.postalCode || "",
       country: cart.shippingAddress?.country || cart.country || "US",
-      phone: cart.shippingAddress?.phone || "",
+      phone: cart.shippingAddress?.phone || ""
     });
     setBillingForm({
       streetNumber: cart.billingAddress?.streetNumber || "",
@@ -117,7 +135,7 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
       state: cart.billingAddress?.state || "",
       postalCode: cart.billingAddress?.postalCode || "",
       country: cart.billingAddress?.country || cart.country || "US",
-      phone: cart.billingAddress?.phone || "",
+      phone: cart.billingAddress?.phone || ""
     });
     setSelectedMethodId(cart.shippingInfo.shippingMethodId || "");
   }, [cart]);
@@ -128,10 +146,15 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
     async function loadShippingMethods() {
       try {
         const response = await fetch("/api/shipping-methods");
-        const payload = (await response.json().catch(() => [])) as ShippingMethodOption[] | { error?: string };
+        const payload = (await response.json().catch(() => [])) as
+          ShippingMethodOption[] | { error?: string };
 
         if (!response.ok || !Array.isArray(payload)) {
-          throw new Error(Array.isArray(payload) ? "Unable to load shipping methods." : payload.error || "Unable to load shipping methods.");
+          throw new Error(
+            Array.isArray(payload)
+              ? "Unable to load shipping methods."
+              : payload.error || "Unable to load shipping methods."
+          );
         }
 
         if (!cancelled) {
@@ -141,7 +164,9 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
       } catch (err) {
         if (!cancelled) {
           setShippingMethods([]);
-          setShippingMethodsError(err instanceof Error ? err.message : "Unable to load shipping methods.");
+          setShippingMethodsError(
+            err instanceof Error ? err.message : "Unable to load shipping methods."
+          );
         }
       }
     }
@@ -165,9 +190,14 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
         </Link>
         <Card variant="default">
           <CardContent className="p-8 text-center space-y-2">
-            <div className="font-bold text-sm text-m-text">{loading ? "Loading cart" : "Cart not found"}</div>
+            <div className="font-bold text-sm text-m-text">
+              {loading ? "Loading cart" : "Cart not found"}
+            </div>
             <p className="text-xs text-m-text-muted">
-              {error || (loading ? "Fetching cart data from the commerce backend." : "No cart matched this ID.")}
+              {error ||
+                (loading
+                  ? "Fetching cart data from the commerce backend."
+                  : "No cart matched this ID.")}
             </p>
           </CardContent>
         </Card>
@@ -175,69 +205,112 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
     );
   }
 
-  const handleSaveShippingAddress = (e: React.FormEvent) => {
+  const handleSaveShippingAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateShippingAddress(cart.id, shippingForm);
-    if (isBillingSameAsShipping) {
-      updateBillingAddress(cart.id, shippingForm);
-      setBillingForm(shippingForm);
+    setSaveError("");
+    if (savingSection) return;
+    setSavingSection("shipping");
+    try {
+      const address = compactAddress(shippingForm);
+      const actions: Array<Record<string, unknown>> = [
+        { setShippingAddress: { address } }
+      ];
+      if (isBillingSameAsShipping) actions.push({ setBillingAddress: { address } });
+      await updateCart(cart.id, actions);
+      if (isBillingSameAsShipping) setBillingForm(shippingForm);
+      setShippingAddressFeedback("Shipping address saved successfully.");
+      setTimeout(() => setShippingAddressFeedback(""), 3500);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Unable to save shipping address."
+      );
+    } finally {
+      setSavingSection(null);
     }
-    setShippingAddressFeedback("Shipping address saved successfully.");
-    setTimeout(() => setShippingAddressFeedback(""), 3500);
   };
 
-  const handleSaveBillingAddress = (e: React.FormEvent) => {
+  const handleSaveBillingAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateBillingAddress(cart.id, billingForm);
-    setBillingAddressFeedback("Billing address saved successfully.");
-    setTimeout(() => setBillingAddressFeedback(""), 3500);
+    setSaveError("");
+    if (savingSection) return;
+    setSavingSection("billing");
+    try {
+      await updateBillingAddress(cart.id, compactAddress(billingForm));
+      setBillingAddressFeedback("Billing address saved successfully.");
+      setTimeout(() => setBillingAddressFeedback(""), 3500);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Unable to save billing address."
+      );
+    } finally {
+      setSavingSection(null);
+    }
   };
 
-  const handleSaveShippingMethod = () => {
+  const handleSaveShippingMethod = async () => {
     const m = shippingMethods.find((x) => x.id === selectedMethodId);
     if (!m) return;
-    updateShippingMethod(cart.id, selectedMethodId, m.name);
-    setShippingMethodFeedback(`Shipping method updated to ${m?.name || selectedMethodId}.`);
-    setTimeout(() => setShippingMethodFeedback(""), 3500);
+    setSaveError("");
+    if (savingSection) return;
+    setSavingSection("method");
+    try {
+      await updateShippingMethod(cart.id, selectedMethodId, m.name);
+      setShippingMethodFeedback(`Shipping method updated to ${m.name}.`);
+      setTimeout(() => setShippingMethodFeedback(""), 3500);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Unable to save shipping method."
+      );
+    } finally {
+      setSavingSection(null);
+    }
   };
 
   const handleNext = async () => {
-    if (!shippingForm.streetName || !shippingForm.city || !shippingForm.postalCode || !shippingForm.country) {
-      alert("Please complete required shipping address fields (Street Name, City, Postal Code, Country).");
+    if (savingNextRef.current) return;
+    if (
+      !shippingForm.streetName ||
+      !shippingForm.city ||
+      !shippingForm.postalCode ||
+      !shippingForm.country
+    ) {
+      setSaveError(
+        "Please complete required shipping address fields (Street Name, City, Postal Code, Country)."
+      );
       return;
     }
+    setSaveError("");
+    savingNextRef.current = true;
     setSavingNext(true);
-    updateShippingAddress(cart.id, shippingForm);
-    const nextBillingAddress = isBillingSameAsShipping ? shippingForm : billingForm;
-    updateBillingAddress(cart.id, nextBillingAddress);
-
+    const nextShippingAddress = compactAddress(shippingForm);
+    const nextBillingAddress = compactAddress(
+      isBillingSameAsShipping ? shippingForm : billingForm
+    );
     try {
       const actions: Array<Record<string, unknown>> = [
-        { setShippingAddress: { address: shippingForm } },
-        { setBillingAddress: { address: nextBillingAddress } },
+        { setShippingAddress: { address: nextShippingAddress } },
+        { setBillingAddress: { address: nextBillingAddress } }
       ];
       const m = shippingMethods.find((x) => x.id === selectedMethodId);
-      if (m) {
-        actions.push({ setShippingMethod: { shippingMethod: { typeId: "shipping-method", id: selectedMethodId } } });
-        updateShippingMethod(cart.id, selectedMethodId, m.name);
+      if (m && !isQuoteFlow) {
+        actions.push({
+          setShippingMethod: {
+            shippingMethod: { typeId: "shipping-method", id: selectedMethodId }
+          }
+        });
       }
-
-      const response = await fetch(`/api/carts/${encodeURIComponent(cart.id)}/update`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actions }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-
-      if (!response.ok) {
-        throw new Error(payload.error || "Unable to save cart addresses.");
-      }
+      await updateCart(cart.id, actions);
 
       const nextPath = isQuoteFlow ? "create-quote-request" : "place-order";
-      router.push(`/cart/${cart.id}/${nextPath}${customerIdParam ? `?customerId=${customerIdParam}` : ""}`);
+      router.push(
+        `/cart/${cart.id}/${nextPath}${customerIdParam ? `?customerId=${customerIdParam}` : ""}`
+      );
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Unable to save cart addresses.");
+      setSaveError(
+        error instanceof Error ? error.message : "Unable to save cart addresses."
+      );
       setSavingNext(false);
+      savingNextRef.current = false;
     }
   };
 
@@ -283,15 +356,15 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
             <Select
               value={shippingChoice}
               onChange={(e) => setShippingChoice(e.target.value)}
-              options={[
-                { value: "__new__", label: "New address (Manual entry)" },
-              ]}
+              options={[{ value: "__new__", label: "New address (Manual entry)" }]}
             />
           </FormField>
 
           {/* Shipping Manual Entry Grid */}
           <div className="p-4 bg-m-bg rounded-lg border border-m-border space-y-4">
-            <span className="text-xs font-bold text-m-text block">Shipping Address Details</span>
+            <span className="text-xs font-bold text-m-text block">
+              Shipping Address Details
+            </span>
             {shippingAddressFeedback && (
               <div className="p-2.5 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
                 {shippingAddressFeedback}
@@ -303,14 +376,21 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
                   <Label>Street Number</Label>
                   <Input
                     value={shippingForm.streetNumber || ""}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, streetNumber: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({
+                        ...prev,
+                        streetNumber: e.target.value
+                      }))
+                    }
                   />
                 </FormField>
                 <FormField>
                   <Label>Street Name *</Label>
                   <Input
                     value={shippingForm.streetName}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, streetName: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({ ...prev, streetName: e.target.value }))
+                    }
                   />
                 </FormField>
               </div>
@@ -320,21 +400,27 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
                   <Label>Apartment/Suite</Label>
                   <Input
                     value={shippingForm.apartment || ""}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, apartment: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({ ...prev, apartment: e.target.value }))
+                    }
                   />
                 </FormField>
                 <FormField>
                   <Label>Building</Label>
                   <Input
                     value={shippingForm.building || ""}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, building: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({ ...prev, building: e.target.value }))
+                    }
                   />
                 </FormField>
                 <FormField>
                   <Label>PO Box</Label>
                   <Input
                     value={shippingForm.pOBox || ""}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, pOBox: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({ ...prev, pOBox: e.target.value }))
+                    }
                   />
                 </FormField>
               </div>
@@ -344,21 +430,27 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
                   <Label>City *</Label>
                   <Input
                     value={shippingForm.city}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, city: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({ ...prev, city: e.target.value }))
+                    }
                   />
                 </FormField>
                 <FormField>
                   <Label>State</Label>
                   <Input
                     value={shippingForm.state}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, state: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({ ...prev, state: e.target.value }))
+                    }
                   />
                 </FormField>
                 <FormField>
                   <Label>Postal Code *</Label>
                   <Input
                     value={shippingForm.postalCode}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, postalCode: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({ ...prev, postalCode: e.target.value }))
+                    }
                   />
                 </FormField>
               </div>
@@ -368,7 +460,9 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
                   <Label>Country *</Label>
                   <Select
                     value={shippingForm.country}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, country: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({ ...prev, country: e.target.value }))
+                    }
                     options={COUNTRY_OPTIONS}
                   />
                 </FormField>
@@ -376,13 +470,21 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
                   <Label>Phone</Label>
                   <Input
                     value={shippingForm.phone || ""}
-                    onChange={(e) => setShippingForm((prev) => ({ ...prev, phone: e.target.value }))}
+                    onChange={(e) =>
+                      setShippingForm((prev) => ({ ...prev, phone: e.target.value }))
+                    }
                   />
                 </FormField>
               </div>
 
               <div className="flex items-center gap-3 pt-2">
-                <Button type="submit" variant="primary" size="md">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  loading={savingSection === "shipping"}
+                  disabled={savingSection !== null}
+                >
                   Save Shipping Address
                 </Button>
                 <Button
@@ -406,7 +508,10 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
               onChange={(e) => setIsBillingSameAsShipping(e.target.checked)}
               className="rounded border-m-border"
             />
-            <label htmlFor="same-billing-check" className="text-xs font-semibold text-m-text cursor-pointer">
+            <label
+              htmlFor="same-billing-check"
+              className="text-xs font-semibold text-m-text cursor-pointer"
+            >
               Use shipping address as billing address
             </label>
           </div>
@@ -419,14 +524,14 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
                 <Select
                   value={billingChoice}
                   onChange={(e) => setBillingChoice(e.target.value)}
-                  options={[
-                    { value: "__new__", label: "New address (Manual entry)" },
-                  ]}
+                  options={[{ value: "__new__", label: "New address (Manual entry)" }]}
                 />
               </FormField>
 
               <div className="p-4 bg-m-bg rounded-lg border border-m-border space-y-4">
-                <span className="text-xs font-bold text-m-text block">Billing Address Details</span>
+                <span className="text-xs font-bold text-m-text block">
+                  Billing Address Details
+                </span>
                 {billingAddressFeedback && (
                   <div className="p-2.5 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
                     {billingAddressFeedback}
@@ -438,14 +543,24 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
                       <Label>Street Number</Label>
                       <Input
                         value={billingForm.streetNumber || ""}
-                        onChange={(e) => setBillingForm((prev) => ({ ...prev, streetNumber: e.target.value }))}
+                        onChange={(e) =>
+                          setBillingForm((prev) => ({
+                            ...prev,
+                            streetNumber: e.target.value
+                          }))
+                        }
                       />
                     </FormField>
                     <FormField>
                       <Label>Street Name *</Label>
                       <Input
                         value={billingForm.streetName}
-                        onChange={(e) => setBillingForm((prev) => ({ ...prev, streetName: e.target.value }))}
+                        onChange={(e) =>
+                          setBillingForm((prev) => ({
+                            ...prev,
+                            streetName: e.target.value
+                          }))
+                        }
                       />
                     </FormField>
                   </div>
@@ -455,27 +570,42 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
                       <Label>City *</Label>
                       <Input
                         value={billingForm.city}
-                        onChange={(e) => setBillingForm((prev) => ({ ...prev, city: e.target.value }))}
+                        onChange={(e) =>
+                          setBillingForm((prev) => ({ ...prev, city: e.target.value }))
+                        }
                       />
                     </FormField>
                     <FormField>
                       <Label>State</Label>
                       <Input
                         value={billingForm.state}
-                        onChange={(e) => setBillingForm((prev) => ({ ...prev, state: e.target.value }))}
+                        onChange={(e) =>
+                          setBillingForm((prev) => ({ ...prev, state: e.target.value }))
+                        }
                       />
                     </FormField>
                     <FormField>
                       <Label>Postal Code *</Label>
                       <Input
                         value={billingForm.postalCode}
-                        onChange={(e) => setBillingForm((prev) => ({ ...prev, postalCode: e.target.value }))}
+                        onChange={(e) =>
+                          setBillingForm((prev) => ({
+                            ...prev,
+                            postalCode: e.target.value
+                          }))
+                        }
                       />
                     </FormField>
                   </div>
 
                   <div className="flex items-center gap-3 pt-2">
-                    <Button type="submit" variant="primary" size="md">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="md"
+                      loading={savingSection === "billing"}
+                      disabled={savingSection !== null}
+                    >
                       Save Billing Address
                     </Button>
                   </div>
@@ -504,7 +634,7 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
               onChange={(e) => setSelectedMethodId(e.target.value)}
               options={shippingMethods.map((m) => ({
                 value: m.id,
-                label: m.name,
+                label: m.name
               }))}
             />
             {shippingMethodsError && (
@@ -512,14 +642,23 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
             )}
           </FormField>
           <div className="flex items-center gap-3">
-            <Button type="button" variant="primary" size="md" disabled={!selectedMethodId} onClick={handleSaveShippingMethod}>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              loading={savingSection === "method"}
+              disabled={!selectedMethodId || savingSection !== null}
+              onClick={handleSaveShippingMethod}
+            >
               Save Shipping Method
             </Button>
             <Button
               type="button"
               variant="secondary"
               size="md"
-              onClick={() => setSelectedMethodId(cart.shippingInfo.shippingMethodId || "")}
+              onClick={() =>
+                setSelectedMethodId(cart.shippingInfo.shippingMethodId || "")
+              }
             >
               Reset
             </Button>
@@ -529,8 +668,17 @@ export function CartAddressDetailsView({ id, mode = "order" }: CartAddressDetail
 
       {/* Sticky Action Footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-m-border shadow-lg flex items-center justify-between z-40 px-8">
+        {saveError && (
+          <div className="mr-4 rounded-m-md border border-m-error-border bg-m-error-surface px-3 py-2 text-xs font-semibold text-m-error">
+            {saveError}
+          </div>
+        )}
         <div className="flex items-center gap-3">
-          <Button variant="secondary" size="md" onClick={() => router.push(`/cart/${cart.id}`)}>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => router.push(`/cart/${cart.id}`)}
+          >
             Cancel
           </Button>
           <Button variant="secondary" size="md" onClick={() => router.back()}>

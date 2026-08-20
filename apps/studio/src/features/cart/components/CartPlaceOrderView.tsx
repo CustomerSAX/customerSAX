@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -30,16 +30,17 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
     loading,
     error,
     getCartById,
-    sendPaymentReminder,
     placeOrderFromCart,
   } = useCartStore();
 
   const cart = getCartById(id);
 
   const [altEmail, setAltEmail] = useState(cart?.customerEmail || "");
-  const [reminderFeedback, setReminderFeedback] = useState("");
+  const reminderFeedback = "";
 
   const [placing, setPlacing] = useState(false);
+  const placingRef = useRef(false);
+  const [placeOrderError, setPlaceOrderError] = useState("");
   const [orderCreatedId, setOrderCreatedId] = useState<string | null>(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
 
@@ -69,21 +70,21 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
     );
   }
 
-  const handleSendPaymentReminder = () => {
-    if (!altEmail.trim()) return;
-    sendPaymentReminder(cart.id, altEmail.trim());
-    setReminderFeedback(`Payment reminder notification email sent to ${altEmail.trim()}. You are good to place the order now.`);
-    setTimeout(() => setReminderFeedback(""), 4500);
-  };
-
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
+    if (placingRef.current) return;
+    placingRef.current = true;
     setPlacing(true);
-    setTimeout(() => {
-      const newOrderId = placeOrderFromCart(cart.id);
+    setPlaceOrderError("");
+    try {
+      const newOrderId = await placeOrderFromCart(cart.id);
       setOrderCreatedId(newOrderId);
-      setPlacing(false);
       setIsSuccessModalOpen(true);
-    }, 600);
+    } catch (error) {
+      setPlaceOrderError(error instanceof Error ? error.message : "Unable to place order.");
+    } finally {
+      placingRef.current = false;
+      setPlacing(false);
+    }
   };
 
   const backToAddressesHref = `/cart/${cart.id}/address-details${customerIdParam ? `?customerId=${customerIdParam}` : ""}`;
@@ -125,7 +126,7 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-m-text-muted">
-            Send an email payment notification directly to the customer&apos;s registered email address.
+            Payment reminders are unavailable until an email provider is configured.
           </p>
           {reminderFeedback && (
             <div className="p-2.5 bg-m-success-surface text-m-success text-xs font-semibold rounded-md">
@@ -137,14 +138,15 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
               <FormField>
                 <Label>Customer Email</Label>
                 <Input
+                  disabled
                   value={altEmail}
                   onChange={(e) => setAltEmail(e.target.value)}
                   placeholder="Enter email address..."
                 />
               </FormField>
             </div>
-            <Button type="button" variant="primary" size="md" onClick={handleSendPaymentReminder}>
-              Send Payment Reminder
+            <Button type="button" variant="primary" size="md" disabled>
+              Payment Reminder Not Configured
             </Button>
           </div>
         </CardContent>
@@ -200,6 +202,7 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
           ⚠️ A shipping address is required before placing an order. Go back to address step and configure shipping destination first.
         </div>
       )}
+      {placeOrderError && <div className="p-4 bg-m-error-surface text-m-error text-xs font-semibold rounded-md">{placeOrderError}</div>}
 
       {/* Sticky Action Footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-m-border shadow-lg flex items-center justify-between z-40 px-8">

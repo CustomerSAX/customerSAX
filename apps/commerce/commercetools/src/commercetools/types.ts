@@ -44,7 +44,12 @@ export type CtCart = {
   key?: string;
   lastModifiedAt?: string;
   lineItems?: CtLineItem[];
+  discountCodes?: Array<{ discountCode?: { code?: string } | null }>;
   shippingAddress?: CtAddress | null;
+  shippingInfo?: {
+    price?: CtMoney;
+    shippingMethod?: { id: string; name?: string };
+  } | null;
   totalPrice: CtMoney;
   version: number;
 };
@@ -70,7 +75,7 @@ export type CtReturnItem = {
   id: string;
   type?: string;
   quantity: number;
-  lineItemId?: string;  // only present on LineItemReturnItem (inline fragment)
+  lineItemId?: string; // only present on LineItemReturnItem (inline fragment)
   shipmentState: string;
   paymentState: string;
   comment?: string | null;

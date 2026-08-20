@@ -59,6 +59,12 @@ export type Cart = {
   lastModifiedAt?: string;
   lineItems: CommerceLineItem[];
   shippingAddress?: CartAddress | null;
+  shippingInfo?: {
+    price?: Money;
+    shippingMethodId?: string;
+    shippingMethodName?: string;
+  } | null;
+  discountCodes: string[];
   totalPrice: Money;
   version: number;
 };

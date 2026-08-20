@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import type {
-  Cart,
-  CartState,
-  CartLineItem,
-  CartAddress,
-} from "../types/cart-types";
+import type { Cart, CartState, CartLineItem, CartAddress } from "../types/cart-types";
 
 type ApiMoney = {
   centAmount?: number | null;
@@ -36,6 +31,12 @@ type ApiCart = {
   lineItems?: ApiCartLineItem[] | null;
   shippingAddress?: CartAddress | null;
   billingAddress?: CartAddress | null;
+  shippingInfo?: {
+    shippingMethodId?: string | null;
+    shippingMethodName?: string | null;
+    price?: ApiMoney | null;
+  } | null;
+  discountCodes?: string[] | null;
 };
 
 type ApiCartListResponse = {
@@ -64,15 +65,16 @@ function mapApiCart(cart: ApiCart): Cart {
       quantity,
       subtotal: totalGross,
       tax: 0,
-      totalGross,
+      totalGross
     };
   });
 
+  const lineItemsTotal = lineItems.reduce((sum, item) => sum + item.totalGross, 0);
   return {
     id: cart.id,
     cartNumber: cart.key || undefined,
     customerId: cart.customerId || undefined,
-    customerName: cart.customerId ? `Customer ${cart.customerId}` : "Guest / unassigned",
+    customerName: cart.customerEmail || cart.customerId || "Guest / unassigned",
     customerEmail: cart.customerEmail || "",
     store: "",
     currencyCode,
@@ -83,19 +85,20 @@ function mapApiCart(cart: ApiCart): Cart {
     shippingAddress: cart.shippingAddress ?? undefined,
     billingAddress: cart.billingAddress ?? undefined,
     shippingInfo: {
-      shippingMethodName: "",
-      price: 0,
+      shippingMethodId: cart.shippingInfo?.shippingMethodId ?? undefined,
+      shippingMethodName: cart.shippingInfo?.shippingMethodName || "",
+      price: moneyToNumber(cart.shippingInfo?.price),
       taxRate: "",
-      carrier: "",
+      carrier: ""
     },
-    discountCodes: [],
+    discountCodes: cart.discountCodes ?? [],
     appliedDiscounts: [],
     ineffectiveDiscounts: [],
-    netTotal: grandTotal,
+    netTotal: lineItemsTotal,
     taxTotal: 0,
-    shippingTotal: 0,
+    shippingTotal: moneyToNumber(cart.shippingInfo?.price),
     discountTotal: 0,
-    grandTotal,
+    grandTotal
   };
 }
 
@@ -109,7 +112,9 @@ export function useCartStore() {
     setError(null);
     try {
       const response = await fetch("/api/carts?limit=100");
-      const payload = (await response.json().catch(() => ({}))) as ApiCartListResponse & { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as ApiCartListResponse & {
+        error?: string;
+      };
 
       if (!response.ok) {
         throw new Error(payload.error || `Failed to load carts (${response.status})`);
@@ -125,6 +130,24 @@ export function useCartStore() {
     }
   }, []);
 
+  const updateCart = useCallback(
+    async (cartId: string, actions: Array<Record<string, unknown>>) => {
+      const response = await fetch(`/api/carts/${encodeURIComponent(cartId)}/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actions })
+      });
+      const payload = (await response.json().catch(() => ({}))) as ApiCart & {
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.error || "Unable to update cart.");
+      setCarts((prev) =>
+        prev.map((cart) => (cart.id === cartId ? mapApiCart(payload) : cart))
+      );
+    },
+    []
+  );
+
   useEffect(() => {
     void reloadCarts();
   }, [reloadCarts]);
@@ -134,181 +157,84 @@ export function useCartStore() {
     [carts]
   );
 
-  const updateLineItemQuantity = useCallback((cartId: string, lineItemId: string, newQty: number) => {
-    setCarts((prev) =>
-      prev.map((c) => {
-        if (c.id !== cartId && c.cartNumber !== cartId) return c;
-
-        let updatedItems: CartLineItem[];
-        if (newQty <= 0) {
-          updatedItems = c.lineItems.filter((li) => li.id !== lineItemId);
-        } else {
-          updatedItems = c.lineItems.map((li) => {
-            if (li.id !== lineItemId) return li;
-            const subtotal = Number((li.unitPrice * newQty).toFixed(2));
-            const tax = Number((subtotal * 0.08).toFixed(2));
-            return {
-              ...li,
-              quantity: newQty,
-              subtotal,
-              tax,
-              totalGross: subtotal + tax,
-            };
-          });
-        }
-
-        const netTotal = updatedItems.reduce((acc, i) => acc + i.subtotal, 0);
-        const taxTotal = updatedItems.reduce((acc, i) => acc + i.tax, 0);
-        const grandTotal = Math.max(0, netTotal + taxTotal + c.shippingTotal - c.discountTotal);
-
-        return {
-          ...c,
-          lineItems: updatedItems,
-          netTotal,
-          taxTotal,
-          grandTotal,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
-
-  const addLineItemToCart = useCallback(
-    (cartId: string, newItem: Omit<CartLineItem, "id" | "subtotal" | "tax" | "totalGross">) => {
-      setCarts((prev) =>
-        prev.map((c) => {
-          if (c.id !== cartId && c.cartNumber !== cartId) return c;
-
-          const subtotal = Number((newItem.unitPrice * newItem.quantity).toFixed(2));
-          const tax = Number((subtotal * 0.08).toFixed(2));
-          const fullItem: CartLineItem = {
-            ...newItem,
-            id: `cli-${Date.now()}`,
-            subtotal,
-            tax,
-            totalGross: subtotal + tax,
-          };
-
-          const updatedItems = [...c.lineItems, fullItem];
-          const netTotal = updatedItems.reduce((acc, i) => acc + i.subtotal, 0);
-          const taxTotal = updatedItems.reduce((acc, i) => acc + i.tax, 0);
-          const grandTotal = Math.max(0, netTotal + taxTotal + c.shippingTotal - c.discountTotal);
-
-          return {
-            ...c,
-            lineItems: updatedItems,
-            netTotal,
-            taxTotal,
-            grandTotal,
-            lastModifiedAt: new Date().toISOString(),
-          };
-        })
-      );
+  const updateLineItemQuantity = useCallback(
+    async (cartId: string, lineItemId: string, newQty: number) => {
+      await updateCart(cartId, [
+        { changeLineItemQuantity: { lineItemId, quantity: newQty } }
+      ]);
     },
-    []
+    [updateCart]
   );
 
-  const applyDiscountCode = useCallback((cartId: string, code: string) => {
-    setCarts((prev) =>
-      prev.map((c) => {
-        if (c.id !== cartId && c.cartNumber !== cartId) return c;
+  const addLineItemToCart = useCallback(
+    async (
+      cartId: string,
+      newItem: Omit<CartLineItem, "id" | "subtotal" | "tax" | "totalGross">
+    ) => {
+      await updateCart(cartId, [
+        { addLineItem: { sku: newItem.sku, quantity: newItem.quantity } }
+      ]);
+    },
+    [updateCart]
+  );
 
-        const uppercaseCode = code.trim().toUpperCase();
-        if (c.discountCodes.includes(uppercaseCode)) {
-          return c;
+  const applyDiscountCode = useCallback(
+    async (cartId: string, code: string) => {
+      await updateCart(cartId, [{ addDiscountCode: { code: code.trim() } }]);
+    },
+    [updateCart]
+  );
+
+  const updateShippingMethod = useCallback(
+    async (cartId: string, methodId: string, _methodName: string) => {
+      await updateCart(cartId, [
+        {
+          setShippingMethod: {
+            shippingMethod: { typeId: "shipping-method", id: methodId }
+          }
         }
+      ]);
+    },
+    [updateCart]
+  );
 
-        return {
-          ...c,
-          discountCodes: [...c.discountCodes, uppercaseCode],
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
+  const updateShippingAddress = useCallback(
+    async (cartId: string, newAddress: CartAddress) => {
+      await updateCart(cartId, [{ setShippingAddress: { address: newAddress } }]);
+    },
+    [updateCart]
+  );
 
-  const updateShippingMethod = useCallback((cartId: string, methodId: string, methodName: string) => {
-    setCarts((prev) =>
-      prev.map((c) => {
-        if (c.id !== cartId && c.cartNumber !== cartId) return c;
+  const updateBillingAddress = useCallback(
+    async (cartId: string, newAddress: CartAddress) => {
+      await updateCart(cartId, [{ setBillingAddress: { address: newAddress } }]);
+    },
+    [updateCart]
+  );
 
-        const shippingInfo = {
-          ...c.shippingInfo,
-          shippingMethodId: methodId,
-          shippingMethodName: methodName,
-        };
-
-        return {
-          ...c,
-          shippingInfo,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
-
-  const updateShippingAddress = useCallback((cartId: string, newAddress: CartAddress) => {
-    setCarts((prev) =>
-      prev.map((c) => {
-        if (c.id !== cartId && c.cartNumber !== cartId) return c;
-        return {
-          ...c,
-          shippingAddress: newAddress,
-          country: newAddress.country || c.country,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
-
-  const updateBillingAddress = useCallback((cartId: string, newAddress: CartAddress) => {
-    setCarts((prev) =>
-      prev.map((c) => {
-        if (c.id !== cartId && c.cartNumber !== cartId) return c;
-        return {
-          ...c,
-          billingAddress: newAddress,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
-
-  const sendPaymentReminder = useCallback((cartId: string, _altEmail: string): boolean => {
-    setCarts((prev) =>
-      prev.map((c) => {
-        if (c.id !== cartId && c.cartNumber !== cartId) return c;
-        return {
-          ...c,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-    return true;
-  }, []);
-
-  const placeOrderFromCart = useCallback((cartId: string): string => {
-    const newOrderId = `ord-${Date.now().toString().slice(-4)}`;
-
-    setCarts((prev) =>
-      prev.map((c) => {
-        if (c.id !== cartId && c.cartNumber !== cartId) return c;
-        return {
-          ...c,
-          cartState: "Ordered" as CartState,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-
-    return newOrderId;
-  }, []);
+  const placeOrderFromCart = useCallback(
+    async (cartId: string): Promise<string> => {
+      const response = await fetch(`/api/carts/${encodeURIComponent(cartId)}/order`, {
+        method: "POST"
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        id?: string;
+        error?: string;
+      };
+      if (!response.ok || !payload.id)
+        throw new Error(payload.error || "Unable to place order.");
+      await reloadCarts();
+      return payload.id;
+    },
+    [reloadCarts]
+  );
 
   return {
     carts,
     loading,
     error,
     reloadCarts,
+    updateCart,
     getCartById,
     updateLineItemQuantity,
     addLineItemToCart,
@@ -316,7 +242,6 @@ export function useCartStore() {
     updateShippingMethod,
     updateShippingAddress,
     updateBillingAddress,
-    sendPaymentReminder,
-    placeOrderFromCart,
+    placeOrderFromCart
   };
 }

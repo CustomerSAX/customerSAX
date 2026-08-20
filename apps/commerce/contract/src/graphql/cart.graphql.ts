@@ -14,7 +14,15 @@ export const cartTypeDefs = gql`
     shippingAddress: CartAddress
     billingAddress: CartAddress
     totalPrice: Money!
+    shippingInfo: CartShippingInfo
+    discountCodes: [String!]!
     lineItems: [CartLineItem!]!
+  }
+
+  type CartShippingInfo {
+    shippingMethodId: ID
+    shippingMethodName: String
+    price: Money
   }
 
   type CartAddress {
@@ -68,21 +76,46 @@ export const cartTypeDefs = gql`
   extend type Query {
     cart(id: ID, key: String): Cart
     carts(limit: Int = 20, offset: Int = 0): [Cart!]!
-    cartPage(limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): CartPage!
-    searchCarts(option: String = "all", text: String!, limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): CartPage!
-    b2bCarts(limit: Int = 20, offset: Int = 0, businessUnitKey: String, customerId: ID, sortKey: String, sortOrder: String): CartPage!
+    cartPage(
+      limit: Int = 20
+      offset: Int = 0
+      sortKey: String
+      sortOrder: String
+    ): CartPage!
+    searchCarts(
+      option: String = "all"
+      text: String!
+      limit: Int = 20
+      offset: Int = 0
+      sortKey: String
+      sortOrder: String
+    ): CartPage!
+    b2bCarts(
+      limit: Int = 20
+      offset: Int = 0
+      businessUnitKey: String
+      customerId: ID
+      sortKey: String
+      sortOrder: String
+    ): CartPage!
     activeCartCount(customerId: ID!): Int!
     discountCodes(limit: Int = 100): [DiscountCode!]!
     shippingMethods(limit: Int = 20): [ShippingMethod!]!
   }
 
   extend type Mutation {
-    createB2bCart(currency: String!, businessUnitKey: String, customerId: ID, customerEmail: String): Cart
+    createB2bCart(
+      currency: String!
+      businessUnitKey: String
+      customerId: ID
+      customerEmail: String
+    ): Cart
     placeOrderFromCart(id: ID!): Json!
     addCartLineItem(id: ID!, sku: String!, quantity: Int!): Cart
     removeCartLineItem(id: ID!, lineItemId: ID!): Cart
     changeCartLineItemQuantity(id: ID!, lineItemId: ID!, quantity: Int!): Cart
     updateCartAddresses(id: ID!, shippingAddress: Json, billingAddress: Json): Cart
     setCartShippingMethod(id: ID!, shippingMethodId: ID!): Cart
+    addCartDiscountCode(id: ID!, code: String!): Cart
   }
 `;

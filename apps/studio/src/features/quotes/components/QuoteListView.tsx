@@ -29,7 +29,9 @@ const STATUS_OPTIONS = [
   { value: "Draft", label: "Draft" },
   { value: "Submitted", label: "Submitted" },
   { value: "In Review", label: "In Review" },
+  { value: "Accepted", label: "Accepted" },
   { value: "Approved", label: "Approved" },
+  { value: "Rejected", label: "Rejected" },
   { value: "Declined", label: "Declined" },
   { value: "Converted", label: "Converted" },
 ];

@@ -42,6 +42,13 @@ export const cartFields = `#graphql
     currencyCode
     fractionDigits
   }
+  shippingInfo {
+    shippingMethod { id name }
+    price { centAmount currencyCode fractionDigits }
+  }
+  discountCodes {
+    discountCode { code }
+  }
   lineItems {
     id
     productId

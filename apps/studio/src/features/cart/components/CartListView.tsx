@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useCallback, useState, useMemo } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
@@ -253,17 +252,7 @@ export function CartListView() {
     if (key === "customer") {
       return (
         <TableCell>
-          {cart.customerId ? (
-            <Link
-              href={`/customers/${cart.customerId}`}
-              onClick={(e) => e.stopPropagation()}
-              className="font-semibold text-xs text-m-primary hover:underline"
-            >
-              {customerLabel}
-            </Link>
-          ) : (
-            <span className="text-xs text-m-text-muted italic">{customerLabel}</span>
-          )}
+          <span className="font-semibold text-xs text-m-text">{customerLabel}</span>
           <div className="text-[10px] text-m-text-muted">{cart.customerEmail || "--"}</div>
         </TableCell>
       );

@@ -8,7 +8,9 @@ export type QuoteStatus =
   | "Draft"
   | "Submitted"
   | "In Review"
+  | "Accepted"
   | "Approved"
+  | "Rejected"
   | "Declined"
   | "Cancelled"
   | "Converted";

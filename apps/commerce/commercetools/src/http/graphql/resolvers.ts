@@ -37,6 +37,7 @@ const quoteResolvers = quote.resolvers;
 export const resolvers = {
   Json: jsonScalar,
   Mutation: {
+    addCartDiscountCode: cartResolvers.addCartDiscountCode,
     addCartLineItem: cartResolvers.addCartLineItem,
     addCustomerAddress: customerResolvers.addCustomerAddress,
     changeCartLineItemQuantity: cartResolvers.changeCartLineItemQuantity,
