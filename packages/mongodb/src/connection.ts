@@ -12,13 +12,11 @@
  *  - `MONGO_DB_NAME` selects the default database (`csa` when unset).
  */
 
-import { env, requiredEnv } from "@csa/config";
+import { env, requiredEnv, setupDnsFallback } from "@csa/config";
 import { MongoClient, type Collection, type Document } from "mongodb";
 
-// `env`/`requiredEnv` now live in the lower-level `@csa/config` package; they are
-// re-exported here so existing `@csa/mongodb` consumers keep importing them
-// unchanged (the barrel `export * from "./connection.js"` forwards these).
-export { env, requiredEnv };
+// `env`/`requiredEnv`/`setupDnsFallback` live in `@csa/config`; re-exported for convenience
+export { env, requiredEnv, setupDnsFallback };
 
 let clientPromise: Promise<MongoClient> | undefined;
 
@@ -27,9 +25,13 @@ let clientPromise: Promise<MongoClient> | undefined;
  * first call and reusing the cached connect promise thereafter.
  */
 export async function getMongoClient(uri = mongoUri()) {
+  setupDnsFallback();
   if (!clientPromise) {
     const client = new MongoClient(uri);
-    clientPromise = client.connect();
+    clientPromise = client.connect().catch((err) => {
+      clientPromise = undefined; // Reset on failure
+      throw err;
+    });
   }
 
   return clientPromise;

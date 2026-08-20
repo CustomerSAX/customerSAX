@@ -6,7 +6,7 @@
 # - Sources /workspace/build_config.sh from Step 1
 # - Reads /workspace/services_to_deploy.txt from Step 1
 # - Runs `gcloud run deploy` per service with per-service tuning
-# - Grants BFF SA run.invoker on all private services (idempotent)
+# - Leaves Cloud Run IAM/public access untouched; manage service access separately.
 #
 # CRITICAL: Uses --update-env-vars and --update-secrets (NEVER --set-*)
 # ============================================================
@@ -105,7 +105,7 @@ deploy_service() {
           python3 -c "import sys,json; d=json.load(sys.stdin); d['admin']='${ADMIN_URL}/graphql'; print(json.dumps(d))")
       fi
       echo "🔗 FEDERATED_SERVICES: ${FED_SERVICES}"
-      SVC_ENV="${SVC_ENV},FEDERATED_SERVICES=${FED_SERVICES}" ;;
+      SVC_ENV="^|^NODE_ENV=production|SERVICE_NAME=${SVC}|ENVIRONMENT=${ENVIRONMENT}|FEDERATED_SERVICES=${FED_SERVICES}" ;;
   esac
 
   # ── Build gcloud run deploy command ───────────────────────────────────────
@@ -135,25 +135,6 @@ deploy_service() {
   fi
 
   "${DEPLOY_CMD[@]}"
-
-  # ── Grant BFF's service account run.invoker on all private services ────────
-  # The BFF mints a Google ID token for each downstream private service.
-  # Cloud Run validates that token — so the BFF SA needs invoker on each.
-  # api: lookup the SA from the BFF's own config (idempotent, survives SA changes).
-  if [ "${SVC}" != "bff" ] && [ "${SVC}" != "auth" ]; then
-    BFF_SA=$(gcloud run services describe "${NAME_PREFIX}-bff" \
-      --region="${REGION}" --project="${PROJECT_ID}" \
-      --format='value(spec.template.spec.serviceAccountName)' 2>/dev/null \
-      || echo "")
-    if [ -n "${BFF_SA}" ]; then
-      echo "🔐 Granting roles/run.invoker on ${RUN_SVC_NAME} to BFF SA: ${BFF_SA}"
-      gcloud run services add-iam-policy-binding "${RUN_SVC_NAME}" \
-        --region="${REGION}" --project="${PROJECT_ID}" \
-        --member="serviceAccount:${BFF_SA}" \
-        --role="roles/run.invoker" 2>/dev/null \
-        || echo "  ⚠️  IAM binding skipped (will retry on next deploy)"
-    fi
-  fi
 
   # ── Print URL ─────────────────────────────────────────────────────────────
   SVC_URL=$(gcloud run services describe "${RUN_SVC_NAME}" \

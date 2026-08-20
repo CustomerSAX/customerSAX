@@ -49,8 +49,8 @@ jobs:
             cloudbuild.googleapis.com \
             --project="${{ env.PROJECT_ID }}" --quiet
 
-          # Public services. Domain restricted sharing blocks allUsers IAM
-          # bindings, so use Cloud Run's public-access mode instead.
+          # Public entry-point services. Access is managed manually in Cloud Run
+          # because the deploy identities cannot mutate service IAM in this project.
           PUBLIC_SERVICES=(
             "${PREFIX}-bff"
             "${PREFIX}-auth"
@@ -78,16 +78,10 @@ jobs:
                 --image="${{ env.PLACEHOLDER_IMAGE }}" \
                 --region="${{ env.REGION }}" \
                 --project="${{ env.PROJECT_ID }}" \
-                --no-invoker-iam-check \
                 --quiet
             else
-              echo "  ✓ ${SVC} exists — ensuring public access"
+              echo "  ✓ ${SVC} exists"
             fi
-            gcloud run services update "${SVC}" \
-              --region="${{ env.REGION }}" \
-              --project="${{ env.PROJECT_ID }}" \
-              --no-invoker-iam-check \
-              --quiet 2>/dev/null || true
           done
 
           for SVC in "${PRIVATE_SERVICES[@]}"; do
@@ -101,7 +95,6 @@ jobs:
                 --image="${{ env.PLACEHOLDER_IMAGE }}" \
                 --region="${{ env.REGION }}" \
                 --project="${{ env.PROJECT_ID }}" \
-                --no-allow-unauthenticated \
                 --quiet
               echo "  ✅ ${SVC} created"
             else
@@ -225,15 +218,21 @@ jobs:
             PREFIX="csa-dev"
           fi
           
-          BFF_URL="https://${PREFIX}-bff-v3egj3ywmq-uc.a.run.app"
-          AUTH_URL="https://${PREFIX}-auth-v3egj3ywmq-uc.a.run.app"
+          RUN_HOST_SUFFIX="v3egj3ywmq-uc.a.run.app"
+          BFF_URL="https://${PREFIX}-bff-${RUN_HOST_SUFFIX}/graphql"
+          AUTH_URL="https://${PREFIX}-auth-${RUN_HOST_SUFFIX}"
+          AI_ASSIST_URL="https://${PREFIX}-ai-assist-${RUN_HOST_SUFFIX}"
           
           vercel deploy $PROD_FLAG \
             --token="${{ secrets.VERCEL_TOKEN }}" \
-            --build-env NEXT_PUBLIC_GRAPHQL_URL="$BFF_URL" \
+            --build-env NEXT_PUBLIC_GRAPHQL_URL="/api/graphql" \
+            --build-env AI_COMMERCE_SERVICE_URL="$BFF_URL" \
             --build-env AUTH_SERVICE_URL="$AUTH_URL" \
-            --env NEXT_PUBLIC_GRAPHQL_URL="$BFF_URL" \
+            --build-env AI_ASSIST_URL="$AI_ASSIST_URL" \
+            --env NEXT_PUBLIC_GRAPHQL_URL="/api/graphql" \
+            --env AI_COMMERCE_SERVICE_URL="$BFF_URL" \
             --env AUTH_SERVICE_URL="$AUTH_URL" \
+            --env AI_ASSIST_URL="$AI_ASSIST_URL" \
             --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

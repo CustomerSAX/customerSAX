@@ -12,8 +12,24 @@
  * `apps/ai-assist/src/config.ts`.
  */
 
+import dns from "node:dns";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+/**
+ * Ensures Node.js DNS resolution has public fallbacks (Google 8.8.8.8, Cloudflare 1.1.1.1)
+ * when local DNS stub resolvers (e.g. 127.0.0.1) refuse SRV queries like `_mongodb._tcp...`.
+ */
+export function setupDnsFallback(): void {
+  try {
+    const servers = dns.getServers();
+    if (!servers.includes("8.8.8.8")) {
+      dns.setServers(["8.8.8.8", "1.1.1.1", ...servers]);
+    }
+  } catch {
+    // Silently ignore in restricted environments
+  }
+}
 
 /**
  * Loads `.env` files into `process.env` for local development.
@@ -37,6 +53,7 @@ import { resolve } from "node:path";
  * @param opts.extraPaths Absolute `.env` paths to load after `<cwd>/.env`.
  */
 export function loadEnv(opts: { extraPaths?: string[] } = {}): void {
+  setupDnsFallback();
   const cwdEnvPath = resolve(process.cwd(), ".env");
   const candidates = [cwdEnvPath, ...(opts.extraPaths ?? [])];
 
