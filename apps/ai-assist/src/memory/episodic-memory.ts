@@ -19,6 +19,7 @@
  */
 
 import { MongoClient } from "mongodb";
+import { setupDnsFallback } from "@csa/mongodb";
 import { createLogger } from "@csa/logger";
 
 const log = createLogger("ai-assist").child({ module: "memory/episodic" });
@@ -69,6 +70,7 @@ function getMongoClient(): Promise<MongoClient> | null {
   const uri = process.env.MONGO_URI?.trim() || process.env.MONGODB_URI?.trim();
   if (!uri) return null;
   if (!_clientPromise) {
+    setupDnsFallback();
     _clientPromise = new MongoClient(uri).connect();
   }
   return _clientPromise;

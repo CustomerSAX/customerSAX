@@ -12,6 +12,7 @@
  */
 
 import { MongoClient, ObjectId, type Collection, type Document } from "mongodb";
+import { setupDnsFallback } from "@csa/mongodb";
 import { createLogger } from "@csa/logger";
 
 const log = createLogger("ai-assist").child({ module: "mongo-chat" });
@@ -58,6 +59,7 @@ function getClient(): Promise<MongoClient> | null {
   if (!uri) return null; // graceful degradation — no MongoDB configured
 
   if (!_clientPromise) {
+    setupDnsFallback();
     const client = new MongoClient(uri);
     _clientPromise = client.connect();
   }
