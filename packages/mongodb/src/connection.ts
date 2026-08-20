@@ -28,7 +28,10 @@ export async function getMongoClient(uri = mongoUri()) {
   setupDnsFallback();
   if (!clientPromise) {
     const client = new MongoClient(uri);
-    clientPromise = client.connect();
+    clientPromise = client.connect().catch((err) => {
+      clientPromise = undefined; // Reset on failure
+      throw err;
+    });
   }
 
   return clientPromise;

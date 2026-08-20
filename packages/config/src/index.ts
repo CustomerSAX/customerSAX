@@ -23,11 +23,11 @@ import { resolve } from "node:path";
 export function setupDnsFallback(): void {
   try {
     const servers = dns.getServers();
-    if (servers.every((s) => s.startsWith("127.") || s === "::1" || s === "localhost")) {
+    if (!servers.includes("8.8.8.8")) {
       dns.setServers(["8.8.8.8", "1.1.1.1", ...servers]);
     }
   } catch {
-    // Silently ignore in environments where dns.setServers is restricted or unavailable
+    // Silently ignore in restricted environments
   }
 }
 
