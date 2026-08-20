@@ -218,7 +218,7 @@ jobs:
             PREFIX="csa-dev"
           fi
           
-          RUN_HOST_SUFFIX="${{ env.PROJECT_NUMBER }}.${{ env.REGION }}.run.app"
+          RUN_HOST_SUFFIX="v3egj3ywmq-uc.a.run.app"
           BFF_URL="https://${PREFIX}-bff-${RUN_HOST_SUFFIX}/graphql"
           AUTH_URL="https://${PREFIX}-auth-${RUN_HOST_SUFFIX}"
           AI_ASSIST_URL="https://${PREFIX}-ai-assist-${RUN_HOST_SUFFIX}"
