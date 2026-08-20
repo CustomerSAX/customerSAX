@@ -218,15 +218,21 @@ jobs:
             PREFIX="csa-dev"
           fi
           
-          BFF_URL="https://${PREFIX}-bff-v3egj3ywmq-uc.a.run.app"
-          AUTH_URL="https://${PREFIX}-auth-v3egj3ywmq-uc.a.run.app"
+          RUN_HOST_SUFFIX="${{ env.PROJECT_NUMBER }}.${{ env.REGION }}.run.app"
+          BFF_URL="https://${PREFIX}-bff-${RUN_HOST_SUFFIX}/graphql"
+          AUTH_URL="https://${PREFIX}-auth-${RUN_HOST_SUFFIX}"
+          AI_ASSIST_URL="https://${PREFIX}-ai-assist-${RUN_HOST_SUFFIX}"
           
           vercel deploy $PROD_FLAG \
             --token="${{ secrets.VERCEL_TOKEN }}" \
-            --build-env NEXT_PUBLIC_GRAPHQL_URL="$BFF_URL" \
+            --build-env NEXT_PUBLIC_GRAPHQL_URL="/api/graphql" \
+            --build-env AI_COMMERCE_SERVICE_URL="$BFF_URL" \
             --build-env AUTH_SERVICE_URL="$AUTH_URL" \
-            --env NEXT_PUBLIC_GRAPHQL_URL="$BFF_URL" \
+            --build-env AI_ASSIST_URL="$AI_ASSIST_URL" \
+            --env NEXT_PUBLIC_GRAPHQL_URL="/api/graphql" \
+            --env AI_COMMERCE_SERVICE_URL="$BFF_URL" \
             --env AUTH_SERVICE_URL="$AUTH_URL" \
+            --env AI_ASSIST_URL="$AI_ASSIST_URL" \
             --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
