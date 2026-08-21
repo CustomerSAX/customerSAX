@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -29,6 +29,8 @@ export function CustomerCreateView() {
   const [companyName, setCompanyName] = useState("");
   const [groupId, setGroupId] = useState("grp-retail");
   const [externalId, setExternalId] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [streetName, setStreetName] = useState("");
   const [streetNumber, setStreetNumber] = useState("");
@@ -39,11 +41,13 @@ export function CustomerCreateView() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const submitInFlightRef = useRef(false);
 
   const groupOptions = groups.map((g) => ({ value: g.id, label: g.name }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitInFlightRef.current) return;
     const newErrors: Record<string, string> = {};
 
     if (!email.trim()) {
@@ -60,49 +64,45 @@ export function CustomerCreateView() {
       newErrors.lastName = "Last name is required";
     }
 
+    if (password.length < 8) {
+      newErrors.password = "Password must contain at least 8 characters";
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
 
     const selectedGroup = groups.find((g) => g.id === groupId);
 
-    const created = addCustomer({
-      firstName,
-      lastName,
-      email,
-      phone: phone || undefined,
-      companyName: companyName || undefined,
-      customerNumber: `CN-${Math.floor(10000 + Math.random() * 90000)}`,
-      externalId: externalId || undefined,
-      customerGroup: selectedGroup ? { id: selectedGroup.id, name: selectedGroup.name, key: selectedGroup.key } : undefined,
-      addresses: streetName || city
-        ? [
-            {
-              id: `addr-${Date.now()}`,
-              streetName,
-              streetNumber,
-              city,
-              state,
-              postalCode,
-              country,
-              email,
-              phone,
-              isShipping: true,
-              isBilling: true,
-              isDefaultShipping: true,
-              isDefaultBilling: true,
-            },
-          ]
-        : [],
-    });
-
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const created = await addCustomer({
+        firstName,
+        lastName,
+        email,
+        password,
+        phone: phone || undefined,
+        companyName: companyName || undefined,
+        customerNumber: `CN-${Math.floor(10000 + Math.random() * 90000)}`,
+        externalId: externalId || undefined,
+        customerGroup: selectedGroup ? { id: selectedGroup.id, name: selectedGroup.name, key: selectedGroup.key } : undefined,
+        addresses: streetName || city
+          ? [{ id: `addr-${Date.now()}`, streetName, streetNumber, city, state, postalCode, country, email, phone,
+              isShipping: true, isBilling: true, isDefaultShipping: true, isDefaultBilling: true }]
+          : [],
+      });
       router.push(`/customers/${created.id}`);
-    }, 300);
+    } catch (error) {
+      setErrors({ submit: error instanceof Error ? error.message : "Customer creation failed." });
+    } finally {
+      submitInFlightRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -202,6 +202,32 @@ export function CustomerCreateView() {
           </CardContent>
         </Card>
 
+        <Card variant="default">
+          <CardHeader>
+            <CardTitle>Account Authentication</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField error={errors.password}>
+              <Label required>Password</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+              />
+            </FormField>
+            <FormField error={errors.confirmPassword}>
+              <Label required>Confirm Password</Label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter password"
+              />
+            </FormField>
+          </CardContent>
+        </Card>
+
         {/* Default Address */}
         <Card variant="default">
           <CardHeader>
@@ -284,12 +310,18 @@ export function CustomerCreateView() {
             type="submit"
             variant="primary"
             size="md"
+            disabled={isSubmitting}
             loading={isSubmitting}
             leftIcon={<Icon name="check" size="xs" />}
           >
             Create Customer
           </Button>
         </div>
+        {errors.submit && (
+          <div role="alert" className="rounded-md border border-m-danger/30 bg-m-danger/10 px-3 py-2 text-sm text-m-danger">
+            {errors.submit}
+          </div>
+        )}
       </form>
     </div>
   );

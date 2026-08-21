@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
@@ -21,9 +21,19 @@ import {
   Badge,
 } from "@csa/ui";
 import { useCompanies } from "../hooks/use-companies";
-import type { CompanyUnitType, CompanyAddress, CompanyAssociate } from "../types/company-types";
+import { useEmployees } from "@/features/employees/hooks/use-employees";
+import type { CompanyUnitType, CompanyAddress } from "../types/company-types";
 
 type Step = 1 | 2 | 3;
+
+type PendingEmployee = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  role: string;
+};
 
 const UNIT_TYPES = [
   { value: "Company", label: "Company" },
@@ -48,6 +58,7 @@ const ROLES = [
 export function CompanyCreateView() {
   const router = useRouter();
   const { allCompanies, createCompany } = useCompanies();
+  const { createEmployee } = useEmployees();
 
   const [step, setStep] = useState<Step>(1);
 
@@ -67,11 +78,21 @@ export function CompanyCreateView() {
   const [country, setCountry] = useState("US");
 
   // Step 3 values (Associates)
-  const [associates, setAssociates] = useState<CompanyAssociate[]>([]);
+  const [associates, setAssociates] = useState<PendingEmployee[]>([]);
   const [showAssociateModal, setShowAssociateModal] = useState(false);
-  const [assocName, setAssocName] = useState("");
+  const [assocFirstName, setAssocFirstName] = useState("");
+  const [assocLastName, setAssocLastName] = useState("");
   const [assocEmail, setAssocEmail] = useState("");
+  const [assocPassword, setAssocPassword] = useState("");
+  const [assocConfirmPassword, setAssocConfirmPassword] = useState("");
   const [assocRole, setAssocRole] = useState("Buyer");
+  const [isSaving, setIsSaving] = useState(false);
+  const [savePhase, setSavePhase] = useState<"company" | "employees">("company");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [createdCompanyId, setCreatedCompanyId] = useState<string | null>(null);
+  const [completedEmployeeIds, setCompletedEmployeeIds] = useState<string[]>([]);
+  const saveInFlightRef = useRef(false);
+  const completedEmployeeIdsRef = useRef(new Set<string>());
 
   const parentOptions = [
     { value: "", label: "Select parent company (optional)" },
@@ -97,35 +118,78 @@ export function CompanyCreateView() {
   };
 
   const handleAddAssociate = () => {
-    if (!assocName || !assocEmail) return;
-    const newAssoc: CompanyAssociate = {
+    const normalizedEmail = assocEmail.trim().toLowerCase();
+    if (!assocFirstName.trim() || !assocLastName.trim() || !normalizedEmail || !assocPassword) return;
+    if (assocPassword !== assocConfirmPassword || associates.some((employee) => employee.email.toLowerCase() === normalizedEmail)) return;
+    const newAssoc: PendingEmployee = {
       id: `assoc-new-${Date.now()}`,
-      customerId: `cst-new-${Date.now()}`,
-      name: assocName,
-      email: assocEmail,
-      roles: [assocRole],
-      status: "Active",
+      firstName: assocFirstName.trim(),
+      lastName: assocLastName.trim(),
+      email: normalizedEmail,
+      password: assocPassword,
+      role: assocRole,
     };
     setAssociates((prev) => [...prev, newAssoc]);
-    setAssocName("");
+    setAssocFirstName("");
+    setAssocLastName("");
     setAssocEmail("");
+    setAssocPassword("");
+    setAssocConfirmPassword("");
     setShowAssociateModal(false);
   };
 
-  const handleSave = () => {
-    if (!name || !key) return;
-    const parentComp = allCompanies.find((c) => c.id === parentId);
-    const created = createCompany({
-      name,
-      key,
-      unitType,
-      parentId: parentId || undefined,
-      parentName: parentComp?.name,
-      status: "Active",
-      addresses,
-      associates,
-    });
-    router.push(`/b2b/company/${created.id}`);
+  const handleSave = async () => {
+    if (!name || !key || saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      let companyId = createdCompanyId;
+      if (!companyId) {
+        setSavePhase("company");
+        const parentComp = allCompanies.find((c) => c.id === parentId);
+        const created = await createCompany({
+          name: name.trim(),
+          key: key.trim(),
+          unitType,
+          parentId: parentId || undefined,
+          parentName: parentComp?.name,
+          status: "Active",
+          addresses,
+          associates: [],
+        });
+        companyId = created.id;
+        setCreatedCompanyId(companyId);
+      }
+
+      setSavePhase("employees");
+      for (const employee of associates) {
+        if (completedEmployeeIdsRef.current.has(employee.id)) continue;
+        try {
+          await createEmployee({
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+            email: employee.email,
+            password: employee.password,
+            status: "Active",
+            memberships: [{ companyId, companyName: name.trim(), companyKey: key.trim(), roles: [employee.role] }],
+            addresses: [],
+          });
+          completedEmployeeIdsRef.current.add(employee.id);
+          setCompletedEmployeeIds((current) => current.includes(employee.id) ? current : [...current, employee.id]);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "Employee creation failed.";
+          throw new Error(`Company created successfully, but ${employee.firstName} ${employee.lastName} failed: ${reason}`);
+        }
+      }
+
+      router.push(`/b2b/company/${companyId}`);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Company creation failed.");
+    } finally {
+      saveInFlightRef.current = false;
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -318,9 +382,10 @@ export function CompanyCreateView() {
               variant="secondary"
               size="sm"
               leftIcon={<Icon name="plus" size="xs" />}
+              disabled={isSaving || Boolean(createdCompanyId)}
               onClick={() => setShowAssociateModal(true)}
             >
-              Add Associate
+              Add New Employee
             </Button>
           }
         >
@@ -338,17 +403,17 @@ export function CompanyCreateView() {
                 {associates.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="py-6 text-center text-m-text-muted">
-                      No associates assigned yet. Click &quot;Add Associate&quot; to assign members.
+                      No new employees queued. The company can be created without employees.
                     </TableCell>
                   </TableRow>
                 ) : (
                   associates.map((assoc) => (
                     <TableRow key={assoc.id}>
-                      <TableCell className="font-semibold">{assoc.name}</TableCell>
+                      <TableCell className="font-semibold">{assoc.firstName} {assoc.lastName}</TableCell>
                       <TableCell>{assoc.email}</TableCell>
                       <TableCell>
                         <Badge variant="primary" size="sm">
-                          {assoc.roles.join(", ")}
+                          {assoc.role}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -357,6 +422,7 @@ export function CompanyCreateView() {
                           size="sm"
                           iconOnly
                           leftIcon={<Icon name="trash-2" size="xs" />}
+                          disabled={isSaving || Boolean(createdCompanyId) || completedEmployeeIds.includes(assoc.id)}
                           onClick={() => setAssociates((prev) => prev.filter((a) => a.id !== assoc.id))}
                         />
                       </TableCell>
@@ -367,13 +433,20 @@ export function CompanyCreateView() {
             </Table>
 
             <div className="flex justify-between gap-3 mt-4 pt-4 border-t border-m-border">
-              <Button variant="secondary" size="md" onClick={() => setStep(2)}>
+              <Button variant="secondary" size="md" disabled={isSaving || Boolean(createdCompanyId)} onClick={() => setStep(2)}>
                 Back
               </Button>
-              <Button variant="primary" size="md" onClick={handleSave}>
-                Save &amp; Create Company
+              <Button variant="primary" size="md" disabled={isSaving} onClick={handleSave}>
+                {isSaving
+                  ? savePhase === "employees" ? "Creating Employees..." : "Creating Company..."
+                  : createdCompanyId ? "Retry Employee Creation" : "Save & Create Company"}
               </Button>
             </div>
+            {saveError && (
+              <div role="alert" className="rounded-md border border-m-danger/30 bg-m-danger/10 px-3 py-2 text-sm text-m-danger">
+                {saveError}
+              </div>
+            )}
           </div>
         </Panel>
       )}
@@ -421,19 +494,33 @@ export function CompanyCreateView() {
         </Modal>
       )}
 
-      {/* Modal: Add Associate */}
+      {/* Modal: Add New Employee */}
       {showAssociateModal && (
         <Modal isOpen={showAssociateModal} onClose={() => setShowAssociateModal(false)}>
-          <ModalHeader title="Add Associate" onClose={() => setShowAssociateModal(false)} />
+          <ModalHeader title="Add New Employee" onClose={() => setShowAssociateModal(false)} />
           <ModalBody>
             <div className="flex flex-col gap-4 p-2">
               <div>
-                <label className="text-xs font-semibold text-m-text mb-1 block">Employee Name</label>
-                <Input value={assocName} onChange={(e) => setAssocName(e.target.value)} placeholder="e.g. Jane Doe" />
+                <label className="text-xs font-semibold text-m-text mb-1 block">First Name</label>
+                <Input value={assocFirstName} onChange={(e) => setAssocFirstName(e.target.value)} placeholder="e.g. Jane" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-m-text mb-1 block">Employee Email</label>
-                <Input value={assocEmail} onChange={(e) => setAssocEmail(e.target.value)} placeholder="e.g. jane@company.com" />
+                <label className="text-xs font-semibold text-m-text mb-1 block">Last Name</label>
+                <Input value={assocLastName} onChange={(e) => setAssocLastName(e.target.value)} placeholder="e.g. Doe" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-m-text mb-1 block">Email</label>
+                <Input value={assocEmail} onChange={(e) => setAssocEmail(e.target.value)} type="email" placeholder="e.g. jane@company.com" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-m-text mb-1 block">Password</label>
+                  <Input value={assocPassword} onChange={(e) => setAssocPassword(e.target.value)} type="password" placeholder="At least 8 characters" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-m-text mb-1 block">Confirm Password</label>
+                  <Input value={assocConfirmPassword} onChange={(e) => setAssocConfirmPassword(e.target.value)} type="password" placeholder="Re-enter password" />
+                </div>
               </div>
               <div>
                 <label className="text-xs font-semibold text-m-text mb-1 block">Role</label>
@@ -443,8 +530,12 @@ export function CompanyCreateView() {
                 <Button variant="secondary" onClick={() => setShowAssociateModal(false)}>
                   Cancel
                 </Button>
-                <Button variant="primary" onClick={handleAddAssociate}>
-                  Add Associate
+                <Button
+                  variant="primary"
+                  disabled={!assocFirstName.trim() || !assocLastName.trim() || !assocEmail.trim() || assocPassword.length < 8 || assocPassword !== assocConfirmPassword}
+                  onClick={handleAddAssociate}
+                >
+                  Queue Employee
                 </Button>
               </div>
             </div>

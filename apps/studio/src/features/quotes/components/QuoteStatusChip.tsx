@@ -3,6 +3,7 @@ import type { QuoteStatus } from "../types/quote-types";
 
 export function QuoteStatusChip({ status }: { status: QuoteStatus | string }) {
   switch (status) {
+    case "Accepted":
     case "Approved":
     case "Converted":
       return <Badge variant="success" size="sm">{status}</Badge>;
@@ -11,6 +12,7 @@ export function QuoteStatusChip({ status }: { status: QuoteStatus | string }) {
       return <Badge variant="warning" size="sm">{status}</Badge>;
     case "Draft":
       return <Badge variant="primary" size="sm">{status}</Badge>;
+    case "Rejected":
     case "Declined":
     case "Cancelled":
       return <Badge variant="error" size="sm">{status}</Badge>;

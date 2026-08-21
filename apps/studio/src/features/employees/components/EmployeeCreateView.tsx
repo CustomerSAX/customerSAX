@@ -43,14 +43,16 @@ export function EmployeeCreateView() {
 
   const [companyId, setCompanyId] = useState("");
   const [role, setRole] = useState("Buyer");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const companyOptions = [
     { value: "", label: "Select Company / Business Unit" },
     ...allCompanies.map((c) => ({ value: c.id, label: c.name })),
   ];
 
-  const handleSave = () => {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password) return;
+  const handleSave = async () => {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !companyId) return;
     if (password !== confirmPassword) return;
 
     const selectedComp = allCompanies.find((c) => c.id === companyId);
@@ -65,20 +67,28 @@ export function EmployeeCreateView() {
         ]
       : [];
 
-    const created = createEmployee({
-      firstName,
-      middleName,
-      lastName,
-      email,
-      phone,
-      dateOfBirth,
-      customerGroup: customerGroup || "B2B Buyers",
-      status: "Active",
-      memberships,
-      addresses: [],
-    });
-
-    router.push(`/b2b/employees/${created.id}`);
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const created = await createEmployee({
+        firstName,
+        middleName,
+        lastName,
+        email,
+        phone,
+        dateOfBirth,
+        customerGroup: customerGroup || undefined,
+        password,
+        status: "Active",
+        memberships,
+        addresses: [],
+      });
+      router.push(`/b2b/employees/${created.id}`);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Employee creation failed.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -191,12 +201,17 @@ export function EmployeeCreateView() {
         <Button
           variant="primary"
           size="md"
-          disabled={!firstName.trim() || !lastName.trim() || !email.trim() || !password || password !== confirmPassword}
+          disabled={isSaving || !firstName.trim() || !lastName.trim() || !email.trim() || !password || password !== confirmPassword || !companyId}
           onClick={handleSave}
         >
-          Save &amp; Create Employee
+          {isSaving ? "Creating Employee..." : "Save & Create Employee"}
         </Button>
       </div>
+      {saveError && (
+        <div role="alert" className="rounded-md border border-m-danger/30 bg-m-danger/10 px-3 py-2 text-sm text-m-danger">
+          {saveError}
+        </div>
+      )}
     </div>
   );
 }

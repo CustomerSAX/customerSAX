@@ -37,11 +37,14 @@ const quoteResolvers = quote.resolvers;
 export const resolvers = {
   Json: jsonScalar,
   Mutation: {
+    addCartDiscountCode: cartResolvers.addCartDiscountCode,
     addCartLineItem: cartResolvers.addCartLineItem,
     addCustomerAddress: customerResolvers.addCustomerAddress,
     changeCartLineItemQuantity: cartResolvers.changeCartLineItemQuantity,
     createB2bCart: cartResolvers.createB2bCart,
+    createCompany: companyResolvers.createCompany,
     createCustomer: customerResolvers.createCustomer,
+    createEmployee: customerResolvers.createEmployee,
     createQuoteRequest: quoteResolvers.createQuoteRequest,
     placeOrderFromCart: cartResolvers.placeOrderFromCart,
     removeCartLineItem: cartResolvers.removeCartLineItem,

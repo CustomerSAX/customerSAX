@@ -84,16 +84,16 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
   const {
     order, fmtDate, orderState, setOrderState, shipmentState, setShipmentState,
     paymentState, setPaymentState, stateSaveMsg, handleSaveStates,
-    altEmail, setAltEmail, paymentReminderFeedback, handleSendPaymentReminder,
-    loyaltyPointsInput, setLoyaltyPointsInput, loyaltySavedDollars, handleCalculateLoyalty,
+    altEmail, setAltEmail, paymentReminderFeedback,
+    loyaltyPointsInput, setLoyaltyPointsInput, loyaltySavedDollars,
     stagedLineQuantities, setStagedLineQuantities, handleUpdateLineItem,
     searchCatalogText, setSearchCatalogText, searchCatalogResults,
     handleCatalogSearch, searchSelectedQty, setSearchSelectedQty,
     catalogFeedback, handleAddCatalogItemToOrder,
-    giftMessageInput, setGiftMessageInput, giftMsgFeedback, handleSaveGiftMessage,
+    giftMessageInput, setGiftMessageInput, giftMsgFeedback,
     selectedDiscountCode, setSelectedDiscountCode, discountFeedback, handleApplyDiscountCode,
     orderTimeline, isB2b, router, setActiveTab, handleDuplicateOrder,
-    handleOpenReturnDrawer, setShowCommentForm,
+    handleOpenReturnDrawer,
   } = props;
 
   return (
@@ -127,7 +127,7 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                 <SectionCard title="Send Payment Notification" icon="mail">
                   <div className="space-y-3">
                     <p className="text-xs text-m-text-muted">
-                      Send an automated payment link reminder to the customer&apos;s registered email address.
+                      Payment notifications are unavailable until an email provider is configured.
                     </p>
                     {paymentReminderFeedback && (
                       <div className="p-2.5 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
@@ -139,14 +139,15 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                         <FormField>
                           <Label>Alternate Email</Label>
                           <Input
+                            disabled
                             value={altEmail}
                             onChange={(e) => setAltEmail(e.target.value)}
                             placeholder="Enter email address..."
                           />
                         </FormField>
                       </div>
-                      <Button type="button" variant="primary" size="md" onClick={handleSendPaymentReminder}>
-                        Send Payment Reminder
+                      <Button type="button" variant="primary" size="md" disabled>
+                        Payment Reminder Not Configured
                       </Button>
                     </div>
                   </div>
@@ -260,6 +261,7 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                         <FormField>
                           <Label>Points to Redeem</Label>
                           <Input
+                            disabled
                             value={loyaltyPointsInput}
                             onChange={(e) => setLoyaltyPointsInput(e.target.value)}
                             placeholder="Enter points to Redeem (e.g. 1000)"
@@ -267,8 +269,8 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                         </FormField>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Button type="button" variant="primary" size="md" onClick={handleCalculateLoyalty}>
-                          Calculate
+                        <Button type="button" variant="primary" size="md" disabled>
+                          Loyalty Integration Not Configured
                         </Button>
                         {loyaltySavedDollars !== null && (
                           <div className="px-3 py-2 bg-m-success-light text-m-success-dark font-bold rounded-m-md border border-m-success-border text-xs">
@@ -510,6 +512,7 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                       )}
                       <FormField>
                         <textarea
+                          disabled
                           className="w-full p-2.5 border border-m-border rounded-m-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
                           rows={3}
                           value={giftMessageInput}
@@ -517,8 +520,8 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                           placeholder="Enter special gift note for recipient..."
                         />
                       </FormField>
-                      <Button type="button" variant="primary" size="sm" onClick={handleSaveGiftMessage}>
-                        Save Gift Message
+                      <Button type="button" variant="primary" size="sm" disabled>
+                        Gift Message Not Configured
                       </Button>
                     </div>
                   </SectionCard>
@@ -629,11 +632,8 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                 />
                 <QuickAction
                   icon="message-square"
-                  label="Add Comment"
-                  onClick={() => {
-                    setActiveTab("Comments");
-                    setShowCommentForm(true);
-                  }}
+                  label="Comments Not Configured"
+                  disabled
                 />
               </QuickActions>
 

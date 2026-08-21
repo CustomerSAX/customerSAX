@@ -294,7 +294,9 @@ export function QuoteDetailView({ id }: { id: string }) {
   const lineItemCount = quote.lineItems.length;
   const timeline = buildTimeline(quote);
   const waitingOnSeller = statusLabel(quote.status) === "Requested";
-  const actionsDisabled = actingRole === "buyer" && waitingOnSeller;
+  const terminalStatus = ["Accepted", "Approved", "Rejected", "Declined", "Cancelled", "Converted"].includes(
+    statusLabel(quote.status)
+  );
 
   return (
     <DetailPage>
@@ -455,9 +457,15 @@ export function QuoteDetailView({ id }: { id: string }) {
               ))}
             </div>
 
-            {actionsDisabled && (
+            <div className="mt-4 rounded-m-md border border-m-warning-border bg-m-warning-light px-3 py-2 text-xs font-semibold text-m-warning-dark">
+              {terminalStatus
+                ? `This quote is ${statusLabel(quote.status)}. No further review action is available.`
+                : "Quote status actions are not connected to the commerce backend yet."}
+            </div>
+
+            {actingRole === "buyer" && waitingOnSeller && (
               <div className="mt-4 rounded-m-md border border-m-warning-border bg-m-warning-light px-3 py-2 text-xs font-semibold text-m-warning-dark">
-                Waiting on the seller to respond. You are acting as buyer, so these are disabled.
+                Waiting on the seller to respond.
               </div>
             )}
 
@@ -467,7 +475,7 @@ export function QuoteDetailView({ id }: { id: string }) {
                   <p className="text-sm font-semibold text-m-text">Approve request</p>
                   <p className="text-xs text-m-text-muted">Approve the buyer quote request</p>
                 </div>
-                <Button variant="primary" size="sm" disabled={actionsDisabled}>
+                <Button variant="primary" size="sm" disabled>
                   Approve
                 </Button>
               </div>
@@ -476,7 +484,7 @@ export function QuoteDetailView({ id }: { id: string }) {
                   <p className="text-sm font-semibold text-m-text">Reject request</p>
                   <p className="text-xs text-m-text-muted">Reject this quote request</p>
                 </div>
-                <Button variant="danger" size="sm" disabled={actionsDisabled}>
+                <Button variant="danger" size="sm" disabled>
                   Reject
                 </Button>
               </div>

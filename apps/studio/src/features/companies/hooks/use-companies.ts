@@ -1,9 +1,26 @@
 "use client";
 
-import { useQuery } from "@apollo/client";
+import { gql, useMutation, useQuery } from "@apollo/client";
 import { useState, useCallback, useMemo } from "react";
 import type { Company, CompanyAddress, CompanyAssociate, CompanyFilter, CompanySort } from "../types/company-types";
 import { COMPANIES_QUERY, COMPANY_ACTIVITY_QUERY } from "../api/queries";
+
+const CREATE_COMPANY_MUTATION = gql`
+  mutation CreateCompany($draft: Json!) {
+    createCompany(draft: $draft) {
+      id
+      key
+      name
+      status
+      unitType
+      createdAt
+      lastModifiedAt
+      parentUnit { id key name }
+      addresses { id key streetName streetNumber city state postalCode country company }
+      associates { id customerId email firstName lastName roles }
+    }
+  }
+`;
 
 type MoneyResult = {
   centAmount: number;
@@ -53,6 +70,10 @@ type CompaniesData = {
   companies: {
     results: CompanyResult[];
   };
+};
+
+type CreateCompanyData = {
+  createCompany: CompanyResult | null;
 };
 
 type CompanyActivityData = {
@@ -151,6 +172,7 @@ export function useCompanies() {
   const [sort, setSort] = useState<CompanySort>({ key: "createdAt", order: "desc" });
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+  const [createCompanyMutation] = useMutation<CreateCompanyData>(CREATE_COMPANY_MUTATION);
 
   const serverCompanies = useMemo(() => {
     return (data?.companies.results ?? []).map(mapCompany);
@@ -213,16 +235,48 @@ export function useCompanies() {
     [allCompanies]
   );
 
-  const createCompany = useCallback((newCompany: Omit<Company, "id" | "createdAt" | "lastModifiedAt">) => {
-    const created: Company = {
-      ...newCompany,
-      id: `bu-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      lastModifiedAt: new Date().toISOString(),
+  const createCompany = useCallback(async (
+    newCompany: Omit<Company, "id" | "createdAt" | "lastModifiedAt">
+  ) => {
+    const draft = {
+      key: newCompany.key,
+      name: newCompany.name,
+      unitType: newCompany.unitType,
+      ...(newCompany.parentId ? { parentUnit: { id: newCompany.parentId } } : {}),
+      ...(newCompany.addresses.length > 0
+        ? {
+            addresses: newCompany.addresses.map((address) => ({
+              streetName: address.streetName,
+              ...(address.streetNumber ? { streetNumber: address.streetNumber } : {}),
+              city: address.city,
+              ...(address.state ? { state: address.state } : {}),
+              postalCode: address.postalCode,
+              country: address.country,
+              ...(address.companyName ? { company: address.companyName } : {}),
+            })),
+          }
+        : {}),
     };
-    setCompanies((prev) => [created, ...prev]);
-    return created;
-  }, []);
+
+    const result = await createCompanyMutation({
+      variables: {
+        draft,
+      },
+      refetchQueries: [{ query: COMPANIES_QUERY, variables: {
+        limit: 100,
+        offset: 0,
+        searchField: undefined,
+        searchText: undefined,
+        sortKey: "createdAt",
+        sortOrder: "desc",
+      } }],
+      awaitRefetchQueries: true,
+    });
+    const created = result.data?.createCompany;
+    if (!created) throw new Error("The commerce service did not return the created company.");
+
+    return mapCompany(created);
+  }, [createCompanyMutation]);
 
   const updateCompany = useCallback((id: string, updates: Partial<Company>) => {
     setCompanyOverrides((prev) => ({

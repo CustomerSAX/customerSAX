@@ -3,7 +3,14 @@ import { commercetoolsGraphql } from "../../../commercetools/client.js";
 import { getCartByIdOrKey, listCarts } from "../../../commercetools/api/index.js";
 import { mapCart, mapOrder } from "../../../commercetools/mappers.js";
 import type { CtCart, CtOrder } from "../../../commercetools/types.js";
-import { compactWhere, escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
+import {
+  compactWhere,
+  escapeWhere,
+  page,
+  paging,
+  sort,
+  type PagingArgs
+} from "../shared/paging.js";
 import type { CartSearchArgs, DiscountCodeArgs } from "./cart.types.js";
 
 const log = createLogger("commercetools").child({ module: "cart.resolvers" });
@@ -47,7 +54,8 @@ export const resolvers = {
     return cartPage.results;
   },
   cartPage: (_parent: unknown, args: PagingArgs) => listCarts(args),
-  searchCarts: async (_parent: unknown, args: CartSearchArgs) => queryCarts(cartSearchWhere(args), args),
+  searchCarts: async (_parent: unknown, args: CartSearchArgs) =>
+    queryCarts(cartSearchWhere(args), args),
   b2bCarts: async (
     _parent: unknown,
     args: PagingArgs & { businessUnitKey?: string; customerId?: string }
@@ -74,7 +82,9 @@ export const resolvers = {
     return data.carts.total ?? 0;
   },
   discountCodes: async (_parent: unknown, args: DiscountCodeArgs) => {
-    const data = await commercetoolsGraphql<{ discountCodes: { results?: CtDiscountCode[] } }>(
+    const data = await commercetoolsGraphql<{
+      discountCodes: { results?: CtDiscountCode[] };
+    }>(
       `#graphql
         query DiscountCodes($limit: Int!) {
           discountCodes(limit: $limit) {
@@ -105,7 +115,12 @@ export const resolvers = {
   },
   createB2bCart: async (
     _parent: unknown,
-    args: { businessUnitKey?: string; currency: string; customerId?: string; customerEmail?: string }
+    args: {
+      businessUnitKey?: string;
+      currency: string;
+      customerId?: string;
+      customerEmail?: string;
+    }
   ) => {
     const data = await commercetoolsGraphql<{ createCart: CtCart | null }>(
       `#graphql
@@ -115,6 +130,8 @@ export const resolvers = {
             shippingAddress { ${cartAddressFields} }
             billingAddress { ${cartAddressFields} }
             totalPrice { centAmount currencyCode fractionDigits }
+            shippingInfo { shippingMethod { id name } price { centAmount currencyCode fractionDigits } }
+            discountCodes { discountCode { code } }
             lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
           }
         }
@@ -140,15 +157,27 @@ export const resolvers = {
     const cart = await getCartVersion(args.id);
     return createOrderWithUniqueNumber(args.id, cart.version);
   },
-  addCartLineItem: async (_parent: unknown, args: { id: string; quantity: number; sku: string }) =>
-    updateCart(args.id, [{ addLineItem: { quantity: args.quantity, sku: args.sku } }]),
-  removeCartLineItem: async (_parent: unknown, args: { id: string; lineItemId: string }) =>
-    updateCart(args.id, [{ removeLineItem: { lineItemId: args.lineItemId } }]),
-  changeCartLineItemQuantity: async (_parent: unknown, args: { id: string; lineItemId: string; quantity: number }) =>
+  addCartLineItem: async (
+    _parent: unknown,
+    args: { id: string; quantity: number; sku: string }
+  ) => updateCart(args.id, [{ addLineItem: { quantity: args.quantity, sku: args.sku } }]),
+  removeCartLineItem: async (
+    _parent: unknown,
+    args: { id: string; lineItemId: string }
+  ) => updateCart(args.id, [{ removeLineItem: { lineItemId: args.lineItemId } }]),
+  changeCartLineItemQuantity: async (
+    _parent: unknown,
+    args: { id: string; lineItemId: string; quantity: number }
+  ) =>
     updateCart(args.id, [
       args.quantity <= 0
         ? { removeLineItem: { lineItemId: args.lineItemId } }
-        : { changeLineItemQuantity: { lineItemId: args.lineItemId, quantity: args.quantity } }
+        : {
+            changeLineItemQuantity: {
+              lineItemId: args.lineItemId,
+              quantity: args.quantity
+            }
+          }
     ]),
   updateCartAddresses: async (
     _parent: unknown,
@@ -157,8 +186,12 @@ export const resolvers = {
     updateCart(
       args.id,
       [
-        args.shippingAddress ? { setShippingAddress: { address: args.shippingAddress } } : undefined,
-        args.billingAddress ? { setBillingAddress: { address: args.billingAddress } } : undefined
+        args.shippingAddress
+          ? { setShippingAddress: { address: args.shippingAddress } }
+          : undefined,
+        args.billingAddress
+          ? { setBillingAddress: { address: args.billingAddress } }
+          : undefined
       ].filter(Boolean)
     ),
   shippingMethods: async (_parent: unknown, args: { limit?: number }) => {
@@ -179,13 +212,22 @@ export const resolvers = {
     const wrapped = raw as { results?: unknown } | null | undefined;
     return Array.isArray(wrapped?.results) ? wrapped.results : [];
   },
-  setCartShippingMethod: async (_parent: unknown, args: { id: string; shippingMethodId: string }) =>
-    updateCart(args.id, [{ setShippingMethod: { shippingMethod: { id: args.shippingMethodId } } }])
+  setCartShippingMethod: async (
+    _parent: unknown,
+    args: { id: string; shippingMethodId: string }
+  ) =>
+    updateCart(args.id, [
+      { setShippingMethod: { shippingMethod: { id: args.shippingMethodId } } }
+    ]),
+  addCartDiscountCode: async (_parent: unknown, args: { id: string; code: string }) =>
+    updateCart(args.id, [{ addDiscountCode: { code: args.code } }])
 };
 
 async function queryCarts(where: string | undefined, args: PagingArgs) {
   const { limit, offset } = paging(args);
-  const data = await commercetoolsGraphql<{ carts: { results: CtCart[]; total?: number } }>(
+  const data = await commercetoolsGraphql<{
+    carts: { results: CtCart[]; total?: number };
+  }>(
     `#graphql
       query CartsPage($limit: Int!, $offset: Int!, $sort: [String!], $where: String) {
         carts(limit: $limit, offset: $offset, sort: $sort, where: $where) {
@@ -195,6 +237,8 @@ async function queryCarts(where: string | undefined, args: PagingArgs) {
             shippingAddress { ${cartAddressFields} }
             billingAddress { ${cartAddressFields} }
             totalPrice { centAmount currencyCode fractionDigits }
+            shippingInfo { shippingMethod { id name } price { centAmount currencyCode fractionDigits } }
+            discountCodes { discountCode { code } }
             lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
           }
         }
@@ -272,6 +316,8 @@ async function createOrderWithUniqueNumber(cartId: string, cartVersion: number) 
             createOrderFromCart(draft: $draft) {
               id version orderNumber orderState paymentState shipmentState createdAt lastModifiedAt customerId customerEmail
               totalPrice { centAmount currencyCode fractionDigits }
+              shippingInfo { shippingMethod { id name } price { centAmount currencyCode fractionDigits } }
+              discountCodes { discountCode { code } }
               lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
             }
           }
@@ -288,7 +334,10 @@ async function createOrderWithUniqueNumber(cartId: string, cartVersion: number) 
       );
 
       const order = mapOrder(data.createOrderFromCart);
-      log.info("ct:createOrderFromCart", { id: data.createOrderFromCart?.id ?? cartId, ok: true });
+      log.info("ct:createOrderFromCart", {
+        id: data.createOrderFromCart?.id ?? cartId,
+        ok: true
+      });
       return order;
     } catch (error) {
       // A duplicate order number is the only error worth retrying — a fresh
@@ -308,16 +357,21 @@ async function createOrderWithUniqueNumber(cartId: string, cartVersion: number) 
 }
 
 function localizedName(values?: CtLocalizedString[] | null) {
-  return values?.find((entry) => entry.locale === "en" && entry.value)?.value
-    ?? values?.find((entry) => entry.value)?.value;
+  return (
+    values?.find((entry) => entry.locale === "en" && entry.value)?.value ??
+    values?.find((entry) => entry.value)?.value
+  );
 }
 
 /** True when a create failed specifically because the order number was taken. */
 function isDuplicateOrderNumberError(error: unknown): boolean {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
   const isDuplicate =
-    message.includes("duplicatefield") || message.includes("duplicate") || message.includes("already exists");
-  const mentionsOrderNumber = message.includes("ordernumber") || message.includes("order number");
+    message.includes("duplicatefield") ||
+    message.includes("duplicate") ||
+    message.includes("already exists");
+  const mentionsOrderNumber =
+    message.includes("ordernumber") || message.includes("order number");
   return isDuplicate && mentionsOrderNumber;
 }
 
@@ -331,6 +385,8 @@ async function updateCart(id: string, actions: unknown[]) {
           shippingAddress { ${cartAddressFields} }
           billingAddress { ${cartAddressFields} }
           totalPrice { centAmount currencyCode fractionDigits }
+          shippingInfo { shippingMethod { id name } price { centAmount currencyCode fractionDigits } }
+          discountCodes { discountCode { code } }
           lineItems { id productId variant { sku } nameAllLocales { value } quantity totalPrice { centAmount currencyCode fractionDigits } }
         }
       }

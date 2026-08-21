@@ -12,7 +12,7 @@ import {
   TableBody,
   TableRow,
   TableHead,
-  TableCell,
+  TableCell
 } from "@csa/ui";
 import {
   DetailPage,
@@ -29,12 +29,10 @@ import {
   PrimaryButton,
   SecondaryButton,
   InfoList,
-  InfoRow,
+  InfoRow
 } from "@csa/ui";
 import { formatDateTime } from "@/lib/format-date";
-import {
-  useCartStore,
-} from "../hooks/use-carts";
+import { useCartStore } from "../hooks/use-carts";
 import type { CartLineItem } from "../types/cart-types";
 
 interface CartDetailViewProps {
@@ -77,7 +75,7 @@ function toCatalogProduct(product: ProductSearchResult): CatalogProduct {
     name: product.name || product.sku || "Unnamed product",
     sku: product.sku || "",
     unitPrice: centAmount / 10 ** fractionDigits,
-    imageUrl: product.imageUrl,
+    imageUrl: product.imageUrl
   };
 }
 
@@ -111,7 +109,7 @@ export function CartDetailView({ id }: CartDetailViewProps) {
     getCartById,
     updateLineItemQuantity,
     addLineItemToCart,
-    applyDiscountCode,
+    applyDiscountCode
   } = useCartStore();
 
   const cart = getCartById(id);
@@ -135,6 +133,8 @@ export function CartDetailView({ id }: CartDetailViewProps) {
   const [discountCodesLoading, setDiscountCodesLoading] = useState(false);
   const [discountCodesError, setDiscountCodesError] = useState("");
   const [discountFeedback, setDiscountFeedback] = useState("");
+  const [cartActionError, setCartActionError] = useState("");
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   useEffect(() => {
     if (!cart) return;
@@ -168,7 +168,9 @@ export function CartDetailView({ id }: CartDetailViewProps) {
       } catch (error) {
         if (!cancelled) {
           setDiscountCodes([]);
-          setDiscountCodesError(error instanceof Error ? error.message : "Unable to load discount codes.");
+          setDiscountCodesError(
+            error instanceof Error ? error.message : "Unable to load discount codes."
+          );
         }
       } finally {
         if (!cancelled) {
@@ -191,15 +193,30 @@ export function CartDetailView({ id }: CartDetailViewProps) {
         <CardEmpty
           icon="shopping-cart"
           title={loading ? "Loading cart" : "Cart not found"}
-          hint={error || (loading ? "Fetching cart data from the commerce backend." : "No cart matched this ID.")}
+          hint={
+            error ||
+            (loading
+              ? "Fetching cart data from the commerce backend."
+              : "No cart matched this ID.")
+          }
         />
       </DetailPage>
     );
   }
 
-  const handleUpdateLineItem = (lineItemId: string) => {
+  const handleUpdateLineItem = async (lineItemId: string) => {
     const newQty = stagedQuantities[lineItemId] ?? 1;
-    updateLineItemQuantity(cart.id, lineItemId, newQty);
+    setCartActionError("");
+    setPendingAction(`quantity:${lineItemId}`);
+    try {
+      await updateLineItemQuantity(cart.id, lineItemId, newQty);
+    } catch (error) {
+      setCartActionError(
+        error instanceof Error ? error.message : "Unable to update line item."
+      );
+    } finally {
+      setPendingAction(null);
+    }
   };
 
   const handleCatalogSearch = async (e: React.FormEvent) => {
@@ -210,8 +227,12 @@ export function CartDetailView({ id }: CartDetailViewProps) {
       return;
     }
     const response = await fetch(`/api/product-search?q=${encodeURIComponent(q)}`);
-    const payload = (await response.json().catch(() => ({}))) as { results?: ProductSearchResult[] };
-    const results = (payload.results ?? []).map(toCatalogProduct).filter((product) => product.productId);
+    const payload = (await response.json().catch(() => ({}))) as {
+      results?: ProductSearchResult[];
+    };
+    const results = (payload.results ?? [])
+      .map(toCatalogProduct)
+      .filter((product) => product.productId);
     setSearchCatalogResults(results);
     const initialQty: Record<string, number> = {};
     results.forEach((r) => {
@@ -220,27 +241,47 @@ export function CartDetailView({ id }: CartDetailViewProps) {
     setSearchSelectedQty(initialQty);
   };
 
-  const handleAddCatalogItemToCart = (prod: CatalogProduct) => {
+  const handleAddCatalogItemToCart = async (prod: CatalogProduct) => {
     const qty = searchSelectedQty[prod.productId] || 1;
-    addLineItemToCart(cart.id, {
-      productId: prod.productId,
-      key: prod.key,
-      name: prod.name,
-      sku: prod.sku,
-      imageUrl: prod.imageUrl,
-      unitPrice: prod.unitPrice,
-      quantity: qty,
-    });
-    setCatalogFeedback(`Added ${qty} × ${prod.name} to cart.`);
-    setTimeout(() => setCatalogFeedback(""), 3500);
+    setCartActionError("");
+    setPendingAction(`add:${prod.productId}`);
+    try {
+      await addLineItemToCart(cart.id, {
+        productId: prod.productId,
+        key: prod.key,
+        name: prod.name,
+        sku: prod.sku,
+        imageUrl: prod.imageUrl,
+        unitPrice: prod.unitPrice,
+        quantity: qty
+      });
+      setCatalogFeedback(`Added ${qty} × ${prod.name} to cart.`);
+      setTimeout(() => setCatalogFeedback(""), 3500);
+    } catch (error) {
+      setCartActionError(
+        error instanceof Error ? error.message : "Unable to add line item."
+      );
+    } finally {
+      setPendingAction(null);
+    }
   };
 
-  const handleApplyDiscountCode = () => {
+  const handleApplyDiscountCode = async () => {
     if (!selectedDiscountCode) return;
-    applyDiscountCode(cart.id, selectedDiscountCode);
-    setDiscountFeedback(`Selected code ${selectedDiscountCode}.`);
-    setSelectedDiscountCode("");
-    setTimeout(() => setDiscountFeedback(""), 3500);
+    setCartActionError("");
+    setPendingAction("discount");
+    try {
+      await applyDiscountCode(cart.id, selectedDiscountCode);
+      setDiscountFeedback(`Selected code ${selectedDiscountCode}.`);
+      setSelectedDiscountCode("");
+      setTimeout(() => setDiscountFeedback(""), 3500);
+    } catch (error) {
+      setCartActionError(
+        error instanceof Error ? error.message : "Unable to apply discount code."
+      );
+    } finally {
+      setPendingAction(null);
+    }
   };
 
   const canEditCart = cart.cartState === "Active" || cart.cartState === "Merged";
@@ -251,11 +292,10 @@ export function CartDetailView({ id }: CartDetailViewProps) {
       : discountCodes.length === 0
         ? "No discount codes are available for this project."
         : "";
-  const showConfigureQuote = canEditCart && Boolean(cart.customerId) && cart.discountCodes.length === 0;
+  const showConfigureQuote =
+    canEditCart && Boolean(cart.customerId) && cart.discountCodes.length === 0;
 
-  const backTarget = customerIdParam
-    ? `/customers/${customerIdParam}`
-    : "/cart";
+  const backTarget = customerIdParam ? `/customers/${customerIdParam}` : "/cart";
 
   return (
     <DetailPage>
@@ -296,27 +336,25 @@ export function CartDetailView({ id }: CartDetailViewProps) {
         }
       />
 
+      {cartActionError && (
+        <div className="rounded border border-m-error-border bg-m-error-light px-3 py-2 text-xs font-semibold text-m-error">
+          {cartActionError}
+        </div>
+      )}
+
       <SummaryGrid>
-        <SummaryCard 
-          icon="user" 
-          label="Customer" 
-          value={cart.customerName || "Guest"} 
-          sub={cart.customerEmail || "No email"} 
+        <SummaryCard
+          icon="user"
+          label="Customer"
+          value={cart.customerName || "Guest"}
+          sub={cart.customerEmail || "No email"}
         />
-        <SummaryCard 
-          icon="globe" 
-          label="Country" 
-          value={cart.country || "US"} 
-        />
-        <SummaryCard 
-          icon="shopping-bag" 
-          label="Items" 
-          value={cart.lineItems.length} 
-        />
-        <SummaryCard 
-          icon="dollar-sign" 
-          label="Grand Total" 
-          value={`$${cart.grandTotal.toFixed(2)}`} 
+        <SummaryCard icon="globe" label="Country" value={cart.country || "US"} />
+        <SummaryCard icon="shopping-bag" label="Items" value={cart.lineItems.length} />
+        <SummaryCard
+          icon="dollar-sign"
+          label="Grand Total"
+          value={`$${cart.grandTotal.toFixed(2)}`}
           tone="primary"
         />
       </SummaryGrid>
@@ -324,7 +362,10 @@ export function CartDetailView({ id }: CartDetailViewProps) {
       <ContentGrid>
         <MainColumn span={8}>
           {/* Cart Items Panel */}
-          <SectionCard title={`Cart Line Items (${cart.lineItems.length})`} icon="shopping-cart">
+          <SectionCard
+            title={`Cart Line Items (${cart.lineItems.length})`}
+            icon="shopping-cart"
+          >
             {cart.lineItems.length > 0 ? (
               <Table>
                 <TableHeader>
@@ -350,7 +391,9 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs text-m-text">${item.unitPrice.toFixed(2)}</TableCell>
+                      <TableCell className="text-xs text-m-text">
+                        ${item.unitPrice.toFixed(2)}
+                      </TableCell>
                       <TableCell>
                         <div className="w-20">
                           <Input
@@ -361,7 +404,7 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                             onChange={(e) =>
                               setStagedQuantities((prev) => ({
                                 ...prev,
-                                [item.id]: Number(e.target.value),
+                                [item.id]: Number(e.target.value)
                               }))
                             }
                             className="text-xs text-center"
@@ -372,14 +415,22 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                         <Button
                           variant="secondary"
                           size="sm"
-                          disabled={!canEditCart || (stagedQuantities[item.id] ?? item.quantity) === item.quantity}
+                          disabled={
+                            !canEditCart ||
+                            pendingAction !== null ||
+                            (stagedQuantities[item.id] ?? item.quantity) === item.quantity
+                          }
                           onClick={() => handleUpdateLineItem(item.id)}
                         >
                           Update
                         </Button>
                       </TableCell>
-                      <TableCell className="text-xs font-medium">${item.subtotal.toFixed(2)}</TableCell>
-                      <TableCell className="text-xs text-m-text-muted">${item.tax.toFixed(2)}</TableCell>
+                      <TableCell className="text-xs font-medium">
+                        ${item.subtotal.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-xs text-m-text-muted">
+                        ${item.tax.toFixed(2)}
+                      </TableCell>
                       <TableCell className="text-xs font-bold text-m-text text-right">
                         ${item.totalGross.toFixed(2)}
                       </TableCell>
@@ -437,13 +488,17 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                           <TableCell className="flex items-center gap-3">
                             <ProductThumbnail src={prod.imageUrl} />
                             <div>
-                              <div className="font-bold text-xs text-m-text">{prod.name}</div>
+                              <div className="font-bold text-xs text-m-text">
+                                {prod.name}
+                              </div>
                               <div className="text-[10px] text-m-text-muted font-mono">
                                 SKU: {prod.sku} · Key: {prod.key}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-xs font-semibold">${prod.unitPrice.toFixed(2)}</TableCell>
+                          <TableCell className="text-xs font-semibold">
+                            ${prod.unitPrice.toFixed(2)}
+                          </TableCell>
                           <TableCell>
                             <div className="w-20">
                               <Input
@@ -453,7 +508,7 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                                 onChange={(e) =>
                                   setSearchSelectedQty((prev) => ({
                                     ...prev,
-                                    [prod.productId]: Number(e.target.value),
+                                    [prod.productId]: Number(e.target.value)
                                   }))
                                 }
                                 className="text-xs text-center"
@@ -464,6 +519,7 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                             <Button
                               variant="primary"
                               size="sm"
+                              disabled={pendingAction !== null}
                               onClick={() => handleAddCatalogItemToCart(prod)}
                             >
                               + Add
@@ -486,31 +542,21 @@ export function CartDetailView({ id }: CartDetailViewProps) {
               <InfoRow label="Cart Status" value={cart.cartState} />
               <InfoRow label="Country" value={cart.country || "US"} />
             </InfoList>
-            
+
             <div className="mt-4 pt-4 border-t border-m-border space-y-2 text-xs">
               <div className="flex justify-between py-1">
-                <span className="text-m-text-muted">Subtotal</span>
-                <span className="font-semibold text-m-text">${cart.netTotal.toFixed(2)}</span>
-              </div>
-              {cart.discountTotal > 0 && (
-                <div className="flex justify-between py-1 text-m-success font-semibold">
-                  <span>Discount</span>
-                  <span>-${cart.discountTotal.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between py-1">
-                <span className="text-m-text-muted">Shipping</span>
-                <span className="font-semibold text-m-text">${cart.shippingTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-m-text-muted">Tax</span>
-                <span className="font-semibold text-m-text">${cart.taxTotal.toFixed(2)}</span>
+                <span className="text-m-text-muted">Line items total</span>
+                <span className="font-semibold text-m-text">
+                  ${cart.netTotal.toFixed(2)}
+                </span>
               </div>
             </div>
 
             <div className="flex justify-between items-center pt-3 mt-3 border-t-2 border-m-border">
               <span className="text-[13px] font-bold text-m-text">Grand Total</span>
-              <span className="text-lg font-extrabold text-m-primary">${cart.grandTotal.toFixed(2)}</span>
+              <span className="text-lg font-extrabold text-m-primary">
+                ${cart.grandTotal.toFixed(2)}
+              </span>
             </div>
           </SectionCard>
 
@@ -543,13 +589,17 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                           value={discount.code}
                           disabled={discount.isActive === false}
                         >
-                          {discount.name ? `${discount.name} (${discount.code})` : discount.code}
+                          {discount.name
+                            ? `${discount.name} (${discount.code})`
+                            : discount.code}
                         </option>
                       ))}
                     </Select>
                     <Button
                       variant="primary"
-                      disabled={!canEditCart || !selectedDiscountCode}
+                      disabled={
+                        !canEditCart || !selectedDiscountCode || pendingAction !== null
+                      }
                       onClick={handleApplyDiscountCode}
                     >
                       Apply
@@ -581,7 +631,10 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                     Selected Discount Codes
                   </span>
                   {cart.discountCodes.map((code) => (
-                    <div key={code} className="rounded border border-m-border bg-m-surface-2 px-3 py-2 text-xs font-semibold text-m-text">
+                    <div
+                      key={code}
+                      className="rounded border border-m-border bg-m-surface-2 px-3 py-2 text-xs font-semibold text-m-text"
+                    >
                       {code}
                     </div>
                   ))}
@@ -596,7 +649,8 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                   </span>
                   {cart.appliedDiscounts.map((row) => (
                     <div key={row.code} className="text-xs font-semibold text-m-text">
-                      🏷️ {row.code} {row.name ? `— ${row.name}` : ""} ({row.savings} saved)
+                      🏷️ {row.code} {row.name ? `— ${row.name}` : ""} ({row.savings}{" "}
+                      saved)
                     </div>
                   ))}
                 </div>
@@ -610,7 +664,8 @@ export function CartDetailView({ id }: CartDetailViewProps) {
                   </span>
                   {cart.ineffectiveDiscounts.map((row) => (
                     <div key={row.code} className="text-xs text-m-text-muted">
-                      <span className="font-bold text-m-text">{row.code}:</span> {row.message}
+                      <span className="font-bold text-m-text">{row.code}:</span>{" "}
+                      {row.message}
                     </div>
                   ))}
                 </div>

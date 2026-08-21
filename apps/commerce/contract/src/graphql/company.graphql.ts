@@ -62,4 +62,8 @@ export const companyTypeDefs = gql`
     companyCarts(companyKey: String!, limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): CartPage!
     companyOrders(companyKey: String!, limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): OrderPage!
   }
+
+  extend type Mutation {
+    createCompany(draft: Json!): Company
+  }
 `;

@@ -29,6 +29,21 @@ const companyFields = `#graphql
 `;
 
 export const resolvers = {
+  createCompany: async (
+    _parent: unknown,
+    args: { draft: Record<string, unknown> }
+  ) => {
+    const data = await commercetoolsGraphql<{ createBusinessUnit: CtCompany | null }>(
+      `#graphql
+        mutation CreateBusinessUnit($draft: BusinessUnitDraft!) {
+          createBusinessUnit(draft: $draft) { ${companyFields} }
+        }
+      `,
+      { draft: args.draft }
+    );
+
+    return data.createBusinessUnit ? mapCompany(data.createBusinessUnit) : null;
+  },
   companies: async (_parent: unknown, args: CompanySearchArgs) => {
     try {
       return await queryCompanies(args);

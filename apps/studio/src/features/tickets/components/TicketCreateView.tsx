@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@apollo/client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -23,9 +24,10 @@ import {
   TableHead,
   TableCell,
 } from "@csa/ui";
-import { formatTime } from "@/lib/format-date";
 import { useTicketStore } from "../hooks/use-tickets";
+import { useAssignees } from "../hooks/use-assignees";
 import { useCustomerStore } from "../../customers/hooks/use-customers";
+import { CUSTOMER_ORDERS_QUERY } from "../../orders/api/queries";
 import type { Customer } from "../../customers/types/customer-types";
 import type {
   TicketCategoryKey,
@@ -59,13 +61,6 @@ const PRIORITY_OPTIONS: Array<{ value: TicketPriority; label: string }> = [
   { value: "Urgent", label: "Urgent" },
 ];
 
-const AGENT_OPTIONS = [
-  { value: "John Agent (john.agent@csa.com)", label: "John Agent" },
-  { value: "Sarah Jenkins (sarah.jenkins@csa.com)", label: "Sarah Jenkins" },
-  { value: "Tech Support Team", label: "Tech Support Team" },
-  { value: "Support Desk", label: "Support Desk (Unassigned)" },
-];
-
 const ORDER_LINKED_CATEGORIES: TicketCategoryKey[] = [
   "order_inquiry",
   "payment_methods",
@@ -77,6 +72,7 @@ export function TicketCreateView() {
   const searchParams = useSearchParams();
   const { addTicket } = useTicketStore();
   const { customers } = useCustomerStore();
+  const { options: assigneeOptions, isLoading: assigneesLoading } = useAssignees();
 
   const prefillEmail = searchParams.get("email") || "";
   const customerIdContext = searchParams.get("customerId") || "";
@@ -85,14 +81,14 @@ export function TicketCreateView() {
   const [customerFound, setCustomerFound] = useState<boolean>(Boolean(prefillEmail));
   const [customerLookupMsg, setCustomerLookupMsg] = useState("");
   const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(
-    prefillEmail ? customers.find((c) => c.email.toLowerCase() === prefillEmail.toLowerCase()) || customers[0] : null
+    prefillEmail ? customers.find((c) => c.email.toLowerCase() === prefillEmail.toLowerCase()) || null : null
   );
 
   const [contactType, setContactType] = useState<TicketContactType>("Email");
   const [category, setCategory] = useState<TicketCategoryKey>("order_inquiry");
   const [orderNumber, setOrderNumber] = useState("");
   const [priority, setPriority] = useState<TicketPriority>("Medium");
-  const [assignedTo, setAssignedTo] = useState(AGENT_OPTIONS[0].value);
+  const [assignedTo, setAssignedTo] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
 
@@ -104,6 +100,7 @@ export function TicketCreateView() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const submitInFlightRef = useRef(false);
 
   const clearError = (field: string) => {
     setErrors((current) => {
@@ -116,14 +113,28 @@ export function TicketCreateView() {
 
   const showOrderField = ORDER_LINKED_CATEGORIES.includes(category);
 
-  // Eligible Orders mock calculation
+  useEffect(() => {
+    if (!prefillEmail) return;
+    const exact = customers.find((customer) => customer.email.toLowerCase() === prefillEmail.toLowerCase());
+    if (exact) setMatchedCustomer(exact);
+  }, [customers, prefillEmail]);
+
+  const selectedCustomerId = matchedCustomer?.id || customerIdContext;
+  const { data: customerOrdersData } = useQuery<{
+    orderPage: { results: Array<{ id: string; orderNumber?: string | null; orderState?: string | null; totalPrice?: { centAmount: number; fractionDigits: number; currencyCode: string } | null }> };
+  }>(CUSTOMER_ORDERS_QUERY, {
+    variables: { customerId: selectedCustomerId, limit: 100 },
+    skip: !selectedCustomerId,
+  });
+
   const eligibleOrders = useMemo(() => {
-    return [
-      { value: "ORD-54019", label: "ORD-54019 ($342.20 - Processing)" },
-      { value: "ORD-53982", label: "ORD-53982 ($128.50 - Delivered)" },
-      { value: "ORD-53410", label: "ORD-53410 ($64.00 - Delivered)" },
-    ];
-  }, []);
+    return (customerOrdersData?.orderPage.results ?? []).map((order) => {
+      const money = order.totalPrice;
+      const total = money ? new Intl.NumberFormat("en-US", { style: "currency", currency: money.currencyCode }).format(money.centAmount / 10 ** money.fractionDigits) : "--";
+      const number = order.orderNumber || order.id;
+      return { value: number, label: `${number} (${total} - ${order.orderState || "Open"})` };
+    });
+  }, [customerOrdersData]);
 
   const handleSearchCustomer = () => {
     setCustomerLookupMsg("");
@@ -151,7 +162,7 @@ export function TicketCreateView() {
     const newWorklog: WorklogComment = {
       id: `wl-${Date.now()}`,
       comment: worklogText.trim(),
-      createdAt: formatTime(new Date()),
+      createdAt: new Date().toISOString(),
       status: "Pending submit",
       author: "Current Agent",
     };
@@ -175,6 +186,7 @@ export function TicketCreateView() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitInFlightRef.current) return;
     const newErrors: Record<string, string> = {};
 
     if (!email.trim()) {
@@ -195,6 +207,7 @@ export function TicketCreateView() {
       return;
     }
 
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -213,12 +226,14 @@ export function TicketCreateView() {
       attachments,
       comments: worklogs,
     });
-    setIsSubmitting(false);
     const returnRoute = customerIdContext ? `/customers/${customerIdContext}?tab=tickets` : `/tickets/${created.id}`;
     router.push(returnRoute);
     } catch (error) {
       setIsSubmitting(false);
       setErrors({ submit: error instanceof Error ? error.message : "Unable to create ticket" });
+    } finally {
+      submitInFlightRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -357,7 +372,8 @@ export function TicketCreateView() {
                 <Select
                   value={assignedTo}
                   onChange={(e) => setAssignedTo(e.target.value)}
-                  options={AGENT_OPTIONS}
+                  options={assigneeOptions}
+                  disabled={assigneesLoading}
                 />
               </FormField>
             </div>

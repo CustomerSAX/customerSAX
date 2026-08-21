@@ -1,8 +1,35 @@
 "use client";
 
+import { gql, useMutation } from "@apollo/client";
 import { useState, useCallback, useMemo } from "react";
 import type { Employee, EmployeeAddress, EmployeeCompanyMembership, EmployeeFilter, EmployeeSort } from "../types/employee-types";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
+import { COMPANIES_QUERY } from "@/features/companies/api/queries";
+
+const CREATE_EMPLOYEE_MUTATION = gql`
+  mutation CreateEmployee($draft: Json!, $companyId: ID!, $role: String!) {
+    createEmployee(draft: $draft, companyId: $companyId, role: $role) {
+      id customerNumber externalId email firstName lastName createdAt lastModifiedAt
+    }
+  }
+`;
+
+type CreateEmployeeData = {
+  createEmployee: {
+    id: string;
+    customerNumber?: string | null;
+    externalId?: string | null;
+    email?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    createdAt?: string | null;
+    lastModifiedAt?: string | null;
+  } | null;
+};
+
+export type NewEmployee = Omit<Employee, "id" | "customerNumber" | "externalId" | "createdAt" | "lastModifiedAt"> & {
+  password: string;
+};
 
 export function useEmployees() {
   const { allCompanies, loading } = useCompanies();
@@ -11,6 +38,7 @@ export function useEmployees() {
   const [sort, setSort] = useState<EmployeeSort>({ key: "createdAt", order: "desc" });
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+  const [createEmployeeMutation] = useMutation<CreateEmployeeData>(CREATE_EMPLOYEE_MUTATION);
 
   const companyEmployees = useMemo(() => {
     const employeeMap = new Map<string, Employee>();
@@ -113,20 +141,50 @@ export function useEmployees() {
   );
 
   const createEmployee = useCallback(
-    (newEmployee: Omit<Employee, "id" | "customerNumber" | "externalId" | "createdAt" | "lastModifiedAt">) => {
-      const count = employees.length + 1;
-      const created: Employee = {
+    async (newEmployee: NewEmployee) => {
+      const membership = newEmployee.memberships[0];
+      if (!membership) throw new Error("Select a company for the employee.");
+      const { password, memberships, addresses: _addresses, status: _status, customerGroup: _customerGroup, ...profile } = newEmployee;
+      const result = await createEmployeeMutation({
+        variables: {
+          companyId: membership.companyId,
+          role: membership.roles[0] ?? "Buyer",
+          draft: {
+            email: profile.email.trim(),
+            password,
+            firstName: profile.firstName.trim(),
+            lastName: profile.lastName.trim(),
+            ...(profile.middleName?.trim() ? { middleName: profile.middleName.trim() } : {}),
+            ...(profile.phone?.trim() ? { phone: profile.phone.trim() } : {}),
+            ...(profile.dateOfBirth ? { dateOfBirth: profile.dateOfBirth } : {}),
+          },
+        },
+        refetchQueries: [{ query: COMPANIES_QUERY, variables: {
+          limit: 100,
+          offset: 0,
+          searchField: undefined,
+          searchText: undefined,
+          sortKey: "createdAt",
+          sortOrder: "desc",
+        } }],
+        awaitRefetchQueries: true,
+      });
+      const created = result.data?.createEmployee;
+      if (!created) throw new Error("The commerce service did not return the created employee.");
+
+      return {
         ...newEmployee,
-        id: `cst-${Date.now()}`,
-        customerNumber: `EMP-900${count}`,
-        externalId: `EXT-NEW-0${count}`,
-        createdAt: new Date().toISOString(),
-        lastModifiedAt: new Date().toISOString(),
-      };
-      setLocalEmployees((prev) => [created, ...prev]);
-      return created;
+        id: created.id,
+        customerNumber: created.customerNumber ?? created.id,
+        externalId: created.externalId ?? created.id,
+        email: created.email ?? newEmployee.email,
+        firstName: created.firstName ?? newEmployee.firstName,
+        lastName: created.lastName ?? newEmployee.lastName,
+        createdAt: created.createdAt ?? "",
+        lastModifiedAt: created.lastModifiedAt ?? created.createdAt ?? "",
+      } satisfies Employee;
     },
-    [employees.length]
+    [createEmployeeMutation]
   );
 
   const updateEmployee = useCallback((id: string, updates: Partial<Employee>) => {

@@ -304,10 +304,14 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
 
   // ── Handlers ────────────────────────────────────────────────────
 
-  const handleSaveStates = (e: React.FormEvent) => {
+  const handleSaveStates = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateOrderStates(order.id, { orderState, shipmentState, paymentState });
-    setStateSaveMsg("Order status, shipment state, and payment state saved successfully.");
+    try {
+      await updateOrderStates(order.id, { orderState, shipmentState, paymentState });
+      setStateSaveMsg("Order status, shipment state, and payment state saved successfully.");
+    } catch (error) {
+      setStateSaveMsg(error instanceof Error ? error.message : "Unable to save order states.");
+    }
     setTimeout(() => setStateSaveMsg(""), 3500);
   };
 
@@ -325,9 +329,9 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     }
   };
 
-  const handleUpdateLineItem = (lineItemId: string) => {
+  const handleUpdateLineItem = async (lineItemId: string) => {
     const newQty = stagedLineQuantities[lineItemId] ?? 1;
-    updateLineItemQuantity(order.id, lineItemId, newQty);
+    await updateLineItemQuantity(order.id, lineItemId, newQty);
   };
 
   const handleCatalogSearch = async (e: React.FormEvent) => {
@@ -343,9 +347,9 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     setSearchSelectedQty(initialQty);
   };
 
-  const handleAddCatalogItemToOrder = (prod: CatalogProduct) => {
+  const handleAddCatalogItemToOrder = async (prod: CatalogProduct) => {
     const qty = searchSelectedQty[prod.productId] || 1;
-    addLineItemToOrder(order.id, {
+    await addLineItemToOrder(order.id, {
       productId: prod.productId, key: prod.key, name: prod.name,
       sku: prod.sku, imageUrl: prod.imageUrl, unitPrice: prod.unitPrice, quantity: qty,
     });
@@ -359,27 +363,39 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     setTimeout(() => setGiftMsgFeedback(""), 3000);
   };
 
-  const handleApplyDiscountCode = () => {
+  const handleApplyDiscountCode = async () => {
     if (!selectedDiscountCode) return;
-    applyDiscountCode(order.id, selectedDiscountCode);
-    setDiscountFeedback(`Applied code ${selectedDiscountCode}.`);
-    setSelectedDiscountCode("");
+    try {
+      await applyDiscountCode(order.id, selectedDiscountCode);
+      setDiscountFeedback(`Applied code ${selectedDiscountCode}.`);
+      setSelectedDiscountCode("");
+    } catch (error) {
+      setDiscountFeedback(error instanceof Error ? error.message : "Unable to apply discount code.");
+    }
     setTimeout(() => setDiscountFeedback(""), 3500);
   };
 
-  const handleSaveShippingMethod = () => {
+  const handleSaveShippingMethod = async () => {
     const method = shippingMethods.find((m) => m.id === selectedShippingMethodId);
     if (method) {
-      updateShippingMethod(order.id, method.id, method.name);
-      setShippingMethodFeedback(`Shipping method updated to ${method.name}.`);
+      try {
+        await updateShippingMethod(order.id, method.id, method.name);
+        setShippingMethodFeedback(`Shipping method updated to ${method.name}.`);
+      } catch (error) {
+        setShippingMethodFeedback(error instanceof Error ? error.message : "Unable to update shipping method.");
+      }
       setTimeout(() => setShippingMethodFeedback(""), 3500);
     }
   };
 
-  const handleSaveShippingAddress = (e: React.FormEvent) => {
+  const handleSaveShippingAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateShippingAddress(order.id, addressForm);
-    setAddressFeedback("Shipping address updated successfully.");
+    try {
+      await updateShippingAddress(order.id, addressForm);
+      setAddressFeedback("Shipping address updated successfully.");
+    } catch (error) {
+      setAddressFeedback(error instanceof Error ? error.message : "Unable to update shipping address.");
+    }
     setTimeout(() => setAddressFeedback(""), 3500);
   };
 
@@ -399,7 +415,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     setIsReturnDrawerOpen(true);
   };
 
-  const handleSubmitReturn = () => {
+  const handleSubmitReturn = async () => {
     const returnItemsToSubmit: Omit<OrderReturnItem, "id" | "createdAt">[] = [];
     order.lineItems.forEach((li) => {
       if (returnSelectedItems[li.id]) {
@@ -415,9 +431,13 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
       setReturnDrawerError("Please select at least one line item to return.");
       return;
     }
-    addReturnToOrder(order.id, returnItemsToSubmit, returnComment,
-      returnDateInput ? `${returnDateInput}T09:00:00Z` : undefined, returnShipmentState);
-    setIsReturnDrawerOpen(false);
+    try {
+      await addReturnToOrder(order.id, returnItemsToSubmit, returnComment,
+        returnDateInput ? `${returnDateInput}T09:00:00Z` : undefined, returnShipmentState);
+      setIsReturnDrawerOpen(false);
+    } catch (error) {
+      setReturnDrawerError(error instanceof Error ? error.message : "Unable to create the return.");
+    }
   };
 
   const handleGetLatestPspStatus = (paymentId: string) => {
@@ -507,7 +527,8 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                 },
                 {
                   id: "add-comment", label: "Add Comment", icon: "message-square",
-                  onClick: () => { setActiveTab("Comments"); setShowCommentForm(true); },
+                  disabled: true,
+                  onClick: () => undefined,
                 },
               ]}
             />
@@ -563,7 +584,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           <SummaryCard
             icon="dollar-sign"
             label="Total Amount"
-            value={`$${(order.grandTotal / 100).toFixed(2)}`}
+            value={`$${order.grandTotal.toFixed(2)}`}
             sub={`${order.lineItems.length} items`}
           />
           <SummaryCard

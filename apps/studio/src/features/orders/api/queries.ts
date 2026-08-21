@@ -155,6 +155,19 @@ export const ORDERS_PAGE_QUERY = gql`
           postalCode
           country
         }
+        returnInfo {
+          returnTrackingId
+          returnDate
+          items {
+            id
+            type
+            quantity
+            lineItemId
+            shipmentState
+            paymentState
+            comment
+          }
+        }
       }
     }
   }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@apollo/client";
+import { gql, useMutation, useQuery } from "@apollo/client";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { ORDERS_PAGE_QUERY } from "../api/queries";
+import { CUSTOMERS_PAGE_QUERY } from "../../customers/api/queries";
 import type {
   Order,
   OrderState,
@@ -11,11 +12,15 @@ import type {
   OrderLineItem,
   OrderAddress,
   OrderReturnItem,
-  OrderReturnInfo,
   OrderComment,
   CustomFieldEntry,
-  IneffectiveDiscountRow,
 } from "../types/order-types";
+
+const UPDATE_ORDER_MUTATION = gql`
+  mutation UpdateCommerceOrder($id: ID!, $actions: Json!) {
+    updateOrder(id: $id, actions: $actions)
+  }
+`;
 
 type CommerceMoney = {
   centAmount: number;
@@ -56,11 +61,35 @@ type CommerceOrder = {
   totalPrice?: CommerceMoney | null;
   shippingAddress?: CommerceOrderAddress | null;
   billingAddress?: CommerceOrderAddress | null;
+  returnInfo?: Array<{
+    returnTrackingId?: string | null;
+    returnDate?: string | null;
+    items?: Array<{
+      id: string;
+      type?: string | null;
+      quantity: number;
+      lineItemId?: string | null;
+      shipmentState: string;
+      paymentState: string;
+      comment?: string | null;
+    }> | null;
+  }> | null;
 };
 
 type OrdersPageData = {
   orderPage: {
     results: CommerceOrder[];
+  };
+};
+
+type OrderCustomersPageData = {
+  customerPage: {
+    results: Array<{
+      id: string;
+      email?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+    }>;
   };
 };
 
@@ -106,7 +135,7 @@ function toPaymentState(state?: string | null): PaymentState {
   return "Pending";
 }
 
-function normalizeOrder(order: CommerceOrder): Order {
+function normalizeOrder(order: CommerceOrder, customerNames: Map<string, string>): Order {
   const lineItems = (order.lineItems ?? []).map((item) => {
     const total = moneyToNumber(item.totalPrice);
     const quantity = item.quantity ?? 0;
@@ -144,7 +173,7 @@ function normalizeOrder(order: CommerceOrder): Order {
     createdAt: order.createdAt ?? "",
     customerEmail: order.customerEmail ?? "",
     customerId: order.customerId ?? undefined,
-    customerName: order.customerEmail ?? order.customerId ?? "--",
+    customerName: (order.customerId ? customerNames.get(order.customerId) : undefined) ?? order.customerEmail ?? "--",
     discountCodes: [],
     discountTotal: 0,
     grandTotal,
@@ -156,7 +185,22 @@ function normalizeOrder(order: CommerceOrder): Order {
     orderState: toOrderState(order.orderState ?? order.state),
     paymentState: toPaymentState(order.paymentState),
     payments: [],
-    returnInfo: [],
+    returnInfo: (order.returnInfo ?? []).map((entry) => ({
+      returnTrackingId: entry.returnTrackingId ?? "--",
+      returnDate: entry.returnDate ?? "",
+      items: (entry.items ?? []).map((item) => ({
+        id: item.id,
+        type: item.type ?? undefined,
+        quantity: item.quantity,
+        lineItemId: item.lineItemId ?? "",
+        name: lineItems.find((lineItem) => lineItem.id === item.lineItemId)?.name ?? "Returned item",
+        sku: lineItems.find((lineItem) => lineItem.id === item.lineItemId)?.sku ?? "",
+        shipmentState: item.shipmentState as OrderReturnItem["shipmentState"],
+        paymentState: item.paymentState as OrderReturnItem["paymentState"],
+        comment: item.comment ?? undefined,
+        createdAt: entry.returnDate ?? "",
+      })),
+    })),
     shipmentState: toShipmentState(order.shipmentState),
     shippingAddress: mapAddress(order.shippingAddress),
     shippingInfo: {
@@ -183,10 +227,28 @@ export function useOrderStore() {
     },
   });
   const [orders, setOrders] = useState<Order[]>([]);
+  const { data: customersData } = useQuery<OrderCustomersPageData>(CUSTOMERS_PAGE_QUERY, {
+    fetchPolicy: "cache-and-network",
+    variables: { limit: 500, offset: 0, sortKey: "createdAt", sortOrder: "desc" },
+  });
+  const [updateOrderMutation] = useMutation(UPDATE_ORDER_MUTATION);
+
+  const runOrderUpdate = useCallback(
+    async (orderId: string, actions: Record<string, unknown>[]) => {
+      await updateOrderMutation({ variables: { id: orderId, actions } });
+      await refetch();
+    },
+    [refetch, updateOrderMutation]
+  );
 
   const serverOrders = useMemo(() => {
-    return (data?.orderPage.results ?? []).map(normalizeOrder);
-  }, [data?.orderPage.results]);
+    const customerNames = new Map<string, string>();
+    for (const customer of customersData?.customerPage.results ?? []) {
+      const fullName = [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim();
+      customerNames.set(customer.id, fullName || customer.email || "--");
+    }
+    return (data?.orderPage.results ?? []).map((order) => normalizeOrder(order, customerNames));
+  }, [customersData?.customerPage.results, data?.orderPage.results]);
 
   useEffect(() => {
     if (serverOrders.length > 0) {
@@ -200,96 +262,28 @@ export function useOrderStore() {
   );
 
   const updateOrderStates = useCallback(
-    (
+    async (
       orderId: string,
       updates: { orderState?: OrderState; shipmentState?: ShipmentState; paymentState?: PaymentState }
     ) => {
-      setOrders((prev) =>
-        prev.map((o) => {
-          if (o.id !== orderId && o.orderNumber !== orderId) return o;
-          return {
-            ...o,
-            ...updates,
-            lastModifiedAt: new Date().toISOString(),
-          };
-        })
-      );
+      const actions: Record<string, unknown>[] = [];
+      if (updates.orderState) actions.push({ changeOrderState: { orderState: updates.orderState } });
+      if (updates.shipmentState) actions.push({ changeShipmentState: { shipmentState: updates.shipmentState } });
+      if (updates.paymentState) actions.push({ changePaymentState: { paymentState: updates.paymentState } });
+      await runOrderUpdate(orderId, actions);
     },
-    []
+    [runOrderUpdate]
   );
 
-  const updateLineItemQuantity = useCallback((orderId: string, lineItemId: string, newQty: number) => {
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id !== orderId && o.orderNumber !== orderId) return o;
-
-        let updatedItems: OrderLineItem[];
-        if (newQty <= 0) {
-          updatedItems = o.lineItems.filter((li) => li.id !== lineItemId);
-        } else {
-          updatedItems = o.lineItems.map((li) => {
-            if (li.id !== lineItemId) return li;
-            const subtotal = Number((li.unitPrice * newQty).toFixed(2));
-            const tax = Number((subtotal * 0.08).toFixed(2));
-            return {
-              ...li,
-              quantity: newQty,
-              subtotal,
-              tax,
-              totalGross: subtotal + tax,
-            };
-          });
-        }
-
-        const netTotal = updatedItems.reduce((acc, i) => acc + i.subtotal, 0);
-        const taxTotal = updatedItems.reduce((acc, i) => acc + i.tax, 0);
-        const grandTotal = netTotal + taxTotal + o.shippingTotal - o.discountTotal;
-
-        return {
-          ...o,
-          lineItems: updatedItems,
-          netTotal,
-          taxTotal,
-          grandTotal,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
+  const updateLineItemQuantity = useCallback(async (orderId: string, lineItemId: string, newQty: number) => {
+    await runOrderUpdate(orderId, [{ changeLineItemQuantity: { lineItemId, quantity: Math.max(0, newQty) } }]);
+  }, [runOrderUpdate]);
 
   const addLineItemToOrder = useCallback(
-    (orderId: string, newItem: Omit<OrderLineItem, "id" | "subtotal" | "tax" | "totalGross">) => {
-      setOrders((prev) =>
-        prev.map((o) => {
-          if (o.id !== orderId && o.orderNumber !== orderId) return o;
-
-          const subtotal = Number((newItem.unitPrice * newItem.quantity).toFixed(2));
-          const tax = Number((subtotal * 0.08).toFixed(2));
-          const fullItem: OrderLineItem = {
-            ...newItem,
-            id: `li-${Date.now()}`,
-            subtotal,
-            tax,
-            totalGross: subtotal + tax,
-          };
-
-          const updatedItems = [...o.lineItems, fullItem];
-          const netTotal = updatedItems.reduce((acc, i) => acc + i.subtotal, 0);
-          const taxTotal = updatedItems.reduce((acc, i) => acc + i.tax, 0);
-          const grandTotal = netTotal + taxTotal + o.shippingTotal - o.discountTotal;
-
-          return {
-            ...o,
-            lineItems: updatedItems,
-            netTotal,
-            taxTotal,
-            grandTotal,
-            lastModifiedAt: new Date().toISOString(),
-          };
-        })
-      );
+    async (orderId: string, newItem: Omit<OrderLineItem, "id" | "subtotal" | "tax" | "totalGross">) => {
+      await runOrderUpdate(orderId, [{ addLineItem: { sku: newItem.sku, quantity: newItem.quantity } }]);
     },
-    []
+    [runOrderUpdate]
   );
 
   const duplicateOrder = useCallback(
@@ -352,64 +346,17 @@ export function useOrderStore() {
     );
   }, []);
 
-  const applyDiscountCode = useCallback((orderId: string, code: string) => {
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id !== orderId && o.orderNumber !== orderId) return o;
+  const applyDiscountCode = useCallback(async (orderId: string, code: string) => {
+    await runOrderUpdate(orderId, [{ addDiscountCode: { code: code.trim() } }]);
+  }, [runOrderUpdate]);
 
-        const uppercaseCode = code.trim().toUpperCase();
-        if (o.discountCodes.includes(uppercaseCode)) {
-          return o;
-        }
+  const updateShippingMethod = useCallback(async (orderId: string, methodId: string, _methodName: string) => {
+    await runOrderUpdate(orderId, [{ setShippingMethod: { shippingMethod: { id: methodId, typeId: "shipping-method" } } }]);
+  }, [runOrderUpdate]);
 
-        const updatedCodes = [...o.discountCodes, uppercaseCode];
-        const newIneffectiveRow: IneffectiveDiscountRow = {
-          code: uppercaseCode,
-          message: "Discount validation is not available from the commerce backend yet.",
-        };
-        const ineffectiveDiscounts = [...(o.ineffectiveDiscounts || []), newIneffectiveRow];
-
-        return {
-          ...o,
-          discountCodes: updatedCodes,
-          ineffectiveDiscounts,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
-
-  const updateShippingMethod = useCallback((orderId: string, methodId: string, methodName: string) => {
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id !== orderId && o.orderNumber !== orderId) return o;
-        const shippingInfo = {
-          ...o.shippingInfo,
-          shippingMethodId: methodId,
-          shippingMethodName: methodName,
-        };
-
-        return {
-          ...o,
-          shippingInfo,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
-
-  const updateShippingAddress = useCallback((orderId: string, newAddress: OrderAddress) => {
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id !== orderId && o.orderNumber !== orderId) return o;
-        return {
-          ...o,
-          shippingAddress: newAddress,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      })
-    );
-  }, []);
+  const updateShippingAddress = useCallback(async (orderId: string, newAddress: OrderAddress) => {
+    await runOrderUpdate(orderId, [{ setShippingAddress: { address: newAddress } }]);
+  }, [runOrderUpdate]);
 
   const addReturnToOrder = useCallback(
     (
@@ -419,36 +366,19 @@ export function useOrderStore() {
       returnDate?: string,
       shipmentState: "Returned" | "Advised" = "Returned"
     ) => {
-      setOrders((prev) =>
-        prev.map((o) => {
-          if (o.id !== orderId && o.orderNumber !== orderId) return o;
-
-          const seq = (o.returnInfo?.length || 0) + 1;
-          const returnTrackingId = `RTN-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${o.orderNumber}-${seq}`;
-
-          const newItems: OrderReturnItem[] = returnItems.map((ri, idx) => ({
-            ...ri,
-            id: `rti-${Date.now()}-${idx}`,
+      return runOrderUpdate(orderId, [{
+        addReturnInfo: {
+          items: returnItems.map((item) => ({
+            lineItemId: item.lineItemId,
+            quantity: item.quantity,
             shipmentState,
-            createdAt: new Date().toISOString(),
-            comment: comment || ri.comment,
-          }));
-
-          const newReturnEntry: OrderReturnInfo = {
-            returnTrackingId,
-            returnDate: returnDate || new Date().toISOString(),
-            items: newItems,
-          };
-
-          return {
-            ...o,
-            returnInfo: [...(o.returnInfo || []), newReturnEntry],
-            lastModifiedAt: new Date().toISOString(),
-          };
-        })
-      );
+            comment: comment || item.comment,
+          })),
+          returnDate: returnDate || new Date().toISOString(),
+        },
+      }]);
     },
-    []
+    [runOrderUpdate]
   );
 
   const refreshPaymentPspStatus = useCallback((orderId: string, paymentId: string): string => {
