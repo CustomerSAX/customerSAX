@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Icon, Button } from "@csa/ui";
 
 interface SuperadminTopBarProps {
@@ -25,7 +25,6 @@ interface SuperadminTopBarProps {
  */
 export function SuperadminTopBar({ userEmail }: SuperadminTopBarProps) {
   const pathname = usePathname();
-  const router = useRouter();
 
   const handleSignOut = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);

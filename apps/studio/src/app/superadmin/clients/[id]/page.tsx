@@ -650,7 +650,7 @@ function ProjectsTab({
                         <TableCell className="max-w-[120px] truncate text-m-text-muted" title={p.ctApiUrl}>
                           {p.ctApiUrl?.replace("https://", "").replace(".commercetools.com", "") || "—"}
                         </TableCell>
-                        <TableCell className="max-w-[140px] truncate font-mono text-m-text-muted" title={p.platform === "shopify" ? p.shopifyStoreDomain : p.platform === "bigcommerce" ? p.bigcommerceClientId : p.ctClientId}>
+                        <TableCell className="max-w-[140px] truncate font-mono text-m-text-muted" title={(p.platform === "shopify" ? p.shopifyStoreDomain : p.platform === "bigcommerce" ? p.bigcommerceClientId : p.ctClientId) ?? undefined}>
                           {p.platform === "shopify" ? p.shopifyStoreDomain : p.platform === "bigcommerce" ? p.bigcommerceClientId : p.ctClientId}
                         </TableCell>
                         <TableCell className="font-mono tracking-wider text-m-text-subtle">{p.ctClientSecretMasked ? "••••••••" : "—"}</TableCell>
