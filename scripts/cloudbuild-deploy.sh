@@ -62,10 +62,10 @@ deploy_service() {
   # Format: ENV_VAR_NAME=secret-name:version
   case "${SVC}" in
     ai-assist)
-      SECRETS="AI_GATEWAY_API_KEY=${NAME_PREFIX}-ai-gateway-api-key:latest" ;;
+      SECRETS="AI_GATEWAY_API_KEY=${NAME_PREFIX}-ai-gateway-api-key:latest,MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     commerce-commercetools)
       SECRETS="COMMERCETOOLS_CLIENT_ID=${NAME_PREFIX}-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=${NAME_PREFIX}-commercetools-client-secret:latest" ;;
-    ticketing)
+    ticketing|auth|admin)
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     *)
       SECRETS="" ;;
