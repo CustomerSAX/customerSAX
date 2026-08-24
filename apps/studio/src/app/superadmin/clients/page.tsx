@@ -41,7 +41,7 @@ interface ClientRow {
 export default function SuperadminClientsPage() {
   const router = useRouter();
   const { data, loading, error, refetch } = useQuery<{ adminClients: ClientRow[] }>(ADMIN_CLIENTS_QUERY, {
-    fetchPolicy: "cache-and-network"
+    fetchPolicy: "network-only"
   });
   const [setClientStatus] = useMutation(ADMIN_SET_CLIENT_STATUS);
 

@@ -60,7 +60,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     adminProjectsByClient: ProjectRow[];
     adminUsersByClient: UserRow[];
     adminSmtpProfilesByClient: SmtpProfileRow[];
-  }>(ADMIN_CLIENT_QUERY, { variables: { id }, fetchPolicy: "cache-and-network" });
+  }>(ADMIN_CLIENT_QUERY, { variables: { id }, fetchPolicy: "network-only" });
 
   if (loading && !data) {
     return (
