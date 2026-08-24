@@ -617,48 +617,57 @@ function ProjectsTab({
             <EmptyState icon="package" title="No projects yet" description="Register a CommerceTools, Shopify, or BigCommerce project for this client." />
           </div>
         ) : (
-          <Table className="min-w-[900px]">
-            <TableHeader>
-              <TableRow>
-                {["Project Key", "Display Name", "API Region", "Client ID", "Secret", "Shell", "Added", ""].map((h) => (
-                  <TableHead key={h}>{h}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-                {projects.map((p, idx) => (
-                    <TableRow key={p.id} className={idx < projects.length - 1 ? "border-b border-m-border/40" : ""}>
-                      <TableCell className="font-mono font-semibold">
-                        <Button type="button" variant="ghost" size="sm" className="h-auto px-0 py-0 font-mono text-m-primary underline hover:translate-y-0" onClick={() => setEditing(p)}>
-                          {p.projectKey}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        {p.displayName}
-                        <span className="ml-2 rounded-full border border-m-primary-200 bg-m-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-m-primary">
-                          {p.platform === "shopify" ? "Shopify" : p.platform === "bigcommerce" ? "BigCommerce" : "CommerceTools"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-[160px] truncate text-m-text-muted" title={p.ctApiUrl}>
-                        {p.ctApiUrl?.replace("https://", "") || "—"}
-                      </TableCell>
-                      <TableCell className="font-mono text-m-text-muted">
-                        {p.platform === "shopify" ? p.shopifyStoreDomain : p.platform === "bigcommerce" ? p.bigcommerceClientId : p.ctClientId}
-                      </TableCell>
-                      <TableCell className="font-mono tracking-wider text-m-text-subtle">{p.ctClientSecretMasked}</TableCell>
-                      <TableCell>
-                        <ShellModePicker name={`shell-${p.id}`} value={shellModeFromFlags(p)} onChange={(mode) => void handleShellChange(p, mode)} compact />
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-m-text-muted">{formatDate(p.createdAt)}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <Button variant="danger" size="sm" onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
-                          Remove
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-          </Table>
+          <div className="w-full overflow-x-auto">
+            <Table className="w-full text-xs">
+              <TableHeader>
+                <TableRow className="bg-m-surface-subtle/50">
+                  <TableHead className="w-[160px]">Project Key</TableHead>
+                  <TableHead className="w-[180px]">Display Name</TableHead>
+                  <TableHead className="w-[120px]">API Region</TableHead>
+                  <TableHead className="w-[140px]">Client ID</TableHead>
+                  <TableHead className="w-[90px]">Secret</TableHead>
+                  <TableHead className="w-[120px]">Shell</TableHead>
+                  <TableHead className="w-[100px]">Added</TableHead>
+                  <TableHead className="w-[90px] text-right pr-4">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                  {projects.map((p, idx) => (
+                      <TableRow key={p.id} className={idx < projects.length - 1 ? "border-b border-m-border/40" : ""}>
+                        <TableCell className="font-mono font-semibold">
+                          <Button type="button" variant="ghost" size="sm" className="h-auto px-0 py-0 font-mono text-m-primary underline hover:translate-y-0" onClick={() => setEditing(p)}>
+                            {p.projectKey}
+                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-m-text">{p.displayName}</span>
+                            <span className="rounded-full border border-m-primary-200 bg-m-primary-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-m-primary">
+                              {p.platform === "shopify" ? "Shopify" : p.platform === "bigcommerce" ? "BigCommerce" : "CT"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[120px] truncate text-m-text-muted" title={p.ctApiUrl}>
+                          {p.ctApiUrl?.replace("https://", "").replace(".commercetools.com", "") || "—"}
+                        </TableCell>
+                        <TableCell className="max-w-[140px] truncate font-mono text-m-text-muted" title={p.platform === "shopify" ? p.shopifyStoreDomain : p.platform === "bigcommerce" ? p.bigcommerceClientId : p.ctClientId}>
+                          {p.platform === "shopify" ? p.shopifyStoreDomain : p.platform === "bigcommerce" ? p.bigcommerceClientId : p.ctClientId}
+                        </TableCell>
+                        <TableCell className="font-mono tracking-wider text-m-text-subtle">{p.ctClientSecretMasked ? "••••••••" : "—"}</TableCell>
+                        <TableCell>
+                          <ShellModePicker name={`shell-${p.id}`} value={shellModeFromFlags(p)} onChange={(mode) => void handleShellChange(p, mode)} compact />
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-m-text-muted">{formatDate(p.createdAt)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-right pr-4">
+                          <Button variant="danger" size="sm" onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
+                            Remove
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
 
