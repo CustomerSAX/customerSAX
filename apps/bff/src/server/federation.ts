@@ -85,6 +85,7 @@ export function buildGateway(logger: Logger): ApolloGateway | undefined {
             service: (url ? serviceNameByUrl.get(url) : undefined) ?? url ?? "unknown",
             requestId: gatewayContext.requestId
           });
+          console.log("[bff willSendRequest] forwarding to:", url, "userRole:", gatewayContext.userRole, "userEmail:", gatewayContext.userEmail);
           if (request.http) {
             // Forward the tenant/user identity + correlation id so a request can
             // be traced (and scoped) across every subgraph hop. Only present

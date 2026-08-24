@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -29,8 +29,7 @@ export function SuperadminTopBar({ userEmail }: SuperadminTopBarProps) {
 
   const handleSignOut = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
-    router.replace("/login");
-    router.refresh();
+    window.location.href = "/login";
   };
 
   const isClientsActive = pathname?.startsWith("/superadmin/clients");

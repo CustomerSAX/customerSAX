@@ -99,6 +99,7 @@ const clientScopedAdminFields = new Set([
 ]);
 
 function authorize(field: string, args: Record<string, unknown>, context: AdminContext) {
+  console.log("[admin authorize] field:", field, "userRole:", context.userRole, "userEmail:", context.userEmail, "clientId:", context.clientId);
   if (context.userRole === "superadmin") return;
   if (context.userRole !== "admin" || !context.clientId || !context.projectKey || !context.userEmail) {
     throw new Error("Administrator access is required");
