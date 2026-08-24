@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Sparkles, TicketCheck, ShoppingBag, Bot, BarChart3 } from "lucide-react";
 import { Button, Input, Label, Separator } from "@csa/ui";
 
@@ -23,7 +23,6 @@ const features = [
 ];
 
 export function LoginView() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = useMemo(
     () => safeInternalPath(searchParams.get("callbackUrl")),
@@ -53,9 +52,7 @@ export function LoginView() {
         setError("Invalid credentials. Please check your email and password.");
         return;
       }
-      await res.json().catch(() => ({}));
-      router.replace(callbackUrl);
-      router.refresh();
+      window.location.href = callbackUrl;
     } catch {
       setError("Unable to reach the auth service. Please try again.");
     } finally {

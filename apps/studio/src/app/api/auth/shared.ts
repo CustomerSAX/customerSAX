@@ -21,7 +21,7 @@ export type SessionUserWithProjects = {
 };
 
 export function authServiceUrl() {
-  return process.env.AUTH_SERVICE_URL?.trim() || "http://localhost:4360";
+  return process.env.AUTH_SERVICE_URL?.trim() || "http://127.0.0.1:4360";
 }
 
 export function setSessionCookie(response: NextResponse, token: string, expiresAt: string) {

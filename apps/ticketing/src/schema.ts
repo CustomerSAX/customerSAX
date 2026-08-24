@@ -5,7 +5,7 @@ import type { TicketDraft, TicketListArgs, TicketUpdate, WorklogComment } from "
 type TicketingContext = { clientId?: string; projectKey?: string };
 
 function selectedProject(context: unknown) {
-  const projectKey = (context as TicketingContext | undefined)?.projectKey?.trim();
+  const projectKey = (context as TicketingContext | undefined)?.projectKey?.trim() || process.env.TICKETING_PROJECT_KEY?.trim();
   if (!projectKey) throw new Error("An active project is required for ticket operations");
   return projectKey;
 }

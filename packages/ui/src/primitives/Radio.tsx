@@ -63,8 +63,8 @@ export const Radio = React.forwardRef<HTMLInputElement, RadioProps>(
     const groupName = context?.name || props.name;
 
     return (
-      <div className={cn('inline-flex items-start gap-2.5 select-none', isDisabled && 'opacity-50 cursor-not-allowed')}>
-        <div className="relative flex items-center justify-center mt-0.5">
+      <div className={cn('inline-flex items-center gap-2 select-none', isDisabled && 'opacity-50 cursor-not-allowed')}>
+        <div className="relative flex items-center justify-center shrink-0 h-4 w-4">
           <input
             ref={ref}
             type="radio"
@@ -75,10 +75,10 @@ export const Radio = React.forwardRef<HTMLInputElement, RadioProps>(
             disabled={isDisabled}
             onChange={context?.onChange}
             className={cn(
-              'peer appearance-none h-4.5 w-4.5 rounded-full border bg-m-surface transition-all outline-none cursor-pointer',
-              'border-m-border hover:border-m-border-strong',
+              'peer appearance-none h-4 w-4 rounded-full border border-m-border bg-m-surface transition-all outline-none cursor-pointer shrink-0',
+              'hover:border-m-border-strong',
               'checked:border-m-primary checked:bg-m-surface',
-              'focus-visible:ring-2 focus-visible:ring-m-primary focus-visible:ring-offset-2',
+              'focus-visible:ring-2 focus-visible:ring-m-primary focus-visible:ring-offset-1',
               isDisabled && 'cursor-not-allowed',
               className,
             )}
@@ -87,9 +87,9 @@ export const Radio = React.forwardRef<HTMLInputElement, RadioProps>(
           <span className="pointer-events-none absolute h-2 w-2 rounded-full bg-m-primary opacity-0 peer-checked:opacity-100 transition-opacity" />
         </div>
         {(label || hint) && (
-          <label htmlFor={radioId} className="flex flex-col cursor-pointer text-xs">
+          <label htmlFor={radioId} className="flex flex-col cursor-pointer text-xs leading-none">
             {label && <span className="font-medium text-m-text">{label}</span>}
-            {hint && <span className="text-m-text-muted">{hint}</span>}
+            {hint && <span className="mt-1 text-m-text-muted">{hint}</span>}
           </label>
         )}
       </div>
