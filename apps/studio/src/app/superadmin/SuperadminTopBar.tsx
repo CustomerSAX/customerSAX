@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -9,14 +9,19 @@ interface SuperadminTopBarProps {
 }
 
 /**
- * Persistent dark top bar for the superadmin portal — visually matches
- * ct-csa-standalone's app/superadmin/SuperadminTopBar.tsx. That app's
- * tailwind config exposes m-n300/m-n400/m-n800/m-n900/m-n950 as direct
- * utility names; this repo's preset (apps/studio/src/ui/preset/index.ts)
- * exposes the identical hex scale as m-neutral-300/400/800/900/950
- * instead — same colors, different utility name, so the classes below
- * are translated accordingly. Sign-out calls this repo's real
- * /api/auth/logout — no auth logic here.
+ * Persistent top bar for the superadmin portal, visually consistent with
+ * the global AppShell's yellow TopBar (csa-topbar class).
+ *
+ * Uses the same --topbar-* CSS custom properties as the global TopBar so
+ * navigating between the regular workspace and the superadmin portal feels
+ * seamless:
+ *   --topbar-bg:         #F5A624 (yellow)
+ *   --topbar-text:       #05082E (navy)
+ *   --topbar-text-muted: rgba(5, 8, 46, 0.56)
+ *   --topbar-overlay:    rgba(5, 8, 46, 0.18)
+ *   --topbar-border:     #D48B0F (darker yellow)
+ *
+ * Sign-out calls /api/auth/logout -- no auth logic here.
  */
 export function SuperadminTopBar({ userEmail }: SuperadminTopBarProps) {
   const pathname = usePathname();
@@ -31,31 +36,49 @@ export function SuperadminTopBar({ userEmail }: SuperadminTopBarProps) {
   const isClientsActive = pathname?.startsWith("/superadmin/clients");
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 w-full items-center justify-between border-b border-m-neutral-800 bg-m-neutral-950 px-6 shadow-m-sm text-white">
-      {/* Left: Logo + title + navigation links */}
+    <header className="csa-topbar">
+      {/* Left: brand chip + nav links */}
       <div className="flex items-center gap-6">
-        <Link href="/superadmin" className="flex items-center gap-3 transition-opacity hover:opacity-90">
-          <div className="flex h-9 w-9 items-center justify-center rounded-m-md bg-m-primary text-white shadow-m-primary">
+        <Link
+          href="/superadmin"
+          className="flex items-center gap-3 transition-opacity hover:opacity-80"
+        >
+          {/* Shield chip — navy on yellow-overlay background */}
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+            style={{ background: "var(--topbar-overlay)", color: "var(--topbar-text)" }}
+          >
             <Icon name="shield-check" size="sm" />
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold tracking-tight text-white leading-none">SuperAdmin</span>
-            <span className="mt-0.5 text-[10px] font-semibold text-m-neutral-400 uppercase tracking-wider leading-none">
+          <div className="flex flex-col leading-none">
+            <span
+              className="text-sm font-bold tracking-tight leading-none"
+              style={{ color: "var(--topbar-text)" }}
+            >
+              SuperAdmin
+            </span>
+            <span
+              className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider leading-none"
+              style={{ color: "var(--topbar-text-muted)" }}
+            >
               Platform Portal
             </span>
           </div>
         </Link>
 
-        <div className="h-5 w-px bg-m-neutral-800" />
+        {/* Vertical divider */}
+        <div className="h-5 w-px" style={{ background: "var(--topbar-overlay)" }} />
 
+        {/* Navigation */}
         <nav className="flex items-center gap-1">
           <Link
             href="/superadmin/clients"
-            className={`flex items-center gap-2 rounded-m-md px-3 py-1.5 text-xs font-semibold transition-all ${
-              isClientsActive
-                ? "bg-m-primary/15 text-m-primary-300 border border-m-primary/30"
-                : "text-m-neutral-400 hover:bg-m-neutral-900 hover:text-white"
-            }`}
+            className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+            style={{
+              color: "var(--topbar-text)",
+              background: isClientsActive ? "var(--topbar-overlay)" : "transparent",
+              fontWeight: isClientsActive ? 700 : 600,
+            }}
           >
             <Icon name="building-2" size="xs" />
             Client Organisations
@@ -63,7 +86,14 @@ export function SuperadminTopBar({ userEmail }: SuperadminTopBarProps) {
 
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 rounded-m-md px-3 py-1.5 text-xs font-semibold text-m-neutral-400 transition-all hover:bg-m-neutral-900 hover:text-white"
+            className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+            style={{ color: "var(--topbar-text-muted)" }}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLAnchorElement).style.color = "var(--topbar-text)")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLAnchorElement).style.color = "var(--topbar-text-muted)")
+            }
           >
             <Icon name="layout-dashboard" size="xs" />
             CSA Workspace
@@ -71,11 +101,22 @@ export function SuperadminTopBar({ userEmail }: SuperadminTopBarProps) {
         </nav>
       </div>
 
-      {/* Right: User info + sign out */}
-      <div className="flex items-center gap-4">
+      {/* Right: signed-in user + sign-out */}
+      <div className="ml-auto flex items-center gap-4">
         <div className="hidden sm:flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-m-neutral-400 uppercase tracking-wider">Logged in as</span>
-          <span className="max-w-[220px] truncate text-xs font-bold text-white bg-m-neutral-900 border border-m-neutral-800 px-2.5 py-1 rounded-m-md">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wider"
+            style={{ color: "var(--topbar-text-muted)" }}
+          >
+            Signed in as
+          </span>
+          <span
+            className="max-w-[220px] truncate rounded-full px-2.5 py-0.5 text-xs font-bold"
+            style={{
+              background: "var(--topbar-overlay)",
+              color: "var(--topbar-text)",
+            }}
+          >
             {userEmail}
           </span>
         </div>
@@ -85,7 +126,11 @@ export function SuperadminTopBar({ userEmail }: SuperadminTopBarProps) {
           size="sm"
           leftIcon={<Icon name="log-out" size="xs" />}
           onClick={() => void handleSignOut()}
-          className="border-m-neutral-800 bg-m-neutral-900 text-m-neutral-300 hover:bg-m-neutral-800 hover:text-white"
+          style={{
+            border: "1px solid var(--topbar-overlay)",
+            background: "var(--topbar-overlay)",
+            color: "var(--topbar-text)",
+          }}
         >
           Sign Out
         </Button>

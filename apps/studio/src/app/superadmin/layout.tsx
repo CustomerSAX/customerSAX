@@ -32,9 +32,15 @@ export default async function SuperadminLayout({ children }: SuperadminLayoutPro
   }
 
   return (
-    <div className="min-h-screen bg-m-surface-bg">
-      <SuperadminTopBar userEmail={user.email} />
-      <main>{children}</main>
+    <div
+      className="flex h-screen overflow-hidden font-sans"
+      style={{ background: "var(--color-bg)", color: "var(--color-ink)" }}
+    >
+      {/* No agent sidebar — superadmin is platform-level, not project-scoped */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden" style={{ background: "var(--color-bg)" }}>
+        <SuperadminTopBar userEmail={user.email} />
+        <main className="flex-1 overflow-y-auto">{children}</main>
+      </div>
     </div>
   );
 }
