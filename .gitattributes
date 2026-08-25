@@ -1,0 +1,6 @@
+* text=auto
+
+# Enforce LF for shell scripts and YAML
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
