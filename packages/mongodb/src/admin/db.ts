@@ -25,7 +25,7 @@ function agentsDbName() {
 }
 
 export async function getClientsCollection() {
-  const collectionName = env("MONGO_ADMIN_COLLECTION") || "csa_clients";
+  const collectionName = env("MONGO_ADMIN_COLLECTION") || "clients";
   return getMongoCollection(collectionName, { dbName: adminDbName() });
 }
 
