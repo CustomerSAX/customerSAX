@@ -210,12 +210,15 @@ jobs:
           if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
             PROD_FLAG="--prod"
             PREFIX="csa-production"
+            STUDIO_URL="https://studio.customersax.com"
           elif [ "${{ github.ref_name }}" = "customerSAX-QA" ]; then
             PROD_FLAG=""
             PREFIX="csa-qa"
+            STUDIO_URL="https://studio-qa.customersax.com"
           else
             PROD_FLAG=""
             PREFIX="csa-dev"
+            STUDIO_URL="https://studio-dev.customersax.com"
           fi
           
           RUN_HOST_SUFFIX="v3egj3ywmq-uc.a.run.app"
@@ -229,10 +232,26 @@ jobs:
             --build-env AI_COMMERCE_SERVICE_URL="$BFF_URL" \
             --build-env AUTH_SERVICE_URL="$AUTH_URL" \
             --build-env AI_ASSIST_URL="$AI_ASSIST_URL" \
+            --build-env AUTH0_DOMAIN="dev-wxz2wff4crbfnxqq.us.auth0.com" \
+            --build-env AUTH0_ISSUER_BASE_URL="https://dev-wxz2wff4crbfnxqq.us.auth0.com" \
+            --build-env AUTH0_CLIENT_ID="X9xgMliHRAz103uy3yVg90DWudJGWFYe" \
+            --build-env AUTH0_CLIENT_SECRET="${{ secrets.AUTH0_CLIENT_SECRET }}" \
+            --build-env AUTH0_SECRET="${{ secrets.AUTH0_SECRET }}" \
+            --build-env APP_BASE_URL="$STUDIO_URL" \
+            --build-env AUTH0_BASE_URL="$STUDIO_URL" \
+            --build-env SEED_SECRET="${{ secrets.SEED_SECRET }}" \
             --env NEXT_PUBLIC_GRAPHQL_URL="/api/graphql" \
             --env AI_COMMERCE_SERVICE_URL="$BFF_URL" \
             --env AUTH_SERVICE_URL="$AUTH_URL" \
             --env AI_ASSIST_URL="$AI_ASSIST_URL" \
+            --env AUTH0_DOMAIN="dev-wxz2wff4crbfnxqq.us.auth0.com" \
+            --env AUTH0_ISSUER_BASE_URL="https://dev-wxz2wff4crbfnxqq.us.auth0.com" \
+            --env AUTH0_CLIENT_ID="X9xgMliHRAz103uy3yVg90DWudJGWFYe" \
+            --env AUTH0_CLIENT_SECRET="${{ secrets.AUTH0_CLIENT_SECRET }}" \
+            --env AUTH0_SECRET="${{ secrets.AUTH0_SECRET }}" \
+            --env APP_BASE_URL="$STUDIO_URL" \
+            --env AUTH0_BASE_URL="$STUDIO_URL" \
+            --env SEED_SECRET="${{ secrets.SEED_SECRET }}" \
             --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
