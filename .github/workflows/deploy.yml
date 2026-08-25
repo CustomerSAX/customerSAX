@@ -210,15 +210,15 @@ jobs:
           if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
             PROD_FLAG="--prod"
             PREFIX="csa-production"
-            STUDIO_URL="https://studio.customersax.com"
+            STUDIO_URL="${{ vars.STUDIO_URL_PROD }}"
           elif [ "${{ github.ref_name }}" = "customerSAX-QA" ]; then
             PROD_FLAG=""
             PREFIX="csa-qa"
-            STUDIO_URL="https://studio-qa.customersax.com"
+            STUDIO_URL="${{ vars.STUDIO_URL_QA }}"
           else
             PROD_FLAG=""
             PREFIX="csa-dev"
-            STUDIO_URL="https://studio-dev.customersax.com"
+            STUDIO_URL="${{ vars.STUDIO_URL_DEV }}"
           fi
           
           RUN_HOST_SUFFIX="v3egj3ywmq-uc.a.run.app"
