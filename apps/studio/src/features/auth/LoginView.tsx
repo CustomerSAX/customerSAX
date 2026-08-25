@@ -241,6 +241,34 @@ export function LoginView() {
 
           <Separator className="my-6" />
 
+          {/* Auth0 Button */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 h-px" style={{ backgroundColor: 'var(--color-border)' }} />
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">or continue with</span>
+              <div className="flex-1 h-px" style={{ backgroundColor: 'var(--color-border)' }} />
+            </div>
+            <a
+              href={`/auth/login?returnTo=${encodeURIComponent(
+                `/auth/complete${callbackUrl !== '/dashboard' ? `?nextUrl=${encodeURIComponent(callbackUrl)}` : ''}`
+              )}`}
+              className="flex items-center justify-center gap-2.5 w-full h-11 rounded-lg text-sm font-semibold transition-colors hover:bg-gray-100"
+              style={{
+                backgroundColor: '#f8fafc',
+                color: '#0f172a',
+                border: '1px solid #e2e8f0',
+                textDecoration: 'none',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 132 132" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M90.3 6H41.7L26 54.6l40 29.1 40-29.1L90.3 6Z" fill="#EB5424"/>
+                <path d="M26 54.6C14.3 63.3 6 76.8 6 92c0 27.6 22.4 50 50 50 13.8 0 26.3-5.6 35.4-14.6L66 98.8 26 54.6Z" fill="#EB5424" fillOpacity=".7"/>
+                <path d="M106 54.6 66 98.8 91.4 127.4C100.5 118.4 106 105.9 106 92c0-15.2-8.3-28.7-20-37.4Z" fill="#EB5424" fillOpacity=".4"/>
+              </svg>
+              Continue with Auth0
+            </a>
+          </div>
+
           {/* Footer note */}
           <p className="text-center text-xs text-muted-foreground">
             Powered by{" "}
