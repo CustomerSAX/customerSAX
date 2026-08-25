@@ -75,6 +75,8 @@ deploy_service() {
   SVC_ENV="NODE_ENV=production,SERVICE_NAME=${SVC},ENVIRONMENT=${ENVIRONMENT}"
 
   case "${SVC}" in
+    admin)
+      SVC_ENV="${SVC_ENV},MONGO_ADMIN_DB=csa-admin,MONGO_ADMIN_COLLECTION=clients,MONGO_PROJECTS_COLLECTION=csa_projects,MONGO_USERS_COLLECTION=csa_users" ;;
     ai-assist)
       SVC_ENV="${SVC_ENV},DEFAULT_LLM_PROVIDER=openai,AI_COMMERCE_PLATFORM=commercetools" ;;
     commerce-commercetools)
