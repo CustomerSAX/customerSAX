@@ -241,14 +241,17 @@ export function useOrderStore() {
     [refetch, updateOrderMutation]
   );
 
+  const customers = customersData?.customerPage.results;
+  const ordersResult = data?.orderPage.results;
+
   const serverOrders = useMemo(() => {
     const customerNames = new Map<string, string>();
-    for (const customer of customersData?.customerPage.results ?? []) {
+    for (const customer of customers ?? []) {
       const fullName = [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim();
       customerNames.set(customer.id, fullName || customer.email || "--");
     }
-    return (data?.orderPage.results ?? []).map((order) => normalizeOrder(order, customerNames));
-  }, [customersData?.customerPage.results, data?.orderPage.results]);
+    return (ordersResult ?? []).map((order) => normalizeOrder(order, customerNames));
+  }, [customers, ordersResult]);
 
   useEffect(() => {
     if (serverOrders.length > 0) {

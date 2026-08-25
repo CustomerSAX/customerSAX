@@ -179,7 +179,7 @@ export function SignInClient() {
             Seamless Enterprise SSO Sign-in
           </h1>
           <p className="text-base mb-10 leading-relaxed" style={{ color: "rgba(255,255,255,0.52)", maxWidth: 380 }}>
-            Enter your work email to automatically discover your customer organisation's single sign-on provider.
+            Enter your work email to automatically discover your customer organisation&apos;s single sign-on provider.
           </p>
 
           <div className="space-y-2.5">
@@ -223,7 +223,7 @@ export function SignInClient() {
           <div className="mb-7">
             <h2 className="text-2xl font-bold tracking-tight text-foreground">Organisation sign-in</h2>
             <p className="text-sm text-muted-foreground mt-1.5">
-              Enter your work email address to be directed to your company's identity provider.
+              Enter your work email address to be directed to your company&apos;s identity provider.
             </p>
           </div>
 
