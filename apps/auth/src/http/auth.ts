@@ -45,6 +45,36 @@ export async function loginWithPassword(email: string, password: string) {
   };
 }
 
+export async function loginWithSso(email: string) {
+  const user = await findUserByEmail(email);
+
+  if (!user) {
+    return null;
+  }
+
+  const token = createSessionToken();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + sessionTtlSeconds() * 1000);
+
+  const projects = projectsForUser(user);
+  const onlyProject = projects.length === 1 ? projects[0] : undefined;
+  await createSession({
+    createdAt: now,
+    expiresAt,
+    id: randomUUID(),
+    tokenHash: hashSessionToken(token),
+    userId: user.id || String(user._id ?? user.email),
+    activeProjectKey: onlyProject?.projectKey,
+    activeClientId: onlyProject?.clientId
+  });
+
+  return {
+    expiresAt: expiresAt.toISOString(),
+    token,
+    user: toPublicUser(user, onlyProject?.projectKey, onlyProject?.clientId)
+  };
+}
+
 export async function getCurrentSession(request: IncomingMessage) {
   const token = readBearerToken(request);
 

@@ -4,8 +4,11 @@ const sessionCookieName = process.env.AUTH_COOKIE_NAME?.trim() || "csa_session";
 
 const publicPathPrefixes = [
   "/login",
+  "/sign-in",
   "/select-project",
+  "/auth",
   "/api/auth",
+  "/api/sso",
   "/api/graphql",
   "/_next",
   "/favicon.ico"

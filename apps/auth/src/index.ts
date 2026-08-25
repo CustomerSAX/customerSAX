@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import "./env.js";
 import { createLogger, withHttpContext } from "@csa/logger";
-import { getCurrentSession, loginWithPassword, logout, selectSessionProject } from "./http/auth.js";
+import { getCurrentSession, loginWithPassword, loginWithSso, logout, selectSessionProject } from "./http/auth.js";
 import { HttpError, readJsonBody, sendJson, sendNoContent } from "./http/json.js";
 import {
   applyCors,
@@ -70,6 +70,26 @@ const server = createServer(withHttpContext(log, async (request, response) => {
         return;
       }
 
+      sendJson(response, 201, session);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/sessions/sso") {
+      const secret = request.headers["x-csa-sso-secret"];
+      if (!secret || secret !== process.env.SEED_SECRET) {
+        sendJson(response, 403, { error: "forbidden" });
+        return;
+      }
+      const body = await readJsonBody<{ email?: string }>(request);
+      if (!body.email?.trim()) {
+        sendJson(response, 400, { error: "email is required" });
+        return;
+      }
+      const session = await loginWithSso(body.email);
+      if (!session) {
+        sendJson(response, 401, { error: "invalid credentials" });
+        return;
+      }
       sendJson(response, 201, session);
       return;
     }
