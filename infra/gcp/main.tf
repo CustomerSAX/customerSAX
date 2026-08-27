@@ -1,5 +1,6 @@
 locals {
-  name_prefix = "csa-${var.environment}"
+  name_prefix      = "csa-${var.environment}"
+  compute_sa_email = "${data.google_project.current.number}-compute@developer.gserviceaccount.com"
 
   llm_secrets = {
     ai_gateway_api_key = "AI_GATEWAY_API_KEY"
@@ -8,6 +9,10 @@ locals {
   commerce_secrets = {
     commercetools_client_id     = "COMMERCETOOLS_CLIENT_ID"
     commercetools_client_secret = "COMMERCETOOLS_CLIENT_SECRET"
+  }
+
+  ticketing_secrets = {
+    ticketing_mongo_uri = "MONGO_URI"
   }
 
   services = [
@@ -84,6 +89,17 @@ resource "google_secret_manager_secret_iam_member" "ai_assist_llm_keys" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_secret_manager_secret_version" "llm_dummy" {
+  for_each = google_secret_manager_secret.llm
+
+  secret      = each.value.id
+  secret_data = "placeholder"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}
+
 resource "google_secret_manager_secret" "commerce" {
   for_each = local.commerce_secrets
 
@@ -102,6 +118,43 @@ resource "google_secret_manager_secret" "commerce" {
 
 resource "google_secret_manager_secret_iam_member" "commerce_keys" {
   for_each = google_secret_manager_secret.commerce
+
+  secret_id = each.value.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${local.compute_sa_email}"
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_secret_manager_secret_version" "commerce_dummy" {
+  for_each = google_secret_manager_secret.commerce
+
+  secret      = each.value.id
+  secret_data = "placeholder"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}
+
+resource "google_secret_manager_secret" "ticketing" {
+  for_each = local.ticketing_secrets
+
+  secret_id = "${local.name_prefix}-${replace(each.key, "_", "-")}"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_secret_manager_secret_iam_member" "ticketing_keys" {
+  for_each = google_secret_manager_secret.ticketing
 
   secret_id = each.value.secret_id
   role      = "roles/secretmanager.secretAccessor"
@@ -162,20 +215,16 @@ resource "google_cloud_run_v2_service" "bff" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
 }
 
-# Make BFF publicly accessible — frontend (Vercel) calls this directly from browser
-resource "google_cloud_run_v2_service_iam_member" "bff_public" {
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_service.bff.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
+# NOTE: allUsers IAM binding removed — org policy
+# (constraints/iam.allowedPolicyMemberDomains) blocks public Cloud Run
+# invocations via Terraform. Public access for bff is managed by the
+# deploy script's post-deploy gcloud command instead.
 
 resource "google_cloud_run_v2_service" "commerce_commercetools" {
   name     = "${local.name_prefix}-commerce-commercetools"
@@ -217,7 +266,7 @@ resource "google_cloud_run_v2_service" "commerce_commercetools" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -239,7 +288,7 @@ resource "google_cloud_run_v2_service" "commerce_shopify" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -261,7 +310,7 @@ resource "google_cloud_run_v2_service" "commerce_bigcommerce" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -283,7 +332,7 @@ resource "google_cloud_run_v2_service" "commerce_sfcc" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -329,7 +378,7 @@ resource "google_cloud_run_v2_service" "ai_assist" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -351,20 +400,16 @@ resource "google_cloud_run_v2_service" "auth" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
 }
 
-# Make Auth publicly accessible — users hit login/register endpoints directly
-resource "google_cloud_run_v2_service_iam_member" "auth_public" {
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_service.auth.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
+# NOTE: allUsers IAM binding removed — org policy
+# (constraints/iam.allowedPolicyMemberDomains) blocks public Cloud Run
+# invocations via Terraform. Public access for auth is managed by the
+# deploy script's post-deploy gcloud command instead.
 
 resource "google_cloud_run_v2_service" "admin" {
   name     = "${local.name_prefix}-admin"
@@ -382,7 +427,7 @@ resource "google_cloud_run_v2_service" "admin" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]
@@ -404,7 +449,7 @@ resource "google_cloud_run_v2_service" "ticketing" {
   }
 
   lifecycle {
-    ignore_changes = [template]
+    ignore_changes = [template, client, client_version]
   }
 
   depends_on = [google_project_service.required]

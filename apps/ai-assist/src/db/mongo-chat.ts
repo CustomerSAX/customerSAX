@@ -12,6 +12,10 @@
  */
 
 import { MongoClient, ObjectId, type Collection, type Document } from "mongodb";
+import { setupDnsFallback } from "@csa/mongodb";
+import { createLogger } from "@csa/logger";
+
+const log = createLogger("ai-assist").child({ module: "mongo-chat" });
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,6 +59,7 @@ function getClient(): Promise<MongoClient> | null {
   if (!uri) return null; // graceful degradation — no MongoDB configured
 
   if (!_clientPromise) {
+    setupDnsFallback();
     const client = new MongoClient(uri);
     _clientPromise = client.connect();
   }
@@ -165,7 +170,7 @@ export async function appendSessionMessages(
     }
   } catch (err) {
     // Non-fatal: persistence failure must never break the streaming response
-    console.error("[mongo-chat] appendSessionMessages failed:", err);
+    log.error("appendSessionMessages failed", err);
   }
 }
 
@@ -186,7 +191,7 @@ export async function getSessionMessages(
     if (session?.userEmail === userEmail) return session.messages;
     return [];
   } catch (err) {
-    console.error("[mongo-chat] getSessionMessages failed:", err);
+    log.error("getSessionMessages failed", err);
     return [];
   }
 }
@@ -251,7 +256,7 @@ export async function listSessions(
 
     return { sessions: summaries, total: userSessions.length };
   } catch (err) {
-    console.error("[mongo-chat] listSessions failed:", err);
+    log.error("listSessions failed", err);
     return { sessions: [], total: 0 };
   }
 }

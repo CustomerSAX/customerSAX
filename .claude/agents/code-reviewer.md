@@ -21,7 +21,7 @@ misses one of them is a worse review than one that flags a generic style nit.
    to `resolvers.ts`'s explicit allowlist, not just implemented and exported.
 3. **commercetools action/enum correctness** — update actions shaped `{ actionName: {...} }`, real
    `ShipmentState`/`PaymentState` values, no assumption that `orderState` alone can gate eligibility.
-4. **Webapp stepper store discipline** (`.claude/rules/webapp-steppers.md`) — a stepper deciding state for
+4. **Studio stepper store discipline** (`.claude/rules/studio-steppers.md`) — a stepper deciding state for
    itself instead of reading it from the scraped workflow snapshot; a "start another X"/reset handler that
    resets local step but doesn't clear the store's workflow snapshot (the "done never clears" bug); a new
    `/api/*` route response shape not matching what a consuming component actually reads.

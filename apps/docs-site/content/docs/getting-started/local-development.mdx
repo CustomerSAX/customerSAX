@@ -1,0 +1,49 @@
+---
+title: Local Development
+description: Environment variables, the dev workflow, and the repo's build gotchas.
+---
+
+## The dev workflow
+
+`pnpm dev` runs `turbo run dev --parallel`, starting every service at once. Each
+backend binds `127.0.0.1` locally (and `0.0.0.0` under Cloud Run, detected via
+the `K_SERVICE` environment variable).
+
+## Environment variables
+
+Each app ships an `.env.example`. The studio, for instance, needs:
+
+```bash
+NEXT_PUBLIC_GRAPHQL_URL=http://localhost:4000/graphql   # the BFF supergraph
+AUTH_SERVICE_URL=http://localhost:4360                  # the auth service
+AUTH_COOKIE_NAME=csa_session
+NEXT_PUBLIC_CT_PROJECT_KEY=                             # commercetools project key
+```
+
+The `NEXT_PUBLIC_CT_PROJECT_KEY` **must** match `COMMERCETOOLS_PROJECT_KEY` in
+`apps/commerce/commercetools/.env` — there is no source fallback if it's unset.
+
+This docs portal (`@csa/docs-site`) is a static content site and needs no
+backend credentials; see its own `.env.example`.
+
+## Build gotchas worth knowing early
+
+These have each cost real debugging time in this repo:
+
+1. **Resolver aggregation is a manual allowlist.** In the commercetools
+   subgraph, `src/http/graphql/resolvers.ts` lists every `Query`/`Mutation`
+   field by name. A correctly-implemented resolver silently never runs if it
+   isn't also listed there.
+2. **The commerce contract's `dist/` can go stale.** Editing a `.graphql.ts`
+   file in `contract/src` while a subgraph's watcher is already running keeps
+   the old compiled schema until you re-run
+   `pnpm --filter @csa/commerce-contract build`.
+3. **The BFF gateway polls subgraph schemas** every 10s
+   (`pollIntervalInMs: 10_000`). A brand-new subgraph field isn't reachable
+   through the gateway until the next poll (or a restart).
+
+<Callout>
+See [Architecture &amp; Flows](/docs/architecture) for how these pieces fit,
+and the [Add a GraphQL field](/docs/guides/add-a-graphql-field) guide for the
+end-to-end change checklist.
+</Callout>

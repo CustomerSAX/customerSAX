@@ -1,0 +1,65 @@
+---
+title: Resolve a case with the assistant
+description: Drive a resolution through chat or a stepper — and why both produce the same real result.
+---
+
+## Two ways in, one result
+
+A rep can resolve a case two ways:
+
+- **Free-form chat** — ask the assistant, e.g. _"start a return for order 100123,
+  the customer received a damaged item."_
+- **A guided stepper** — click through the Return / Refund stepper in the
+  console.
+
+Both emit the **same tool calls** through the same `/chat` endpoint. The studio
+reconstructs one state snapshot from the tool-call stream, so the stepper shows
+the same state whether chat or the stepper drove it.
+
+## A typical return
+
+<Steps>
+
+<Step>
+### Find the order
+
+The assistant (or the stepper's first step) looks up the order via the
+`order(id / orderNumber)` query through the BFF, and shows real order data — no
+placeholders.
+</Step>
+
+<Step>
+### Check eligibility
+
+Return eligibility is derived from the real order state, not guessed. If the
+order can't be returned, the assistant says so honestly.
+</Step>
+
+<Step>
+### Request approval
+
+Starting a return is a **state-changing** action. The assistant emits an
+approval card and pauses. Nothing is written yet.
+</Step>
+
+<Step>
+### Approve and execute
+
+The rep clicks Approve. On the next turn, the write tool runs and the return is
+created against the real backend.
+</Step>
+
+</Steps>
+
+## Why this matters
+
+Because there's only one execution path:
+
+- What the rep sees in chat and in the stepper can never disagree.
+- The AI is bound by the same ACL and approval gate as the UI.
+- Every value shown is real — the platform's non-negotiable rule.
+
+<Callout type="info">
+The same pattern holds for Create Order and Create Ticket. See
+[Resolution Flow](/docs/architecture/resolution-flow) for the mechanics.
+</Callout>

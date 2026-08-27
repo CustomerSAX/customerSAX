@@ -8,7 +8,7 @@
 
 Dependency-free `node:http` server. Opaque **bearer session tokens** (`randomBytes(32).base64url`, stored SHA-256-hashed), bcrypt passwords, Mongo `csa_sessions` with a TTL index, revoke via `revokedAt`, 8h default. Sound design. Endpoints: `POST /sessions` (login), `GET /sessions/current`, `POST /sessions/current/project` (select active project), `DELETE /sessions/current`.
 
-**Webapp consumption is correct:** browser never sees the auth service; Next routes proxy it, token in an httpOnly cookie `csa_session` (`secure` in prod), and `projectScopedBffFetch`/`getCurrentUser` re-derive identity server-side per call. **This path's identity is real.**
+**Studio consumption is correct:** browser never sees the auth service; Next routes proxy it, token in an httpOnly cookie `csa_session` (`secure` in prod), and `projectScopedBffFetch`/`getCurrentUser` re-derive identity server-side per call. **This path's identity is real.**
 
 ## 2. Control plane (`apps/admin`, :4370)
 
@@ -20,7 +20,7 @@ Apollo subgraph, federated. `secureAdminResolvers()` wraps every `admin*` field:
 - **Project** = `CsaProject` (`csa-admin.csa_projects`, keyed `{clientId, projectKey}`): `platform` + **encrypted** commerce credentials.
 - **User** = `csa-agents.csa_users`: `projects: [{clientId, projectKey, role}]` membership (a user may span clients).
 
-**Scoping path (webapp):** session `activeProjectKey/activeClientId` → `projectScopedBffFetch` sets `x-csa-project-key`/`x-csa-client-id` → BFF forwards → commercetools subgraph reads headers into `AsyncLocalStorage` → `resolveCommercetoolsProject` → `findStoredCommercetoolsProject(clientId, projectKey)` → decrypts secret → connects to that tenant's commercetools.
+**Scoping path (studio):** session `activeProjectKey/activeClientId` → `projectScopedBffFetch` sets `x-csa-project-key`/`x-csa-client-id` → BFF forwards → commercetools subgraph reads headers into `AsyncLocalStorage` → `resolveCommercetoolsProject` → `findStoredCommercetoolsProject(clientId, projectKey)` → decrypts secret → connects to that tenant's commercetools.
 
 **Encryption at rest:** AES-256-GCM (`packages/mongodb/src/encrypt.ts`, format `iv:authTag:ciphertext`), keyed by `SUPERADMIN_ENCRYPTION_KEY`; applied to CT client secret, Shopify/BigCommerce tokens, SMTP passwords. **Prod fails closed** if key unset. Two duplicated decrypt paths (`encrypt.ts` + `project-store.ts`) must stay key-compatible.
 

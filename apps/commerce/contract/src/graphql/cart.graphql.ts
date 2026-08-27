@@ -6,9 +6,31 @@ export const cartTypeDefs = gql`
     version: Int!
     key: String
     customerId: String
+    customerEmail: String
+    createdAt: String
+    lastModifiedAt: String
+    cartState: String
     currencyCode: String!
+    shippingAddress: CartAddress
+    billingAddress: CartAddress
     totalPrice: Money!
     lineItems: [CartLineItem!]!
+  }
+
+  type CartAddress {
+    streetNumber: String
+    streetName: String
+    apartment: String
+    building: String
+    pOBox: String
+    city: String
+    state: String
+    postalCode: String
+    country: String
+    phone: String
+    mobile: String
+    additionalStreetInfo: String
+    additionalAddressInfo: String
   }
 
   type CartLineItem {
@@ -33,6 +55,16 @@ export const cartTypeDefs = gql`
     name: String
   }
 
+  type DiscountCode {
+    id: ID!
+    key: String
+    code: String!
+    name: String
+    isActive: Boolean!
+    validFrom: String
+    validUntil: String
+  }
+
   extend type Query {
     cart(id: ID, key: String): Cart
     carts(limit: Int = 20, offset: Int = 0): [Cart!]!
@@ -40,6 +72,7 @@ export const cartTypeDefs = gql`
     searchCarts(option: String = "all", text: String!, limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): CartPage!
     b2bCarts(limit: Int = 20, offset: Int = 0, businessUnitKey: String, customerId: ID, sortKey: String, sortOrder: String): CartPage!
     activeCartCount(customerId: ID!): Int!
+    discountCodes(limit: Int = 100): [DiscountCode!]!
     shippingMethods(limit: Int = 20): [ShippingMethod!]!
   }
 

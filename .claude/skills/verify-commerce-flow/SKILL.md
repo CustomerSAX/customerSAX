@@ -5,7 +5,7 @@ description: >
   shipping method, customer). Walks the fix down through every layer with real curl/browser checks instead
   of trusting that the code "should" work. Use this whenever you've just changed something in
   apps/commerce/*, apps/bff, apps/ai-assist/src/chat/tools, or a CSA Assistant stepper/chat surface in
-  apps/webapp, before telling the user it's fixed.
+  apps/studio, before telling the user it's fixed.
 ---
 
 # Verify a commerce/ticketing flow fix, layer by layer
@@ -65,7 +65,7 @@ the real, correct value (not the old/buggy one). This is the actual code path th
 
 ## 5. If UI-visible, drive the real browser
 
-Use the Browser pane tools against the running webapp (`preview_start` with the `webapp` launch config).
+Use the Browser pane tools against the running studio (`preview_start` with the `studio` launch config).
 Reproduce the exact reported scenario, then read back real state — `get_page_text`, `read_page`, or
 `javascript_tool` to inspect computed styles/DOM text — rather than assuming a code change rendered
 correctly. `computer{action:"screenshot"}` may be unavailable in this environment (the pane doesn't always

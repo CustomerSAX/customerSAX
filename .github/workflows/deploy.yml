@@ -10,7 +10,6 @@ env:
   PROJECT_NUMBER: "17754871169"
   REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
-  ARTIFACT_REPO: csa-dev-repo
   PLACEHOLDER_IMAGE: us-docker.pkg.dev/cloudrun/container/hello
 
 jobs:
@@ -35,6 +34,14 @@ jobs:
 
       - name: Create missing Cloud Run services (idempotent)
         run: |
+          if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
+            PREFIX="csa-production"
+          elif [ "${{ github.ref_name }}" = "customerSAX-QA" ]; then
+            PREFIX="csa-qa"
+          else
+            PREFIX="csa-dev"
+          fi
+
           # First ensure all APIs are enabled
           gcloud services enable run.googleapis.com \
             secretmanager.googleapis.com \
@@ -42,21 +49,22 @@ jobs:
             cloudbuild.googleapis.com \
             --project="${{ env.PROJECT_ID }}" --quiet
 
-          # Public services (allow unauthenticated — frontend calls these directly)
+          # Public entry-point services. Access is managed manually in Cloud Run
+          # because the deploy identities cannot mutate service IAM in this project.
           PUBLIC_SERVICES=(
-            "csa-dev-bff"
-            "csa-dev-auth"
+            "${PREFIX}-bff"
+            "${PREFIX}-auth"
           )
 
           # Private services (service-to-service auth only)
           PRIVATE_SERVICES=(
-            "csa-dev-ai-assist"
-            "csa-dev-commerce-commercetools"
-            "csa-dev-ticketing"
-            "csa-dev-admin"
-            "csa-dev-commerce-shopify"
-            "csa-dev-commerce-bigcommerce"
-            "csa-dev-commerce-sfcc"
+            "${PREFIX}-ai-assist"
+            "${PREFIX}-commerce-commercetools"
+            "${PREFIX}-ticketing"
+            "${PREFIX}-admin"
+            "${PREFIX}-commerce-shopify"
+            "${PREFIX}-commerce-bigcommerce"
+            "${PREFIX}-commerce-sfcc"
           )
 
           for SVC in "${PUBLIC_SERVICES[@]}"; do
@@ -70,18 +78,10 @@ jobs:
                 --image="${{ env.PLACEHOLDER_IMAGE }}" \
                 --region="${{ env.REGION }}" \
                 --project="${{ env.PROJECT_ID }}" \
-                --allow-unauthenticated \
                 --quiet
             else
-              echo "  ✓ ${SVC} exists — ensuring public access"
+              echo "  ✓ ${SVC} exists"
             fi
-            # Always grant allUsers (idempotent)
-            gcloud run services add-iam-policy-binding "${SVC}" \
-              --region="${{ env.REGION }}" \
-              --project="${{ env.PROJECT_ID }}" \
-              --member="allUsers" \
-              --role="roles/run.invoker" \
-              --quiet 2>/dev/null || true
           done
 
           for SVC in "${PRIVATE_SERVICES[@]}"; do
@@ -95,7 +95,6 @@ jobs:
                 --image="${{ env.PLACEHOLDER_IMAGE }}" \
                 --region="${{ env.REGION }}" \
                 --project="${{ env.PROJECT_ID }}" \
-                --no-allow-unauthenticated \
                 --quiet
               echo "  ✅ ${SVC} created"
             else
@@ -127,13 +126,21 @@ jobs:
 
       - name: Terraform Apply
         run: |
+          if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
+            ENV_VAR="production"
+          elif [ "${{ github.ref_name }}" = "customerSAX-QA" ]; then
+            ENV_VAR="qa"
+          else
+            ENV_VAR="dev"
+          fi
+
           cd infra/gcp
           terraform init
           terraform apply -auto-approve \
             -var="project_id=${{ env.PROJECT_ID }}" \
             -var="project_number=${{ env.PROJECT_NUMBER }}" \
             -var="region=${{ env.REGION }}" \
-            -var="environment=dev"
+            -var="environment=${ENV_VAR}"
 
   # ──────────────────────────────────────────────────────────────────────────
   # Job 3: Build + Deploy all changed services via Cloud Build
@@ -169,7 +176,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   # Job 4: Deploy frontend apps to Vercel (runs in parallel with Cloud Build)
   # Uses pre-configured secrets: VERCEL_TOKEN, VERCEL_ORG_ID,
-  # VERCEL_PROJECT_ID_WEBAPP, VERCEL_PROJECT_ID_MARKETING
+  # VERCEL_PROJECT_ID_STUDIO, VERCEL_PROJECT_ID_MARKETING
   # ──────────────────────────────────────────────────────────────────────────
   vercel-deploy:
     name: "🌐 Deploy Frontend to Vercel"
@@ -193,26 +200,86 @@ jobs:
       - name: Install dependencies (monorepo root)
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy webapp to Vercel (Production)
+      - name: Deploy studio to Vercel
         run: |
-          vercel deploy --prod \
+          if [ -z "${VERCEL_PROJECT_ID}" ]; then
+            echo "⚠️ VERCEL_PROJECT_ID_STUDIO is empty. Skipping Studio deployment."
+            exit 0
+          fi
+          
+          if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
+            PROD_FLAG="--prod"
+            PREFIX="csa-production"
+          elif [ "${{ github.ref_name }}" = "customerSAX-QA" ]; then
+            PROD_FLAG=""
+            PREFIX="csa-qa"
+          else
+            PROD_FLAG=""
+            PREFIX="csa-dev"
+          fi
+          
+          RUN_HOST_SUFFIX="v3egj3ywmq-uc.a.run.app"
+          BFF_URL="https://${PREFIX}-bff-${RUN_HOST_SUFFIX}/graphql"
+          AUTH_URL="https://${PREFIX}-auth-${RUN_HOST_SUFFIX}"
+          AI_ASSIST_URL="https://${PREFIX}-ai-assist-${RUN_HOST_SUFFIX}"
+          
+          vercel deploy $PROD_FLAG \
             --token="${{ secrets.VERCEL_TOKEN }}" \
+            --build-env NEXT_PUBLIC_GRAPHQL_URL="/api/graphql" \
+            --build-env AI_COMMERCE_SERVICE_URL="$BFF_URL" \
+            --build-env AUTH_SERVICE_URL="$AUTH_URL" \
+            --build-env AI_ASSIST_URL="$AI_ASSIST_URL" \
+            --env NEXT_PUBLIC_GRAPHQL_URL="/api/graphql" \
+            --env AI_COMMERCE_SERVICE_URL="$BFF_URL" \
+            --env AUTH_SERVICE_URL="$AUTH_URL" \
+            --env AI_ASSIST_URL="$AI_ASSIST_URL" \
             --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEBAPP }}
 
-      - name: Deploy marketing to Vercel (Production)
-        working-directory: apps/marketing
+      - name: Deploy marketing to Vercel
         run: |
-          vercel deploy --prod \
+          if [ -z "${VERCEL_PROJECT_ID}" ]; then
+            echo "⚠️ VERCEL_PROJECT_ID_MARKETING is empty. Skipping Marketing deployment."
+            exit 0
+          fi
+          
+          if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
+            PROD_FLAG="--prod"
+          else
+            PROD_FLAG=""
+          fi
+          
+          vercel deploy $PROD_FLAG \
             --token="${{ secrets.VERCEL_TOKEN }}" \
             --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_MARKETING }}
+
+      - name: Deploy docs-site to Vercel
+        run: |
+          if [ -z "${VERCEL_PROJECT_ID}" ]; then
+            echo "⚠️ VERCEL_PROJECT_ID_DOCS is empty. Skipping Docs Site deployment."
+            exit 0
+          fi
+          
+          if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
+            PROD_FLAG="--prod"
+          else
+            PROD_FLAG=""
+          fi
+          
+          vercel deploy $PROD_FLAG \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_DOCS }}
 
   # ──────────────────────────────────────────────────────────────────────────
   # Job 5: Print service URLs after successful deployment
@@ -247,5 +314,6 @@ jobs:
           done
           echo ""
           echo "── Vercel Frontend ──────────────────────"
-          echo "  webapp:    https://customersax.vercel.app"
+          echo "  studio:    https://customersax.vercel.app"
+          echo "  docs-site: https://docs.customersax.com"
           echo "  marketing: (check Vercel dashboard)"

@@ -1,3 +1,19 @@
+/**
+ * Named collection accessors for the CSA admin/agents databases.
+ *
+ * Each getter is the single source of truth for one collection's location: the
+ * collection name and database are resolved from env at call time (falling back
+ * to the documented defaults) so deployments can override placement without
+ * code changes. Domain repositories consume these getters — and never hardcode
+ * a collection name — so a collection can be renamed in exactly one place.
+ *
+ * Databases:
+ *  - admin  (`MONGO_ADMIN_DB`,  default `csa-admin`)  — clients, projects,
+ *    smtp profiles, roles, ai settings, audit log.
+ *  - agents (`MONGO_AGENTS_DB`, default `csa-agents`) — users (the exact
+ *    collection `apps/auth` reads at login).
+ */
+
 import { env, getMongoCollection } from "../connection.js";
 
 function adminDbName() {

@@ -33,7 +33,7 @@
   ┌────────────────────────┐   ┌─────────────────────────────┐
   │  studio.customersax.com│   │   www.customersax.com        │
   │  (Vercel — Next.js)    │   │   (Vercel — Next.js 16)      │
-  │  apps/webapp           │   │   apps/marketing             │
+  │  apps/studio           │   │   apps/marketing             │
   └───────────┬────────────┘   └─────────────────────────────┘
               │ GraphQL / REST
               ▼
@@ -74,7 +74,7 @@
 
 | App | Custom Domain | Vercel URL |
 |---|---|---|
-| **Backoffice / Studio** | https://studio.customersax.com | https://customersax-webapp.vercel.app |
+| **Backoffice / Studio** | https://studio.customersax.com | https://customersax-studio.vercel.app |
 | **Marketing Site** | https://www.customersax.com | https://customersax-marketing.vercel.app |
 
 ### Backend (GCP Cloud Run)
@@ -119,7 +119,7 @@ push → customerSAX-Prod
  │ Job 3:     │  │ Job 4:                     │
  │ 🌐 Vercel  │  │ 🚀 Cloud Build (4min)      │
  │  (2m38s)   │  │  - Detects changed svc     │
- │  webapp    │  │    via git diff             │
+ │  studio    │  │    via git diff             │
  │  marketing │  │  - Builds Docker images    │
  └────────────┘  │  - Deploys to Cloud Run    │
                  └───────────────────────────┘
@@ -151,7 +151,7 @@ Configure at: `https://github.com/CustomerSAX/customerSAX/settings/secrets/actio
 | `GCP_CREDENTIALS` | GCP service account JSON key | IAM → Service Accounts → Keys → Create |
 | `VERCEL_TOKEN` | Vercel personal access token | vercel.com → Account → Settings → Tokens |
 | `VERCEL_ORG_ID` | Vercel team/org ID | `vercel teams ls` |
-| `VERCEL_PROJECT_ID_WEBAPP` | Project ID for `customersax-webapp` | `vercel project ls` |
+| `VERCEL_PROJECT_ID_STUDIO` | Project ID for `customersax-studio` | `vercel project ls` |
 | `VERCEL_PROJECT_ID_MARKETING` | Project ID for `customersax-marketing` | `vercel project ls` |
 
 ### GCP Service Account Required Roles
@@ -223,19 +223,19 @@ done
 
 ```
 apps/
-├── webapp/          → studio.customersax.com  (Next.js 14, pnpm monorepo)
+├── studio/          → studio.customersax.com  (Next.js 14, pnpm monorepo)
 └── marketing/       → www.customersax.com     (Next.js 16, standalone npm)
 ```
 
 ### Build Configuration
 
-**webapp** — `vercel.json` (repo root):
+**studio** — `vercel.json` (repo root):
 ```json
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm --filter @csa/webapp build",
+  "buildCommand": "pnpm --filter @csa/studio build",
   "installCommand": "pnpm install",
-  "outputDirectory": "apps/webapp/.next"
+  "outputDirectory": "apps/studio/.next"
 }
 ```
 
@@ -252,10 +252,10 @@ apps/
 
 | Variable | Value | App |
 |---|---|---|
-| `NEXT_PUBLIC_BFF_URL` | `https://csa-dev-bff-v3egj3ywmq-uc.a.run.app` | webapp |
-| `NEXT_PUBLIC_ENV` | `production` | webapp |
-| `NEXTAUTH_URL` | `https://studio.customersax.com` | webapp |
-| `NEXTAUTH_SECRET` | (generate with `openssl rand -base64 32`) | webapp |
+| `NEXT_PUBLIC_BFF_URL` | `https://csa-dev-bff-v3egj3ywmq-uc.a.run.app` | studio |
+| `NEXT_PUBLIC_ENV` | `production` | studio |
+| `NEXTAUTH_URL` | `https://studio.customersax.com` | studio |
+| `NEXTAUTH_SECRET` | (generate with `openssl rand -base64 32`) | studio |
 
 ---
 
@@ -315,7 +315,7 @@ terraform apply \
 
 | Name | Type | Value | Destination |
 |---|---|---|---|
-| `studio` | CNAME | `81848bce506ce416.vercel-dns-017.com` | Backoffice (webapp) |
+| `studio` | CNAME | `81848bce506ce416.vercel-dns-017.com` | Backoffice (studio) |
 | `www` | CNAME | `cname.vercel-dns.com` | Marketing site |
 | `*` | ALIAS | `cname.vercel-dns-017.com` | Wildcard fallback |
 | `@` (apex) | ALIAS | `301bfcf04886a174.vercel-dns-017.com` | Apex → www redirect |
@@ -324,7 +324,7 @@ terraform apply \
 
 ```bash
 # 1. Attach domain to Vercel project
-vercel domains add api.customersax.com customersax-webapp --scope amahaveers-projects
+vercel domains add api.customersax.com customersax-studio --scope amahaveers-projects
 
 # 2. Add DNS record (use the CNAME shown in Vercel dashboard)
 vercel dns add customersax.com api CNAME <hash>.vercel-dns-017.com --scope amahaveers-projects
@@ -367,7 +367,7 @@ cp apps/ai-assist/.env.example    apps/ai-assist/.env
 pnpm dev
 
 # Individual
-pnpm app:webapp                   # http://localhost:3000
+pnpm app:studio                   # http://localhost:3000
 pnpm app:bff                      # http://localhost:4000/graphql
 pnpm app:commerce-commercetools   # http://localhost:4310/graphql
 pnpm app:ticketing                # http://localhost:4350/graphql
@@ -378,7 +378,7 @@ pnpm app:ai-assist                # http://localhost:8080/assist
 
 | Service | Port |
 |---|---|
-| webapp | 3000 |
+| studio | 3000 |
 | bff | 4000 |
 | auth | 4100 |
 | admin | 4200 |

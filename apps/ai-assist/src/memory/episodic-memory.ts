@@ -19,6 +19,10 @@
  */
 
 import { MongoClient } from "mongodb";
+import { setupDnsFallback } from "@csa/mongodb";
+import { createLogger } from "@csa/logger";
+
+const log = createLogger("ai-assist").child({ module: "memory/episodic" });
 
 const RETENTION_DAYS = 30;
 const MAX_ENTRIES = 50;
@@ -66,6 +70,7 @@ function getMongoClient(): Promise<MongoClient> | null {
   const uri = process.env.MONGO_URI?.trim() || process.env.MONGODB_URI?.trim();
   if (!uri) return null;
   if (!_clientPromise) {
+    setupDnsFallback();
     _clientPromise = new MongoClient(uri).connect();
   }
   return _clientPromise;
@@ -136,10 +141,7 @@ export async function appendEpisodicEntry(
       { upsert: true }
     );
   } catch (err) {
-    console.warn(
-      "[memory/episodic] appendEpisodicEntry error (non-fatal):",
-      (err as Error).message
-    );
+    log.warn("appendEpisodicEntry error (non-fatal)", { reason: (err as Error).message });
   }
 }
 
@@ -160,10 +162,7 @@ export async function getEpisodicMemory(
     );
     return doc?.entries ?? [];
   } catch (err) {
-    console.warn(
-      "[memory/episodic] getEpisodicMemory error (non-fatal):",
-      (err as Error).message
-    );
+    log.warn("getEpisodicMemory error (non-fatal)", { reason: (err as Error).message });
     return [];
   }
 }
@@ -194,10 +193,7 @@ export async function getCustomerMemory(
 
     return results;
   } catch (err) {
-    console.warn(
-      "[memory/episodic] getCustomerMemory error (non-fatal):",
-      (err as Error).message
-    );
+    log.warn("getCustomerMemory error (non-fatal)", { reason: (err as Error).message });
     return [];
   }
 }

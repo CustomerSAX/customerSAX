@@ -50,7 +50,7 @@ build_push_svc() {
     return 1
   fi
 
-  echo "🔨 [START] ${SVC} (context: ${CONTEXT})"
+  echo "🔨 [START] ${SVC} (context: repo root · dockerfile: ${DOCKERFILE})"
 
   # Warm layer cache from :latest (falls back gracefully on first build)
   docker pull "${IMAGE}:latest" 2>/dev/null \
@@ -64,7 +64,11 @@ build_push_svc() {
     -t "${IMAGE}:latest" \
     -t "${IMAGE}:${COMMIT_SHA}" \
     -f "${DOCKERFILE}" \
-    "${CONTEXT}" 2>&1 | sed "s/^/  [${SVC}] /"
+    . 2>&1 | sed "s/^/  [${SVC}] /"
+    # Build context is the REPO ROOT (not the app dir): the Dockerfiles COPY
+    # shared workspace packages (packages/*, configs/*) that only exist at the
+    # monorepo root, so an app-dir context cannot see them. -f still selects the
+    # per-service Dockerfile.
 
   docker push --all-tags "${IMAGE}" 2>&1 | sed "s/^/  [${SVC}] /"
 
@@ -74,7 +78,7 @@ build_push_svc() {
 export -f build_push_svc
 export REGISTRY PROJECT_ID ARTIFACT_REPO COMMIT_SHA
 
-MAX_PARALLEL=4
+MAX_PARALLEL=2
 declare -a PIDS=()
 declare -a FAILED_SVCS=()
 

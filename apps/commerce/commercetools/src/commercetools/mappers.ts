@@ -1,3 +1,20 @@
+/**
+ * Anti-corruption layer between commercetools' native GraphQL shapes (`Ct*`
+ * types) and the platform-neutral contract types (`Product`, `Cart`, `Order`,
+ * `Customer`, ...). This is where commercetools-specific quirks are absorbed so
+ * they never leak past the adapter:
+ *
+ *   - localized fields (`nameAllLocales`, `descriptionAllLocales`) collapse to a
+ *     single string via `firstLocalizedValue`;
+ *   - names fall back to key -> id, SKU, etc. when the richer field is missing,
+ *     honoring the no-mock-data rule (show a real lesser value, never invent
+ *     a plausible placeholder — see .claude/rules/no-mock-data.md);
+ *   - money keeps commercetools' `{ centAmount, currencyCode, fractionDigits }`
+ *     minor-unit shape rather than a lossy float.
+ *
+ * Every subgraph for a different platform owns its own equivalent mapper; the
+ * contract types are the fixed target all of them map into.
+ */
 import type { Cart, CommerceLineItem, Customer, Money, Order, OrderReturnInfo, Product } from "@csa/commerce-contract";
 import type { CtCart, CtCustomer, CtLineItem, CtMoney, CtOrder, CtProduct, CtReturnInfo } from "./types.js";
 
@@ -27,11 +44,17 @@ export function mapCart(cart: CtCart | null | undefined): Cart | null {
   }
 
   return {
+    billingAddress: cart.billingAddress ?? null,
+    cartState: cart.cartState,
+    createdAt: cart.createdAt,
     currencyCode: cart.totalPrice.currencyCode,
     customerId: cart.customerId,
+    customerEmail: cart.customerEmail,
     id: cart.id,
     key: cart.key,
+    lastModifiedAt: cart.lastModifiedAt,
     lineItems: (cart.lineItems ?? []).map(mapLineItem),
+    shippingAddress: cart.shippingAddress ?? null,
     totalPrice: mapMoney(cart.totalPrice),
     version: cart.version
   };

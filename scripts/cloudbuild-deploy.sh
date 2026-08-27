@@ -6,7 +6,7 @@
 # - Sources /workspace/build_config.sh from Step 1
 # - Reads /workspace/services_to_deploy.txt from Step 1
 # - Runs `gcloud run deploy` per service with per-service tuning
-# - Grants BFF SA run.invoker on all private services (idempotent)
+# - Leaves Cloud Run IAM/public access untouched; manage service access separately.
 #
 # CRITICAL: Uses --update-env-vars and --update-secrets (NEVER --set-*)
 # ============================================================
@@ -43,7 +43,7 @@ deploy_service() {
   IMAGE="${REGISTRY}/${PROJECT_ID}/${ARTIFACT_REPO}/${SVC}"
 
   # Cloud Run service name (matches Terraform resource names)
-  RUN_SVC_NAME="csa-dev-${SVC}"
+  RUN_SVC_NAME="${NAME_PREFIX}-${SVC}"
 
   # ── Per-service Cloud Run scaling / resources ──────────────────────────────
   CONC=80
@@ -62,9 +62,11 @@ deploy_service() {
   # Format: ENV_VAR_NAME=secret-name:version
   case "${SVC}" in
     ai-assist)
-      SECRETS="AI_GATEWAY_API_KEY=csa-dev-ai-gateway-api-key:latest" ;;
+      SECRETS="AI_GATEWAY_API_KEY=${NAME_PREFIX}-ai-gateway-api-key:latest" ;;
     commerce-commercetools)
-      SECRETS="COMMERCETOOLS_CLIENT_ID=csa-dev-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=csa-dev-commercetools-client-secret:latest" ;;
+      SECRETS="COMMERCETOOLS_CLIENT_ID=${NAME_PREFIX}-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=${NAME_PREFIX}-commercetools-client-secret:latest" ;;
+    ticketing)
+      SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     *)
       SECRETS="" ;;
   esac
@@ -78,26 +80,45 @@ deploy_service() {
     commerce-commercetools)
       SVC_ENV="${SVC_ENV},COMMERCETOOLS_AUTH_URL=https://auth.us-central1.gcp.commercetools.com"
       SVC_ENV="${SVC_ENV},COMMERCETOOLS_API_URL=https://api.us-central1.gcp.commercetools.com" ;;
+    bff)
+      # Build FEDERATED_SERVICES JSON from live Cloud Run URLs.
+      # Subgraphs are deployed before bff so their URLs already exist.
+      get_url() {
+        gcloud run services describe "${NAME_PREFIX}-$1" \
+          --region="${REGION}" --project="${PROJECT_ID}" \
+          --format='value(status.url)' 2>/dev/null || echo ""
+      }
+      CT_URL=$(get_url "commerce-commercetools")
+      TICK_URL=$(get_url "ticketing")
+      ADMIN_URL=$(get_url "admin")
+      FED_SERVICES="{}"
+      if [ -n "${CT_URL}" ]; then
+        FED_SERVICES=$(echo "${FED_SERVICES}" | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); d['commerce-commercetools']='${CT_URL}/graphql'; print(json.dumps(d))")
+      fi
+      if [ -n "${TICK_URL}" ]; then
+        FED_SERVICES=$(echo "${FED_SERVICES}" | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); d['ticketing']='${TICK_URL}/graphql'; print(json.dumps(d))")
+      fi
+      if [ -n "${ADMIN_URL}" ]; then
+        FED_SERVICES=$(echo "${FED_SERVICES}" | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); d['admin']='${ADMIN_URL}/graphql'; print(json.dumps(d))")
+      fi
+      echo "🔗 FEDERATED_SERVICES: ${FED_SERVICES}"
+      SVC_ENV="^|^NODE_ENV=production|SERVICE_NAME=${SVC}|ENVIRONMENT=${ENVIRONMENT}|FEDERATED_SERVICES=${FED_SERVICES}" ;;
   esac
 
-  # ── Public vs private ─────────────────────────────────────────────────────
-  # bff  = public (GraphQL gateway — external entry point)
-  # auth = public (login/register endpoints need direct access)
-  # all others = private (called by bff via Google ID token)
-  if [ "${SVC}" = "bff" ] || [ "${SVC}" = "auth" ]; then
-    AUTH_FLAG="--allow-unauthenticated"
-  else
-    AUTH_FLAG="--no-allow-unauthenticated"
-  fi
-
   # ── Build gcloud run deploy command ───────────────────────────────────────
+  # Authentication/IAM is managed outside this deploy step. Passing
+  # --allow-unauthenticated, --no-allow-unauthenticated, or
+  # --no-invoker-iam-check causes gcloud to call SetIamPolicy, which is blocked
+  # for the Cloud Build deploy identity in this project.
   DEPLOY_CMD=(
     gcloud run deploy "${RUN_SVC_NAME}"
     --image="${IMAGE}:${COMMIT_SHA}"
     --region="${REGION}"
     --project="${PROJECT_ID}"
     --platform=managed
-    "${AUTH_FLAG}"
     --min-instances="${MIN}"
     --max-instances="${MAX}"
     --memory="${MEM}"
@@ -115,30 +136,12 @@ deploy_service() {
 
   "${DEPLOY_CMD[@]}"
 
-  # ── Grant BFF's service account run.invoker on all private services ────────
-  # The BFF mints a Google ID token for each downstream private service.
-  # Cloud Run validates that token — so the BFF SA needs invoker on each.
-  # api: lookup the SA from the BFF's own config (idempotent, survives SA changes).
-  if [ "${SVC}" != "bff" ] && [ "${SVC}" != "auth" ]; then
-    BFF_SA=$(gcloud run services describe "csa-dev-bff" \
-      --region="${REGION}" --project="${PROJECT_ID}" \
-      --format='value(spec.template.spec.serviceAccountName)' 2>/dev/null \
-      || echo "")
-    if [ -n "${BFF_SA}" ]; then
-      echo "🔐 Granting roles/run.invoker on ${RUN_SVC_NAME} to BFF SA: ${BFF_SA}"
-      gcloud run services add-iam-policy-binding "${RUN_SVC_NAME}" \
-        --region="${REGION}" --project="${PROJECT_ID}" \
-        --member="serviceAccount:${BFF_SA}" \
-        --role="roles/run.invoker" 2>/dev/null \
-        || echo "  ⚠️  IAM binding skipped (will retry on next deploy)"
-    fi
-  fi
-
   # ── Print URL ─────────────────────────────────────────────────────────────
   SVC_URL=$(gcloud run services describe "${RUN_SVC_NAME}" \
     --region="${REGION}" --project="${PROJECT_ID}" \
     --format='value(status.url)' 2>/dev/null || echo "")
   [ -n "${SVC_URL}" ] && echo "✅ ${RUN_SVC_NAME} → ${SVC_URL}"
+
 }
 
 for SVC in "${SERVICES[@]}"; do

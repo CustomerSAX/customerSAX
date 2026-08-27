@@ -31,16 +31,16 @@ the resolver → mapper → repository chain.
 
 ## Cross-service consistency
 
-Ticket numbers, statuses, and priority values referenced from `apps/ai-assist`'s ticket tools or the webapp's
+Ticket numbers, statuses, and priority values referenced from `apps/ai-assist`'s ticket tools or the studio's
 `CreateTicketStepper` must match whatever this service's `mapper.ts`/`types.ts` actually produce — if you
 change a ticket field's shape or an enum's real values here, grep both of those consumers for the same field
 name before considering the change complete; a mismatch there reproduces the exact class of "$0.00 ·
 nothing after the dot" field-shape bug already fixed multiple times on the commerce side (see
-`.claude/rules/webapp-steppers.md`).
+`.claude/rules/studio-steppers.md`).
 
 ## Verify
 
 `pnpm --filter @csa/ticketing typecheck`. Exercise the real subgraph directly with a curl against its GraphQL
-endpoint before assuming a downstream (BFF/ai-assist/webapp) symptom is this service's bug — same
+endpoint before assuming a downstream (BFF/ai-assist/studio) symptom is this service's bug — same
 layer-by-layer discipline as `.claude/skills/verify-commerce-flow/SKILL.md`, applied to the ticketing
 subgraph instead of commercetools.

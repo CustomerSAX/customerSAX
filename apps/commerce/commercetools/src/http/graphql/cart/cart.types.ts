@@ -4,3 +4,7 @@ export type CartSearchArgs = PagingArgs & {
   option?: string;
   text: string;
 };
+
+export type DiscountCodeArgs = {
+  limit?: number;
+};

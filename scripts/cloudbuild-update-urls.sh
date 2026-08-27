@@ -32,7 +32,7 @@ ALL_SVCS=(
 echo "🔍 Fetching all Cloud Run service URLs..."
 declare -A URL_MAP
 for SVC in "${ALL_SVCS[@]}"; do
-  RUN_SVC_NAME="csa-dev-${SVC}"
+  RUN_SVC_NAME="${NAME_PREFIX}-${SVC}"
   URL=$(gcloud run services describe "${RUN_SVC_NAME}" \
     --region="${REGION}" --project="${PROJECT_ID}" \
     --format='value(status.url)' 2>/dev/null || echo "")
@@ -60,7 +60,7 @@ ADMIN_URL=$(get_url "ADMIN_URL")
 # ── (a) bff — inject all downstream service URLs ──────────────────────────────
 # Use ^~^ prefix so gcloud uses ~ as delimiter (URLs contain commas/colons)
 echo ""
-echo "🚀 Updating csa-dev-bff with all downstream URLs..."
+echo "🚀 Updating ${NAME_PREFIX}-bff with all downstream URLs..."
 
 BFF_ENV="NODE_ENV=production~SERVICE_NAME=bff~ENVIRONMENT=${ENVIRONMENT}"
 
@@ -69,10 +69,10 @@ for VAR in "${!URL_MAP[@]}"; do
   BFF_ENV="${BFF_ENV}~${VAR}=${URL_MAP[${VAR}]}"
 done
 
-gcloud run services update "csa-dev-bff" \
+gcloud run services update "${NAME_PREFIX}-bff" \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --update-env-vars="^~^${BFF_ENV}" 2>/dev/null || \
-  echo "  ⚠️  csa-dev-bff not yet deployed – will get URLs on next deploy"
+  echo "  ⚠️  ${NAME_PREFIX}-bff not yet deployed – will get URLs on next deploy"
 
 # ── (b) ai-assist — needs commerce URL for product/order lookups ─────────────
 AI_ENV="NODE_ENV=production,SERVICE_NAME=ai-assist,ENVIRONMENT=${ENVIRONMENT}"
@@ -80,33 +80,33 @@ AI_ENV="NODE_ENV=production,SERVICE_NAME=ai-assist,ENVIRONMENT=${ENVIRONMENT}"
 [ -n "${AUTH_URL}" ]         && AI_ENV="${AI_ENV},AUTH_SERVICE_URL=${AUTH_URL}"
 
 echo ""
-echo "🔧 Updating csa-dev-ai-assist..."
-gcloud run services update "csa-dev-ai-assist" \
+echo "🔧 Updating ${NAME_PREFIX}-ai-assist..."
+gcloud run services update "${NAME_PREFIX}-ai-assist" \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --update-env-vars="${AI_ENV}" 2>/dev/null || \
-  echo "  ⚠️  csa-dev-ai-assist not yet deployed – will get URLs on next deploy"
+  echo "  ⚠️  ${NAME_PREFIX}-ai-assist not yet deployed – will get URLs on next deploy"
 
 # ── (c) ticketing — needs auth URL for token validation ──────────────────────
 TICKET_ENV="NODE_ENV=production,SERVICE_NAME=ticketing,ENVIRONMENT=${ENVIRONMENT}"
 [ -n "${AUTH_URL}" ] && TICKET_ENV="${TICKET_ENV},AUTH_SERVICE_URL=${AUTH_URL}"
 
 echo ""
-echo "🔧 Updating csa-dev-ticketing..."
-gcloud run services update "csa-dev-ticketing" \
+echo "🔧 Updating ${NAME_PREFIX}-ticketing..."
+gcloud run services update "${NAME_PREFIX}-ticketing" \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --update-env-vars="${TICKET_ENV}" 2>/dev/null || \
-  echo "  ⚠️  csa-dev-ticketing not yet deployed – will get URLs on next deploy"
+  echo "  ⚠️  ${NAME_PREFIX}-ticketing not yet deployed – will get URLs on next deploy"
 
 # ── (d) admin — needs auth URL ───────────────────────────────────────────────
 ADMIN_ENV="NODE_ENV=production,SERVICE_NAME=admin,ENVIRONMENT=${ENVIRONMENT}"
 [ -n "${AUTH_URL}" ] && ADMIN_ENV="${ADMIN_ENV},AUTH_SERVICE_URL=${AUTH_URL}"
 
 echo ""
-echo "🔧 Updating csa-dev-admin..."
-gcloud run services update "csa-dev-admin" \
+echo "🔧 Updating ${NAME_PREFIX}-admin..."
+gcloud run services update "${NAME_PREFIX}-admin" \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --update-env-vars="${ADMIN_ENV}" 2>/dev/null || \
-  echo "  ⚠️  csa-dev-admin not yet deployed – will get URLs on next deploy"
+  echo "  ⚠️  ${NAME_PREFIX}-admin not yet deployed – will get URLs on next deploy"
 
 echo ""
 echo "✅ All internal service URL injections complete!"
@@ -118,6 +118,6 @@ echo "   Project     : ${PROJECT_ID}"
 echo "   Commit SHA  : ${COMMIT_SHA}"
 echo "============================================================"
 echo ""
-echo "📋 Set these in Vercel (for webapp / marketing):"
+echo "📋 Set these in Vercel (for studio / marketing):"
 [ -n "${BFF_URL}" ]  && echo "  NEXT_PUBLIC_BFF_URL=${BFF_URL}"
 [ -n "${AUTH_URL}" ] && echo "  NEXT_PUBLIC_AUTH_URL=${AUTH_URL}"

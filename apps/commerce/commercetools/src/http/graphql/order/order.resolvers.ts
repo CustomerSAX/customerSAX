@@ -1,9 +1,12 @@
+import { createLogger } from "@csa/logger";
 import { commercetoolsGraphql } from "../../../commercetools/client.js";
 import { getOrderById, getOrderByNumber, listOrders } from "../../../commercetools/api/index.js";
 import { mapOrder } from "./order.mapper.js";
 import type { CtOrder } from "../../../commercetools/types.js";
 import { compactWhere, escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
 import type { OrderSearchArgs } from "./order.types.js";
+
+const log = createLogger("commercetools").child({ module: "order.resolvers" });
 
 // Fields requested from the CT GraphQL API for every order query. This local
 // constant takes precedence over the importable orderFields in orderFields.ts
@@ -128,17 +131,28 @@ export const resolvers = {
   },
   updateOrder: async (_parent: unknown, args: { actions: unknown[]; id: string }) => {
     const order = await getOrderVersion(args.id);
+    // Action NAMES only (e.g. changeOrderState, addReturnInfo) — never the
+    // params, which can carry customer comments/PII.
+    const actions = (args.actions ?? [])
+      .flatMap((action) => (action && typeof action === "object" ? Object.keys(action) : []));
 
-    return commercetoolsGraphql(
-      `#graphql
-        mutation UpdateOrder($id: String!, $version: Long!, $actions: [OrderUpdateAction!]!) {
-          updateOrder(id: $id, version: $version, actions: $actions) {
-            id orderNumber orderState version
+    try {
+      const result = await commercetoolsGraphql(
+        `#graphql
+          mutation UpdateOrder($id: String!, $version: Long!, $actions: [OrderUpdateAction!]!) {
+            updateOrder(id: $id, version: $version, actions: $actions) {
+              id orderNumber orderState version
+            }
           }
-        }
-      `,
-      { actions: args.actions, id: args.id, version: order.version }
-    );
+        `,
+        { actions: args.actions, id: args.id, version: order.version }
+      );
+      log.info("ct:updateOrder", { id: args.id, actions, ok: true });
+      return result;
+    } catch (err) {
+      log.info("ct:updateOrder", { id: args.id, actions, ok: false });
+      throw err;
+    }
   },
   replicateOrder: (_parent: unknown, args: { id: string }) =>
     commercetoolsGraphql(

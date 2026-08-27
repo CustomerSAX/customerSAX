@@ -30,6 +30,43 @@ export async function findUserById(id: string) {
   return users.findOne({ active: true, $or: filters });
 }
 
+export async function listActiveUsersByProject(projectKey: string, clientId?: string) {
+  const users = await getUsersCollection();
+  const projectFilter = clientId
+    ? { $elemMatch: { projectKey, clientId } }
+    : { $elemMatch: { projectKey } };
+  const legacyProjectFilter: Record<string, unknown> = clientId
+    ? { projectKey, tenantId: clientId }
+    : { projectKey };
+  const filter: Record<string, unknown> = {
+    active: true,
+    $or: [
+      { projects: projectFilter },
+      legacyProjectFilter
+    ]
+  };
+
+  return users
+    .find(filter)
+    .sort({ email: 1 })
+    .toArray();
+}
+
+export async function latestSessionCreatedAtByUserIds(userIds: string[]) {
+  if (userIds.length === 0) return new Map<string, Date>();
+
+  const sessions = await getSessionsCollection();
+  const rows = await sessions
+    .aggregate<{ _id: string; lastLoggedInAt: Date }>([
+      { $match: { userId: { $in: userIds } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: "$userId", lastLoggedInAt: { $first: "$createdAt" } } }
+    ])
+    .toArray();
+
+  return new Map(rows.map((row) => [row._id, row.lastLoggedInAt]));
+}
+
 export async function createSession(record: SessionRecord) {
   const sessions = await getSessionsCollection();
   await sessions.insertOne(record);

@@ -6,6 +6,7 @@
  * modal's "Test Connection" button before the project exists at all).
  */
 
+import { noopLogger, type InjectedLogger } from "../observability.js";
 import { getProjectWithSecret } from "./repository.js";
 
 export interface ConnectionTestResult {
@@ -30,7 +31,10 @@ export interface RawCredentials {
   bigcommerceAccessToken?: string;
 }
 
-export async function testCredentials(creds: RawCredentials): Promise<ConnectionTestResult> {
+export async function testCredentials(
+  creds: RawCredentials,
+  logger: InjectedLogger = noopLogger
+): Promise<ConnectionTestResult> {
   try {
     if (creds.platform === "shopify") {
       const storeDomain = (creds.shopifyStoreDomain ?? "").trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
@@ -109,13 +113,16 @@ export async function testCredentials(creds: RawCredentials): Promise<Connection
     return { ok: false, message: `CT authentication failed (HTTP ${response.status}): ${errText}` };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("[admin/testCredentials]", error);
+    logger.error("connection test failed", error, { platform: creds.platform, projectKey: creds.projectKey });
     return { ok: false, message: `Connection error: ${msg}` };
   }
 }
 
 /** Tests an already-saved project's stored (decrypted) credentials. */
-export async function testProjectConnection(id: string): Promise<ConnectionTestResult> {
+export async function testProjectConnection(
+  id: string,
+  logger: InjectedLogger = noopLogger
+): Promise<ConnectionTestResult> {
   const withSecret = await getProjectWithSecret(id);
   if (!withSecret) {
     return { ok: false, message: "Project not found" };
@@ -134,5 +141,5 @@ export async function testProjectConnection(id: string): Promise<ConnectionTestR
     bigcommerceStoreHash: withSecret.bigcommerceStoreHash,
     bigcommerceClientId: withSecret.bigcommerceClientId,
     bigcommerceAccessToken: withSecret.bigcommerceAccessToken,
-  });
+  }, logger);
 }

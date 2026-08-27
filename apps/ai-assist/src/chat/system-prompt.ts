@@ -11,6 +11,13 @@ export interface SystemPromptContext {
   userEmail: string;
   userRole: string;
   projectKey: string;
+  /**
+   * Tenant/organisation id. Flows alongside `projectKey` from the studio
+   * session so the commerce path can resolve a provisioned multi-tenant
+   * project (which is keyed on (clientId, projectKey)). Absent for the
+   * single-tenant/env path, which must keep working unchanged.
+   */
+  clientId?: string;
   commercePlatform?: string;
   businessType?: string;
   pageContext?: { type: string; id: string } | null;
@@ -44,22 +51,29 @@ export const contextStorage = new AsyncLocalStorage<SystemPromptContext>();
 export function getSystemPromptContext(): SystemPromptContext {
   const ctx = contextStorage.getStore();
   if (!ctx) {
+    // FAIL-CLOSED least-privilege fallback: when no authenticated context was
+    // supplied, do NOT imply an admin/privileged identity and default every
+    // WRITE to false. Reads may stay allowed (they surface no capability to
+    // mutate real data). The legitimate path always supplies an explicit
+    // context (see routes/chat.ts, which also defaults writes=false), so this
+    // fallback only fires for an unauthenticated/misconfigured caller — it must
+    // never hand out create/update permissions by default.
     return {
-      userEmail: "agent@csa.local",
+      userEmail: "unknown@csa.local",
       userRole: "Support Agent",
       projectKey: process.env.COMMERCETOOLS_PROJECT_KEY ?? "default",
       canViewTickets: true,
-      canCreateTickets: true,
-      canUpdateTickets: true,
+      canCreateTickets: false,
+      canUpdateTickets: false,
       canViewOrders: true,
-      canCreateOrders: true,
-      canUpdateOrders: true,
+      canCreateOrders: false,
+      canUpdateOrders: false,
       canViewCustomers: true,
-      canCreateCustomers: true,
-      canUpdateCustomers: true,
+      canCreateCustomers: false,
+      canUpdateCustomers: false,
       canViewCarts: true,
-      canCreateCarts: true,
-      canUpdateCarts: true,
+      canCreateCarts: false,
+      canUpdateCarts: false,
       canViewProducts: true,
     };
   }
@@ -115,7 +129,7 @@ function buildPermissionsBlock(ctx: SystemPromptContext): string {
   const canViewProducts  = ctx.canViewProducts  ?? true;
 
   // Write permissions — default false (deny writes; allow only when explicitly true).
-  // The webapp sends explicit flags from the authenticated user's role — these
+  // The studio sends explicit flags from the authenticated user's role — these
   // defaults only fire if a flag is omitted, which should not happen in prod.
   const canCreateTickets   = ctx.canCreateTickets   ?? false;
   const canUpdateTickets   = ctx.canUpdateTickets   ?? false;

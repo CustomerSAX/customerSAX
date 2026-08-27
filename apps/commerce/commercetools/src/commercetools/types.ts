@@ -35,10 +35,16 @@ export type CtLineItem = {
 };
 
 export type CtCart = {
+  billingAddress?: CtAddress | null;
+  cartState?: string;
+  createdAt?: string;
   customerId?: string;
+  customerEmail?: string;
   id: string;
   key?: string;
+  lastModifiedAt?: string;
   lineItems?: CtLineItem[];
+  shippingAddress?: CtAddress | null;
   totalPrice: CtMoney;
   version: number;
 };
@@ -46,11 +52,18 @@ export type CtCart = {
 export type CtAddress = {
   streetName?: string;
   streetNumber?: string;
+  apartment?: string;
+  building?: string;
+  pOBox?: string;
   city?: string;
   state?: string;
   postalCode?: string;
   /** ISO 3166-1 alpha-2 country code returned by CT as a plain string. */
   country?: string;
+  phone?: string;
+  mobile?: string;
+  additionalStreetInfo?: string;
+  additionalAddressInfo?: string;
 };
 
 export type CtReturnItem = {
