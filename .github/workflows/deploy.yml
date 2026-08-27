@@ -136,6 +136,140 @@ jobs:
 
           cd infra/gcp
           terraform init
+
+          terraform_import() {
+            local address="$1"
+            local id="$2"
+
+            if terraform state show "$address" >/dev/null 2>&1; then
+              echo "✓ Terraform already tracks ${address}"
+              return 0
+            fi
+
+            terraform import \
+              -var="project_id=${{ env.PROJECT_ID }}" \
+              -var="project_number=${{ env.PROJECT_NUMBER }}" \
+              -var="region=${{ env.REGION }}" \
+              -var="environment=${ENV_VAR}" \
+              "$address" "$id"
+          }
+
+          import_secret_if_exists() {
+            local address="$1"
+            local id="$2"
+            local name="$3"
+
+            if gcloud secrets describe "$name" \
+              --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1; then
+              echo "Importing existing Secret Manager secret: ${name}"
+              terraform_import "$address" "$id"
+            fi
+          }
+
+          import_cloud_run_if_exists() {
+            local address="$1"
+            local id="$2"
+            local name="$3"
+
+            if terraform state show "$address" >/dev/null 2>&1; then
+              echo "✓ Terraform already tracks ${address}"
+              return 0
+            fi
+
+            if gcloud run services describe "$name" \
+              --region="${{ env.REGION }}" \
+              --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1; then
+              echo "Importing existing Cloud Run service: ${name}"
+              terraform_import "$address" "$id"
+            fi
+          }
+
+          import_artifact_repo_if_exists() {
+            local address="$1"
+            local id="$2"
+            local name="$3"
+
+            if gcloud artifacts repositories describe "$name" \
+              --location="${{ env.REGION }}" \
+              --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1; then
+              echo "Importing existing Artifact Registry repository: ${name}"
+              terraform_import "$address" "$id"
+            fi
+          }
+
+          import_bigquery_dataset_if_exists() {
+            local address="$1"
+            local id="$2"
+            local name="$3"
+
+            if bq --project_id="${{ env.PROJECT_ID }}" show "${{ env.PROJECT_ID }}:${name}" >/dev/null 2>&1; then
+              echo "Importing existing BigQuery dataset: ${name}"
+              terraform_import "$address" "$id"
+            fi
+          }
+
+          PREFIX="csa-${ENV_VAR}"
+
+          import_artifact_repo_if_exists 'google_artifact_registry_repository.repo' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/repositories/${PREFIX}-repo" \
+            "${PREFIX}-repo"
+
+          import_bigquery_dataset_if_exists 'google_bigquery_dataset.analytics' \
+            "projects/${{ env.PROJECT_ID }}/datasets/csa_${ENV_VAR}_analytics" \
+            "csa_${ENV_VAR}_analytics"
+
+          import_secret_if_exists 'google_secret_manager_secret.llm["ai_gateway_api_key"]' \
+            "projects/${{ env.PROJECT_ID }}/secrets/${PREFIX}-ai-gateway-api-key" \
+            "${PREFIX}-ai-gateway-api-key"
+
+          import_secret_if_exists 'google_secret_manager_secret.commerce["commercetools_client_id"]' \
+            "projects/${{ env.PROJECT_ID }}/secrets/${PREFIX}-commercetools-client-id" \
+            "${PREFIX}-commercetools-client-id"
+
+          import_secret_if_exists 'google_secret_manager_secret.commerce["commercetools_client_secret"]' \
+            "projects/${{ env.PROJECT_ID }}/secrets/${PREFIX}-commercetools-client-secret" \
+            "${PREFIX}-commercetools-client-secret"
+
+          import_secret_if_exists 'google_secret_manager_secret.ticketing["ticketing_mongo_uri"]' \
+            "projects/${{ env.PROJECT_ID }}/secrets/${PREFIX}-ticketing-mongo-uri" \
+            "${PREFIX}-ticketing-mongo-uri"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.bff' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-bff" \
+            "${PREFIX}-bff"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.auth' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-auth" \
+            "${PREFIX}-auth"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.ai_assist' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-ai-assist" \
+            "${PREFIX}-ai-assist"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.commerce_commercetools' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-commerce-commercetools" \
+            "${PREFIX}-commerce-commercetools"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.commerce_shopify' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-commerce-shopify" \
+            "${PREFIX}-commerce-shopify"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.commerce_bigcommerce' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-commerce-bigcommerce" \
+            "${PREFIX}-commerce-bigcommerce"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.commerce_sfcc' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-commerce-sfcc" \
+            "${PREFIX}-commerce-sfcc"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.admin' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-admin" \
+            "${PREFIX}-admin"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.ticketing' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-ticketing" \
+            "${PREFIX}-ticketing"
+
           terraform apply -auto-approve \
             -var="project_id=${{ env.PROJECT_ID }}" \
             -var="project_number=${{ env.PROJECT_NUMBER }}" \
