@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
@@ -19,6 +19,107 @@ import {
 import { useCompanies } from "@/features/companies/hooks/use-companies";
 import { useEmployees } from "@/features/employees/hooks/use-employees";
 import type { QuoteLineItem } from "../types/quote-types";
+import type { CompanyAddress } from "@/features/companies/types/company-types";
+import type { EmployeeAddress } from "@/features/employees/types/employee-types";
+
+interface ProductSearchHit {
+  sku: string;
+  name: string;
+  price: number;
+  taxCategoryName?: string | null;
+}
+
+type ProductSearchResponse = {
+  results?: Array<{
+    id?: string;
+    key?: string;
+    sku?: string;
+    name?: string;
+    price?: number | string;
+    inStock?: boolean;
+    taxCategory?: { name?: string | null } | null;
+    masterData?: {
+      current?: {
+        nameAllLocales?: Array<{ locale?: string; value?: string }>;
+        allVariants?: Array<{ sku?: string }>;
+        masterVariant?: {
+          sku?: string;
+          prices?: Array<{ value?: { centAmount?: number; fractionDigits?: number } }>;
+        };
+      };
+    };
+    nameAllLocales?: Array<{ locale?: string; value?: string }>;
+  }>;
+};
+
+type QuoteAddress = {
+  streetName: string;
+  streetNumber?: string;
+  city: string;
+  state?: string;
+  postalCode: string;
+  country: string;
+};
+
+function quoteAddressFrom(address?: EmployeeAddress | CompanyAddress | QuoteAddress | null): QuoteAddress | null {
+  if (!address?.streetName || !address.city || !address.postalCode || !address.country) {
+    return null;
+  }
+
+  return {
+    streetName: address.streetName,
+    streetNumber: address.streetNumber,
+    city: address.city,
+    state: address.state,
+    postalCode: address.postalCode,
+    country: address.country
+  };
+}
+
+function clampDiscount(value: number) {
+  return Math.min(Math.max(value, 0), 100);
+}
+
+function mapProductSearchHit(
+  product: NonNullable<ProductSearchResponse["results"]>[number]
+): ProductSearchHit | null {
+  const current = product.masterData?.current;
+  const masterVariant = current?.masterVariant;
+
+  const sku =
+    (typeof product.sku === "string" && product.sku.trim()) ||
+    (typeof masterVariant?.sku === "string" && masterVariant.sku.trim()) ||
+    (typeof current?.allVariants?.[0]?.sku === "string" && current.allVariants[0].sku.trim()) ||
+    (typeof product.key === "string" && product.key.trim()) ||
+    (typeof product.id === "string" && product.id.trim()) ||
+    "";
+
+  const rawNameLocales = current?.nameAllLocales ?? product.nameAllLocales;
+  const localeName = Array.isArray(rawNameLocales)
+    ? rawNameLocales.find((locale) => locale.locale === "en")?.value || rawNameLocales[0]?.value
+    : "";
+  const name = product.name ? String(product.name) : localeName || sku;
+
+  let price = 0;
+  if (typeof product.price === "number") {
+    price = product.price;
+  } else if (masterVariant?.prices?.[0]?.value) {
+    const value = masterVariant.prices[0].value;
+    const fractionDigits = typeof value.fractionDigits === "number" ? value.fractionDigits : 2;
+    price = (value.centAmount || 0) / 10 ** fractionDigits;
+  } else if (product.price) {
+    price = parseFloat(String(product.price).replace(/[^0-9.]/g, "")) || 0;
+  }
+
+  return sku
+    ? {
+        sku,
+        name,
+        price,
+        taxCategoryName: product.taxCategory?.name || null
+      }
+    : null;
+}
 
 export function QuoteCreateView() {
   const router = useRouter();
@@ -27,11 +128,17 @@ export function QuoteCreateView() {
 
   const [companyId, setCompanyId] = useState("");
   const [customerId, setCustomerId] = useState("");
-  const [discountPct, setDiscountPct] = useState(10);
+  const [discountPctInput, setDiscountPctInput] = useState("10");
   const [validUntil, setValidUntil] = useState("");
   const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState("");
 
   const [lineItems, setLineItems] = useState<QuoteLineItem[]>([]);
+  const [productQueries, setProductQueries] = useState<Record<string, string>>({});
+  const [activeSearchLineId, setActiveSearchLineId] = useState<string | null>(null);
+  const [productSearchResults, setProductSearchResults] = useState<ProductSearchHit[]>([]);
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
 
   useEffect(() => {
     setValidUntil(
@@ -57,6 +164,66 @@ export function QuoteCreateView() {
       label: `${e.firstName} ${e.lastName} (${e.email})`
     }))
   ];
+  const selectedCompany = allCompanies.find((company) => company.id === companyId);
+  const selectedEmployee = allEmployees.find((employee) => employee.id === customerId);
+  const selectedShippingAddress = quoteAddressFrom(
+    selectedEmployee?.addresses.find((address) => address.isDefaultShipping) ||
+      selectedEmployee?.addresses[0] ||
+      selectedCompany?.addresses.find((address) => address.isDefaultShipping) ||
+      selectedCompany?.addresses[0]
+  );
+  const selectedBillingAddress = quoteAddressFrom(
+    selectedEmployee?.addresses.find((address) => address.isDefaultBilling) ||
+      selectedShippingAddress ||
+      selectedCompany?.addresses.find((address) => address.isDefaultBilling) ||
+      selectedCompany?.addresses[0]
+  );
+
+  const activeProductQuery = activeSearchLineId ? productQueries[activeSearchLineId] || "" : "";
+
+  useEffect(() => {
+    const trimmed = activeProductQuery.trim();
+    if (!activeSearchLineId || trimmed.length < 4) {
+      setProductSearchResults([]);
+      setIsSearchingProducts(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsSearchingProducts(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch("/api/product-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: trimmed, limit: 8, offset: 0 })
+        });
+
+        if (!response.ok) {
+          if (!cancelled) setProductSearchResults([]);
+          return;
+        }
+
+        const data = (await response.json()) as ProductSearchResponse;
+        const results = (data.results || [])
+          .map(mapProductSearchHit)
+          .filter((product): product is ProductSearchHit => Boolean(product));
+
+        if (!cancelled) setProductSearchResults(results);
+      } catch (error) {
+        console.error("Quote product search failed:", error);
+        if (!cancelled) setProductSearchResults([]);
+      } finally {
+        if (!cancelled) setIsSearchingProducts(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [activeProductQuery, activeSearchLineId]);
 
   const handleAddLineItem = () => {
     const newItem: QuoteLineItem = {
@@ -69,10 +236,65 @@ export function QuoteCreateView() {
       subtotal: 0
     };
     setLineItems((prev) => [...prev, newItem]);
+    setProductQueries((prev) => ({ ...prev, [newItem.id]: "" }));
+    setActiveSearchLineId(newItem.id);
   };
 
   const handleRemoveLineItem = (id: string) => {
     setLineItems((prev) => prev.filter((item) => item.id !== id));
+    setProductQueries((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    if (activeSearchLineId === id) {
+      setActiveSearchLineId(null);
+      setProductSearchResults([]);
+    }
+  };
+
+  const handleLineNameChange = (id: string, name: string) => {
+    setProductQueries((prev) => ({ ...prev, [id]: name }));
+    setActiveSearchLineId(id);
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        if (item.name === name) return item;
+        return {
+          ...item,
+          sku: "",
+          name,
+          listPrice: 0,
+          negotiatedPrice: 0,
+          subtotal: 0
+        };
+      })
+    );
+  };
+
+  const handleSelectProduct = (id: string, product: ProductSearchHit) => {
+    if (!product.taxCategoryName) {
+      setFeedback(`${product.name} cannot be quoted because it is missing a tax category.`);
+      return;
+    }
+
+    setFeedback("");
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          sku: product.sku,
+          name: product.name,
+          listPrice: product.price,
+          negotiatedPrice: product.price,
+          subtotal: product.price * item.quantity
+        };
+      })
+    );
+    setProductQueries((prev) => ({ ...prev, [id]: product.name }));
+    setActiveSearchLineId(null);
+    setProductSearchResults([]);
   };
 
   const handleLineQtyChange = (id: string, qty: number) => {
@@ -103,10 +325,108 @@ export function QuoteCreateView() {
     );
   };
 
+  const parsedDiscountPct = Number(discountPctInput);
+  const hasValidDiscount =
+    discountPctInput.trim() !== "" &&
+    Number.isFinite(parsedDiscountPct) &&
+    parsedDiscountPct >= 0 &&
+    parsedDiscountPct <= 100;
+  const discountPct = hasValidDiscount ? parsedDiscountPct : 0;
   const grossSubtotal = lineItems.reduce((sum, item) => sum + item.subtotal, 0);
   const negotiatedTotal = grossSubtotal * ((100 - discountPct) / 100);
   const today = new Date().toISOString().slice(0, 10);
   const hasValidDate = Boolean(validUntil && validUntil >= today);
+  const hasSelectedProducts = lineItems.length > 0 && lineItems.every((item) => item.sku && item.quantity > 0);
+  const canSubmitQuote = Boolean(
+    companyId &&
+      hasSelectedProducts &&
+      hasValidDate &&
+      hasValidDiscount &&
+      selectedShippingAddress &&
+      !submitting
+  );
+
+  const handleSubmitQuote = async () => {
+    if (!canSubmitQuote) return;
+    if (!selectedShippingAddress) {
+      setFeedback("Cannot request a quote for a cart without a shipping address.");
+      return;
+    }
+
+    setSubmitting(true);
+    setFeedback("");
+
+    try {
+      const cartResponse = await fetch("/api/carts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currency: "USD",
+          businessUnitKey: selectedCompany?.key,
+          customerId: selectedEmployee?.id,
+          customerEmail: selectedEmployee?.email
+        })
+      });
+      const cartPayload = (await cartResponse.json().catch(() => ({}))) as {
+        id?: string;
+        error?: string;
+      };
+
+      if (!cartResponse.ok || !cartPayload.id) {
+        throw new Error(cartPayload.error || "Unable to create cart for quote request.");
+      }
+
+      const updateResponse = await fetch(`/api/carts/${encodeURIComponent(cartPayload.id)}/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actions: [
+            { setShippingAddress: { address: selectedShippingAddress } },
+            ...(selectedBillingAddress ? [{ setBillingAddress: { address: selectedBillingAddress } }] : []),
+            ...lineItems.map((item) => ({
+              addLineItem: { sku: item.sku, quantity: item.quantity }
+            }))
+          ]
+        })
+      });
+      const updatePayload = (await updateResponse.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!updateResponse.ok) {
+        throw new Error(updatePayload.error || "Unable to add quote items to cart.");
+      }
+
+      const quoteComment = [
+        note.trim() ? `Buyer note: ${note.trim()}` : "",
+        `Valid until: ${validUntil}`,
+        `Requested discount: ${discountPct}%`,
+        `Negotiated total shown in Studio: $${negotiatedTotal.toFixed(2)}`
+      ].filter(Boolean).join("\n");
+
+      const quoteResponse = await fetch("/api/quotes/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cartId: cartPayload.id,
+          comment: quoteComment
+        })
+      });
+      const quotePayload = (await quoteResponse.json().catch(() => ({}))) as {
+        id?: string;
+        error?: string;
+      };
+
+      if (!quoteResponse.ok || !quotePayload.id) {
+        throw new Error(quotePayload.error || "Unable to submit quote request.");
+      }
+
+      router.push(`/b2b/quotes/${encodeURIComponent(quotePayload.id)}`);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Unable to submit quote request.");
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto">
@@ -185,8 +505,8 @@ export function QuoteCreateView() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SKU</TableHead>
                 <TableHead>Product Name</TableHead>
+                <TableHead>SKU</TableHead>
                 <TableHead className="w-24">Quantity</TableHead>
                 <TableHead className="w-32">List Price ($)</TableHead>
                 <TableHead className="w-36">Negotiated Unit ($)</TableHead>
@@ -203,52 +523,115 @@ export function QuoteCreateView() {
                   </TableCell>
                 </TableRow>
               ) : (
-                lineItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-mono text-xs text-m-text-muted">
-                      {item.sku}
-                    </TableCell>
-                    <TableCell className="font-semibold text-m-text">
-                      {item.name}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={item.quantity}
-                        onChange={(e) =>
-                          handleLineQtyChange(item.id, Number(e.target.value))
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className="text-m-text-muted">
-                      ${item.listPrice.toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={0.5}
-                        value={item.negotiatedPrice}
-                        onChange={(e) =>
-                          handleLinePriceChange(item.id, Number(e.target.value))
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-m-text">
-                      ${item.subtotal.toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        iconOnly
-                        leftIcon={<Icon name="trash-2" size="xs" />}
-                        onClick={() => handleRemoveLineItem(item.id)}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
+                lineItems.map((item) => {
+                  const query = productQueries[item.id] ?? item.name;
+                  const trimmedQuery = query.trim();
+                  const isActiveSearchLine = activeSearchLineId === item.id;
+                  const showProductResults = isActiveSearchLine && trimmedQuery.length >= 4;
+
+                  return (
+                  <Fragment key={item.id}>
+                    <TableRow>
+                      <TableCell className="min-w-64">
+                        <Input
+                          autoFocus={isActiveSearchLine && !item.name}
+                          value={query}
+                          onFocus={() => setActiveSearchLineId(item.id)}
+                          onChange={(e) => handleLineNameChange(item.id, e.target.value)}
+                          placeholder={isActiveSearchLine ? "Type at least 4 characters..." : "Search by name or SKU"}
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-m-text-muted">
+                        {item.sku || "--"}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) =>
+                            handleLineQtyChange(item.id, Number(e.target.value))
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="text-m-text-muted">
+                        ${item.listPrice.toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          value={item.negotiatedPrice}
+                          onChange={(e) =>
+                            handleLinePriceChange(item.id, Number(e.target.value))
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-m-text">
+                        ${item.subtotal.toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          iconOnly
+                          leftIcon={<Icon name="trash-2" size="xs" />}
+                          onClick={() => handleRemoveLineItem(item.id)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                    {showProductResults && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="bg-m-surface-2/40 pt-0">
+                          <div className="max-w-xl overflow-hidden rounded-m-md border border-m-border bg-m-surface shadow-m-panel">
+                            {isSearchingProducts ? (
+                              <div className="px-3 py-2 text-sm text-m-text-muted">
+                                Searching products...
+                              </div>
+                            ) : productSearchResults.length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-m-text-muted">
+                                No products found.
+                              </div>
+                            ) : (
+                              productSearchResults.map((product) => {
+                                const isQuotable = Boolean(product.taxCategoryName);
+
+                                return (
+                                <button
+                                  key={`${product.sku}-${product.name}`}
+                                  type="button"
+                                  disabled={!isQuotable}
+                                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-m-surface-1 disabled:cursor-not-allowed disabled:bg-m-error-light/40 disabled:opacity-70"
+                                  onClick={() => handleSelectProduct(item.id, product)}
+                                >
+                                  <span className="min-w-0">
+                                    <span className="block truncate font-semibold text-m-text">
+                                      {product.name}
+                                    </span>
+                                    <span className="block truncate font-mono text-xs text-m-text-muted">
+                                      {product.sku}
+                                    </span>
+                                    {!isQuotable && (
+                                      <span className="block truncate text-xs font-semibold text-m-error">
+                                        Missing tax category
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="shrink-0 font-semibold text-m-text">
+                                    ${product.price.toFixed(2)}
+                                  </span>
+                                </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -267,9 +650,24 @@ export function QuoteCreateView() {
                 type="number"
                 min={0}
                 max={100}
-                value={discountPct}
-                onChange={(e) => setDiscountPct(Number(e.target.value))}
+                value={discountPctInput}
+                error={!hasValidDiscount}
+                onChange={(e) => setDiscountPctInput(e.target.value)}
+                onBlur={() => {
+                  const nextValue = discountPctInput.trim();
+                  if (!nextValue) return;
+
+                  const parsedValue = Number(nextValue);
+                  if (Number.isFinite(parsedValue)) {
+                    setDiscountPctInput(String(clampDiscount(parsedValue)));
+                  }
+                }}
               />
+              {!hasValidDiscount && (
+                <p className="mt-1 text-xs font-medium text-m-danger">
+                  Enter a discount from 0 to 100.
+                </p>
+              )}
             </div>
 
             <div>
@@ -325,11 +723,11 @@ export function QuoteCreateView() {
         </div>
       </Panel>
 
-      {/* Action Footer */}
-      <div className="rounded-m-md border border-m-warning-border bg-m-warning-light px-4 py-3 text-xs font-semibold text-m-warning-dark">
-        Direct quote authoring is not connected to the commerce backend. Create a quote
-        request from an active customer cart instead.
-      </div>
+      {feedback && (
+        <div className="rounded-m-md border border-m-error-border bg-m-error-light px-4 py-3 text-xs font-semibold text-m-error-dark">
+          {feedback}
+        </div>
+      )}
       <div className="flex justify-end gap-3 pt-2">
         <Button variant="secondary" size="md" onClick={() => router.push("/b2b/quotes")}>
           Cancel
@@ -337,8 +735,8 @@ export function QuoteCreateView() {
         <Button variant="outline" size="md" disabled>
           Save as Draft
         </Button>
-        <Button variant="primary" size="md" disabled>
-          Submit Quote to Buyer
+        <Button variant="primary" size="md" disabled={!canSubmitQuote} onClick={handleSubmitQuote}>
+          {submitting ? "Submitting..." : "Submit Quote to Buyer"}
         </Button>
       </div>
     </div>

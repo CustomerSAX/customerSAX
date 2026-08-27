@@ -54,20 +54,22 @@ export async function POST(request: NextRequest) {
   const { log, requestId } = requestLogger(request, "api/carts");
   try {
     const body = await request.json().catch(() => ({}));
-    const { currency, customerId, customerEmail } = body as {
+    const { currency, businessUnitKey, customerId, customerEmail } = body as {
       currency?: string;
+      businessUnitKey?: string;
       customerId?: string;
       customerEmail?: string;
     };
 
     const data = await bff<{ createB2bCart: unknown }>(
-      `mutation CreateCart($currency: String!, $customerId: ID, $customerEmail: String) {
-        createB2bCart(currency: $currency, customerId: $customerId, customerEmail: $customerEmail) {
+      `mutation CreateCart($currency: String!, $businessUnitKey: String, $customerId: ID, $customerEmail: String) {
+        createB2bCart(currency: $currency, businessUnitKey: $businessUnitKey, customerId: $customerId, customerEmail: $customerEmail) {
           ${CART_FIELDS}
         }
       }`,
       {
         currency: currency ?? "USD",
+        businessUnitKey: businessUnitKey ?? null,
         customerId: customerId ?? null,
         customerEmail: customerEmail ?? null
       },

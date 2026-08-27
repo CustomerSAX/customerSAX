@@ -21,6 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TextArea,
   type StatusTone,
 } from "@csa/ui";
 import { formatDateTime } from "@/lib/format-date";
@@ -159,8 +160,80 @@ type QuoteDetailData = {
 
 type TimelineEvent = {
   date: string | null | undefined;
+  details?: Array<{ label: string; value: string }>;
   label: string;
 };
+
+type BuyerReviewState = "pending" | "approved" | "changes-requested" | "declined";
+type BuyerWorkflowSnapshot = {
+  actingRole?: "buyer" | "seller";
+  buyerReviewState?: BuyerReviewState;
+  buyerReviewUpdatedAt?: string | null;
+  buyerNegotiationNote?: string | null;
+};
+
+type BuyerWorkflowState = {
+  actingRole: "buyer" | "seller";
+  buyerReviewState: BuyerReviewState;
+  buyerReviewUpdatedAt: string | null;
+  buyerNegotiationNote: string;
+};
+
+function workflowStorageKey(id: string) {
+  return `csa_quote_review_${id}`;
+}
+
+function readWorkflowState(id: string): BuyerWorkflowState {
+  const fallback: BuyerWorkflowState = {
+    actingRole: "buyer",
+    buyerReviewState: "pending",
+    buyerReviewUpdatedAt: null,
+    buyerNegotiationNote: ""
+  };
+
+  if (typeof window === "undefined") return fallback;
+
+  try {
+    const stored = window.localStorage.getItem(workflowStorageKey(id));
+    if (!stored) return fallback;
+
+    const parsed = JSON.parse(stored) as BuyerWorkflowSnapshot;
+
+    return {
+      actingRole: parsed.actingRole || fallback.actingRole,
+      buyerReviewState: parsed.buyerReviewState || fallback.buyerReviewState,
+      buyerReviewUpdatedAt: parsed.buyerReviewUpdatedAt || fallback.buyerReviewUpdatedAt,
+      buyerNegotiationNote: parsed.buyerNegotiationNote || fallback.buyerNegotiationNote
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function formatQuoteComment(comment: string): Pick<TimelineEvent, "details" | "label"> {
+  const lines = comment
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const detailRows: Array<{ label: string; value: string }> = [];
+  const notes: string[] = [];
+
+  for (const line of lines) {
+    const match = line.match(/^([^:]+):\s*(.+)$/);
+    if (match && ["Valid until", "Requested discount", "Negotiated total shown in Studio"].includes(match[1])) {
+      detailRows.push({ label: match[1], value: match[2] });
+    } else if (match?.[1] === "Buyer note") {
+      notes.push(match[2]);
+    } else if (!line.startsWith("Line-level negotiated prices")) {
+      notes.push(line);
+    }
+  }
+
+  return {
+    label: notes.length > 0 ? `Buyer note: ${notes.join(" ")}` : "Buyer note",
+    details: detailRows.length > 0 ? detailRows : undefined
+  };
+}
 
 function formatMoney(money?: Money | null) {
   if (!money) return "--";
@@ -197,6 +270,9 @@ function statusTone(status?: string | null): StatusTone {
     case "Submitted":
     case "InProgress":
     case "In Review":
+    case "Buyer Approved":
+    case "Changes Requested":
+    case "Seller Review":
       return "info";
     default:
       return "neutral";
@@ -208,6 +284,21 @@ function statusLabel(status?: string | null) {
   if (status === "Submitted") return "Requested";
   if (status === "InProgress") return "Draft";
   return status;
+}
+
+function workflowStatusLabel(status: string, buyerReviewState: BuyerReviewState) {
+  if (status !== "Requested") return status;
+
+  switch (buyerReviewState) {
+    case "approved":
+      return "Seller Review";
+    case "changes-requested":
+      return "Changes Requested";
+    case "declined":
+      return "Declined";
+    default:
+      return status;
+  }
 }
 
 function addressLines(address?: QuoteAddress | null) {
@@ -231,27 +322,70 @@ function customerName(quote: QuoteDetail) {
   return fullName || quote.customerEmail || quote.customer?.email || quote.customerId || "--";
 }
 
-function buildTimeline(quote: QuoteDetail): TimelineEvent[] {
+function buildTimeline(
+  quote: QuoteDetail,
+  buyerReviewState: BuyerReviewState,
+  buyerReviewUpdatedAt?: string | null,
+  buyerNegotiationNote?: string | null
+): TimelineEvent[] {
   const events: TimelineEvent[] = [{ label: "Quote requested", date: quote.createdAt }];
 
   if (quote.comment) {
-    events.push({ label: `Buyer note: ${quote.comment}`, date: quote.createdAt });
+    const comment = formatQuoteComment(quote.comment);
+    events.push({ ...comment, date: quote.createdAt });
   }
 
   events.push({ label: "Submitted to seller for review", date: quote.lastModifiedAt || quote.createdAt });
+
+  if (buyerReviewState === "approved") {
+    events.push({ label: "Buyer approved quote", date: buyerReviewUpdatedAt });
+  }
+
+  if (buyerReviewState === "changes-requested") {
+    events.push({
+      label: "Buyer requested changes",
+      date: buyerReviewUpdatedAt,
+      details: buyerNegotiationNote ? [{ label: "Request", value: buyerNegotiationNote }] : undefined
+    });
+  }
+
+  if (buyerReviewState === "declined") {
+    events.push({ label: "Buyer declined quote", date: buyerReviewUpdatedAt });
+  }
 
   return events;
 }
 
 export function QuoteDetailView({ id }: { id: string }) {
   const router = useRouter();
-  const [actingRole, setActingRole] = useState<"buyer" | "seller">("buyer");
-  const { data, loading, error } = useQuery<QuoteDetailData>(QUOTE_DETAIL_QUERY, {
+  const [workflow, setWorkflow] = useState<BuyerWorkflowState>(() => readWorkflowState(id));
+  const [actionFeedback, setActionFeedback] = useState("");
+  const [actionLoading, setActionLoading] = useState<"Accepted" | "Rejected" | null>(null);
+  const [negotiatingAs, setNegotiatingAs] = useState<"buyer" | "seller" | null>(null);
+  const [negotiationNote, setNegotiationNote] = useState("");
+  const { data, loading, error, refetch } = useQuery<QuoteDetailData>(QUOTE_DETAIL_QUERY, {
     variables: { id },
     fetchPolicy: "cache-and-network",
   });
 
   const quote = data?.quote ?? null;
+  const { actingRole, buyerNegotiationNote, buyerReviewState, buyerReviewUpdatedAt } = workflow;
+
+  const persistWorkflow = (next: BuyerWorkflowSnapshot) => {
+    const payload: BuyerWorkflowState = {
+      actingRole: next.actingRole || workflow.actingRole,
+      buyerReviewState: next.buyerReviewState || workflow.buyerReviewState,
+      buyerReviewUpdatedAt:
+        next.buyerReviewUpdatedAt === undefined ? workflow.buyerReviewUpdatedAt : next.buyerReviewUpdatedAt,
+      buyerNegotiationNote:
+        next.buyerNegotiationNote === undefined ? workflow.buyerNegotiationNote : next.buyerNegotiationNote || ""
+    };
+    setWorkflow(payload);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(workflowStorageKey(id), JSON.stringify(payload));
+    }
+  };
   const totals = useMemo(() => {
     if (!quote) return { currencyCode: "USD", subtotal: 0, total: 0 };
     const subtotal = quote.lineItems.reduce((sum, item) => sum + moneyAmount(item.totalPrice), 0);
@@ -292,11 +426,104 @@ export function QuoteDetailView({ id }: { id: string }) {
   const displayId = quote.quoteNumber || quote.key || `#${quote.id.slice(0, 8)}`;
   const requestedAt = formatDateTime(quote.createdAt);
   const lineItemCount = quote.lineItems.length;
-  const timeline = buildTimeline(quote);
-  const waitingOnSeller = statusLabel(quote.status) === "Requested";
+  const backendStatus = statusLabel(quote.status);
+  const displayStatus = workflowStatusLabel(backendStatus, buyerReviewState);
+  const timeline = buildTimeline(quote, buyerReviewState, buyerReviewUpdatedAt, buyerNegotiationNote);
+  const waitingOnSeller = backendStatus === "Requested";
   const terminalStatus = ["Accepted", "Approved", "Rejected", "Declined", "Cancelled", "Converted"].includes(
-    statusLabel(quote.status)
+    displayStatus
   );
+  const buyerCanAct = actingRole === "buyer" && waitingOnSeller && buyerReviewState === "pending" && !terminalStatus;
+  const sellerCanAct =
+    actingRole === "seller" &&
+    waitingOnSeller &&
+    ["approved", "changes-requested"].includes(buyerReviewState) &&
+    !terminalStatus &&
+    !actionLoading;
+
+  const approveBuyerReview = () => {
+    const reviewedAt = new Date().toISOString();
+    setNegotiatingAs(null);
+    setNegotiationNote("");
+    setActionFeedback("Buyer approved the quote. Seller can now respond.");
+    persistWorkflow({
+      actingRole: "seller",
+      buyerReviewState: "approved",
+      buyerReviewUpdatedAt: reviewedAt,
+      buyerNegotiationNote: ""
+    });
+  };
+
+  const declineBuyerReview = () => {
+    const reviewedAt = new Date().toISOString();
+    setNegotiatingAs(null);
+    setNegotiationNote("");
+    setActionFeedback("Buyer declined the quote in Studio.");
+    persistWorkflow({
+      actingRole: "buyer",
+      buyerReviewState: "declined",
+      buyerReviewUpdatedAt: reviewedAt,
+      buyerNegotiationNote: ""
+    });
+  };
+
+  const startNegotiation = (role: "buyer" | "seller") => {
+    setNegotiatingAs(role);
+    setNegotiationNote("");
+    setActionFeedback("");
+  };
+
+  const cancelNegotiation = () => {
+    setNegotiatingAs(null);
+    setNegotiationNote("");
+  };
+
+  const sendNegotiation = () => {
+    const note = negotiationNote.trim();
+    if (!note) return;
+
+    if (negotiatingAs === "buyer") {
+      const reviewedAt = new Date().toISOString();
+      setActionFeedback("Buyer change request was sent to seller.");
+      persistWorkflow({
+        actingRole: "seller",
+        buyerReviewState: "changes-requested",
+        buyerReviewUpdatedAt: reviewedAt,
+        buyerNegotiationNote: note
+      });
+    } else {
+      setActionFeedback("Seller negotiation note was recorded in Studio.");
+    }
+    setNegotiatingAs(null);
+    setNegotiationNote("");
+  };
+
+  const updateQuoteRequestState = async (state: "Accepted" | "Rejected") => {
+    if (!sellerCanAct) return;
+
+    setActionLoading(state);
+    setActionFeedback("");
+
+    try {
+      const response = await fetch(`/api/quotes/requests/${encodeURIComponent(quote.id)}/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to update quote request.");
+      }
+
+      await refetch();
+      setActionFeedback(state === "Accepted" ? "Seller accepted the quote request." : "Seller rejected the quote request.");
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Unable to update quote request.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   return (
     <DetailPage>
@@ -307,7 +534,7 @@ export function QuoteDetailView({ id }: { id: string }) {
             <span>{`Quote ${displayId}`}</span>
           </span>
         }
-        status={<StatusPill tone={statusTone(quote.status)}>{statusLabel(quote.status)}</StatusPill>}
+        status={<StatusPill tone={statusTone(displayStatus)}>{displayStatus}</StatusPill>}
         meta={`${company} • ${quote.customerEmail || quote.customer?.email || "--"} • Requested ${requestedAt}`}
         actions={
           <Button variant="secondary" onClick={() => router.back()}>
@@ -412,10 +639,16 @@ export function QuoteDetailView({ id }: { id: string }) {
         <SideColumn>
           <SectionCard
             title="Quote status"
-            action={<StatusPill tone={statusTone(quote.status)}>{statusLabel(quote.status)}</StatusPill>}
+            action={<StatusPill tone={statusTone(displayStatus)}>{displayStatus}</StatusPill>}
           >
             <p className="mb-4 text-sm text-m-text-muted">
-              {waitingOnSeller ? "Awaiting seller review" : statusLabel(quote.status)}
+              {displayStatus === "Requested"
+                ? "Awaiting buyer review"
+                : displayStatus === "Seller Review"
+                  ? "Awaiting seller review"
+                  : displayStatus === "Changes Requested"
+                    ? "Changes requested by buyer"
+                    : displayStatus}
             </p>
             <div className="space-y-3">
               {timeline.map((event, index) => (
@@ -426,6 +659,16 @@ export function QuoteDetailView({ id }: { id: string }) {
                   <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-m-neutral-300" />
                   <div className="min-w-0 space-y-1">
                     <p className="text-sm font-medium text-m-text">{event.label}</p>
+                    {event.details && (
+                      <dl className="mt-2 grid gap-1.5 rounded-m-md border border-m-border bg-m-surface-2 px-3 py-2 text-xs">
+                        {event.details.map((detail) => (
+                          <div key={detail.label} className="flex items-center justify-between gap-3">
+                            <dt className="text-m-text-muted">{detail.label}</dt>
+                            <dd className="font-semibold text-m-text">{detail.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
                     <p className="text-xs text-m-text-muted">{formatDateTime(event.date)}</p>
                   </div>
                 </div>
@@ -435,14 +678,14 @@ export function QuoteDetailView({ id }: { id: string }) {
 
           <SectionCard title="Act on this quote">
             <p className="text-sm text-m-text-muted">
-              Same console handles both sides. Pick who you are representing on this call.
+              Same console handles both sides - pick who you&apos;re representing on this call. It picks up wherever the quote was left.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               {(["buyer", "seller"] as const).map((role) => (
                 <button
                   key={role}
                   type="button"
-                  onClick={() => setActingRole(role)}
+                  onClick={() => persistWorkflow({ actingRole: role })}
                   className={`rounded-m-lg border px-3 py-3 text-left transition-colors ${
                     actingRole === role
                       ? "border-m-primary-300 bg-m-primary-50"
@@ -457,38 +700,137 @@ export function QuoteDetailView({ id }: { id: string }) {
               ))}
             </div>
 
-            <div className="mt-4 rounded-m-md border border-m-warning-border bg-m-warning-light px-3 py-2 text-xs font-semibold text-m-warning-dark">
-              {terminalStatus
-                ? `This quote is ${statusLabel(quote.status)}. No further review action is available.`
-                : "Quote status actions are not connected to the commerce backend yet."}
-            </div>
-
             {actingRole === "buyer" && waitingOnSeller && (
-              <div className="mt-4 rounded-m-md border border-m-warning-border bg-m-warning-light px-3 py-2 text-xs font-semibold text-m-warning-dark">
-                Waiting on the seller to respond.
+              <div className="mt-4 rounded-m-md border border-m-info-border bg-m-info-light px-3 py-2 text-xs font-semibold text-m-info">
+                {buyerReviewState === "pending"
+                  ? "Buyer review is required before the seller can respond."
+                  : buyerReviewState === "approved"
+                    ? "Buyer approved the quote. Seller can respond next."
+                    : buyerReviewState === "changes-requested"
+                      ? "Buyer requested changes. Seller can respond next."
+                      : "Buyer declined the quote in Studio."}
+              </div>
+            )}
+
+            {actingRole === "seller" && (
+              <div className="mt-4 rounded-m-md border border-m-border bg-m-surface-2 px-3 py-2 text-xs font-semibold text-m-text-muted">
+                {terminalStatus
+                  ? `This quote is ${displayStatus}. No further review action is available.`
+                  : buyerReviewState === "pending"
+                    ? "Waiting for buyer approval before seller response."
+                    : "Review the buyer request, then accept it to continue quote preparation, reject it, or negotiate changes."}
+              </div>
+            )}
+
+            {actionFeedback && (
+              <div className={`mt-4 rounded-m-md border px-3 py-2 text-xs font-semibold ${
+                actionFeedback.toLowerCase().includes("unable") || actionFeedback.toLowerCase().includes("error")
+                  ? "border-m-error-border bg-m-error-light text-m-error"
+                  : "border-m-success-border bg-m-success-light text-m-success"
+              }`}>
+                {actionFeedback}
               </div>
             )}
 
             <div className="mt-5 divide-y divide-m-border">
-              <div className="flex items-center justify-between gap-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-m-text">Approve request</p>
-                  <p className="text-xs text-m-text-muted">Approve the buyer quote request</p>
-                </div>
-                <Button variant="primary" size="sm" disabled>
-                  Approve
-                </Button>
-              </div>
-              <div className="flex items-center justify-between gap-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-m-text">Reject request</p>
-                  <p className="text-xs text-m-text-muted">Reject this quote request</p>
-                </div>
-                <Button variant="danger" size="sm" disabled>
-                  Reject
-                </Button>
-              </div>
+              {actingRole === "buyer" ? (
+                <>
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-m-text">Approve</p>
+                      <p className="text-xs text-m-text-muted">Approve the quote as it stands</p>
+                    </div>
+                    <Button variant="primary" size="sm" disabled={!buyerCanAct} onClick={approveBuyerReview}>
+                      Approve
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-m-text">Decline</p>
+                      <p className="text-xs text-m-text-muted">Decline this quote</p>
+                    </div>
+                    <Button variant="outline" size="sm" disabled={!buyerCanAct} onClick={declineBuyerReview}>
+                      Decline
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-m-text">Negotiate / request changes</p>
+                      <p className="text-xs text-m-text-muted">Send the quote back to the seller</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!buyerCanAct && negotiatingAs !== "buyer"}
+                      onClick={() => negotiatingAs === "buyer" ? cancelNegotiation() : startNegotiation("buyer")}
+                    >
+                      {negotiatingAs === "buyer" ? "Cancel" : "Negotiate"}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-m-text">Accept request</p>
+                      <p className="text-xs text-m-text-muted">Seller accepts the buyer quote request</p>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={!sellerCanAct}
+                      onClick={() => updateQuoteRequestState("Accepted")}
+                    >
+                      {actionLoading === "Accepted" ? "Accepting..." : "Accept"}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-m-text">Reject request</p>
+                      <p className="text-xs text-m-text-muted">Reject this quote request</p>
+                    </div>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      disabled={!sellerCanAct}
+                      onClick={() => updateQuoteRequestState("Rejected")}
+                    >
+                      {actionLoading === "Rejected" ? "Rejecting..." : "Reject"}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-m-text">Negotiate / request changes</p>
+                      <p className="text-xs text-m-text-muted">Send changes back to the buyer</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!sellerCanAct && negotiatingAs !== "seller"}
+                      onClick={() => negotiatingAs === "seller" ? cancelNegotiation() : startNegotiation("seller")}
+                    >
+                      {negotiatingAs === "seller" ? "Cancel" : "Negotiate"}
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
+
+            {negotiatingAs && (
+              <div className="mt-4 space-y-3 border-t border-m-border pt-4">
+                <TextArea
+                  value={negotiationNote}
+                  onChange={(event) => setNegotiationNote(event.target.value)}
+                  placeholder="What should change? (shared with the other side)"
+                  resize="vertical"
+                />
+                <div className="flex justify-start">
+                  <Button variant="primary" size="sm" disabled={!negotiationNote.trim()} onClick={sendNegotiation}>
+                    {negotiatingAs === "buyer" ? "Send to seller" : "Send to buyer"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </SectionCard>
         </SideColumn>
       </ContentGrid>

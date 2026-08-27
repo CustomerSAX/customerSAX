@@ -56,7 +56,8 @@ export const resolvers = {
     updateCustomer: customerResolvers.updateCustomer,
     updateCustomerAddress: customerResolvers.updateCustomerAddress,
     updateCustomerProfile: customerResolvers.updateCustomerProfile,
-    updateOrder: orderResolvers.updateOrder
+    updateOrder: orderResolvers.updateOrder,
+    updateQuoteRequestState: quoteResolvers.updateQuoteRequestState
   },
   Query: {
     ...healthcheckResolvers,
