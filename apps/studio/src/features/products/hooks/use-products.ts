@@ -103,44 +103,20 @@ export function useProductList(): UseProductListReturn {
       if (skus.length === 0) return rows;
 
       try {
-        // Resolve prices for all SKUs in parallel (BFF standalonePrices is per-SKU,
-        // so we batch them client-side).
-        const priceResults = await Promise.all(
-          skus.map(async (sku): Promise<StandalonePriceResult | null> => {
-            try {
-              const res = await fetch("/api/products/prices", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "same-origin",
-                body: JSON.stringify({ sku }),
-              });
-              if (!res.ok) return null;
-              const data = (await res.json()) as {
-                results?: StandalonePriceResult[];
-              };
-              // Return lowest price for this SKU
-              const results = data?.results ?? [];
-              const usd = results.filter(
-                (r) =>
-                  r?.value?.currencyCode === "USD" ||
-                  !r?.value?.currencyCode
-              );
-              const sorted = (usd.length > 0 ? usd : results).sort(
-                (a, b) =>
-                  (a?.value?.centAmount ?? Infinity) -
-                  (b?.value?.centAmount ?? Infinity)
-              );
-              return sorted[0] ? { sku, value: sorted[0].value } : null;
-            } catch {
-              return null;
-            }
-          })
-        );
+        // Resolve prices for all SKUs in a single batch request
+        const res = await fetch("/api/products/prices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ skus }),
+        });
+        if (!res.ok) return rows;
+        const data = (await res.json()) as {
+          results?: StandalonePriceResult[];
+        };
 
-        const flatResults = priceResults.filter(
-          (r): r is StandalonePriceResult => r !== null
-        );
-        const lowestBySku = lowestPriceBySku(flatResults);
+        const results = data?.results ?? [];
+        const lowestBySku = lowestPriceBySku(results);
         if (lowestBySku.size === 0) return rows;
 
         return rows.map((row) => {

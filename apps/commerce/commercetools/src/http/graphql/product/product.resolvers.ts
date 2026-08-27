@@ -166,8 +166,18 @@ export const resolvers = {
 
     return (await productTextScan(text, "en", limit, 0)).results;
   },
-  standalonePrices: (_parent: unknown, args: { sku: string }) =>
-    commercetoolsGraphql(
+  standalonePrices: (_parent: unknown, args: { sku?: string; skus?: string[] }) => {
+    let whereClause = "";
+    if (Array.isArray(args.skus) && args.skus.length > 0) {
+      const formatted = args.skus.map((s) => `"${escapeWhere(s)}"`).join(", ");
+      whereClause = `sku in (${formatted})`;
+    } else if (args.sku) {
+      whereClause = `sku="${escapeWhere(args.sku)}"`;
+    } else {
+      return Promise.resolve({ total: 0, results: [] });
+    }
+
+    return commercetoolsGraphql(
       `#graphql
         query StandalonePrices($where: String!) {
           standalonePrices(where: $where) {
@@ -186,8 +196,9 @@ export const resolvers = {
           }
         }
       `,
-      { where: `sku="${escapeWhere(args.sku)}"` }
-    ),
+      { where: whereClause }
+    );
+  },
   // productDetail returns a rich Json! blob for the Product Detail page.
   productDetail: async (_parent: unknown, args: { id: string }) => {
     const data = await commercetoolsGraphql<{ product: Record<string, unknown> | null }>(

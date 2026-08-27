@@ -106,13 +106,10 @@ export function EntityTabs({
   return (
     <div
       role="tablist"
-      className="sticky z-20 flex items-end gap-8 overflow-x-auto border-b border-m-border"
+      className="sticky -top-[28px] z-20 -mx-8 flex items-end gap-8 overflow-x-auto border-b border-m-border px-8 pt-7"
       style={{
-        top: "var(--topbar-height)",
-        minHeight: 52,
-        background: "rgba(248,249,252,.96)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
+        minHeight: 80,
+        background: "var(--color-bg, #f8f9fc)",
       }}
     >
       {tabs.map((tab) => {

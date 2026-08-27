@@ -15,16 +15,16 @@ const BFF_URL =
   process.env.AI_COMMERCE_SERVICE_URL ?? "http://localhost:4000/graphql";
 
 const STANDALONE_PRICES_QUERY = `
-  query StandalonePrices($sku: String!) {
-    standalonePrices(sku: $sku)
+  query StandalonePrices($sku: String, $skus: [String!]) {
+    standalonePrices(sku: $sku, skus: $skus)
   }
 `;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const { log, requestId } = requestLogger(request, 'api/products/prices');
-  let body: { sku?: unknown };
+  let body: { sku?: unknown; skus?: unknown };
   try {
-    body = (await request.json()) as { sku?: unknown };
+    body = (await request.json()) as { sku?: unknown; skus?: unknown };
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON body" },
@@ -33,9 +33,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const sku =
-    typeof body.sku === "string" && body.sku.trim() ? body.sku.trim() : null;
+    typeof body.sku === "string" && body.sku.trim() ? body.sku.trim() : undefined;
+  const skus =
+    Array.isArray(body.skus)
+      ? body.skus.filter((s): s is string => typeof s === "string" && Boolean(s.trim()))
+      : undefined;
 
-  if (!sku) {
+  if (!sku && (!skus || skus.length === 0)) {
     return NextResponse.json({ results: [] });
   }
 
@@ -45,7 +49,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       headers: bffJsonHeaders(),
       body: JSON.stringify({
         query: STANDALONE_PRICES_QUERY,
-        variables: { sku },
+        variables: sku ? { sku } : { skus },
       }),
     }, requestId);
 
