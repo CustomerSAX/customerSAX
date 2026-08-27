@@ -61,6 +61,14 @@ type QuoteAddress = {
   country: string;
 };
 
+type AuthoredQuoteLineItem = {
+  id: string;
+  name: string;
+  quantity: string;
+  sku: string;
+  unitPrice: string;
+};
+
 function quoteAddressFrom(address?: EmployeeAddress | CompanyAddress | QuoteAddress | null): QuoteAddress | null {
   if (!address?.streetName || !address.city || !address.postalCode || !address.country) {
     return null;
@@ -419,6 +427,31 @@ export function QuoteCreateView() {
 
       if (!quoteResponse.ok || !quotePayload.id) {
         throw new Error(quotePayload.error || "Unable to submit quote request.");
+      }
+
+      const authoredLineItems: AuthoredQuoteLineItem[] = lineItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        quantity: String(item.quantity),
+        sku: item.sku,
+        unitPrice: String(item.negotiatedPrice)
+      }));
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          `csa_quote_review_${quotePayload.id}`,
+          JSON.stringify({
+            actingRole: "buyer",
+            buyerDeclineNote: "",
+            buyerNegotiationNote: "",
+            buyerReviewState: "pending",
+            buyerReviewUpdatedAt: null,
+            requestedDiscount: String(discountPct),
+            requestedLineItems: authoredLineItems,
+            sellerNegotiationNote: "",
+            sellerReviewUpdatedAt: null
+          })
+        );
       }
 
       router.push(`/b2b/quotes/${encodeURIComponent(quotePayload.id)}`);

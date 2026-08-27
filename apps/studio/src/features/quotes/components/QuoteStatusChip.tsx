@@ -9,7 +9,12 @@ export function QuoteStatusChip({ status }: { status: QuoteStatus | string }) {
       return <Badge variant="success" size="sm">{status}</Badge>;
     case "In Review":
     case "Submitted":
+    case "Requested":
+    case "Changes Requested":
       return <Badge variant="warning" size="sm">{status}</Badge>;
+    case "Buyer Review":
+    case "Seller Review":
+      return <Badge variant="primary" size="sm">{status}</Badge>;
     case "Draft":
       return <Badge variant="primary" size="sm">{status}</Badge>;
     case "Rejected":

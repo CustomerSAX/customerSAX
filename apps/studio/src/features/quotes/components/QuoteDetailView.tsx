@@ -26,6 +26,12 @@ import {
   type StatusTone,
 } from "@csa/ui";
 import { formatDateTime } from "@/lib/format-date";
+import {
+  baseQuoteStatusLabel,
+  workflowStatusLabel,
+  workflowStorageKey,
+  type QuoteWorkflowReviewState,
+} from "../utils/quote-workflow-status";
 
 const QUOTE_DETAIL_QUERY = gql`
   query QuoteDetail($id: ID!) {
@@ -165,7 +171,7 @@ type TimelineEvent = {
   label: string;
 };
 
-type BuyerReviewState = "pending" | "approved" | "changes-requested" | "seller-changes-requested" | "declined";
+type BuyerReviewState = QuoteWorkflowReviewState;
 type BuyerWorkflowSnapshot = {
   actingRole?: "buyer" | "seller";
   buyerDeclineNote?: string | null;
@@ -197,10 +203,6 @@ type NegotiationLineItem = {
   sku: string;
   unitPrice: string;
 };
-
-function workflowStorageKey(id: string) {
-  return `csa_quote_review_${id}`;
-}
 
 function readWorkflowState(id: string): BuyerWorkflowState {
   const fallback: BuyerWorkflowState = {
@@ -316,30 +318,6 @@ function statusTone(status?: string | null): StatusTone {
       return "info";
     default:
       return "neutral";
-  }
-}
-
-function statusLabel(status?: string | null) {
-  if (!status) return "Requested";
-  if (status === "Submitted") return "Requested";
-  if (status === "InProgress") return "Draft";
-  return status;
-}
-
-function workflowStatusLabel(status: string, buyerReviewState: BuyerReviewState) {
-  if (status !== "Requested") return status;
-
-  switch (buyerReviewState) {
-    case "approved":
-      return "Seller Review";
-    case "changes-requested":
-      return "Changes Requested";
-    case "seller-changes-requested":
-      return "Buyer Review";
-    case "declined":
-      return "Declined";
-    default:
-      return status;
   }
 }
 
@@ -529,7 +507,7 @@ export function QuoteDetailView({ id }: { id: string }) {
     hasDisplayDiscount
       ? displaySubtotal * ((100 - displayDiscount) / 100)
       : totals.total;
-  const backendStatus = statusLabel(quote.status);
+  const backendStatus = baseQuoteStatusLabel(quote.status);
   const displayStatus = workflowStatusLabel(backendStatus, buyerReviewState);
   const timeline = buildTimeline(
     quote,
@@ -814,51 +792,54 @@ export function QuoteDetailView({ id }: { id: string }) {
           </div>
 
           <SectionCard title="Line items" icon="columns-3" bodyClassName="p-0">
-            {lineItemCount === 0 ? (
+            {displayLineItems.length === 0 ? (
               <CardEmpty icon="shopping-bag" title="No line items" />
             ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Product Name</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Subtotal</TableHead>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead>Subtotal</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {displayLineItems.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-mono text-xs">{item.sku || "--"}</TableCell>
+                      <TableCell className="font-semibold text-m-text">{item.name}</TableCell>
+                      <TableCell>{item.quantity}</TableCell>
+                      <TableCell>{formatAmount(inputAmount(item.unitPrice), totals.currencyCode)}</TableCell>
+                      <TableCell className="font-semibold">
+                        {formatAmount(inputAmount(item.quantity) * inputAmount(item.unitPrice), totals.currencyCode)}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {displayLineItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-mono text-xs">{item.sku || "--"}</TableCell>
-                        <TableCell className="font-semibold text-m-text">{item.name}</TableCell>
-                        <TableCell>{item.quantity}</TableCell>
-                        <TableCell>{formatAmount(inputAmount(item.unitPrice), totals.currencyCode)}</TableCell>
-                        <TableCell className="font-semibold">
-                          {formatAmount(inputAmount(item.quantity) * inputAmount(item.unitPrice), totals.currencyCode)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                <div className="space-y-2 border-t border-m-border p-4 text-sm">
-                  <div className="flex justify-between text-m-text-muted">
-                    <span>Subtotal</span>
-                    <span>{formatAmount(displaySubtotal, totals.currencyCode)}</span>
-                  </div>
-                  <div className="flex justify-between text-m-text-muted">
-                    <span>Order discount</span>
-                    <span>{hasDisplayDiscount ? `-${displayDiscount}%` : "--"}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-m-border pt-2 text-base font-bold text-m-text">
-                    <span>Total</span>
-                    <span>{formatAmount(displayTotal, totals.currencyCode)}</span>
-                  </div>
-                </div>
-              </>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </SectionCard>
+
+          {displayLineItems.length > 0 && (
+            <SectionCard title="Quote summary">
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between text-m-text-muted">
+                  <span>Subtotal</span>
+                  <span>{formatAmount(displaySubtotal, totals.currencyCode)}</span>
+                </div>
+                <div className="flex justify-between text-m-text-muted">
+                  <span>Order discount</span>
+                  <span>{hasDisplayDiscount ? `-${displayDiscount}%` : "--"}</span>
+                </div>
+                <div className="flex justify-between border-t border-m-border pt-3 text-base font-bold text-m-text">
+                  <span>Total</span>
+                  <span>{formatAmount(displayTotal, totals.currencyCode)}</span>
+                </div>
+              </div>
+            </SectionCard>
+          )}
 
           <SectionCard title={`Credit position - ${company}`}>
             <InfoList>

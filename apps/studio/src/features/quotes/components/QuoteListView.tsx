@@ -23,11 +23,19 @@ import { formatDate } from "@/lib/format-date";
 import { useQuotes } from "../hooks/use-quotes";
 import { QuoteStatusChip } from "./QuoteStatusChip";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
+import {
+  baseQuoteStatusLabel,
+  readQuoteWorkflowReviewState,
+  workflowStatusLabel,
+} from "../utils/quote-workflow-status";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All Statuses" },
   { value: "Draft", label: "Draft" },
-  { value: "Submitted", label: "Submitted" },
+  { value: "Requested", label: "Requested" },
+  { value: "Buyer Review", label: "Buyer Review" },
+  { value: "Seller Review", label: "Seller Review" },
+  { value: "Changes Requested", label: "Changes Requested" },
   { value: "In Review", label: "In Review" },
   { value: "Accepted", label: "Accepted" },
   { value: "Approved", label: "Approved" },
@@ -235,49 +243,56 @@ export function QuoteListView() {
                 </TableCell>
               </TableRow>
             ) : (
-              quotes.map((q) => (
-                <TableRow
-                  key={q.id}
-                  clickable
-                  onClick={() => router.push(`/b2b/quotes/${q.id}`)}
-                >
-                  <TableCell className="font-mono text-xs font-semibold text-m-primary">
-                    {q.quoteNumber}
-                  </TableCell>
-                  <TableCell className="font-semibold text-m-text">{q.companyName}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-m-text">{q.customerName}</span>
-                      <span className="text-[11px] text-m-text-muted">{q.customerEmail}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-m-text-muted">
-                    {q.itemCount ?? q.lineItems.length} {(q.itemCount ?? q.lineItems.length) === 1 ? "item" : "items"}
-                  </TableCell>
-                  <TableCell className="font-semibold text-m-text">
-                    {q.currencyCode || "USD"} {q.negotiatedTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell>
-                    <QuoteStatusChip status={q.status} />
-                  </TableCell>
-                  <TableCell className="text-m-text-muted">
-                    {formatDate(q.validUntil)}
-                  </TableCell>
-                  <TableCell className="text-m-text-muted">
-                    {formatDate(q.createdAt)}
-                  </TableCell>
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconOnly
-                      leftIcon={<Icon name="chevron-right" size="xs" />}
-                      onClick={() => router.push(`/b2b/quotes/${q.id}`)}
-                      aria-label="View Quote"
-                    />
-                  </TableCell>
-                </TableRow>
-              ))
+              quotes.map((q) => {
+                const displayStatus = workflowStatusLabel(
+                  baseQuoteStatusLabel(q.status),
+                  readQuoteWorkflowReviewState(q.id)
+                );
+
+                return (
+                  <TableRow
+                    key={q.id}
+                    clickable
+                    onClick={() => router.push(`/b2b/quotes/${q.id}`)}
+                  >
+                    <TableCell className="font-mono text-xs font-semibold text-m-primary">
+                      {q.quoteNumber}
+                    </TableCell>
+                    <TableCell className="font-semibold text-m-text">{q.companyName}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-m-text">{q.customerName}</span>
+                        <span className="text-[11px] text-m-text-muted">{q.customerEmail}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-m-text-muted">
+                      {q.itemCount ?? q.lineItems.length} {(q.itemCount ?? q.lineItems.length) === 1 ? "item" : "items"}
+                    </TableCell>
+                    <TableCell className="font-semibold text-m-text">
+                      {q.currencyCode || "USD"} {q.negotiatedTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell>
+                      <QuoteStatusChip status={displayStatus} />
+                    </TableCell>
+                    <TableCell className="text-m-text-muted">
+                      {formatDate(q.validUntil)}
+                    </TableCell>
+                    <TableCell className="text-m-text-muted">
+                      {formatDate(q.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        iconOnly
+                        leftIcon={<Icon name="chevron-right" size="xs" />}
+                        onClick={() => router.push(`/b2b/quotes/${q.id}`)}
+                        aria-label="View Quote"
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
