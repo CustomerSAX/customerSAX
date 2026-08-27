@@ -80,9 +80,9 @@ resource "google_secret_manager_secret" "llm" {
 }
 
 resource "google_secret_manager_secret_iam_member" "ai_assist_llm_keys" {
-  for_each = google_secret_manager_secret.llm
+  for_each = local.llm_secrets
 
-  secret_id = each.value.secret_id
+  secret_id = google_secret_manager_secret.llm[each.key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${local.compute_sa_email}"
 
@@ -90,9 +90,9 @@ resource "google_secret_manager_secret_iam_member" "ai_assist_llm_keys" {
 }
 
 resource "google_secret_manager_secret_version" "llm_dummy" {
-  for_each = google_secret_manager_secret.llm
+  for_each = local.llm_secrets
 
-  secret      = each.value.id
+  secret      = google_secret_manager_secret.llm[each.key].id
   secret_data = "placeholder"
 
   lifecycle {
@@ -117,9 +117,9 @@ resource "google_secret_manager_secret" "commerce" {
 }
 
 resource "google_secret_manager_secret_iam_member" "commerce_keys" {
-  for_each = google_secret_manager_secret.commerce
+  for_each = local.commerce_secrets
 
-  secret_id = each.value.secret_id
+  secret_id = google_secret_manager_secret.commerce[each.key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${local.compute_sa_email}"
 
@@ -127,9 +127,9 @@ resource "google_secret_manager_secret_iam_member" "commerce_keys" {
 }
 
 resource "google_secret_manager_secret_version" "commerce_dummy" {
-  for_each = google_secret_manager_secret.commerce
+  for_each = local.commerce_secrets
 
-  secret      = each.value.id
+  secret      = google_secret_manager_secret.commerce[each.key].id
   secret_data = "placeholder"
 
   lifecycle {
@@ -154,9 +154,9 @@ resource "google_secret_manager_secret" "ticketing" {
 }
 
 resource "google_secret_manager_secret_iam_member" "ticketing_keys" {
-  for_each = google_secret_manager_secret.ticketing
+  for_each = local.ticketing_secrets
 
-  secret_id = each.value.secret_id
+  secret_id = google_secret_manager_secret.ticketing[each.key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${local.compute_sa_email}"
 
