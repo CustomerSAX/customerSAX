@@ -136,6 +136,20 @@ type CreateQuoteRequestResponse = {
   };
 };
 
+type QuoteRequestVersionResponse = {
+  quoteRequest?: {
+    version: number;
+  } | null;
+};
+
+type UpdateQuoteRequestStateResponse = {
+  updateQuoteRequest: {
+    id: string;
+    quoteRequestState?: string | null;
+    version?: number;
+  };
+};
+
 const QUOTE_REQUESTS_QUERY = /* GraphQL */ `
   query QuoteRequests($limit: Int!, $offset: Int!, $sort: [String!], $where: String) {
     quoteRequests(limit: $limit, offset: $offset, sort: $sort, where: $where) {
@@ -323,6 +337,20 @@ const CREATE_QUOTE_REQUEST_MUTATION = /* GraphQL */ `
   }
 `;
 
+const UPDATE_QUOTE_REQUEST_STATE_MUTATION = /* GraphQL */ `
+  mutation UpdateQuoteRequestState($id: String!, $version: Long!, $actions: [QuoteRequestUpdateAction!]!) {
+    updateQuoteRequest(
+      id: $id
+      version: $version
+      actions: $actions
+    ) {
+      id
+      version
+      quoteRequestState
+    }
+  }
+`;
+
 function mapAddress(address?: CtAddress | null): CtAddress | undefined {
   return address
     ? {
@@ -408,6 +436,21 @@ async function getCartVersion(cartId: string) {
   return data.cart.version;
 }
 
+async function getQuoteRequestVersion(quoteRequestId: string) {
+  const data = await commercetoolsGraphql<QuoteRequestVersionResponse>(
+    `query QuoteRequestVersion($id: String!) {
+      quoteRequest(id: $id) {
+        version
+      }
+    }`,
+    { id: quoteRequestId }
+  );
+  if (!data.quoteRequest) {
+    throw new Error(`Quote request ${quoteRequestId} was not found.`);
+  }
+  return data.quoteRequest.version;
+}
+
 export const resolvers = {
   createQuoteRequest: async (_parent: unknown, args: { cartId: string; comment?: string }) => {
     const cartVersion = await getCartVersion(args.cartId);
@@ -424,6 +467,20 @@ export const resolvers = {
     });
 
     return data.createQuoteRequest;
+  },
+  updateQuoteRequestState: async (_parent: unknown, args: { id: string; state: string }) => {
+    if (!["Accepted", "Rejected", "Cancelled"].includes(args.state)) {
+      throw new Error(`Unsupported quote request state: ${args.state}`);
+    }
+
+    const version = await getQuoteRequestVersion(args.id);
+    const data = await commercetoolsGraphql<UpdateQuoteRequestStateResponse>(UPDATE_QUOTE_REQUEST_STATE_MUTATION, {
+      id: args.id,
+      version,
+      actions: [{ changeQuoteRequestState: { quoteRequestState: args.state } }]
+    });
+
+    return data.updateQuoteRequest;
   },
   quote: async (_parent: unknown, args: { id: string }) => {
     const data = await commercetoolsGraphql<QuoteRequestResponse>(QUOTE_REQUEST_QUERY, { id: args.id });

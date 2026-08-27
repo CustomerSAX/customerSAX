@@ -30,6 +30,7 @@ const richProductListFields = `#graphql
   key
   createdAt
   lastModifiedAt
+  taxCategory { name }
   productType { name }
   masterData {
     hasStagedChanges

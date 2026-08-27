@@ -80,5 +80,6 @@ export const quoteTypeDefs = gql`
 
   extend type Mutation {
     createQuoteRequest(cartId: ID!, comment: String): QuoteRequestResult!
+    updateQuoteRequestState(id: ID!, state: String!): QuoteRequestResult!
   }
 `;
