@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { gql, useQuery } from "@apollo/client";
 import { useRouter } from "next/navigation";
 import {
@@ -172,6 +172,44 @@ type BuyerWorkflowSnapshot = {
   buyerNegotiationNote?: string | null;
 };
 
+type BuyerWorkflowState = {
+  actingRole: "buyer" | "seller";
+  buyerReviewState: BuyerReviewState;
+  buyerReviewUpdatedAt: string | null;
+  buyerNegotiationNote: string;
+};
+
+function workflowStorageKey(id: string) {
+  return `csa_quote_review_${id}`;
+}
+
+function readWorkflowState(id: string): BuyerWorkflowState {
+  const fallback: BuyerWorkflowState = {
+    actingRole: "buyer",
+    buyerReviewState: "pending",
+    buyerReviewUpdatedAt: null,
+    buyerNegotiationNote: ""
+  };
+
+  if (typeof window === "undefined") return fallback;
+
+  try {
+    const stored = window.localStorage.getItem(workflowStorageKey(id));
+    if (!stored) return fallback;
+
+    const parsed = JSON.parse(stored) as BuyerWorkflowSnapshot;
+
+    return {
+      actingRole: parsed.actingRole || fallback.actingRole,
+      buyerReviewState: parsed.buyerReviewState || fallback.buyerReviewState,
+      buyerReviewUpdatedAt: parsed.buyerReviewUpdatedAt || fallback.buyerReviewUpdatedAt,
+      buyerNegotiationNote: parsed.buyerNegotiationNote || fallback.buyerNegotiationNote
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 function formatQuoteComment(comment: string): Pick<TimelineEvent, "details" | "label"> {
   const lines = comment
     .split(/\r?\n/)
@@ -320,12 +358,9 @@ function buildTimeline(
 
 export function QuoteDetailView({ id }: { id: string }) {
   const router = useRouter();
-  const [actingRole, setActingRole] = useState<"buyer" | "seller">("buyer");
+  const [workflow, setWorkflow] = useState<BuyerWorkflowState>(() => readWorkflowState(id));
   const [actionFeedback, setActionFeedback] = useState("");
   const [actionLoading, setActionLoading] = useState<"Accepted" | "Rejected" | null>(null);
-  const [buyerReviewState, setBuyerReviewState] = useState<BuyerReviewState>("pending");
-  const [buyerReviewUpdatedAt, setBuyerReviewUpdatedAt] = useState<string | null>(null);
-  const [buyerNegotiationNote, setBuyerNegotiationNote] = useState("");
   const [negotiatingAs, setNegotiatingAs] = useState<"buyer" | "seller" | null>(null);
   const [negotiationNote, setNegotiationNote] = useState("");
   const { data, loading, error, refetch } = useQuery<QuoteDetailData>(QUOTE_DETAIL_QUERY, {
@@ -334,36 +369,22 @@ export function QuoteDetailView({ id }: { id: string }) {
   });
 
   const quote = data?.quote ?? null;
-  const workflowStorageKey = quote ? `csa_quote_review_${quote.id}` : "";
-
-  useEffect(() => {
-    if (!quote) return;
-
-    try {
-      const stored = window.localStorage.getItem(`csa_quote_review_${quote.id}`);
-      if (!stored) return;
-
-      const parsed = JSON.parse(stored) as BuyerWorkflowSnapshot;
-      if (parsed.buyerReviewState) setBuyerReviewState(parsed.buyerReviewState);
-      if (parsed.actingRole) setActingRole(parsed.actingRole);
-      if (parsed.buyerReviewUpdatedAt) setBuyerReviewUpdatedAt(parsed.buyerReviewUpdatedAt);
-      if (parsed.buyerNegotiationNote) setBuyerNegotiationNote(parsed.buyerNegotiationNote);
-    } catch {
-      // Ignore local workflow state from older builds.
-    }
-  }, [quote]);
+  const { actingRole, buyerNegotiationNote, buyerReviewState, buyerReviewUpdatedAt } = workflow;
 
   const persistWorkflow = (next: BuyerWorkflowSnapshot) => {
-    if (!workflowStorageKey) return;
-
-    const payload = {
-      actingRole,
-      buyerReviewState,
-      buyerReviewUpdatedAt,
-      buyerNegotiationNote,
-      ...next
+    const payload: BuyerWorkflowState = {
+      actingRole: next.actingRole || workflow.actingRole,
+      buyerReviewState: next.buyerReviewState || workflow.buyerReviewState,
+      buyerReviewUpdatedAt:
+        next.buyerReviewUpdatedAt === undefined ? workflow.buyerReviewUpdatedAt : next.buyerReviewUpdatedAt,
+      buyerNegotiationNote:
+        next.buyerNegotiationNote === undefined ? workflow.buyerNegotiationNote : next.buyerNegotiationNote || ""
     };
-    window.localStorage.setItem(workflowStorageKey, JSON.stringify(payload));
+    setWorkflow(payload);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(workflowStorageKey(id), JSON.stringify(payload));
+    }
   };
   const totals = useMemo(() => {
     if (!quote) return { currencyCode: "USD", subtotal: 0, total: 0 };
@@ -422,10 +443,6 @@ export function QuoteDetailView({ id }: { id: string }) {
 
   const approveBuyerReview = () => {
     const reviewedAt = new Date().toISOString();
-    setBuyerReviewState("approved");
-    setBuyerReviewUpdatedAt(reviewedAt);
-    setBuyerNegotiationNote("");
-    setActingRole("seller");
     setNegotiatingAs(null);
     setNegotiationNote("");
     setActionFeedback("Buyer approved the quote. Seller can now respond.");
@@ -439,9 +456,6 @@ export function QuoteDetailView({ id }: { id: string }) {
 
   const declineBuyerReview = () => {
     const reviewedAt = new Date().toISOString();
-    setBuyerReviewState("declined");
-    setBuyerReviewUpdatedAt(reviewedAt);
-    setBuyerNegotiationNote("");
     setNegotiatingAs(null);
     setNegotiationNote("");
     setActionFeedback("Buyer declined the quote in Studio.");
@@ -470,10 +484,6 @@ export function QuoteDetailView({ id }: { id: string }) {
 
     if (negotiatingAs === "buyer") {
       const reviewedAt = new Date().toISOString();
-      setBuyerReviewState("changes-requested");
-      setBuyerReviewUpdatedAt(reviewedAt);
-      setBuyerNegotiationNote(note);
-      setActingRole("seller");
       setActionFeedback("Buyer change request was sent to seller.");
       persistWorkflow({
         actingRole: "seller",
@@ -668,14 +678,14 @@ export function QuoteDetailView({ id }: { id: string }) {
 
           <SectionCard title="Act on this quote">
             <p className="text-sm text-m-text-muted">
-              Same console handles both sides - pick who you're representing on this call. It picks up wherever the quote was left.
+              Same console handles both sides - pick who you&apos;re representing on this call. It picks up wherever the quote was left.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               {(["buyer", "seller"] as const).map((role) => (
                 <button
                   key={role}
                   type="button"
-                  onClick={() => setActingRole(role)}
+                  onClick={() => persistWorkflow({ actingRole: role })}
                   className={`rounded-m-lg border px-3 py-3 text-left transition-colors ${
                     actingRole === role
                       ? "border-m-primary-300 bg-m-primary-50"
