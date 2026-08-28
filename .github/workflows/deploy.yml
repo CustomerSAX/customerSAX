@@ -310,7 +310,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   # Job 4: Deploy frontend apps to Vercel (runs in parallel with Cloud Build)
   # Uses pre-configured secrets: VERCEL_TOKEN, VERCEL_ORG_ID,
-  # VERCEL_PROJECT_ID_STUDIO, VERCEL_PROJECT_ID_MARKETING
+  # VERCEL_PROJECT_ID_STUDIO, VERCEL_PROJECT_ID_MARKETING, VERCEL_PROJECT_ID_DOCS
   # ──────────────────────────────────────────────────────────────────────────
   vercel-deploy:
     name: "🌐 Deploy Frontend to Vercel"
@@ -340,6 +340,7 @@ jobs:
             echo "⚠️ VERCEL_PROJECT_ID_STUDIO is empty. Skipping Studio deployment."
             exit 0
           fi
+          echo "Deploying Studio with VERCEL_PROJECT_ID_STUDIO. If Vercel reports 'Project not found', update VERCEL_ORG_ID, VERCEL_PROJECT_ID_STUDIO, and VERCEL_TOKEN to values from the active Vercel team."
           
           if [ "${{ github.ref_name }}" = "customerSAX-Prod" ]; then
             PROD_FLAG="--prod"
@@ -390,7 +391,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEBAPP }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_STUDIO }}
 
       - name: Deploy marketing to Vercel
         run: |

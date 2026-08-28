@@ -3,6 +3,12 @@
 import { gql, useQuery } from "@apollo/client";
 import { useState, useCallback, useMemo } from "react";
 import type { Quote, QuoteFilter, QuoteSort, QuoteStatus } from "../types/quote-types";
+import {
+  baseQuoteStatusLabel,
+  readQuoteWorkflowConvertedOrderId,
+  readQuoteWorkflowReviewState,
+  workflowStatusLabel,
+} from "../utils/quote-workflow-status";
 
 type MoneyResult = {
   centAmount: number;
@@ -140,7 +146,14 @@ export function useQuotes() {
     }
 
     if (filter.statusFilter) {
-      result = result.filter((q) => q.status === filter.statusFilter);
+      result = result.filter(
+        (q) =>
+          workflowStatusLabel(
+            baseQuoteStatusLabel(q.status),
+            readQuoteWorkflowReviewState(q.id),
+            readQuoteWorkflowConvertedOrderId(q.id)
+          ) === filter.statusFilter
+      );
     }
 
     if (filter.searchText.trim()) {

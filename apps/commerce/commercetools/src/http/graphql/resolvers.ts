@@ -50,6 +50,7 @@ export const resolvers = {
     removeCartLineItem: cartResolvers.removeCartLineItem,
     removeCustomerAddress: customerResolvers.removeCustomerAddress,
     replicateOrder: orderResolvers.replicateOrder,
+    setCartLineItemPrice: cartResolvers.setCartLineItemPrice,
     setCartShippingMethod: cartResolvers.setCartShippingMethod,
     setDefaultCustomerAddress: customerResolvers.setDefaultCustomerAddress,
     updateCartAddresses: cartResolvers.updateCartAddresses,
