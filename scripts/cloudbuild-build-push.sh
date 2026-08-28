@@ -5,7 +5,7 @@
 #
 # - Sources /workspace/build_config.sh from Step 1
 # - Reads /workspace/services_to_deploy.txt from Step 1
-# - Builds Docker images IN PARALLEL (max 4 concurrent)
+# - Builds Docker images one service at a time
 # - Pushes :latest and :<COMMIT_SHA> tags to Artifact Registry
 # ============================================================
 set -euo pipefail
@@ -25,7 +25,7 @@ while IFS= read -r line; do
 done < /workspace/services_to_deploy.txt
 
 echo "============================================================"
-echo "🐳 Build & Push Docker Images (parallel, max 4 concurrent)"
+echo "🐳 Build & Push Docker Images (sequential)"
 echo "   Registry : ${REGISTRY}"
 echo "   Project  : ${PROJECT_ID}"
 echo "   Commit   : ${COMMIT_SHA}"
@@ -78,46 +78,16 @@ build_push_svc() {
 export -f build_push_svc
 export REGISTRY PROJECT_ID ARTIFACT_REPO COMMIT_SHA
 
-MAX_PARALLEL=2
-declare -a PIDS=()
 declare -a FAILED_SVCS=()
 
-wait_for_slot() {
-  while [ "${#PIDS[@]}" -ge "${MAX_PARALLEL}" ]; do
-    local new_pids=()
-    for pid in "${PIDS[@]}"; do
-      if kill -0 "${pid}" 2>/dev/null; then
-        new_pids+=("${pid}")
-      else
-        if ! wait "${pid}"; then
-          FAILED_SVCS+=("pid:${pid}")
-        fi
-      fi
-    done
-    if [ ${#new_pids[@]} -eq 0 ]; then
-      PIDS=()
-    else
-      PIDS=("${new_pids[@]}")
-    fi
-    [ "${#PIDS[@]}" -lt "${MAX_PARALLEL}" ] && break
-    sleep 1
-  done
-}
-
 echo ""
-echo "▶ Launching builds (${#SERVICES[@]} services, ${MAX_PARALLEL} parallel)..."
+echo "▶ Building ${#SERVICES[@]} service(s)..."
 echo ""
 
 for SVC in "${SERVICES[@]}"; do
-  wait_for_slot
-  build_push_svc "${SVC}" &
-  PIDS+=($!)
-done
-
-echo ""
-echo "⏳ Waiting for all builds to complete..."
-for pid in "${PIDS[@]}"; do
-  wait "${pid}" || FAILED_SVCS+=("pid:${pid}")
+  if ! build_push_svc "${SVC}"; then
+    FAILED_SVCS+=("${SVC}")
+  fi
 done
 
 echo ""
