@@ -153,6 +153,7 @@ Configure at: `https://github.com/CustomerSAX/customerSAX/settings/secrets/actio
 | `VERCEL_ORG_ID` | Vercel team/org ID | `vercel teams ls` |
 | `VERCEL_PROJECT_ID_STUDIO` | Project ID for `customersax-studio` | `vercel project ls` |
 | `VERCEL_PROJECT_ID_MARKETING` | Project ID for `customersax-marketing` | `vercel project ls` |
+| `VERCEL_PROJECT_ID_DOCS` | Project ID for docs-site | `vercel project ls` |
 
 ### GCP Service Account Required Roles
 

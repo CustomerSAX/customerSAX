@@ -114,6 +114,7 @@ export const cartTypeDefs = gql`
     addCartLineItem(id: ID!, sku: String!, quantity: Int!): Cart
     removeCartLineItem(id: ID!, lineItemId: ID!): Cart
     changeCartLineItemQuantity(id: ID!, lineItemId: ID!, quantity: Int!): Cart
+    setCartLineItemPrice(id: ID!, lineItemId: ID!, centAmount: Int!, currencyCode: String!, fractionDigits: Int = 2): Cart
     updateCartAddresses(id: ID!, shippingAddress: Json, billingAddress: Json): Cart
     setCartShippingMethod(id: ID!, shippingMethodId: ID!): Cart
     addCartDiscountCode(id: ID!, code: String!): Cart

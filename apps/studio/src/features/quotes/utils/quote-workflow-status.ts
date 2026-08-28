@@ -7,6 +7,7 @@ export type QuoteWorkflowReviewState =
 
 type QuoteWorkflowSnapshot = {
   buyerReviewState?: QuoteWorkflowReviewState;
+  convertedOrderId?: string | null;
 };
 
 export function workflowStorageKey(id: string) {
@@ -22,8 +23,10 @@ export function baseQuoteStatusLabel(status?: string | null) {
 
 export function workflowStatusLabel(
   status: string,
-  buyerReviewState?: QuoteWorkflowReviewState
+  buyerReviewState?: QuoteWorkflowReviewState,
+  convertedOrderId?: string | null
 ) {
+  if (convertedOrderId) return "Converted";
   if (status !== "Requested") return status;
 
   switch (buyerReviewState) {
@@ -49,6 +52,20 @@ export function readQuoteWorkflowReviewState(id: string) {
 
     const parsed = JSON.parse(raw) as QuoteWorkflowSnapshot;
     return parsed.buyerReviewState;
+  } catch {
+    return undefined;
+  }
+}
+
+export function readQuoteWorkflowConvertedOrderId(id: string) {
+  if (typeof window === "undefined") return undefined;
+
+  try {
+    const raw = window.localStorage.getItem(workflowStorageKey(id));
+    if (!raw) return undefined;
+
+    const parsed = JSON.parse(raw) as QuoteWorkflowSnapshot;
+    return parsed.convertedOrderId ?? undefined;
   } catch {
     return undefined;
   }

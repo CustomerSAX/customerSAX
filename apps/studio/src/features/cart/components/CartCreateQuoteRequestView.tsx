@@ -86,6 +86,33 @@ export function CartCreateQuoteRequestView({ id }: CartCreateQuoteRequestViewPro
         throw new Error(payload.error || "Unable to submit quote request.");
       }
 
+      if (payload.id && typeof window !== "undefined") {
+        window.localStorage.setItem(
+          `csa_quote_review_${payload.id}`,
+          JSON.stringify({
+            actingRole: "buyer",
+            buyerDeclineNote: "",
+            buyerNegotiationNote: "",
+            buyerReviewState: "pending",
+            buyerReviewUpdatedAt: null,
+            convertedAt: null,
+            convertedOrderId: null,
+            convertedOrderNumber: null,
+            requestedDiscount: "",
+            requestedLineItems: cart.lineItems.map((item) => ({
+              id: item.id,
+              name: item.name,
+              quantity: String(item.quantity),
+              sku: item.sku,
+              unitPrice: String(item.unitPrice)
+            })),
+            sellerNegotiationNote: "",
+            sellerReviewUpdatedAt: null,
+            sourceCartId: cart.id
+          })
+        );
+      }
+
       setFeedback(`Quote request ${payload.id || ""} submitted successfully.`);
       router.push(customerHref);
     } catch (error) {

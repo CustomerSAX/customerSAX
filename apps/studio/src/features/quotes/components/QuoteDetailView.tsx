@@ -178,10 +178,14 @@ type BuyerWorkflowSnapshot = {
   buyerReviewState?: BuyerReviewState;
   buyerReviewUpdatedAt?: string | null;
   buyerNegotiationNote?: string | null;
+  convertedAt?: string | null;
+  convertedOrderId?: string | null;
+  convertedOrderNumber?: string | null;
   requestedDiscount?: string | null;
   requestedLineItems?: NegotiationLineItem[] | null;
   sellerNegotiationNote?: string | null;
   sellerReviewUpdatedAt?: string | null;
+  sourceCartId?: string | null;
 };
 
 type BuyerWorkflowState = {
@@ -190,10 +194,14 @@ type BuyerWorkflowState = {
   buyerReviewState: BuyerReviewState;
   buyerReviewUpdatedAt: string | null;
   buyerNegotiationNote: string;
+  convertedAt: string | null;
+  convertedOrderId: string;
+  convertedOrderNumber: string;
   requestedDiscount: string;
   requestedLineItems: NegotiationLineItem[];
   sellerNegotiationNote: string;
   sellerReviewUpdatedAt: string | null;
+  sourceCartId: string;
 };
 
 type NegotiationLineItem = {
@@ -211,10 +219,14 @@ function readWorkflowState(id: string): BuyerWorkflowState {
     buyerReviewState: "pending",
     buyerReviewUpdatedAt: null,
     buyerNegotiationNote: "",
+    convertedAt: null,
+    convertedOrderId: "",
+    convertedOrderNumber: "",
     requestedDiscount: "",
     requestedLineItems: [],
     sellerNegotiationNote: "",
-    sellerReviewUpdatedAt: null
+    sellerReviewUpdatedAt: null,
+    sourceCartId: ""
   };
 
   if (typeof window === "undefined") return fallback;
@@ -231,10 +243,14 @@ function readWorkflowState(id: string): BuyerWorkflowState {
       buyerReviewState: parsed.buyerReviewState || fallback.buyerReviewState,
       buyerReviewUpdatedAt: parsed.buyerReviewUpdatedAt || fallback.buyerReviewUpdatedAt,
       buyerNegotiationNote: parsed.buyerNegotiationNote || fallback.buyerNegotiationNote,
+      convertedAt: parsed.convertedAt || fallback.convertedAt,
+      convertedOrderId: parsed.convertedOrderId || fallback.convertedOrderId,
+      convertedOrderNumber: parsed.convertedOrderNumber || fallback.convertedOrderNumber,
       requestedDiscount: parsed.requestedDiscount || fallback.requestedDiscount,
       requestedLineItems: parsed.requestedLineItems || fallback.requestedLineItems,
       sellerNegotiationNote: parsed.sellerNegotiationNote || fallback.sellerNegotiationNote,
-      sellerReviewUpdatedAt: parsed.sellerReviewUpdatedAt || fallback.sellerReviewUpdatedAt
+      sellerReviewUpdatedAt: parsed.sellerReviewUpdatedAt || fallback.sellerReviewUpdatedAt,
+      sourceCartId: parsed.sourceCartId || fallback.sourceCartId
     };
   } catch {
     return fallback;
@@ -269,16 +285,6 @@ function formatQuoteComment(comment: string): Pick<TimelineEvent, "details" | "l
 function requestedDiscountFromComment(comment?: string | null) {
   const match = comment?.match(/^Requested discount:\s*(\d+(?:\.\d+)?)%/m);
   return match ? match[1] : "0";
-}
-
-function formatMoney(money?: Money | null) {
-  if (!money) return "--";
-  const amount = money.centAmount / 10 ** (money.fractionDigits ?? 2);
-
-  return `${money.currencyCode} ${amount.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
 }
 
 function moneyAmount(money?: Money | null) {
@@ -349,7 +355,10 @@ function buildTimeline(
   buyerNegotiationNote?: string | null,
   buyerDeclineNote?: string | null,
   sellerNegotiationNote?: string | null,
-  sellerReviewUpdatedAt?: string | null
+  sellerReviewUpdatedAt?: string | null,
+  convertedAt?: string | null,
+  convertedOrderId?: string | null,
+  convertedOrderNumber?: string | null
 ): TimelineEvent[] {
   const events: TimelineEvent[] = [{ label: "Quote requested", date: quote.createdAt }];
 
@@ -388,6 +397,14 @@ function buildTimeline(
     });
   }
 
+  if (convertedOrderId) {
+    events.push({
+      label: "Converted to order",
+      date: convertedAt || quote.lastModifiedAt || quote.createdAt,
+      details: [{ label: "Order", value: convertedOrderNumber || convertedOrderId }]
+    });
+  }
+
   return events;
 }
 
@@ -395,7 +412,7 @@ export function QuoteDetailView({ id }: { id: string }) {
   const router = useRouter();
   const [workflow, setWorkflow] = useState<BuyerWorkflowState>(() => readWorkflowState(id));
   const [actionFeedback, setActionFeedback] = useState("");
-  const [actionLoading, setActionLoading] = useState<"Accepted" | "Rejected" | null>(null);
+  const [actionLoading, setActionLoading] = useState<"Accepted" | "Rejected" | "Converted" | null>(null);
   const [isDecliningBuyerReview, setIsDecliningBuyerReview] = useState(false);
   const [declineNote, setDeclineNote] = useState("");
   const [negotiatingAs, setNegotiatingAs] = useState<"buyer" | "seller" | null>(null);
@@ -414,10 +431,14 @@ export function QuoteDetailView({ id }: { id: string }) {
     buyerNegotiationNote,
     buyerReviewState,
     buyerReviewUpdatedAt,
+    convertedAt,
+    convertedOrderId,
+    convertedOrderNumber,
     requestedDiscount,
     requestedLineItems,
     sellerNegotiationNote,
-    sellerReviewUpdatedAt
+    sellerReviewUpdatedAt,
+    sourceCartId
   } = workflow;
 
   const persistWorkflow = (next: BuyerWorkflowSnapshot) => {
@@ -429,13 +450,19 @@ export function QuoteDetailView({ id }: { id: string }) {
         next.buyerReviewUpdatedAt === undefined ? workflow.buyerReviewUpdatedAt : next.buyerReviewUpdatedAt,
       buyerNegotiationNote:
         next.buyerNegotiationNote === undefined ? workflow.buyerNegotiationNote : next.buyerNegotiationNote || "",
+      convertedAt: next.convertedAt === undefined ? workflow.convertedAt : next.convertedAt,
+      convertedOrderId:
+        next.convertedOrderId === undefined ? workflow.convertedOrderId : next.convertedOrderId || "",
+      convertedOrderNumber:
+        next.convertedOrderNumber === undefined ? workflow.convertedOrderNumber : next.convertedOrderNumber || "",
       requestedDiscount: next.requestedDiscount === undefined ? workflow.requestedDiscount : next.requestedDiscount || "",
       requestedLineItems:
         next.requestedLineItems === undefined ? workflow.requestedLineItems : next.requestedLineItems || [],
       sellerNegotiationNote:
         next.sellerNegotiationNote === undefined ? workflow.sellerNegotiationNote : next.sellerNegotiationNote || "",
       sellerReviewUpdatedAt:
-        next.sellerReviewUpdatedAt === undefined ? workflow.sellerReviewUpdatedAt : next.sellerReviewUpdatedAt
+        next.sellerReviewUpdatedAt === undefined ? workflow.sellerReviewUpdatedAt : next.sellerReviewUpdatedAt,
+      sourceCartId: next.sourceCartId === undefined ? workflow.sourceCartId : next.sourceCartId || ""
     };
     setWorkflow(payload);
 
@@ -493,7 +520,6 @@ export function QuoteDetailView({ id }: { id: string }) {
           sku: item.sku || "",
           unitPrice: String(moneyAmount(item.unitPrice) || moneyAmount(item.totalPrice) / Math.max(item.quantity, 1))
         }));
-  const lineItemCount = displayLineItems.length;
   const displaySubtotal = displayLineItems.reduce(
     (sum, item) => sum + inputAmount(item.quantity) * inputAmount(item.unitPrice),
     0
@@ -508,7 +534,7 @@ export function QuoteDetailView({ id }: { id: string }) {
       ? displaySubtotal * ((100 - displayDiscount) / 100)
       : totals.total;
   const backendStatus = baseQuoteStatusLabel(quote.status);
-  const displayStatus = workflowStatusLabel(backendStatus, buyerReviewState);
+  const displayStatus = workflowStatusLabel(backendStatus, buyerReviewState, convertedOrderId);
   const timeline = buildTimeline(
     quote,
     buyerReviewState,
@@ -516,7 +542,10 @@ export function QuoteDetailView({ id }: { id: string }) {
     buyerNegotiationNote,
     buyerDeclineNote,
     sellerNegotiationNote,
-    sellerReviewUpdatedAt
+    sellerReviewUpdatedAt,
+    convertedAt,
+    convertedOrderId,
+    convertedOrderNumber
   );
   const waitingOnSeller = backendStatus === "Requested";
   const terminalStatus = ["Accepted", "Approved", "Rejected", "Declined", "Cancelled", "Converted"].includes(
@@ -533,6 +562,7 @@ export function QuoteDetailView({ id }: { id: string }) {
     ["approved", "changes-requested"].includes(buyerReviewState) &&
     !terminalStatus &&
     !actionLoading;
+  const canConvertToOrder = displayStatus === "Accepted" && buyerReviewState === "approved" && !convertedOrderId;
   const negotiationDiscount = Number(negotiationDiscountInput);
   const hasValidNegotiationDiscount =
     negotiationDiscountInput.trim() !== "" &&
@@ -547,6 +577,7 @@ export function QuoteDetailView({ id }: { id: string }) {
         const unitPrice = Number(line.unitPrice);
         return (
           line.name.trim() &&
+          line.sku.trim() &&
           line.quantity.trim() &&
           line.unitPrice.trim() &&
           Number.isFinite(quantity) &&
@@ -575,6 +606,65 @@ export function QuoteDetailView({ id }: { id: string }) {
 
   const updateNegotiationLine = (lineId: string, patch: Partial<NegotiationLineItem>) => {
     setNegotiationLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)));
+  };
+
+  const syncSourceCartForConversion = async () => {
+    if (!quote || !sourceCartId) return;
+
+    const finalById = new Map(displayLineItems.map((item) => [item.id, item]));
+    const updateActions: Array<Record<string, unknown>> = [];
+
+    for (const original of quote.lineItems) {
+      if (!finalById.has(original.id)) {
+        updateActions.push({ removeLineItem: { lineItemId: original.id } });
+      }
+    }
+
+    for (const item of displayLineItems) {
+      const original = quote.lineItems.find((lineItem) => lineItem.id === item.id);
+      const quantity = Math.max(1, Math.trunc(inputAmount(item.quantity)));
+      const unitPrice = inputAmount(item.unitPrice);
+      const discountMultiplier = hasDisplayDiscount ? (100 - displayDiscount) / 100 : 1;
+      const centAmount = Math.round(unitPrice * discountMultiplier * 100);
+
+      if (original) {
+        if (original.quantity !== quantity) {
+          updateActions.push({ changeLineItemQuantity: { lineItemId: original.id, quantity } });
+        }
+        updateActions.push({
+          setLineItemPrice: {
+            centAmount,
+            currencyCode: totals.currencyCode,
+            fractionDigits: 2,
+            lineItemId: original.id,
+            sku: item.sku
+          }
+        });
+      } else if (item.sku.trim()) {
+        updateActions.push({ addLineItem: { quantity, sku: item.sku.trim() } });
+        updateActions.push({
+          setLineItemPrice: {
+            centAmount,
+            currencyCode: totals.currencyCode,
+            fractionDigits: 2,
+            sku: item.sku.trim()
+          }
+        });
+      }
+    }
+
+    if (updateActions.length === 0) return;
+
+    const response = await fetch(`/api/carts/${encodeURIComponent(sourceCartId)}/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actions: updateActions })
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+    if (!response.ok) {
+      throw new Error(payload.error || "Unable to apply negotiated quote changes to the source cart.");
+    }
   };
 
   const addNegotiationLine = () => {
@@ -730,6 +820,41 @@ export function QuoteDetailView({ id }: { id: string }) {
       setActionFeedback(state === "Accepted" ? "Seller accepted the quote request." : "Seller rejected the quote request.");
     } catch (error) {
       setActionFeedback(error instanceof Error ? error.message : "Unable to update quote request.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const convertQuoteToOrder = async () => {
+    if (!canConvertToOrder || !sourceCartId) return;
+
+    setActionLoading("Converted");
+    setActionFeedback("");
+
+    try {
+      await syncSourceCartForConversion();
+
+      const response = await fetch(`/api/carts/${encodeURIComponent(sourceCartId)}/order`, {
+        method: "POST"
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        id?: string;
+        orderNumber?: string | null;
+      };
+
+      if (!response.ok || !payload.id) {
+        throw new Error(payload.error || "Unable to convert quote to order.");
+      }
+
+      persistWorkflow({
+        convertedAt: new Date().toISOString(),
+        convertedOrderId: payload.id,
+        convertedOrderNumber: payload.orderNumber || payload.id
+      });
+      setActionFeedback(`Quote converted to order ${payload.orderNumber || payload.id}.`);
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Unable to convert quote to order.");
     } finally {
       setActionLoading(null);
     }
@@ -960,6 +1085,48 @@ export function QuoteDetailView({ id }: { id: string }) {
               </div>
             )}
 
+            {convertedOrderId ? (
+            <div className="mt-4 flex items-center justify-between gap-4 rounded-m-md border border-m-success-border bg-m-success-light px-3 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-m-success">Converted to order</p>
+                  <p className="text-xs text-m-text-muted">
+                    Order {convertedOrderNumber || convertedOrderId} is available in the orders list.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => router.push(`/orders/${encodeURIComponent(convertedOrderId)}`)}
+                >
+                  View order
+                </Button>
+              </div>
+            ) : displayStatus === "Accepted" ? (
+              <div className="mt-4 space-y-3 rounded-m-lg border border-m-primary-200 bg-m-primary-50 p-4">
+                <div>
+                  <p className="text-sm font-bold text-m-text">Ready to convert</p>
+                  <p className="mt-1 text-xs text-m-text-muted">
+                    Create an order after buyer approval and seller acceptance.
+                  </p>
+                  {!sourceCartId && (
+                    <p className="mt-1 text-xs font-semibold text-m-warning">
+                      Source cart is not available for this quote, so conversion cannot run.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="primary"
+                  size="lg"
+                  fullWidth
+                  loading={actionLoading === "Converted"}
+                  disabled={!canConvertToOrder || !sourceCartId || actionLoading === "Converted"}
+                  onClick={convertQuoteToOrder}
+                >
+                  Convert to order
+                </Button>
+              </div>
+            ) : null}
+
             <div className="mt-5 divide-y divide-m-border">
               {actingRole === "buyer" ? (
                 <>
@@ -1164,8 +1331,8 @@ export function QuoteDetailView({ id }: { id: string }) {
                       ))}
                     </div>
                     {!hasValidNegotiationLines && (
-                      <p className="text-xs font-medium text-m-danger">
-                        Each requested line needs a product name and quantity.
+      <p className="text-xs font-medium text-m-danger">
+                        Each requested line needs a product name, SKU, and quantity.
                       </p>
                     )}
                   </div>

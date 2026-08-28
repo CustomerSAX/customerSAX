@@ -25,6 +25,7 @@ import { QuoteStatusChip } from "./QuoteStatusChip";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
 import {
   baseQuoteStatusLabel,
+  readQuoteWorkflowConvertedOrderId,
   readQuoteWorkflowReviewState,
   workflowStatusLabel,
 } from "../utils/quote-workflow-status";
@@ -246,7 +247,8 @@ export function QuoteListView() {
               quotes.map((q) => {
                 const displayStatus = workflowStatusLabel(
                   baseQuoteStatusLabel(q.status),
-                  readQuoteWorkflowReviewState(q.id)
+                  readQuoteWorkflowReviewState(q.id),
+                  readQuoteWorkflowConvertedOrderId(q.id)
                 );
 
                 return (

@@ -446,10 +446,14 @@ export function QuoteCreateView() {
             buyerNegotiationNote: "",
             buyerReviewState: "pending",
             buyerReviewUpdatedAt: null,
+            convertedAt: null,
+            convertedOrderId: null,
+            convertedOrderNumber: null,
             requestedDiscount: String(discountPct),
             requestedLineItems: authoredLineItems,
             sellerNegotiationNote: "",
-            sellerReviewUpdatedAt: null
+            sellerReviewUpdatedAt: null,
+            sourceCartId: cartPayload.id
           })
         );
       }

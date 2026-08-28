@@ -5,6 +5,7 @@ import { useState, useCallback, useMemo } from "react";
 import type { Quote, QuoteFilter, QuoteSort, QuoteStatus } from "../types/quote-types";
 import {
   baseQuoteStatusLabel,
+  readQuoteWorkflowConvertedOrderId,
   readQuoteWorkflowReviewState,
   workflowStatusLabel,
 } from "../utils/quote-workflow-status";
@@ -149,7 +150,8 @@ export function useQuotes() {
         (q) =>
           workflowStatusLabel(
             baseQuoteStatusLabel(q.status),
-            readQuoteWorkflowReviewState(q.id)
+            readQuoteWorkflowReviewState(q.id),
+            readQuoteWorkflowConvertedOrderId(q.id)
           ) === filter.statusFilter
       );
     }

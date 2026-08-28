@@ -47,6 +47,15 @@ type CartUpdateAction =
   | { addLineItem: { sku: string; quantity: number } }
   | { removeLineItem: { lineItemId: string } }
   | { changeLineItemQuantity: { lineItemId: string; quantity: number } }
+  | {
+      setLineItemPrice: {
+        centAmount: number;
+        currencyCode: string;
+        fractionDigits?: number;
+        lineItemId?: string;
+        sku?: string;
+      };
+    }
   | { setShippingAddress: { address: Record<string, unknown> } }
   | { setBillingAddress: { address: Record<string, unknown> } }
   | { setShippingMethod: { shippingMethod: { typeId: string; id: string } } }
@@ -184,6 +193,40 @@ export async function POST(
         await bff(
           `mutation AddDiscount($id: ID!, $code: String!) { addCartDiscountCode(id: $id, code: $code) { id } }`,
           { id, code: action.addDiscountCode.code }
+        );
+      } else if ("setLineItemPrice" in action) {
+        const live = await getFreshLineItems();
+        const match =
+          live.find((i) => i.id === action.setLineItemPrice.lineItemId) ||
+          live.find((i) => i.sku && i.sku === action.setLineItemPrice.sku);
+
+        if (!match) {
+          throw new Error("Unable to find cart line item for negotiated price update.");
+        }
+
+        await bff(
+          `mutation SetLinePrice(
+            $id: ID!
+            $lineItemId: ID!
+            $centAmount: Int!
+            $currencyCode: String!
+            $fractionDigits: Int!
+          ) {
+            setCartLineItemPrice(
+              id: $id
+              lineItemId: $lineItemId
+              centAmount: $centAmount
+              currencyCode: $currencyCode
+              fractionDigits: $fractionDigits
+            ) { id }
+          }`,
+          {
+            centAmount: action.setLineItemPrice.centAmount,
+            currencyCode: action.setLineItemPrice.currencyCode,
+            fractionDigits: action.setLineItemPrice.fractionDigits ?? 2,
+            id,
+            lineItemId: match.id
+          }
         );
       } else if ("setCustomerId" in action || "setCustomerEmail" in action) {
         // customerId/customerEmail are not exposed as standalone BFF mutations; they were

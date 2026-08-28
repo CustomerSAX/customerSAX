@@ -179,6 +179,23 @@ export const resolvers = {
             }
           }
     ]),
+  setCartLineItemPrice: async (
+    _parent: unknown,
+    args: { centAmount: number; currencyCode: string; fractionDigits?: number; id: string; lineItemId: string }
+  ) =>
+    updateCart(args.id, [
+      {
+        setLineItemPrice: {
+          externalPrice: {
+            centPrecision: {
+              centAmount: args.centAmount,
+              currencyCode: args.currencyCode
+            }
+          },
+          lineItemId: args.lineItemId
+        }
+      }
+    ]),
   updateCartAddresses: async (
     _parent: unknown,
     args: { billingAddress?: unknown; id: string; shippingAddress?: unknown }
