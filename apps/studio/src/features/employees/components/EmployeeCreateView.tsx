@@ -28,7 +28,7 @@ const ROLES = [
 export function EmployeeCreateView() {
   const router = useRouter();
   const { createEmployee } = useEmployees();
-  const { allCompanies } = useCompanies();
+  const { allCompanies, loading: companiesLoading } = useCompanies();
 
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -51,36 +51,59 @@ export function EmployeeCreateView() {
     ...allCompanies.map((c) => ({ value: c.id, label: c.name })),
   ];
 
+  const canSave =
+    !isSaving &&
+    !companiesLoading &&
+    Boolean(firstName.trim()) &&
+    Boolean(lastName.trim()) &&
+    Boolean(email.trim()) &&
+    Boolean(password) &&
+    password === confirmPassword &&
+    Boolean(companyId);
+
   const handleSave = async () => {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !companyId) return;
-    if (password !== confirmPassword) return;
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !companyId) {
+      setSaveError("Complete all required fields before creating the employee.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setSaveError("Enter a valid email address.");
+      return;
+    }
+    if (password.length < 8) {
+      setSaveError("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setSaveError("Password and confirmation do not match.");
+      return;
+    }
 
     const selectedComp = allCompanies.find((c) => c.id === companyId);
-    const memberships = selectedComp
-      ? [
-          {
-            companyId: selectedComp.id,
-            companyName: selectedComp.name,
-            companyKey: selectedComp.key,
-            roles: [role],
-          },
-        ]
-      : [];
+    if (!selectedComp) {
+      setSaveError("Select a valid company or business unit.");
+      return;
+    }
 
     setIsSaving(true);
     setSaveError(null);
     try {
       const created = await createEmployee({
-        firstName,
-        middleName,
-        lastName,
-        email,
-        phone,
+        firstName: firstName.trim(),
+        middleName: middleName.trim() || undefined,
+        lastName: lastName.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
         dateOfBirth,
         customerGroup: customerGroup || undefined,
         password,
         status: "Active",
-        memberships,
+        memberships: [{
+          companyId: selectedComp.id,
+          companyName: selectedComp.name,
+          companyKey: selectedComp.key,
+          roles: [role],
+        }],
         addresses: [],
       });
       router.push(`/b2b/employees/${created.id}`);
@@ -183,7 +206,12 @@ export function EmployeeCreateView() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
           <div>
             <label className="text-xs font-semibold text-m-text mb-1 block">Company / Business Unit</label>
-            <Select value={companyId} options={companyOptions} onChange={(e) => setCompanyId(e.target.value)} />
+            <Select
+              value={companyId}
+              options={companyOptions}
+              onChange={(e) => setCompanyId(e.target.value)}
+              disabled={companiesLoading}
+            />
           </div>
 
           <div>
@@ -201,10 +229,11 @@ export function EmployeeCreateView() {
         <Button
           variant="primary"
           size="md"
-          disabled={isSaving || !firstName.trim() || !lastName.trim() || !email.trim() || !password || password !== confirmPassword || !companyId}
+          loading={isSaving}
+          disabled={!canSave}
           onClick={handleSave}
         >
-          {isSaving ? "Creating Employee..." : "Save & Create Employee"}
+          {companiesLoading ? "Loading Companies..." : "Save & Create Employee"}
         </Button>
       </div>
       {saveError && (

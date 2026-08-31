@@ -144,6 +144,12 @@ export function useEmployees() {
     async (newEmployee: NewEmployee) => {
       const membership = newEmployee.memberships[0];
       if (!membership) throw new Error("Select a company for the employee.");
+      if (!newEmployee.firstName.trim()) throw new Error("First name is required.");
+      if (!newEmployee.lastName.trim()) throw new Error("Last name is required.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmployee.email.trim())) {
+        throw new Error("Enter a valid email address.");
+      }
+      if (newEmployee.password.length < 8) throw new Error("Password must be at least 8 characters.");
       const { password, memberships, addresses: _addresses, status: _status, customerGroup: _customerGroup, ...profile } = newEmployee;
       const result = await createEmployeeMutation({
         variables: {

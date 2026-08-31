@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   PageHeader,
@@ -18,7 +18,12 @@ import {
   Tabs,
 } from "@csa/ui";
 import { formatDateTime } from "@/lib/format-date";
-import { useImportExport } from "../hooks/use-import-export";
+import { useCartStore } from "@/features/cart/hooks/use-carts";
+import { useCompanies } from "@/features/companies/hooks/use-companies";
+import { useEmployees } from "@/features/employees/hooks/use-employees";
+import { useQuotes } from "@/features/quotes/hooks/use-quotes";
+import { downloadCsv, useImportExport } from "../hooks/use-import-export";
+import type { ImportCsvRow } from "../hooks/use-import-export";
 import type { B2BResourceType } from "../types/import-export-types";
 
 const RESOURCE_OPTIONS = [
@@ -45,6 +50,61 @@ const CURRENCY_OPTIONS = [
   { value: "GBP", label: "GBP (£)" },
 ];
 
+const EXPORT_COLUMNS: Record<B2BResourceType, string[]> = {
+  company: [
+    "id",
+    "key",
+    "name",
+    "status",
+    "unitType",
+    "parentName",
+    "countries",
+    "associateCount",
+    "createdAt",
+    "lastModifiedAt",
+  ],
+  employee: [
+    "id",
+    "customerNumber",
+    "externalId",
+    "email",
+    "firstName",
+    "lastName",
+    "status",
+    "companies",
+    "roles",
+    "createdAt",
+    "lastModifiedAt",
+  ],
+  cart: [
+    "id",
+    "cartNumber",
+    "customerEmail",
+    "customerName",
+    "country",
+    "currencyCode",
+    "cartState",
+    "lineItemCount",
+    "grandTotal",
+    "createdAt",
+    "lastModifiedAt",
+  ],
+  quote: [
+    "id",
+    "quoteNumber",
+    "companyKey",
+    "companyName",
+    "customerEmail",
+    "currencyCode",
+    "itemCount",
+    "status",
+    "negotiatedTotal",
+    "validUntil",
+    "createdAt",
+    "lastModifiedAt",
+  ],
+};
+
 export function ImportExportView() {
   const searchParams = useSearchParams();
   const initialResource = (searchParams.get("resource") as B2BResourceType) || "company";
@@ -64,10 +124,101 @@ export function ImportExportView() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { allCompanies, createCompany, loading: companiesLoading } = useCompanies();
+  const { allEmployees, createEmployee, loading: employeesLoading } = useEmployees();
+  const { carts, reloadCarts, loading: cartsLoading } = useCartStore();
+  const { allQuotes, loading: quotesLoading } = useQuotes();
 
   // Export filters
   const [exportCountry, setExportCountry] = useState("");
   const [exportCurrency, setExportCurrency] = useState("");
+
+  const exportRows = useMemo(() => {
+    if (selectedResource === "company") {
+      return allCompanies
+        .filter((company) =>
+          exportCountry ? company.addresses.some((address) => address.country === exportCountry) : true
+        )
+        .map((company) => ({
+          id: company.id,
+          key: company.key,
+          name: company.name,
+          status: company.status,
+          unitType: company.unitType,
+          parentName: company.parentName,
+          countries: company.addresses.map((address) => address.country).filter(Boolean).join("; "),
+          associateCount: company.associates.length,
+          createdAt: company.createdAt,
+          lastModifiedAt: company.lastModifiedAt,
+        }));
+    }
+
+    if (selectedResource === "employee") {
+      return allEmployees
+        .filter((employee) =>
+          exportCountry ? employee.addresses.some((address) => address.country === exportCountry) : true
+        )
+        .map((employee) => ({
+          id: employee.id,
+          customerNumber: employee.customerNumber,
+          externalId: employee.externalId,
+          email: employee.email,
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          status: employee.status,
+          companies: employee.memberships.map((membership) => membership.companyName).join("; "),
+          roles: employee.memberships.flatMap((membership) => membership.roles).join("; "),
+          createdAt: employee.createdAt,
+          lastModifiedAt: employee.lastModifiedAt,
+        }));
+    }
+
+    if (selectedResource === "cart") {
+      return carts
+        .filter((cart) => {
+          const country = cart.country || cart.shippingAddress?.country || cart.billingAddress?.country;
+          const countryMatches = exportCountry ? country === exportCountry : true;
+          const currencyMatches = exportCurrency ? cart.currencyCode === exportCurrency : true;
+          return countryMatches && currencyMatches;
+        })
+        .map((cart) => ({
+          id: cart.id,
+          cartNumber: cart.cartNumber,
+          customerEmail: cart.customerEmail,
+          customerName: cart.customerName,
+          country: cart.country || cart.shippingAddress?.country || cart.billingAddress?.country,
+          currencyCode: cart.currencyCode,
+          cartState: cart.cartState,
+          lineItemCount: cart.lineItems.length,
+          grandTotal: cart.grandTotal,
+          createdAt: cart.createdAt,
+          lastModifiedAt: cart.lastModifiedAt,
+        }));
+    }
+
+    return allQuotes
+      .filter((quote) => (exportCurrency ? quote.currencyCode === exportCurrency : true))
+      .map((quote) => ({
+        id: quote.id,
+        quoteNumber: quote.quoteNumber,
+        companyKey: quote.companyKey,
+        companyName: quote.companyName,
+        customerEmail: quote.customerEmail,
+        currencyCode: quote.currencyCode,
+        itemCount: quote.itemCount,
+        status: quote.status,
+        negotiatedTotal: quote.negotiatedTotal,
+        validUntil: quote.validUntil,
+        createdAt: quote.createdAt,
+        lastModifiedAt: quote.lastModifiedAt,
+      }));
+  }, [allCompanies, allEmployees, allQuotes, carts, exportCountry, exportCurrency, selectedResource]);
+
+  const isExportLoading =
+    (selectedResource === "company" && companiesLoading) ||
+    (selectedResource === "employee" && employeesLoading) ||
+    (selectedResource === "cart" && cartsLoading) ||
+    (selectedResource === "quote" && quotesLoading);
 
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -85,15 +236,115 @@ export function ImportExportView() {
 
   const handleStartImport = () => {
     if (!selectedFile) return;
-    processImport(selectedFile);
+    void processImport(selectedFile, importCsvRow);
+  };
+
+  const requireValue = (row: ImportCsvRow, field: string) => {
+    const value = row[field]?.trim();
+    if (!value) throw new Error(`Missing required field "${field}".`);
+    return value;
+  };
+
+  const importCsvRow = async (row: ImportCsvRow) => {
+    if (selectedResource === "company") {
+      const parentKey = row.parentKey?.trim();
+      const parent = parentKey
+        ? allCompanies.find((company) => company.key === parentKey || company.id === parentKey)
+        : undefined;
+      if (parentKey && !parent) throw new Error(`Parent company "${parentKey}" was not found.`);
+
+      await createCompany({
+        name: requireValue(row, "name"),
+        key: requireValue(row, "key"),
+        unitType: row.unitType === "Division" ? "Division" : "Company",
+        parentId: parent?.id,
+        parentName: parent?.name,
+        status: row.status === "Inactive" ? "Inactive" : "Active",
+        addresses: row.country
+          ? [{
+              id: `import-address-${Date.now()}`,
+              companyName: row.name,
+              streetName: row.streetName || "",
+              streetNumber: row.streetNumber || undefined,
+              city: row.city || "",
+              state: row.state || undefined,
+              postalCode: row.postalCode || "",
+              country: row.country,
+            }]
+          : [],
+        associates: [],
+      });
+      return;
+    }
+
+    if (selectedResource === "employee") {
+      const companyKey = requireValue(row, "companyKey");
+      const company = allCompanies.find((item) => item.key === companyKey || item.id === companyKey);
+      if (!company) throw new Error(`Company "${companyKey}" was not found.`);
+
+      await createEmployee({
+        email: requireValue(row, "email"),
+        firstName: requireValue(row, "firstName"),
+        lastName: requireValue(row, "lastName"),
+        password: row.password?.trim() || `Temp-${crypto.randomUUID()}-Aa1!`,
+        status: row.status === "Inactive" ? "Inactive" : "Active",
+        memberships: [{
+          companyId: company.id,
+          companyName: company.name,
+          companyKey: company.key,
+          roles: (row.roles || "Buyer").split(";").map((role) => role.trim()).filter(Boolean),
+        }],
+        addresses: [],
+      });
+      return;
+    }
+
+    if (selectedResource === "cart") {
+      const response = await fetch("/api/carts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currency: row.currency || row.currencyCode || "USD",
+          businessUnitKey: row.companyKey || undefined,
+          customerId: row.customerId || undefined,
+          customerEmail: row.customerEmail || undefined,
+        }),
+      });
+      const cart = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
+      if (!response.ok || !cart.id) throw new Error(cart.error || "Cart creation failed.");
+
+      const sku = row.lineItemSku?.trim();
+      const quantity = Number(row.quantity || 1);
+      if (sku) {
+        const updateResponse = await fetch(`/api/carts/${encodeURIComponent(cart.id)}/update`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actions: [{ addLineItem: { sku, quantity: Number.isFinite(quantity) ? quantity : 1 } }] }),
+        });
+        const updatePayload = (await updateResponse.json().catch(() => ({}))) as { error?: string };
+        if (!updateResponse.ok) throw new Error(updatePayload.error || "Cart line item import failed.");
+      }
+      await reloadCarts();
+      return;
+    }
+
+    const cartId = row.cartId?.trim() || row.cartKey?.trim();
+    if (!cartId) throw new Error('Missing required field "cartId".');
+    const response = await fetch("/api/quotes/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cartId, comment: row.comment || undefined }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) throw new Error(payload.error || "Quote request creation failed.");
   };
 
   const downloadSampleTemplate = () => {
     const sampleHeaders: Record<B2BResourceType, string> = {
-      company: "name,key,unitType,parentKey,status",
-      employee: "email,firstName,lastName,companyKey,roles",
-      cart: "cartKey,customerEmail,companyKey,lineItemSku,quantity",
-      quote: "quoteKey,customerEmail,companyKey,targetPrice",
+      company: "name,key,unitType,parentKey,status,streetName,streetNumber,city,state,postalCode,country",
+      employee: "email,firstName,lastName,password,companyKey,roles,status",
+      cart: "currency,customerId,customerEmail,companyKey,lineItemSku,quantity",
+      quote: "cartId,comment",
     };
 
     const blob = new Blob([sampleHeaders[selectedResource]], { type: "text/csv" });
@@ -341,11 +592,11 @@ export function ImportExportView() {
                   <Button
                     variant="primary"
                     size="md"
-                    disabled={isProcessing}
-                    onClick={triggerExport}
+                    disabled={isProcessing || isExportLoading}
+                    onClick={() => triggerExport(exportRows, EXPORT_COLUMNS[selectedResource])}
                     leftIcon={<Icon name="download" size="xs" />}
                   >
-                    {isProcessing ? "Generating CSV..." : "Generate & Download Export"}
+                    {isProcessing || isExportLoading ? "Generating CSV..." : "Generate & Download Export"}
                   </Button>
                 </div>
               </div>
@@ -385,6 +636,7 @@ export function ImportExportView() {
                           iconOnly
                           leftIcon={<Icon name="download" size="xs" />}
                           aria-label="Download CSV"
+                          onClick={() => downloadCsv(exp.filename, exp.csvContent)}
                         />
                       </TableCell>
                     </TableRow>
