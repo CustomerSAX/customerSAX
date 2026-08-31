@@ -64,8 +64,10 @@ deploy_service() {
     ai-assist)
       SECRETS="AI_GATEWAY_API_KEY=${NAME_PREFIX}-ai-gateway-api-key:latest,MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     commerce-commercetools)
-      SECRETS="COMMERCETOOLS_CLIENT_ID=${NAME_PREFIX}-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=${NAME_PREFIX}-commercetools-client-secret:latest" ;;
-    ticketing|auth|admin)
+      SECRETS="COMMERCETOOLS_CLIENT_ID=${NAME_PREFIX}-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=${NAME_PREFIX}-commercetools-client-secret:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
+    admin)
+      SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
+    ticketing|auth)
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     *)
       SECRETS="" ;;
