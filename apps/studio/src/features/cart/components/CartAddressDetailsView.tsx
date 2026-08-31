@@ -36,12 +36,64 @@ type ShippingMethodOption = {
   name: string;
 };
 
+type CustomerSavedAddress = CartAddress & {
+  id: string;
+};
+
+type CustomerAddressesResponse = {
+  addresses?: CustomerSavedAddress[];
+  defaultBillingAddressId?: string | null;
+  defaultShippingAddressId?: string | null;
+  billingAddressIds?: string[];
+  shippingAddressIds?: string[];
+  error?: string;
+};
+
 function compactAddress(address: CartAddress): CartAddress {
   return Object.fromEntries(
     Object.entries(address).filter(
       ([, value]) => typeof value !== "string" || value.trim().length > 0
     )
   ) as CartAddress;
+}
+
+function addressFromSavedAddress(address: CustomerSavedAddress): CartAddress {
+  return {
+    streetNumber: address.streetNumber || "",
+    streetName: address.streetName || "",
+    apartment: address.apartment || "",
+    building: address.building || "",
+    pOBox: address.pOBox || "",
+    city: address.city || "",
+    state: address.state || "",
+    postalCode: address.postalCode || "",
+    country: address.country || "US",
+    region: address.region || "",
+    additionalStreetInfo: address.additionalStreetInfo || "",
+    additionalAddressInfo: address.additionalAddressInfo || "",
+    phone: address.phone || "",
+    mobile: address.mobile || ""
+  };
+}
+
+function savedAddressLabel(
+  address: CustomerSavedAddress,
+  markers: { isBilling?: boolean; isDefaultBilling?: boolean; isDefaultShipping?: boolean; isShipping?: boolean }
+) {
+  const street = [address.streetNumber, address.streetName].filter(Boolean).join(" ");
+  const location = [address.city, address.state, address.postalCode, address.country]
+    .filter(Boolean)
+    .join(", ");
+  const markerText = [
+    markers.isDefaultShipping ? "Default shipping" : "",
+    markers.isDefaultBilling ? "Default billing" : "",
+    !markers.isDefaultShipping && markers.isShipping ? "Shipping" : "",
+    !markers.isDefaultBilling && markers.isBilling ? "Billing" : ""
+  ].filter(Boolean);
+
+  return [street || location || address.id, location && street ? location : "", markerText.join(" / ")]
+    .filter(Boolean)
+    .join(" - ");
 }
 
 export function CartAddressDetailsView({
@@ -104,6 +156,15 @@ export function CartAddressDetailsView({
   const [shippingMethodFeedback, setShippingMethodFeedback] = useState("");
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>([]);
   const [shippingMethodsError, setShippingMethodsError] = useState("");
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddressesResponse>({
+    addresses: [],
+    billingAddressIds: [],
+    shippingAddressIds: [],
+    defaultBillingAddressId: null,
+    defaultShippingAddressId: null
+  });
+  const [savedAddressesLoading, setSavedAddressesLoading] = useState(false);
+  const [savedAddressesError, setSavedAddressesError] = useState("");
   const [savingNext, setSavingNext] = useState(false);
   const savingNextRef = useRef(false);
   const [savingSection, setSavingSection] = useState<
@@ -178,6 +239,66 @@ export function CartAddressDetailsView({
     };
   }, []);
 
+  useEffect(() => {
+    if (!cart?.customerId) {
+      setSavedAddresses({
+        addresses: [],
+        billingAddressIds: [],
+        shippingAddressIds: [],
+        defaultBillingAddressId: null,
+        defaultShippingAddressId: null
+      });
+      setSavedAddressesError("");
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadSavedAddresses(customerId: string) {
+      setSavedAddressesLoading(true);
+      try {
+        const response = await fetch(`/api/customers/${encodeURIComponent(customerId)}/addresses`);
+        const payload = (await response.json().catch(() => ({}))) as CustomerAddressesResponse;
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Unable to load saved customer addresses.");
+        }
+
+        if (!cancelled) {
+          setSavedAddresses({
+            addresses: payload.addresses ?? [],
+            billingAddressIds: payload.billingAddressIds ?? [],
+            shippingAddressIds: payload.shippingAddressIds ?? [],
+            defaultBillingAddressId: payload.defaultBillingAddressId ?? null,
+            defaultShippingAddressId: payload.defaultShippingAddressId ?? null
+          });
+          setSavedAddressesError("");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSavedAddresses({
+            addresses: [],
+            billingAddressIds: [],
+            shippingAddressIds: [],
+            defaultBillingAddressId: null,
+            defaultShippingAddressId: null
+          });
+          setSavedAddressesError(
+            err instanceof Error ? err.message : "Unable to load saved customer addresses."
+          );
+        }
+      } finally {
+        if (!cancelled) setSavedAddressesLoading(false);
+      }
+    }
+
+    void loadSavedAddresses(cart.customerId);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cart?.customerId]);
+
   if (!cart) {
     return (
       <div className="space-y-6 pb-20">
@@ -204,6 +325,53 @@ export function CartAddressDetailsView({
       </div>
     );
   }
+
+  const savedAddressOptions = (kind: "billing" | "shipping") => {
+    const defaultAddressId =
+      kind === "shipping"
+        ? savedAddresses.defaultShippingAddressId
+        : savedAddresses.defaultBillingAddressId;
+    const sortedAddresses = [...(savedAddresses.addresses ?? [])].sort((a, b) => {
+      if (a.id === defaultAddressId) return -1;
+      if (b.id === defaultAddressId) return 1;
+      return 0;
+    });
+
+    return [
+      { value: "__new__", label: "New address (Manual entry)" },
+      ...sortedAddresses.map((address) => ({
+        value: address.id,
+        label: savedAddressLabel(address, {
+          isBilling: savedAddresses.billingAddressIds?.includes(address.id),
+          isDefaultBilling: savedAddresses.defaultBillingAddressId === address.id,
+          isDefaultShipping: savedAddresses.defaultShippingAddressId === address.id,
+          isShipping: savedAddresses.shippingAddressIds?.includes(address.id)
+        })
+      }))
+    ];
+  };
+
+  const handleShippingChoiceChange = (value: string) => {
+    setShippingChoice(value);
+    if (value === "__new__") return;
+
+    const selected = savedAddresses.addresses?.find((address) => address.id === value);
+    if (!selected) return;
+
+    const nextAddress = addressFromSavedAddress(selected);
+    setShippingForm(nextAddress);
+    if (isBillingSameAsShipping) setBillingForm(nextAddress);
+  };
+
+  const handleBillingChoiceChange = (value: string) => {
+    setBillingChoice(value);
+    if (value === "__new__") return;
+
+    const selected = savedAddresses.addresses?.find((address) => address.id === value);
+    if (!selected) return;
+
+    setBillingForm(addressFromSavedAddress(selected));
+  };
 
   const handleSaveShippingAddress = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -355,9 +523,15 @@ export function CartAddressDetailsView({
             <Label>Shipping address selection</Label>
             <Select
               value={shippingChoice}
-              onChange={(e) => setShippingChoice(e.target.value)}
-              options={[{ value: "__new__", label: "New address (Manual entry)" }]}
+              onChange={(e) => handleShippingChoiceChange(e.target.value)}
+              options={savedAddressOptions("shipping")}
             />
+            {savedAddressesLoading && (
+              <p className="text-xs font-semibold text-m-text-muted">Loading saved addresses...</p>
+            )}
+            {savedAddressesError && (
+              <p className="text-xs font-semibold text-m-error">{savedAddressesError}</p>
+            )}
           </FormField>
 
           {/* Shipping Manual Entry Grid */}
@@ -523,8 +697,8 @@ export function CartAddressDetailsView({
                 <Label>Billing address selection</Label>
                 <Select
                   value={billingChoice}
-                  onChange={(e) => setBillingChoice(e.target.value)}
-                  options={[{ value: "__new__", label: "New address (Manual entry)" }]}
+                  onChange={(e) => handleBillingChoiceChange(e.target.value)}
+                  options={savedAddressOptions("billing")}
                 />
               </FormField>
 

@@ -52,12 +52,33 @@ export async function findStoredCommercetoolsProject(clientId: string, projectKe
   const encryptedSecret = credentials?.clientSecretEncrypted || project.ctClientSecretEncrypted;
   if (!encryptedSecret) throw new Error(`Selected project '${projectKey}' has no stored commercetools secret`);
   return {
-    apiUrl: credentials?.apiUrl || project.ctApiUrl,
+    apiUrl: sanitizeCtApiOrigin(credentials?.apiUrl || project.ctApiUrl || ""),
     authUrl: credentials?.authUrl || project.ctAuthUrl,
     clientId: credentials?.clientId || project.ctClientId,
     clientSecret: decryptProjectSecret(encryptedSecret, projectKey),
     scope: credentials?.scopes || project.scopes
   };
+}
+
+/**
+ * Superadmin stores the commercetools API origin, but older/bad records can
+ * contain a project path or `/graphql`. The client appends
+ * `/{projectKey}/graphql`, so normalize on read before building that URL.
+ */
+function sanitizeCtApiOrigin(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  if (!trimmed) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    if (/\.commercetools\.com$/i.test(url.hostname)) {
+      return url.origin;
+    }
+  } catch {
+    /* fall through */
+  }
+  return trimmed
+    .replace(/\/graphql\/?$/i, "")
+    .replace(/\/+$/, "");
 }
 
 /**
