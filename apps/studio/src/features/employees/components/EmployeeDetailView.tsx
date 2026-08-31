@@ -81,7 +81,7 @@ const moneyToNumber = (money?: MoneyResult | null) => {
 
 export function EmployeeDetailView({ id }: { id: string }) {
   const router = useRouter();
-  const { getEmployeeById, updateEmployee, addEmployeeAddress, addEmployeeMembership } = useEmployees();
+  const { getEmployeeById, loading: employeesLoading, updateEmployee, addEmployeeAddress, addEmployeeMembership } = useEmployees();
   const { allCompanies } = useCompanies();
   const { quotes } = useQuotes();
 
@@ -117,6 +117,17 @@ export function EmployeeDetailView({ id }: { id: string }) {
   const [showMembershipModal, setShowMembershipModal] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [selectedRole, setSelectedRole] = useState("Buyer");
+
+  if (!employee && employeesLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader title="Loading Employee" />
+        <Panel title="Employee Details">
+          <div className="p-6 text-sm text-m-text-muted">Loading employee record...</div>
+        </Panel>
+      </div>
+    );
+  }
 
   if (!employee) {
     return (
