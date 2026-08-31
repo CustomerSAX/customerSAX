@@ -6,14 +6,14 @@
  * `CommercetoolsProjectConfig`.
  *
  * Resolution precedence (first match wins) in `resolveCommercetoolsProject`:
- *   1. No selected project, or it equals COMMERCETOOLS_PROJECT_KEY -> the
- *      deployment's primary project from env (`environmentProject`). This is
- *      also the recovery path when a stored record was encrypted with a key
- *      that isn't available locally.
- *   2. A stored Superadmin record for (clientId, projectKey), with its secret
- *      decrypted on read (see `project-store.ts`).
+ *   1. A request-selected Superadmin record for (clientId, projectKey), with
+ *      its secret decrypted on read (see `project-store.ts`).
+ *   2. No selected project -> the deployment's primary project from env
+ *      (`environmentProject`).
  *   3. A statically configured project in COMMERCETOOLS_PROJECTS_JSON.
- *   4. Otherwise: throw — never fall back to a fabricated/placeholder tenant.
+ *   4. Selected project equals COMMERCETOOLS_PROJECT_KEY but has no stored
+ *      record -> the deployment's primary project from env.
+ *   5. Otherwise: throw — never fall back to a fabricated/placeholder tenant.
  *
  * `normalizeProject` is the single choke point that trims URLs and asserts
  * every required credential is present, so a half-configured tenant fails loudly
@@ -39,28 +39,25 @@ export async function resolveCommercetoolsProject(): Promise<CommercetoolsProjec
   const selectedClientId = currentProjectContext().clientId;
   const environmentProjectKey = process.env.COMMERCETOOLS_PROJECT_KEY?.trim();
 
-  // Preserve the deployment's primary project configuration. This is also
-  // the recovery path when older Superadmin records were encrypted with a
-  // key that is no longer available locally.
-  if (!selectedProjectKey || selectedProjectKey === environmentProjectKey) {
-    return environmentProject();
-  }
-
-  if (selectedClientId) {
+  if (selectedProjectKey && selectedClientId) {
     // Cache the Mongo lookup + AES-decrypt (plumbing/config, not rep-facing
     // business data) so a burst of requests for the same tenant doesn't
     // re-hit Atlas and re-decrypt per request. Single-flight collapses
     // concurrent misses; a 300s TTL bounds staleness, and the admin service
     // invalidates this exact key on project update (see adminUpdateProject).
-    // Only the multi-tenant (stored-record) path is cached — the env-project
-    // recovery path above stays uncached. `getOrSet` never caches a null
-    // (project-not-found), so a missing tenant is not pinned.
+    // Only the stored-record path is cached — env/config fallbacks stay
+    // uncached. `getOrSet` never caches a null (project-not-found), so a
+    // missing tenant is not pinned.
     const stored = await getOrSet(
       ctProjectConfig(selectedClientId, selectedProjectKey),
       300,
       () => findStoredCommercetoolsProject(selectedClientId, selectedProjectKey)
     );
     if (stored) return normalizeProject(selectedProjectKey, stored);
+  }
+
+  if (!selectedProjectKey) {
+    return environmentProject();
   }
 
   if (selectedProjectKey !== environmentProjectKey) {
@@ -72,6 +69,8 @@ export async function resolveCommercetoolsProject(): Promise<CommercetoolsProjec
     return normalizeProject(selectedProjectKey, selected);
   }
 
+  // If a request selected the deployment's primary project but Superadmin has
+  // no tenant record for it, keep the single-project env fallback working.
   return environmentProject();
 }
 
