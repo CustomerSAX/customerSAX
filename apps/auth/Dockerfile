@@ -36,4 +36,4 @@ COPY --from=build /app/apps/auth/node_modules /app/apps/auth/node_modules
 COPY --from=build /app/apps/auth/package.json /app/apps/auth/package.json
 COPY --from=build /app/apps/auth/src /app/apps/auth/src
 COPY --from=build /app/apps/auth/dist /app/apps/auth/dist
-CMD ["pnpm", "--filter", "@csa/auth", "start"]
+CMD ["node", "apps/auth/dist/index.js"]

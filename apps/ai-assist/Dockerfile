@@ -36,4 +36,4 @@ COPY --from=build /app/apps/ai-assist/node_modules /app/apps/ai-assist/node_modu
 COPY --from=build /app/apps/ai-assist/package.json /app/apps/ai-assist/package.json
 COPY --from=build /app/apps/ai-assist/src /app/apps/ai-assist/src
 COPY --from=build /app/apps/ai-assist/dist /app/apps/ai-assist/dist
-CMD ["pnpm", "--filter", "@csa/ai-assist", "start"]
+CMD ["node", "apps/ai-assist/dist/index.js"]

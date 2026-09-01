@@ -35,4 +35,4 @@ COPY --from=build /app/apps/commerce/bigcommerce/node_modules /app/apps/commerce
 COPY --from=build /app/apps/commerce/bigcommerce/package.json /app/apps/commerce/bigcommerce/package.json
 COPY --from=build /app/apps/commerce/bigcommerce/src /app/apps/commerce/bigcommerce/src
 COPY --from=build /app/apps/commerce/bigcommerce/dist /app/apps/commerce/bigcommerce/dist
-CMD ["pnpm", "--filter", "@csa/commerce-bigcommerce", "start"]
+CMD ["node", "apps/commerce/bigcommerce/dist/index.js"]
