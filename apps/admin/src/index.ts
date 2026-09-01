@@ -9,12 +9,6 @@ import { recordAdminAudit } from "./audit/repository.js";
 const log = createLogger("admin");
 const port = Number(process.env.PORT ?? process.env.ADMIN_PORT ?? 4370);
 
-await Promise.all([ensureClientsIndex(), ensureProjectsIndex(), ensureSmtpProfilesIndex(), ensureUsersIndex()]).catch(
-  (error) => {
-    log.warn("index setup warning (non-fatal)", { reason: error instanceof Error ? error.message : String(error) });
-  }
-);
-
 type AdminContext = { clientId?: string; projectKey?: string; userRole?: string; userEmail?: string };
 
 const securedResolvers = secureAdminResolvers(resolvers);
@@ -24,6 +18,12 @@ await startSubgraph({
   schema: buildSubgraphSchema([{ resolvers: securedResolvers, typeDefs }]),
   port,
 });
+
+Promise.all([ensureClientsIndex(), ensureProjectsIndex(), ensureSmtpProfilesIndex(), ensureUsersIndex()]).catch(
+  (error) => {
+    log.warn("index setup warning (non-fatal)", { reason: error instanceof Error ? error.message : String(error) });
+  }
+);
 
 /**
  * Header-trust boundary — READ THIS BEFORE EXPOSING THIS SERVICE.
