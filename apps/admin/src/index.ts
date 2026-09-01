@@ -21,7 +21,7 @@ const securedResolvers = secureAdminResolvers(resolvers);
 
 await startSubgraph({
   serviceName: "admin",
-  schema: buildSubgraphSchema({ resolvers: securedResolvers, typeDefs }),
+  schema: buildSubgraphSchema([{ resolvers: securedResolvers, typeDefs }]),
   port,
 });
 
