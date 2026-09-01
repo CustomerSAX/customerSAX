@@ -285,4 +285,11 @@
   --m-t-slow:    var(--duration-slow);
   --m-ease-enterprise: var(--ease-enterprise);
   --m-ease-spring:     var(--ease-spring);
+  --m-z-raised:   var(--z-raised);
+  --m-z-dropdown: var(--z-dropdown);
+  --m-z-sticky:   var(--z-sticky);
+  --m-z-overlay:  var(--z-overlay);
+  --m-z-modal:    var(--z-modal);
+  --m-z-toast:    var(--z-toast);
+  --m-z-tooltip:  var(--z-tooltip);
 }

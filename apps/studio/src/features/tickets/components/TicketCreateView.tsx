@@ -29,6 +29,10 @@ import { useAssignees } from "../hooks/use-assignees";
 import { useCustomerStore } from "../../customers/hooks/use-customers";
 import { CUSTOMER_ORDERS_QUERY } from "../../orders/api/queries";
 import type { Customer } from "../../customers/types/customer-types";
+import {
+  useCustomerSearch,
+  type CustomerSearchResult,
+} from "../../csa-assistant/components/steppers/stepper-shared/useCustomerSearch";
 import type {
   TicketCategoryKey,
   TicketContactType,
@@ -67,6 +71,18 @@ const ORDER_LINKED_CATEGORIES: TicketCategoryKey[] = [
   "returns_refunds",
 ];
 
+function customerFromSearchResult(result: CustomerSearchResult): Customer {
+  const [firstName, ...lastNameParts] = result.name === result.email ? [""] : result.name.split(" ");
+
+  return {
+    id: result.id,
+    email: result.email,
+    firstName: firstName || undefined,
+    lastName: lastNameParts.join(" ") || undefined,
+    createdAt: "",
+  };
+}
+
 export function TicketCreateView() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -83,6 +99,7 @@ export function TicketCreateView() {
   const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(
     prefillEmail ? customers.find((c) => c.email.toLowerCase() === prefillEmail.toLowerCase()) || null : null
   );
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
 
   const [contactType, setContactType] = useState<TicketContactType>("Email");
   const [category, setCategory] = useState<TicketCategoryKey>("order_inquiry");
@@ -101,6 +118,8 @@ export function TicketCreateView() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const submitInFlightRef = useRef(false);
+  const { results: customerSearchResults, isLoading: customersLoading, error: customerSearchError } = useCustomerSearch(email, 4);
+  const showCustomerDropdown = customerDropdownOpen && email.trim().length >= 4 && !matchedCustomer;
 
   const clearError = (field: string) => {
     setErrors((current) => {
@@ -138,23 +157,37 @@ export function TicketCreateView() {
 
   const handleSearchCustomer = () => {
     setCustomerLookupMsg("");
-    if (!email.trim()) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
       setCustomerLookupMsg("Please enter a customer email address.");
       setCustomerFound(false);
       setMatchedCustomer(null);
       return;
     }
 
-    const found = customers.find((c) => c.email.toLowerCase().trim() === email.toLowerCase().trim());
+    const found =
+      customers.find((c) => c.email.toLowerCase().trim() === trimmedEmail.toLowerCase()) ||
+      customerSearchResults.find((c) => c.email.toLowerCase().trim() === trimmedEmail.toLowerCase());
     if (found) {
-      setMatchedCustomer(found);
+      setMatchedCustomer("createdAt" in found ? found : customerFromSearchResult(found));
       setCustomerFound(true);
       setCustomerLookupMsg("Customer record verified.");
+      setCustomerDropdownOpen(false);
     } else {
       setMatchedCustomer(null);
       setCustomerFound(false);
       setCustomerLookupMsg("No customer found for this email address. Please check spelling.");
     }
+  };
+
+  const handleSelectCustomer = (customer: CustomerSearchResult) => {
+    const selected = customers.find((c) => c.id === customer.id) || customerFromSearchResult(customer);
+    setEmail(customer.email);
+    setMatchedCustomer(selected);
+    setCustomerFound(true);
+    setCustomerLookupMsg("Customer record verified.");
+    setCustomerDropdownOpen(false);
+    clearError("email");
   };
 
   const handleAddWorklog = () => {
@@ -264,7 +297,7 @@ export function TicketCreateView() {
           <CardContent className="space-y-4">
             <div className="flex flex-col sm:flex-row items-end gap-3">
               <div className="flex-1 w-full">
-                <FormField error={errors.email}>
+                <FormField error={errors.email} className="relative">
                   <Label required>Customer Email</Label>
                   <Input
                     type="email"
@@ -272,10 +305,43 @@ export function TicketCreateView() {
                     onChange={(e) => {
                       setEmail(e.target.value);
                       setCustomerFound(false);
+                      setMatchedCustomer(null);
+                      setCustomerDropdownOpen(true);
                       clearError("email");
                     }}
+                    onFocus={() => setCustomerDropdownOpen(true)}
+                    onBlur={() => window.setTimeout(() => setCustomerDropdownOpen(false), 150)}
                     placeholder="e.g. mia.johnson@example.com"
                   />
+                  {showCustomerDropdown && (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-md border border-m-border bg-m-surface shadow-lg">
+                      {customersLoading ? (
+                        <div className="px-3 py-2 text-xs font-medium text-m-text-muted">Searching customers...</div>
+                      ) : customerSearchError ? (
+                        <div className="px-3 py-2 text-xs font-medium text-m-danger">{customerSearchError}</div>
+                      ) : customerSearchResults.length === 0 ? (
+                        <div className="px-3 py-2 text-xs font-medium text-m-text-muted">No customers found.</div>
+                      ) : (
+                        customerSearchResults.map((customer) => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-m-bg-surface focus:bg-m-bg-surface focus:outline-none"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => handleSelectCustomer(customer)}
+                          >
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-m-primary-50 text-xs font-bold text-m-primary">
+                              {customer.initials}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-xs font-semibold text-m-text">{customer.name}</span>
+                              <span className="block truncate text-xs text-m-text-muted">{customer.email}</span>
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </FormField>
               </div>
               <Button type="button" variant="secondary" size="md" onClick={handleSearchCustomer}>
@@ -421,7 +487,13 @@ export function TicketCreateView() {
                   onChange={(e) => setWorklogText(e.target.value)}
                   placeholder="Internal note for triage or initial action taken..."
                 />
-                <Button type="button" variant="secondary" size="md" onClick={handleAddWorklog}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  className="w-full sm:w-auto sm:min-w-[128px] whitespace-nowrap"
+                  onClick={handleAddWorklog}
+                >
                   Add Worklog
                 </Button>
               </div>
