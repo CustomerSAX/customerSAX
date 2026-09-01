@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { applyCsaHeaders } from "@csa/headers";
 import { authServiceUrl, currentSessionToken, ensureDefaultProjectSelection } from "../auth/shared";
 
-const bffUrl = process.env.AI_COMMERCE_SERVICE_URL?.trim() || "http://127.0.0.1:4000/graphql";
+const bffUrl =
+  process.env.BFF_URL?.trim() ||
+  process.env.AI_COMMERCE_SERVICE_URL?.trim() ||
+  "http://127.0.0.1:4000/graphql";
 
 export async function POST(request: Request) {
   try {
