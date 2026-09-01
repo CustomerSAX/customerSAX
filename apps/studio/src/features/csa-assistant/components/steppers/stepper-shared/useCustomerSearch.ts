@@ -24,7 +24,7 @@ type CustomerSearchApiResponse = {
  * Shared by CreateOrderStepper, CreateTicketStepper, and ReturnStepper — this
  * was previously copy-pasted verbatim in each.
  */
-export function useCustomerSearch(query: string) {
+export function useCustomerSearch(query: string, minLength = 3) {
   const [results, setResults] = useState<CustomerSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   // Distinct from "zero results" — true only when the search itself could
@@ -35,7 +35,7 @@ export function useCustomerSearch(query: string) {
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed.length < 3) {
+    if (trimmed.length < minLength) {
       setResults([]);
       setError(null);
       return;
@@ -78,7 +78,7 @@ export function useCustomerSearch(query: string) {
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, minLength]);
 
   return { results, isLoading, error };
 }

@@ -66,7 +66,7 @@ export function EntityHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+    <div className="relative z-[var(--z-dropdown)] flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
       <div className="min-w-0 flex flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em] text-m-text sm:text-[28px]">
