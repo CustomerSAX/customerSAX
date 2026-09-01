@@ -64,6 +64,16 @@ echo "🚀 Updating ${NAME_PREFIX}-bff with all downstream URLs..."
 
 BFF_ENV="NODE_ENV=production~SERVICE_NAME=bff~ENVIRONMENT=${ENVIRONMENT}"
 
+FED_SERVICES="{}"
+[ -n "${COMMERCE_CT_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
+  python3 -c "import sys,json; d=json.load(sys.stdin); d['commerce-commercetools']='${COMMERCE_CT_URL}/graphql'; print(json.dumps(d))")
+[ -n "${TICKETING_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
+  python3 -c "import sys,json; d=json.load(sys.stdin); d['ticketing']='${TICKETING_URL}/graphql'; print(json.dumps(d))")
+[ -n "${ADMIN_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
+  python3 -c "import sys,json; d=json.load(sys.stdin); d['admin']='${ADMIN_URL}/graphql'; print(json.dumps(d))")
+
+BFF_ENV="${BFF_ENV}~FEDERATED_SERVICES=${FED_SERVICES}"
+
 for VAR in "${!URL_MAP[@]}"; do
   [ "${VAR}" = "BFF_URL" ] && continue
   BFF_ENV="${BFF_ENV}~${VAR}=${URL_MAP[${VAR}]}"
