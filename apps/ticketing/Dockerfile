@@ -36,4 +36,4 @@ COPY --from=build /app/apps/ticketing/node_modules /app/apps/ticketing/node_modu
 COPY --from=build /app/apps/ticketing/package.json /app/apps/ticketing/package.json
 COPY --from=build /app/apps/ticketing/src /app/apps/ticketing/src
 COPY --from=build /app/apps/ticketing/dist /app/apps/ticketing/dist
-CMD ["pnpm", "--filter", "@csa/ticketing", "start"]
+CMD ["node", "apps/ticketing/dist/index.js"]

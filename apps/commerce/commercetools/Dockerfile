@@ -44,4 +44,4 @@ COPY --from=build /app/apps/commerce/commercetools/node_modules /app/apps/commer
 COPY --from=build /app/apps/commerce/commercetools/package.json /app/apps/commerce/commercetools/package.json
 COPY --from=build /app/apps/commerce/commercetools/src /app/apps/commerce/commercetools/src
 COPY --from=build /app/apps/commerce/commercetools/dist /app/apps/commerce/commercetools/dist
-CMD ["pnpm", "--filter", "@csa/commerce-commercetools", "start"]
+CMD ["node", "apps/commerce/commercetools/dist/index.js"]

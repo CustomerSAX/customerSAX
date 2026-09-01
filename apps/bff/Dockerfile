@@ -33,4 +33,4 @@ COPY --from=build /app/apps/bff/node_modules /app/apps/bff/node_modules
 COPY --from=build /app/apps/bff/package.json /app/apps/bff/package.json
 COPY --from=build /app/apps/bff/src /app/apps/bff/src
 COPY --from=build /app/apps/bff/dist /app/apps/bff/dist
-CMD ["pnpm", "--filter", "@csa/bff", "start"]
+CMD ["node", "apps/bff/dist/index.js"]

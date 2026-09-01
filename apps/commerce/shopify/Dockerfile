@@ -35,4 +35,4 @@ COPY --from=build /app/apps/commerce/shopify/node_modules /app/apps/commerce/sho
 COPY --from=build /app/apps/commerce/shopify/package.json /app/apps/commerce/shopify/package.json
 COPY --from=build /app/apps/commerce/shopify/src /app/apps/commerce/shopify/src
 COPY --from=build /app/apps/commerce/shopify/dist /app/apps/commerce/shopify/dist
-CMD ["pnpm", "--filter", "@csa/commerce-shopify", "start"]
+CMD ["node", "apps/commerce/shopify/dist/index.js"]

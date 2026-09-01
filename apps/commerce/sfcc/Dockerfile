@@ -35,4 +35,4 @@ COPY --from=build /app/apps/commerce/sfcc/node_modules /app/apps/commerce/sfcc/n
 COPY --from=build /app/apps/commerce/sfcc/package.json /app/apps/commerce/sfcc/package.json
 COPY --from=build /app/apps/commerce/sfcc/src /app/apps/commerce/sfcc/src
 COPY --from=build /app/apps/commerce/sfcc/dist /app/apps/commerce/sfcc/dist
-CMD ["pnpm", "--filter", "@csa/commerce-sfcc", "start"]
+CMD ["node", "apps/commerce/sfcc/dist/index.js"]
