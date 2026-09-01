@@ -7,7 +7,7 @@ import { ensureClientsIndex, ensureProjectsIndex, ensureSmtpProfilesIndex, ensur
 import { recordAdminAudit } from "./audit/repository.js";
 
 const log = createLogger("admin");
-const port = Number(process.env.ADMIN_PORT ?? process.env.PORT ?? 4370);
+const port = Number(process.env.PORT ?? process.env.ADMIN_PORT ?? 4370);
 
 await Promise.all([ensureClientsIndex(), ensureProjectsIndex(), ensureSmtpProfilesIndex(), ensureUsersIndex()]).catch(
   (error) => {

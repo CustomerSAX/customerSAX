@@ -10,7 +10,7 @@ import { routes } from "./routes/index.js";
 const log = createLogger("ai-assist");
 const app = express();
 const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
-const port = Number(process.env.AI_ASSIST_PORT ?? process.env.PORT ?? 8080);
+const port = Number(process.env.PORT ?? process.env.AI_ASSIST_PORT ?? 8080);
 
 const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";
 
