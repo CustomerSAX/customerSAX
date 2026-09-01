@@ -13,7 +13,7 @@ import {
 import { ensureAuthIndexes } from "./users/repository.js";
 
 const log = createLogger("auth");
-const port = Number(process.env.AUTH_PORT ?? process.env.PORT ?? 4360);
+const port = Number(process.env.PORT ?? process.env.AUTH_PORT ?? 4360);
 const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1");
 
 const server = createServer(withHttpContext(log, async (request, response) => {
