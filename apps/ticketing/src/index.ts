@@ -12,6 +12,6 @@ assertTicketStoreConfigured();
 
 await startSubgraph({
   serviceName: "ticketing",
-  schema: buildSubgraphSchema({ resolvers, typeDefs }),
+  schema: buildSubgraphSchema([{ resolvers, typeDefs }]),
   port,
 });

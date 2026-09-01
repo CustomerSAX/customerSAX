@@ -65,12 +65,22 @@ build_push_svc() {
     -t "${IMAGE}:${COMMIT_SHA}" \
     -f "${DOCKERFILE}" \
     . 2>&1 | sed "s/^/  [${SVC}] /"
+  local build_status="${PIPESTATUS[0]}"
+  if [ "${build_status}" -ne 0 ]; then
+    echo "  [${SVC}] ❌ Docker build failed with exit code ${build_status}"
+    return "${build_status}"
+  fi
     # Build context is the REPO ROOT (not the app dir): the Dockerfiles COPY
     # shared workspace packages (packages/*, configs/*) that only exist at the
     # monorepo root, so an app-dir context cannot see them. -f still selects the
     # per-service Dockerfile.
 
   docker push --all-tags "${IMAGE}" 2>&1 | sed "s/^/  [${SVC}] /"
+  local push_status="${PIPESTATUS[0]}"
+  if [ "${push_status}" -ne 0 ]; then
+    echo "  [${SVC}] ❌ Docker push failed with exit code ${push_status}"
+    return "${push_status}"
+  fi
 
   echo "✅ [DONE ] ${SVC} → ${IMAGE}:${COMMIT_SHA}"
 }
