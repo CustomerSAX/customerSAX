@@ -1,6 +1,6 @@
 "use client";
 
-import { gql } from "@apollo/client";
+import { gql, useQuery } from "@apollo/client";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -172,6 +172,38 @@ type CartSearchRow = {
   totalPrice?: MoneyResult | null;
 };
 
+type ShellPermission = {
+  module: string;
+  view: boolean;
+  create: boolean;
+  update: boolean;
+  delete: boolean;
+};
+
+type ShellRole = {
+  key: string;
+  permissions: ShellPermission[];
+};
+
+type ShellRolesData = {
+  adminRoles: ShellRole[];
+};
+
+const SHELL_ROLES_QUERY = gql`
+  query ShellRoles($clientId: ID!, $projectKey: String!) {
+    adminRoles(clientId: $clientId, projectKey: $projectKey) {
+      key
+      permissions {
+        module
+        view
+        create
+        update
+        delete
+      }
+    }
+  }
+`;
+
 const ORDERS_GLOBAL_SEARCH_QUERY = gql`
   query GlobalSearchOrders($limit: Int!, $offset: Int!) {
     orderPage(limit: $limit, offset: $offset, sortKey: "createdAt", sortOrder: "desc") {
@@ -250,6 +282,34 @@ const b2bCreateCommands: CommandItem[] = [
   { id: "create-quote", label: "Create Quote", description: "New quote request", href: "/b2b/quotes/create", icon: "file-text" }
 ];
 
+const navigationModuleById: Record<string, string | string[] | undefined> = {
+  dashboard: "dashboard",
+  tickets: "tickets",
+  customers: "customers",
+  orders: "orders",
+  cart: "carts",
+  products: "products",
+  reports: "reports",
+  knowledgebase: "knowledgebase",
+  "csa-assistant": "assistant",
+  "audit-log": "audit",
+  "admin-settings": ["users", "roles", "email"],
+};
+
+const commandPermissionById: Record<string, { module: string; action: keyof ShellPermission } | undefined> = {
+  dashboard: { module: "dashboard", action: "view" },
+  tickets: { module: "tickets", action: "view" },
+  customers: { module: "customers", action: "view" },
+  orders: { module: "orders", action: "view" },
+  cart: { module: "carts", action: "view" },
+  products: { module: "products", action: "view" },
+  reports: { module: "reports", action: "view" },
+  knowledgebase: { module: "knowledgebase", action: "view" },
+  assistant: { module: "assistant", action: "view" },
+  "create-customer": { module: "customers", action: "create" },
+  "create-ticket": { module: "tickets", action: "create" },
+};
+
 function commandMatches(item: CommandItem, query: string) {
   if (!query.trim()) return true;
   const needle = query.trim().toLowerCase();
@@ -300,6 +360,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user } = useCurrentUser();
   const currentUser = user ?? fallbackUser;
+  const canUseRolePermissions = currentUser.role === "admin" && Boolean(currentUser.activeClientId && currentUser.activeProjectKey);
+  const { data: shellRolesData } = useQuery<ShellRolesData>(SHELL_ROLES_QUERY, {
+    variables: { clientId: currentUser.activeClientId ?? "", projectKey: currentUser.activeProjectKey ?? "" },
+    skip: !canUseRolePermissions,
+    fetchPolicy: "cache-and-network",
+  });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
@@ -335,6 +401,31 @@ export function AppShell({ children }: { children: ReactNode }) {
     pathname
   ]);
 
+  const activeRolePermissions = useMemo(() => {
+    if (currentUser.role === "superadmin") return null;
+    return shellRolesData?.adminRoles.find((role) => role.key === currentUser.role)?.permissions;
+  }, [currentUser.role, shellRolesData?.adminRoles]);
+
+  const permissionByModule = useMemo(() => {
+    if (!activeRolePermissions) return null;
+    return new Map(activeRolePermissions.map((permission) => [permission.module, permission]));
+  }, [activeRolePermissions]);
+
+  const canViewNavigationItem = useCallback((item: SidebarItem) => {
+    if (currentUser.role === "superadmin" || !permissionByModule) return true;
+    const modules = navigationModuleById[item.id];
+    if (!modules) return true;
+    const moduleList = Array.isArray(modules) ? modules : [modules];
+    return moduleList.some((module) => permissionByModule.get(module)?.view);
+  }, [currentUser.role, permissionByModule]);
+
+  const canUseCommand = useCallback((item: CommandItem) => {
+    if (currentUser.role === "superadmin" || !permissionByModule) return true;
+    const permission = commandPermissionById[item.id];
+    if (!permission) return true;
+    return Boolean(permissionByModule.get(permission.module)?.[permission.action]);
+  }, [currentUser.role, permissionByModule]);
+
   const groups = useMemo(() => {
     let baseGroups = isB2bMode ? [...b2bSidebarGroups] : [...sidebarGroups];
     baseGroups = baseGroups.map((group) =>
@@ -353,17 +444,19 @@ export function AppShell({ children }: { children: ReactNode }) {
           }
         : group
     );
-    return baseGroups;
-  }, [currentUser.role, isB2bMode]);
+    return baseGroups
+      .map((group) => ({ ...group, items: group.items.filter(canViewNavigationItem) }))
+      .filter((group) => group.items.length > 0);
+  }, [canViewNavigationItem, currentUser.role, isB2bMode]);
 
   const navigateCommands = useMemo(
-    () => (isB2bMode ? b2bNavigateCommands : standardNavigateCommands),
-    [isB2bMode]
+    () => (isB2bMode ? b2bNavigateCommands : standardNavigateCommands).filter(canUseCommand),
+    [canUseCommand, isB2bMode]
   );
 
   const createCommands = useMemo(
-    () => (isB2bMode ? b2bCreateCommands : standardCreateCommands),
-    [isB2bMode]
+    () => (isB2bMode ? b2bCreateCommands : standardCreateCommands).filter(canUseCommand),
+    [canUseCommand, isB2bMode]
   );
 
   const visibleNavigateCommands = useMemo(
