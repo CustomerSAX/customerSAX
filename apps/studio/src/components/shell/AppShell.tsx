@@ -2,11 +2,14 @@
 
 import { gql, useQuery } from "@apollo/client";
 import {
+  DEFAULT_LOCALE,
   LOCALE_COOKIE_MAX_AGE,
   LOCALE_COOKIE_NAME,
   SUPPORTED_LOCALES,
+  isSupportedLocale,
   type AppLocale
 } from "@csa/i18n";
+import { localizeHref, localizePathname, stripLocalePrefix } from "@/i18n/routing";
 import { usePathname, useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -541,8 +544,10 @@ const fallbackUser: CurrentUser = {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const appPathname = stripLocalePrefix(pathname || "/");
   const router = useRouter();
   const locale = useLocale();
+  const currentLocale = isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
   const t = useTranslations("AppShell");
   const { user } = useCurrentUser();
   const currentUser = user ?? fallbackUser;
@@ -567,7 +572,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const handleLocaleChange = (nextLocale: AppLocale) => {
     if (nextLocale === locale) return;
     document.cookie = `${LOCALE_COOKIE_NAME}=${nextLocale}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax`;
-    window.location.reload();
+    const nextPathname = localizePathname(window.location.pathname, nextLocale);
+    window.location.assign(`${nextPathname}${window.location.search}${window.location.hash}`);
   };
 
   const userDisplayName = currentUser.name || currentUser.email;
@@ -595,7 +601,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       activeProjectKey.toLowerCase().includes("b2b") ||
       process.env.NEXT_PUBLIC_PROJECT_TYPE === "B2B" ||
       process.env.NEXT_PUBLIC_CT_BUSINESS_TYPE === "B2B" ||
-      pathname?.startsWith("/b2b")
+      appPathname.startsWith("/b2b")
     );
   }, [
     currentUser.activeClientId,
@@ -603,7 +609,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     currentUser.activeProjectShellMode,
     currentUser.projectKey,
     currentUser.projects,
-    pathname
+    appPathname
   ]);
 
   const activeRolePermissions = useMemo(() => {
@@ -737,9 +743,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       setIsSearchOpen(false);
       setGlobalSearch("");
       setActiveCommandIndex(0);
-      router.push(item.href);
+      router.push(localizeHref(item.href, currentLocale));
     },
-    [router]
+    [currentLocale, router]
   );
 
   useEffect(() => {
@@ -1001,7 +1007,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
-    router.replace("/login");
+    router.replace(localizePathname("/login", currentLocale));
     router.refresh();
   };
 
@@ -1065,9 +1071,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     for (const item of group.items) {
       if (
         item.href &&
-        (pathname === item.href ||
-          (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`)) ||
-          (item.href === "/dashboard" && pathname === "/"))
+        (appPathname === item.href ||
+          (item.href !== "/dashboard" && appPathname.startsWith(`${item.href}/`)) ||
+          (item.href === "/dashboard" && appPathname === "/"))
       ) {
         activeItemId = item.id;
       }
@@ -1076,7 +1082,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const handleSelectItem = (item: SidebarItem) => {
     if (item.href) {
-      router.push(item.href);
+      router.push(localizeHref(item.href, currentLocale));
     }
   };
 
@@ -1376,7 +1382,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     id: "profile",
                     label: t("myProfile"),
                     icon: "user",
-                    onClick: () => router.push("/profile")
+                    onClick: () => router.push(localizePathname("/profile", currentLocale))
                   },
                   ...(isAdmin
                     ? [
@@ -1384,7 +1390,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                           id: "settings",
                           label: t("organizationSettings"),
                           icon: "settings",
-                          onClick: () => router.push("/admin/users")
+                          onClick: () => router.push(localizePathname("/admin/users", currentLocale))
                         }
                       ]
                     : []),
@@ -1638,10 +1644,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* ── Page content ─────────────────────── */}
         <main
           className={`flex-1 flex flex-col ${
-            pathname === "/csa-assistant" ? "overflow-hidden" : "overflow-auto"
+            appPathname === "/csa-assistant" ? "overflow-hidden" : "overflow-auto"
           }`}
           style={{
-            padding: pathname === "/csa-assistant" ? 0 : "28px 32px",
+            padding: appPathname === "/csa-assistant" ? 0 : "28px 32px",
             background: "var(--color-bg)"
           }}
         >

@@ -1,0 +1,43 @@
+{
+  "Metadata": {
+    "title": "Documentación de customerSAX",
+    "titleTemplate": "%s · Documentación de customerSAX",
+    "description": "Documentación de customerSAX, la plataforma nativa de IA para resolver casos de atención al cliente en comercio."
+  },
+  "Navigation": {
+    "title": "Documentación de customerSAX",
+    "documentation": "Documentación"
+  },
+  "LocaleSwitcher": {
+    "label": "Idioma",
+    "en-US": "English (US)",
+    "fr-FR": "Français (France)",
+    "de-DE": "Deutsch (Deutschland)",
+    "es-ES": "Español (España)"
+  },
+  "Home": {
+    "badge": "Atención al cliente nativa de IA",
+    "title": "Documentación",
+    "description": "customerSAX (CSA) es una plataforma nativa de IA para resolver casos de atención al cliente en comercio. Un agente gestiona pedidos, carritos, devoluciones y tickets mediante procesos guiados o chat libre; ambos caminos utilizan las mismas herramientas de backend y producen resultados reales idénticos.",
+    "readDocs": "Leer la documentación",
+    "architecture": "Arquitectura",
+    "sections": {
+      "gettingStarted": {
+        "title": "Primeros pasos",
+        "body": "Ejecuta toda la plataforma localmente y conoce el mapa de servicios y sus puertos."
+      },
+      "architecture": {
+        "title": "Arquitectura y flujos",
+        "body": "Topología de servicios, interfaz comercial independiente de la plataforma y flujo de resolución."
+      },
+      "api": {
+        "title": "Referencia de la API",
+        "body": "La interfaz BFF GraphQL federada, el endpoint ai-assist /chat y la API REST de autenticación."
+      },
+      "services": {
+        "title": "Documentación de servicios",
+        "body": "Una página por servicio: autenticación, asistencia de IA, BFF, commercetools, tickets y administración."
+      }
+    }
+  }
+}

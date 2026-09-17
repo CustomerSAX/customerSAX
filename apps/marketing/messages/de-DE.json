@@ -1,0 +1,29 @@
+{
+  "Metadata": {
+    "title": "customerSAX — Kundenservice für den Handel, konsequent auf Lösungen ausgerichtet",
+    "description": "customerSAX ist die operative Kundenservice-Ebene für den Handel, die Kundengespräche mit Bestellungen, CRM, Zahlungen, Auftragsabwicklung, Retouren und kontrollierten KI-Aktionen verbindet.",
+    "socialDescription": "customerSAX verbindet jedes Gespräch mit den Handelssystemen, die das Problem tatsächlich lösen können — Bestellungen, CRM, Zahlungen, Auftragsabwicklung, Retouren, Treueprogramme und mehr."
+  },
+  "Navigation": {
+    "platform": "Plattform",
+    "customerService": "Kundenservice",
+    "workforce": "Mensch + KI",
+    "useCases": "Anwendungsfälle",
+    "integrations": "Integrationen",
+    "enterprise": "Unternehmen",
+    "explorePlatform": "Plattform entdecken",
+    "bookDemo": "Demo buchen",
+    "openMenu": "Navigationsmenü öffnen"
+  },
+  "Footer": {
+    "description": "Kundenservice für ein gemischtes Team aus Menschen und KI, verbunden mit den Handelssystemen, die eine Lösung vollständig umsetzen. Produktkonzept-Website — die Verfügbarkeit von Konnektoren und die Funktionen zum Marktstart sollten vor der öffentlichen Veröffentlichung mit der Roadmap abgeglichen werden.",
+    "brand": "Marke"
+  },
+  "LocaleSwitcher": {
+    "label": "Sprache",
+    "en-US": "English (US)",
+    "fr-FR": "Français (France)",
+    "de-DE": "Deutsch (Deutschland)",
+    "es-ES": "Español (España)"
+  }
+}
