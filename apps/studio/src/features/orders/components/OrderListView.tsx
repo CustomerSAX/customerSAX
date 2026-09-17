@@ -4,6 +4,8 @@ import { Fragment, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+// Keep route-mode checks independent from the locale segment shown in the URL.
+import { stripLocalePrefix } from "@/i18n/routing";
 import {
   PageHeader,
   Button,
@@ -144,7 +146,7 @@ export function OrderListView() {
   const common = useTranslations("Common");
   const paginationLabels = useTablePaginationLabels();
   const pathname = usePathname();
-  const isB2b = pathname?.startsWith("/b2b");
+  const isB2b = stripLocalePrefix(pathname || "/").startsWith("/b2b");
   const orderColumnStorageKey = isB2b ? "csa_b2b_order_columns" : "csa_order_columns";
   const defaultOrderColumnKeys = isB2b
     ? DEFAULT_B2B_ORDER_COLUMN_KEYS

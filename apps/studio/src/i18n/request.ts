@@ -1,5 +1,6 @@
 import { DEFAULT_LOCALE, isSupportedLocale, LOCALE_COOKIE_NAME } from "@csa/i18n";
 import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
 import enUS from "../../messages/en-US.json";
 import frFR from "../../messages/fr-FR.json";
@@ -10,7 +11,8 @@ const messagesByLocale = {
 };
 
 export default getRequestConfig(async () => {
-  const requestedLocale = (await cookies()).get(LOCALE_COOKIE_NAME)?.value;
+  const requestLocale = (await headers()).get("x-csa-locale");
+  const requestedLocale = requestLocale ?? (await cookies()).get(LOCALE_COOKIE_NAME)?.value;
   const locale =
     requestedLocale && isSupportedLocale(requestedLocale)
       ? requestedLocale
