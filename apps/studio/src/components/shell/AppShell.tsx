@@ -21,7 +21,8 @@ import {
   TopBar,
   Avatar,
   Dropdown,
-  Icon
+  Icon,
+  useDialogAccessibility
 } from "@csa/ui";
 import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
 import { apolloClient } from "@/graphql/client";
@@ -568,6 +569,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [entityResults, setEntityResults] = useState<GlobalSearchResult[]>([]);
   const [isEntitySearchLoading, setIsEntitySearchLoading] = useState(false);
   const commandSearchRef = useRef<HTMLInputElement>(null);
+  const commandDialogRef = useDialogAccessibility<HTMLDivElement>({
+    isOpen: isSearchOpen,
+    onClose: () => setIsSearchOpen(false),
+    initialFocusRef: commandSearchRef
+  });
 
   const handleLocaleChange = (nextLocale: AppLocale) => {
     if (nextLocale === locale) return;
@@ -763,7 +769,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isSearchOpen) return;
     setActiveCommandIndex(0);
-    window.requestAnimationFrame(() => commandSearchRef.current?.focus());
   }, [isSearchOpen]);
 
   useEffect(() => {
@@ -1233,17 +1238,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           }
           searchSlot={
-            <div
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
+              aria-label={t("globalSearch")}
               onClick={() => setIsSearchOpen(true)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setIsSearchOpen(true);
-                }
-              }}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-m-primary focus-visible:ring-offset-2"
               style={{
                 background: "var(--topbar-search-bg)",
                 border: "1px solid var(--topbar-search-border)",
@@ -1260,24 +1259,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 size="sm"
                 style={{ color: "var(--color-text-muted)", flexShrink: 0 }}
               />
-              <input
-                type="search"
-                placeholder={
+              <span
+                aria-hidden="true"
+                className="min-w-0 flex-1 text-left text-sm text-m-text-muted"
+              >
+                {
                   isB2bMode ? t("search.b2bPlaceholder") : t("search.standardPlaceholder")
                 }
-                aria-label={t("globalSearch")}
-                readOnly
-                style={{
-                  flex: 1,
-                  border: "none",
-                  background: "transparent",
-                  outline: "none",
-                  fontSize: "var(--text-sm)",
-                  color: "var(--color-ink)",
-                  minWidth: 0,
-                  cursor: "pointer"
-                }}
-              />
+              </span>
               <kbd
                 style={{
                   fontSize: 11,
@@ -1291,7 +1280,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 ⌘K
               </kbd>
-            </div>
+            </button>
           }
           actions={
             <div className="flex items-center gap-2">
@@ -1410,10 +1399,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {isSearchOpen && (
           <div
+            ref={commandDialogRef}
             className="fixed inset-0 z-[1000] flex items-start justify-center bg-black/40 px-4 pt-20 backdrop-blur-sm"
             role="dialog"
             aria-modal="true"
             aria-label={t("globalSearch")}
+            tabIndex={-1}
             onMouseDown={() => setIsSearchOpen(false)}
           >
             <div

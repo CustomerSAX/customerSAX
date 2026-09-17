@@ -30,7 +30,7 @@ export function StepDots({
   const currentIdx = steps.indexOf(currentStep);
 
   return (
-    <div className="steps-track" style={{ flex: 1, marginRight: '16px', display: 'flex', gap: '4px' }}>
+    <div className="steps-track" aria-label="Progress" style={{ flex: 1, marginRight: '16px', display: 'flex', gap: '4px' }}>
       {steps.slice(0, visibleCount).map((s, i) => {
         const cls = i < currentIdx ? 'done' : i === currentIdx ? 'active' : '';
         const clickable = isStepClickable(i);
@@ -43,6 +43,8 @@ export function StepDots({
             className={`step-dot ${cls}`}
             onClick={() => clickable && onStepClick(s)}
             disabled={!clickable}
+            aria-label={`Step ${i + 1}: ${s}`}
+            aria-current={i === currentIdx ? 'step' : undefined}
             style={{
               flex: 1,
               height: '4px',

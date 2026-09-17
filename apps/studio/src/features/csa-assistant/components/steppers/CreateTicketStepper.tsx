@@ -350,7 +350,7 @@ export function CreateTicketStepper({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div className="order-chip">
                       {localDraft.orderNumber}
-                      <span className="rm" onClick={() => setLocalDraft((prev) => ({ ...prev, orderNumber: null }))}>&times;</span>
+                      <button type="button" className="rm" aria-label={`Remove order ${localDraft.orderNumber}`} onClick={() => setLocalDraft((prev) => ({ ...prev, orderNumber: null }))}>&times;</button>
                     </div>
                   </div>
                 ) : isOrdersLoading ? (
@@ -366,13 +366,13 @@ export function CreateTicketStepper({
                     const price = o.totalPrice || '$0.00';
                     const orderNo = o.orderNumber || o.id;
                     return (
-                      <div key={o.id} className="opt-card" onClick={() => setLocalDraft((prev) => ({ ...prev, orderNumber: orderNo }))}>
+                      <button type="button" key={o.id} className="opt-card" onClick={() => setLocalDraft((prev) => ({ ...prev, orderNumber: orderNo }))}>
                         <div className="opt-main">
                           <div className="opt-name">{orderNo}</div>
                           <div className="opt-sub">{price} · {o.status}</div>
                         </div>
                         <div className="opt-chevron">&rsaquo;</div>
-                      </div>
+                      </button>
                     );
                   })
                 ) : (
@@ -430,15 +430,17 @@ export function CreateTicketStepper({
         {step === 'details' && (
           <>
             <div className="field-block">
-              <label className="field-label">Subject</label>
+              <label className="field-label" htmlFor="ticket-subject">Subject</label>
               <Input
+                id="ticket-subject"
                 value={localDraft.subject}
                 onChange={e => setLocalDraft((prev) => ({ ...prev, subject: e.target.value }))}
               />
             </div>
             <div className="field-block">
-              <label className="field-label">Message</label>
+              <label className="field-label" htmlFor="ticket-message">Message</label>
               <TextArea
+                id="ticket-message"
                 className="min-h-[120px]"
                 value={localDraft.message}
                 onChange={e => setLocalDraft((prev) => ({ ...prev, message: e.target.value }))}
@@ -459,11 +461,11 @@ export function CreateTicketStepper({
               />
               <Button type="button" variant="secondary" size="md" onClick={addWorklog}>Add</Button>
             </div>
-            <div className="worklog-toggle" onClick={() => setWorklogHistoryOpen(!worklogHistoryOpen)}>
+            <button type="button" className="worklog-toggle" aria-expanded={worklogHistoryOpen} aria-controls="worklog-history" onClick={() => setWorklogHistoryOpen(!worklogHistoryOpen)}>
               {worklogHistoryOpen ? '▼' : '▶'} Worklog History
-            </div>
+            </button>
             {worklogHistoryOpen && (
-              <div className="worklog-table-wrap">
+              <div id="worklog-history" className="worklog-table-wrap">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -479,7 +481,7 @@ export function CreateTicketStepper({
                           <TableCell className="text">{w.text}</TableCell>
                           <TableCell>{formatTime(w.created)}</TableCell>
                           <TableCell>
-                            <span className="rm" style={{ cursor: 'pointer', color: 'var(--color-text-subtle)' }} onClick={() => removeWorklog(idx)}>Remove</span>
+                            <button type="button" className="rm" style={{ cursor: 'pointer', color: 'var(--color-text-subtle)' }} onClick={() => removeWorklog(idx)}>Remove</button>
                           </TableCell>
                         </TableRow>
                       ))

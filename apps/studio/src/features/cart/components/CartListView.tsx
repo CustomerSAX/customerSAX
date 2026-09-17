@@ -229,11 +229,6 @@ export function CartListView() {
     window.localStorage.setItem(CART_COLUMN_STORAGE_KEY, JSON.stringify(nextKeys));
   }, []);
 
-  const renderSortIndicator = (key: CartColumnKey) => {
-    if (sortColumn !== key) return null;
-    return sortDirection === "asc" ? " ▲" : " ▼";
-  };
-
   const renderCartCell = (cart: Cart, key: CartColumnKey) => {
     const lineItemsCount = cart.lineItems.length;
     const totalItemsQty = cart.lineItems.reduce((acc, i) => acc + i.quantity, 0);
@@ -386,11 +381,11 @@ export function CartListView() {
                     return (
                       <TableHead
                         key={column.key}
-                        className={isSortable ? "cursor-pointer select-none" : undefined}
-                        onClick={isSortable ? () => handleSort(sortKey as keyof Cart) : undefined}
+                        sortable={isSortable}
+                        onSort={isSortable ? () => handleSort(sortKey as keyof Cart) : undefined}
+                        sortDirection={sortColumn === sortKey ? sortDirection : false}
                       >
                         {t(`columns.${column.key}`)}
-                        {isSortable ? renderSortIndicator(sortKey as CartColumnKey) : null}
                       </TableHead>
                     );
                   })}
