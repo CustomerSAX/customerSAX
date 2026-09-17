@@ -330,11 +330,6 @@ export function OrderListView() {
     return t(`columns.${key}`);
   };
 
-  const renderSortIndicator = (key: OrderColumnKey) => {
-    if (sortColumn !== key) return null;
-    return sortDirection === "asc" ? " ↑" : " ↓";
-  };
-
   const renderOrderCell = (order: Order, key: OrderColumnKey) => {
     const totalItemQty = order.lineItems.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -558,19 +553,20 @@ export function OrderListView() {
                     return (
                       <TableHead
                         key={column.key}
-                        onClick={isSortable ? () => handleSort(sortKey as keyof Order) : undefined}
+                        sortable={isSortable}
+                        onSort={isSortable ? () => handleSort(sortKey as keyof Order) : undefined}
+                        sortDirection={sortColumn === sortKey ? sortDirection : false}
                         className={
                           isSortable
                             ? column.key === "duplicate"
-                              ? "cursor-pointer text-right"
-                              : "cursor-pointer"
+                              ? "text-right"
+                              : undefined
                             : column.key === "duplicate"
                               ? "text-right"
                               : undefined
                         }
                       >
                         {getOrderColumnLabel(column.key)}
-                        {isSortable ? renderSortIndicator(sortKey as OrderColumnKey) : null}
                       </TableHead>
                     );
                   })}

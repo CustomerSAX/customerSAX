@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useId, useState } from 'react';
 import { cn } from '../../utils';
 
 export type TabsVariant = 'underline' | 'pill' | 'boxed';
@@ -9,6 +9,7 @@ interface TabsContextType {
   value: string;
   onChange: (value: string) => void;
   variant: TabsVariant;
+  baseId: string;
 }
 
 const TabsContext = createContext<TabsContextType | undefined>(undefined);
@@ -31,6 +32,7 @@ export function Tabs({
   children,
 }: TabsProps) {
   const [internalValue, setInternalValue] = useState(defaultValue || '');
+  const baseId = useId();
   const isControlled = valueProp !== undefined;
   const activeValue = isControlled ? valueProp : internalValue;
 
@@ -40,7 +42,7 @@ export function Tabs({
   };
 
   return (
-    <TabsContext.Provider value={{ value: activeValue, onChange: handleChange, variant }}>
+    <TabsContext.Provider value={{ value: activeValue, onChange: handleChange, variant, baseId }}>
       <div className={cn('w-full flex flex-col gap-4', className)}>{children}</div>
     </TabsContext.Provider>
   );
@@ -76,19 +78,39 @@ export interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonE
   children: React.ReactNode;
 }
 
-export function TabsTrigger({ value, icon, disabled, className, children, ...props }: TabsTriggerProps) {
+export function TabsTrigger({ value, icon, disabled, className, children, onKeyDown, ...props }: TabsTriggerProps) {
   const context = useContext(TabsContext);
   if (!context) throw new Error('TabsTrigger must be used within Tabs');
 
   const isActive = context.value === value;
+  const idValue = encodeURIComponent(value);
 
   return (
     <button
       type="button"
       role="tab"
+      id={`${context.baseId}-tab-${idValue}`}
+      aria-controls={`${context.baseId}-panel-${idValue}`}
       aria-selected={isActive}
+      tabIndex={isActive ? 0 : -1}
       disabled={disabled}
       onClick={() => context.onChange(value)}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        if (event.defaultPrevented || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const tabs = Array.from(
+          event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)') ?? [],
+        );
+        const currentIndex = tabs.indexOf(event.currentTarget);
+        const nextIndex = event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? tabs.length - 1
+            : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+        tabs[nextIndex]?.focus();
+        tabs[nextIndex]?.click();
+      }}
       className={cn(
         'inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold transition-all outline-none rounded-m-md cursor-pointer whitespace-nowrap',
         'focus-visible:ring-2 focus-visible:ring-m-primary',
@@ -134,7 +156,14 @@ export function TabsContent({ value, className, children, ...props }: TabsConten
   if (context.value !== value) return null;
 
   return (
-    <div role="tabpanel" className={cn('outline-none pt-2', className)} {...props}>
+    <div
+      id={`${context.baseId}-panel-${encodeURIComponent(value)}`}
+      role="tabpanel"
+      aria-labelledby={`${context.baseId}-tab-${encodeURIComponent(value)}`}
+      tabIndex={0}
+      className={cn('outline-none pt-2 focus-visible:ring-2 focus-visible:ring-m-primary', className)}
+      {...props}
+    >
       {children}
     </div>
   );

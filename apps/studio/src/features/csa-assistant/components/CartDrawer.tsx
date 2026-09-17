@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useDialogAccessibility } from '@csa/ui';
 import { useCartStore, type CartActionResult } from '../store/cart-store';
 import { useCheckoutStore } from '../store/checkout-store';
 import { useConversationStore } from '../store/conversation-store';
@@ -113,13 +114,11 @@ export function CartDrawer() {
   const convCustomer = useConversationStore((s) => s.customer);
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
-  const previouslyFocused = useRef<HTMLElement | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (cart.isCartOpen) {
       setClosing(false);
-      previouslyFocused.current = document.activeElement as HTMLElement | null;
       const raf = requestAnimationFrame(() => setVisible(true));
       return () => cancelAnimationFrame(raf);
     }
@@ -135,9 +134,13 @@ export function CartDrawer() {
     if (closeTimer.current) clearTimeout(closeTimer.current);
     closeTimer.current = setTimeout(() => {
       setClosing(false);
-      try { previouslyFocused.current?.focus?.(); } catch { /* best-effort */ }
     }, 240);
   };
+
+  const drawerRef = useDialogAccessibility<HTMLDivElement>({
+    isOpen: cart.isCartOpen || closing,
+    onClose: handleClose,
+  });
 
   const startCheckout = () => {
     if (!cart.cartId) return;
@@ -149,14 +152,6 @@ export function CartDrawer() {
     );
     handleClose();
   };
-
-  useEffect(() => {
-    if (!cart.isCartOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-
-  }, [cart.isCartOpen]);
 
   if (!cart.isCartOpen && !closing) return null;
   if (typeof document === 'undefined') return null;
@@ -175,7 +170,13 @@ export function CartDrawer() {
       />
 
       {/* Drawer panel */}
-      <div style={{
+      <div
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cart-drawer-title"
+        tabIndex={-1}
+        style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, maxWidth: '95vw',
         backgroundColor: 'var(--color-surface-1)', zIndex: 1101, display: 'flex', flexDirection: 'column',
         boxShadow: '-4px 0 40px rgba(0,0,0,0.14)',
@@ -192,12 +193,15 @@ export function CartDrawer() {
               <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
               <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
             </svg>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-inverse)', letterSpacing: '0.02em' }}>
+            <span id="cart-drawer-title" style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-inverse)', letterSpacing: '0.02em' }}>
               Cart{itemCount > 0 ? ` (${itemCount})` : ''}
             </span>
           </div>
           <button
+            type="button"
             onClick={handleClose}
+            aria-label="Close cart"
+            className="outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-m-primary"
             style={{
               width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.3)',
               background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center',

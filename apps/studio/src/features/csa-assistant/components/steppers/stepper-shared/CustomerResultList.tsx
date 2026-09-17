@@ -1,6 +1,7 @@
 'use client';
 
 import { Input } from '@csa/ui';
+import { useId } from 'react';
 import { useCustomerSearch, type CustomerSearchResult } from './useCustomerSearch';
 
 export interface CustomerResultListProps {
@@ -27,6 +28,7 @@ export function CustomerResultList({
   noMatches = (q) => `No customers found matching "${q}".`,
 }: CustomerResultListProps) {
   const { results, isLoading, error } = useCustomerSearch(search);
+  const searchId = useId();
 
   return (
     <>
@@ -36,32 +38,34 @@ export function CustomerResultList({
           <path d="m21 21-4.3-4.3" />
         </svg>
         <Input
+          id={searchId}
           className="search-input"
           placeholder={placeholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoFocus={autoFocus}
         />
+        <label htmlFor={searchId} className="sr-only">{placeholder}</label>
       </div>
 
       {isLoading ? (
-        <div className="opt-empty-state">Searching customers...</div>
+        <div className="opt-empty-state" role="status">Searching customers...</div>
       ) : error ? (
-        <div className="opt-empty-state opt-error-state">⚠ {error}</div>
+        <div className="opt-empty-state opt-error-state" role="alert">⚠ {error}</div>
       ) : search.trim() === '' ? (
         <div className="opt-empty-state">{emptyBeforeTyping}</div>
       ) : results.length === 0 ? (
         <div className="opt-empty-state">{noMatches(search)}</div>
       ) : (
         results.map((c) => (
-          <div key={c.id} className="opt-card" onClick={() => onSelect(c)}>
+          <button key={c.id} type="button" className="opt-card" onClick={() => onSelect(c)}>
             <div className="opt-avatar">{c.initials}</div>
             <div className="opt-main">
               <div className="opt-name">{c.name}</div>
               <div className="opt-sub">{c.email}</div>
             </div>
             <div className="opt-chevron">&rsaquo;</div>
-          </div>
+          </button>
         ))
       )}
     </>

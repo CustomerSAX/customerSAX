@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useDialogAccessibility } from '@csa/ui';
 import { useCartStore } from '../store/cart-store';
 import { useConversationStore } from '../store/conversation-store';
 import type { ProductCardArgs } from '../types';
@@ -51,7 +52,6 @@ export function ProductDetailDrawer({
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previouslyFocused = useRef<HTMLElement | null>(null);
 
   // Cart state for this specific SKU.
   const cartItems = useCartStore((s) => s.items);
@@ -103,7 +103,6 @@ export function ProductDetailDrawer({
   useEffect(() => {
     if (isOpen) {
       setClosing(false);
-      previouslyFocused.current = document.activeElement as HTMLElement | null;
       const raf = requestAnimationFrame(() => setVisible(true));
       return () => cancelAnimationFrame(raf);
     }
@@ -185,18 +184,10 @@ export function ProductDetailDrawer({
     closeTimer.current = setTimeout(() => {
       setClosing(false);
       onClose();
-      try { previouslyFocused.current?.focus?.(); } catch { /* best-effort */ }
     }, 240);
   };
 
-  // Escape key.
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  const drawerRef = useDialogAccessibility<HTMLDivElement>({ isOpen: isOpen || closing, onClose: handleClose });
 
   const runCartAction = async (
     action: 'add' | 'increase' | 'decrease' | 'remove',
@@ -279,7 +270,13 @@ export function ProductDetailDrawer({
       />
 
       {/* Drawer */}
-      <div style={{
+      <div
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="product-detail-drawer-title"
+        tabIndex={-1}
+        style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 600, maxWidth: '95vw',
         backgroundColor: 'var(--color-surface-1)', zIndex: 1001, display: 'flex', flexDirection: 'column',
         boxShadow: '-4px 0 40px rgba(0,0,0,0.14)',
@@ -293,12 +290,15 @@ export function ProductDetailDrawer({
               <path d="M10 1 C10.8 5.5 12.5 7.5 18 10 C12.5 12.5 10.8 14.5 10 19 C9.2 14.5 7.5 12.5 2 10 C7.5 7.5 9.2 5.5 10 1 Z" fill="white" />
               <circle cx="17" cy="3" r="1.2" fill="white" />
             </svg>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-inverse)', letterSpacing: '0.02em' }}>
+            <span id="product-detail-drawer-title" style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-inverse)', letterSpacing: '0.02em' }}>
               Product Details
             </span>
           </div>
           <button
+            type="button"
             onClick={handleClose}
+            aria-label="Close product details"
+            className="outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-m-primary"
             style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.3)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-inverse)' }}
             title="Close (Esc)"
           >

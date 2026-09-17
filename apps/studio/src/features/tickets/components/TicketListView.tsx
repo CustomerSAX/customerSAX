@@ -263,24 +263,24 @@ export function TicketListView() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead onClick={() => handleSort("ticketNumber")} className="cursor-pointer">
-                  {t("ticketNumber")} {sortColumn === "ticketNumber" && (sortDirection === "asc" ? "↑" : "↓")}
+                <TableHead sortable onSort={() => handleSort("ticketNumber")} sortDirection={sortColumn === "ticketNumber" ? sortDirection : false}>
+                  {t("ticketNumber")}
                 </TableHead>
-                <TableHead onClick={() => handleSort("email")} className="cursor-pointer">
-                  {t("customer")} {sortColumn === "email" && (sortDirection === "asc" ? "↑" : "↓")}
+                <TableHead sortable onSort={() => handleSort("email")} sortDirection={sortColumn === "email" ? sortDirection : false}>
+                  {t("customer")}
                 </TableHead>
-                <TableHead onClick={() => handleSort("createdAt")} className="cursor-pointer">
-                  {common("created")} {sortColumn === "createdAt" && (sortDirection === "asc" ? "↑" : "↓")}
+                <TableHead sortable onSort={() => handleSort("createdAt")} sortDirection={sortColumn === "createdAt" ? sortDirection : false}>
+                  {common("created")}
                 </TableHead>
-                <TableHead onClick={() => handleSort("lastModifiedAt")} className="cursor-pointer">
-                  {common("modified")} {sortColumn === "lastModifiedAt" && (sortDirection === "asc" ? "↑" : "↓")}
+                <TableHead sortable onSort={() => handleSort("lastModifiedAt")} sortDirection={sortColumn === "lastModifiedAt" ? sortDirection : false}>
+                  {common("modified")}
                 </TableHead>
                 <TableHead>{t("source")}</TableHead>
-                <TableHead onClick={() => handleSort("status")} className="cursor-pointer">
-                  {common("status")} {sortColumn === "status" && (sortDirection === "asc" ? "↑" : "↓")}
+                <TableHead sortable onSort={() => handleSort("status")} sortDirection={sortColumn === "status" ? sortDirection : false}>
+                  {common("status")}
                 </TableHead>
-                <TableHead onClick={() => handleSort("priority")} className="cursor-pointer">
-                  {t("priorityLabel")} {sortColumn === "priority" && (sortDirection === "asc" ? "↑" : "↓")}
+                <TableHead sortable onSort={() => handleSort("priority")} sortDirection={sortColumn === "priority" ? sortDirection : false}>
+                  {t("priorityLabel")}
                 </TableHead>
                 <TableHead>{t("category")}</TableHead>
                 <TableHead>{t("subject")}</TableHead>

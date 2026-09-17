@@ -419,18 +419,21 @@ export function ConversationList() {
             return (
               <div
                 key={row.customerEmail}
-                onClick={() => handleSelectCustomer(row)}
                 style={{
                   padding: "12px 14px",
                   borderBottom: "1px solid var(--color-border)",
                   background: isActive ? "var(--color-primary-light)" : "var(--color-surface-1)",
-                  cursor: "pointer",
                   borderLeft: isActive ? "3px solid var(--color-primary)" : "3px solid transparent",
                   transition: "background 0.1s",
                 }}
-                onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "var(--color-surface-2)"; }}
-                onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "var(--color-surface-1)"; }}
               >
+                <button
+                  type="button"
+                  aria-current={isActive ? "true" : undefined}
+                  onClick={() => handleSelectCustomer(row)}
+                  className="w-full rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-m-primary focus-visible:ring-offset-2"
+                  style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}
+                >
                 {/* Name + time */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
                   <div style={{
@@ -486,14 +489,16 @@ export function ConversationList() {
                     </span>
                   )}
                 </div>
+                </button>
 
                 {/* Nested ticket list when multiple open */}
                 {row.openCount > 1 && row.openTickets.length > 0 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
                     {row.openTickets.map((t) => (
-                      <div
+                      <button
+                        type="button"
                         key={t.id}
-                        onClick={(e) => { e.stopPropagation(); handleSelectCustomer(row, t); }}
+                        onClick={() => handleSelectCustomer(row, t)}
                         style={{
                           padding: "6px 8px",
                           backgroundColor: activeTicketId === t.id ? "var(--color-primary-light)" : "var(--color-surface-2)",
@@ -509,7 +514,7 @@ export function ConversationList() {
                         <div style={{ fontSize: 9, color: activeTicketId === t.id ? "var(--color-primary)" : "var(--color-text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
                           {t.status ?? "Open"}
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}

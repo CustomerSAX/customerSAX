@@ -545,7 +545,7 @@ function ShellModePicker({
   ];
 
   return (
-    <RadioGroup name={name} value={value} onChange={(mode) => onChange(mode as ShellMode)} className={compact ? "flex-row gap-3" : "gap-2.5"}>
+    <RadioGroup aria-label="Default workspace mode" name={name} value={value} onChange={(mode) => onChange(mode as ShellMode)} className={compact ? "flex-row gap-3" : "gap-2.5"}>
       {options.map((option) => (
         <div key={option.mode} className={compact ? "flex items-center" : ""}>
           {compact ? (
@@ -1291,11 +1291,17 @@ function UserModal({
                       key={p.projectKey}
                       className={`flex items-center gap-2.5 px-3 py-2 ${idx < projects.length - 1 ? "border-b border-m-border/50" : ""} ${checked ? "bg-m-primary-50" : ""}`}
                     >
-                      <Checkbox checked={checked} onChange={() => toggleProject(p.projectKey)} size="sm" />
-                      <div className="flex-1 cursor-pointer" onClick={() => toggleProject(p.projectKey)}>
-                        <div className="text-xs font-medium text-m-text">{p.projectKey}</div>
-                        {p.displayName && <div className="text-[11px] text-m-text-muted">{p.displayName}</div>}
-                      </div>
+                      <Checkbox
+                        checked={checked}
+                        onChange={() => toggleProject(p.projectKey)}
+                        size="sm"
+                        label={
+                          <span className="flex flex-col">
+                            <span className="text-xs font-medium text-m-text">{p.projectKey}</span>
+                            {p.displayName && <span className="text-[11px] text-m-text-muted">{p.displayName}</span>}
+                          </span>
+                        }
+                      />
                       {isEdit && (
                         <Select
                           value={editRoles[p.projectKey] ?? "admin"}

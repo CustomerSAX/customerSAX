@@ -25,6 +25,14 @@ export function FormField({
 }: FormFieldProps) {
   const generatedId = useId();
   const fieldId = htmlForProp || generatedId;
+  const childDescribedBy = React.isValidElement(children)
+    ? (children.props as { 'aria-describedby'?: string })['aria-describedby']
+    : undefined;
+  const describedBy = [
+    childDescribedBy,
+    error ? `${fieldId}-error` : undefined,
+    !error && hint ? `${fieldId}-hint` : undefined,
+  ].filter(Boolean).join(' ') || undefined;
 
   return (
     <div className={cn('flex flex-col gap-1.5 w-full', className)}>
@@ -36,7 +44,8 @@ export function FormField({
       {React.isValidElement(children)
         ? React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
             id: fieldId,
-            ...(error ? { error: true, 'aria-invalid': true, 'aria-describedby': `${fieldId}-error` } : {}),
+            ...(error ? { error: true, 'aria-invalid': true } : {}),
+            'aria-describedby': describedBy,
             required,
           })
         : children}

@@ -12,6 +12,9 @@ export interface SwitchProps {
   label?: React.ReactNode;
   className?: string;
   id?: string;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
 }
 
 export function Switch({
@@ -23,10 +26,16 @@ export function Switch({
   label,
   className,
   id,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
 }: SwitchProps) {
   const [isChecked, setIsChecked] = React.useState(defaultChecked);
   const isControlled = checkedProp !== undefined;
   const activeChecked = isControlled ? checkedProp : isChecked;
+  const generatedId = React.useId();
+  const switchId = id || `${generatedId}-switch`;
+  const labelId = `${generatedId}-label`;
 
   const toggle = () => {
     if (disabled) return;
@@ -56,8 +65,11 @@ export function Switch({
       <button
         type="button"
         role="switch"
-        id={id}
+        id={switchId}
         aria-checked={activeChecked}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabel ? undefined : ariaLabelledBy ?? (label ? labelId : undefined)}
+        aria-describedby={ariaDescribedBy}
         disabled={disabled}
         onClick={toggle}
         onKeyDown={handleKeyDown}
@@ -77,9 +89,9 @@ export function Switch({
         />
       </button>
       {label && (
-        <span className="text-xs font-medium text-m-text cursor-pointer" onClick={toggle}>
+        <label id={labelId} htmlFor={switchId} className="text-xs font-medium text-m-text cursor-pointer">
           {label}
-        </span>
+        </label>
       )}
     </div>
   );
