@@ -11,7 +11,9 @@
   "LocaleSwitcher": {
     "label": "Language",
     "en-US": "English (US)",
-    "fr-FR": "Français (France)"
+    "fr-FR": "Français (France)",
+    "de-DE": "Deutsch (Deutschland)",
+    "es-ES": "Español (España)"
   },
   "Home": {
     "badge": "AI-native customer service",

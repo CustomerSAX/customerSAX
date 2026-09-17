@@ -1,0 +1,43 @@
+{
+  "Metadata": {
+    "title": "customerSAX-Dokumentation",
+    "titleTemplate": "%s · customerSAX-Dokumentation",
+    "description": "Dokumentation für customerSAX — die KI-native Plattform zur Lösung von Kundenservicefällen im Handel."
+  },
+  "Navigation": {
+    "title": "customerSAX-Dokumentation",
+    "documentation": "Dokumentation"
+  },
+  "LocaleSwitcher": {
+    "label": "Sprache",
+    "en-US": "English (US)",
+    "fr-FR": "Français (France)",
+    "de-DE": "Deutsch (Deutschland)",
+    "es-ES": "Español (España)"
+  },
+  "Home": {
+    "badge": "KI-nativer Kundenservice",
+    "title": "Dokumentation",
+    "description": "customerSAX (CSA) ist eine KI-native Plattform zur Lösung von Kundenservicefällen im Handel. Servicemitarbeiter bearbeiten Bestellungen, Warenkörbe, Retouren und Tickets über geführte Abläufe oder im freien Chat — beide Wege verwenden dieselben Backend-Werkzeuge und liefern deshalb identische, reale Ergebnisse.",
+    "readDocs": "Dokumentation lesen",
+    "architecture": "Architektur",
+    "sections": {
+      "gettingStarted": {
+        "title": "Erste Schritte",
+        "body": "Führen Sie die gesamte Plattform lokal aus und lernen Sie die Dienste, ihre Zuordnung und Ports kennen."
+      },
+      "architecture": {
+        "title": "Architektur und Abläufe",
+        "body": "Diensttopologie, die plattformneutrale Handelsschnittstelle und der Lösungsablauf."
+      },
+      "api": {
+        "title": "API-Referenz",
+        "body": "Die föderierte GraphQL-BFF-Oberfläche, der Endpunkt ai-assist /chat und die Authentifizierungs-REST-API."
+      },
+      "services": {
+        "title": "Dienstdokumentation",
+        "body": "Eine Seite pro Dienst: Authentifizierung, KI-Unterstützung, BFF, commercetools, Ticketing und Administration."
+      }
+    }
+  }
+}

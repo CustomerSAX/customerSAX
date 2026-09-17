@@ -68,7 +68,9 @@
     },
     "locales": {
       "en-US": "English (US)",
-      "fr-FR": "Français (France)"
+      "fr-FR": "Français (France)",
+      "de-DE": "Deutsch (Deutschland)",
+      "es-ES": "Español (España)"
     },
     "search": {
       "standardPlaceholder": "Rechercher des clients, commandes, tickets...",

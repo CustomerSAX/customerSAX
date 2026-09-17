@@ -1,0 +1,29 @@
+{
+  "Metadata": {
+    "title": "customerSAX — Atención al cliente para comercio, diseñada para resolver",
+    "description": "customerSAX es la capa operativa de atención al cliente para comercio que conecta las conversaciones con pedidos, CRM, pagos, logística, devoluciones y acciones de IA controladas.",
+    "socialDescription": "customerSAX conecta cada conversación con los sistemas comerciales que realmente pueden resolver el problema: pedidos, CRM, pagos, logística, devoluciones, fidelización y mucho más."
+  },
+  "Navigation": {
+    "platform": "Plataforma",
+    "customerService": "Atención al cliente",
+    "workforce": "Personas + IA",
+    "useCases": "Casos de uso",
+    "integrations": "Integraciones",
+    "enterprise": "Empresas",
+    "explorePlatform": "Explorar la plataforma",
+    "bookDemo": "Solicitar una demo",
+    "openMenu": "Abrir el menú de navegación"
+  },
+  "Footer": {
+    "description": "Atención al cliente para un equipo mixto de personas e IA, conectado a los sistemas comerciales que completan la resolución. Sitio web conceptual del producto: la disponibilidad de conectores y las capacidades de lanzamiento deben validarse con la hoja de ruta antes de su publicación.",
+    "brand": "Marca"
+  },
+  "LocaleSwitcher": {
+    "label": "Idioma",
+    "en-US": "English (US)",
+    "fr-FR": "Français (France)",
+    "de-DE": "Deutsch (Deutschland)",
+    "es-ES": "Español (España)"
+  }
+}

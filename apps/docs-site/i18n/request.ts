@@ -3,10 +3,14 @@ import { cookies } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
 import enUS from "../messages/en-US.json";
 import frFR from "../messages/fr-FR.json";
+import deDE from "../messages/de-DE.json";
+import esES from "../messages/es-ES.json";
 
 const messagesByLocale = {
   "en-US": enUS,
-  "fr-FR": frFR
+  "fr-FR": frFR,
+  "de-DE": deDE,
+  "es-ES": esES
 };
 
 export default getRequestConfig(async () => {

@@ -2,7 +2,9 @@ import type { AppLocale } from "@csa/i18n";
 
 export const LOCALE_PATH_SEGMENTS: Record<AppLocale, string> = {
   "en-US": "en-us",
-  "fr-FR": "fr-fr"
+  "fr-FR": "fr-fr",
+  "de-DE": "de-de",
+  "es-ES": "es-es"
 };
 
 const LOCALE_BY_PATH_SEGMENT = Object.fromEntries(
