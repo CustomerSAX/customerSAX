@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import {
   PageHeader,
   Panel,
@@ -21,28 +22,15 @@ import {
   Skeleton,
 } from "@csa/ui";
 import { formatDate } from "@/lib/format-date";
+import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 import { useCompanies } from "../hooks/use-companies";
-
-const SEARCH_OPTIONS = [
-  { value: "all", label: "All fields" },
-  { value: "name", label: "Company Name" },
-  { value: "key", label: "Key" },
-];
-
-const TYPE_OPTIONS = [
-  { value: "", label: "All Unit Types" },
-  { value: "Company", label: "Company" },
-  { value: "Division", label: "Division" },
-];
-
-const STATUS_OPTIONS = [
-  { value: "", label: "All Statuses" },
-  { value: "Active", label: "Active" },
-  { value: "Inactive", label: "Inactive" },
-];
 
 export function CompanyListView() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("Companies");
+  const common = useTranslations("Common");
+  const paginationLabels = useTablePaginationLabels();
   const {
     companies,
     totalItems,
@@ -59,6 +47,21 @@ export function CompanyListView() {
 
   const [searchField, setSearchField] = useState<"all" | "name" | "key">("all");
   const [searchText, setSearchText] = useState("");
+  const searchOptions = [
+    { value: "all", label: common("allFields") },
+    { value: "name", label: t("companyName") },
+    { value: "key", label: t("key") },
+  ];
+  const typeOptions = [
+    { value: "", label: t("allUnitTypes") },
+    { value: "Company", label: t("company") },
+    { value: "Division", label: t("division") },
+  ];
+  const statusOptions = [
+    { value: "", label: common("allStatuses") },
+    { value: "Active", label: common("active") },
+    { value: "Inactive", label: common("inactive") },
+  ];
 
   const handleSearchSubmit = () => {
     setFilter({
@@ -87,11 +90,11 @@ export function CompanyListView() {
     <div className="flex flex-col gap-6">
       {/* Page Header */}
       <PageHeader
-        title="Companies"
-        subtitle="Browse company hierarchy, addresses, and associates in CommerceTools B2B."
+        title={t("title")}
+        subtitle={t("subtitle")}
         breadcrumbs={
           <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
-            B2B Operations
+            {t("eyebrow")}
           </span>
         }
         actions={
@@ -102,7 +105,7 @@ export function CompanyListView() {
               leftIcon={<Icon name="arrow-left-right" size="xs" />}
               onClick={() => router.push("/b2b/import-export?resource=company")}
             >
-              Import / Export
+              {t("importExport")}
             </Button>
             <Button
               variant="primary"
@@ -110,7 +113,7 @@ export function CompanyListView() {
               leftIcon={<Icon name="plus" size="xs" />}
               onClick={() => router.push("/b2b/company/create")}
             >
-              Create company
+              {t("create")}
             </Button>
           </div>
         }
@@ -122,7 +125,7 @@ export function CompanyListView() {
           <div className="w-full sm:w-44">
             <Select
               value={searchField}
-              options={SEARCH_OPTIONS}
+              options={searchOptions}
               onChange={(e) => setSearchField(e.target.value as "all" | "name" | "key")}
               size="md"
             />
@@ -134,7 +137,7 @@ export function CompanyListView() {
               onChange={(val) => setSearchText(val)}
               onSearch={handleSearchSubmit}
               onClear={() => setSearchText("")}
-              placeholder="Search companies..."
+              placeholder={t("searchPlaceholder")}
               size="md"
             />
           </div>
@@ -142,7 +145,7 @@ export function CompanyListView() {
           <div className="w-full sm:w-44">
             <Select
               value={filter.unitTypeFilter ?? ""}
-              options={TYPE_OPTIONS}
+              options={typeOptions}
               onChange={(e) => {
                 setFilter({ ...filter, unitTypeFilter: e.target.value });
                 setPage(1);
@@ -154,7 +157,7 @@ export function CompanyListView() {
           <div className="w-full sm:w-40">
             <Select
               value={filter.statusFilter ?? ""}
-              options={STATUS_OPTIONS}
+              options={statusOptions}
               onChange={(e) => {
                 setFilter({ ...filter, statusFilter: e.target.value });
                 setPage(1);
@@ -165,11 +168,11 @@ export function CompanyListView() {
 
           <div className="flex items-center gap-2 shrink-0">
             <Button variant="primary" size="md" onClick={handleSearchSubmit}>
-              Search
+              {common("search")}
             </Button>
             {(filter.searchText || filter.statusFilter || filter.unitTypeFilter) && (
               <Button variant="ghost" size="md" onClick={handleReset}>
-                Reset
+                {common("reset")}
               </Button>
             )}
           </div>
@@ -177,7 +180,7 @@ export function CompanyListView() {
       </Panel>
 
       {/* Companies Table */}
-      <Panel title={`Companies (${totalItems})`}>
+      <Panel title={t("countTitle", { count: totalItems })}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -186,39 +189,39 @@ export function CompanyListView() {
                 sortDirection={sort.key === "name" ? sort.order : false}
                 onSort={() => handleSort("name")}
               >
-                Company Name
+                {t("companyName")}
               </TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "key" ? sort.order : false}
                 onSort={() => handleSort("key")}
               >
-                Key
+                {t("key")}
               </TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "status" ? sort.order : false}
                 onSort={() => handleSort("status")}
               >
-                Status
+                {common("status")}
               </TableHead>
-              <TableHead>Unit Type</TableHead>
-              <TableHead>Parent Unit</TableHead>
+              <TableHead>{t("unitType")}</TableHead>
+              <TableHead>{t("parentUnit")}</TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "createdAt" ? sort.order : false}
                 onSort={() => handleSort("createdAt")}
               >
-                Created
+                {common("created")}
               </TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "lastModifiedAt" ? sort.order : false}
                 onSort={() => handleSort("lastModifiedAt")}
               >
-                Modified
+                {common("modified")}
               </TableHead>
-              <TableHead className="w-12 text-right">Actions</TableHead>
+              <TableHead className="w-12 text-right">{common("actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -237,11 +240,11 @@ export function CompanyListView() {
                 <TableCell colSpan={8} className="py-12">
                   <EmptyState
                     icon="building-2"
-                    title="No Companies Found"
-                    description="No business units match your filters. Try resetting search criteria or creating a new company."
+                    title={t("emptyTitle")}
+                    description={t("emptyDescription")}
                     action={
                       <Button variant="secondary" onClick={handleReset}>
-                        Reset Filters
+                        {t("resetFilters")}
                       </Button>
                     }
                   />
@@ -258,20 +261,20 @@ export function CompanyListView() {
                   <TableCell className="font-mono text-xs text-m-text-muted">{comp.key}</TableCell>
                   <TableCell>
                     <Badge variant={comp.status === "Active" ? "success" : "neutral"} size="sm">
-                      {comp.status}
+                      {comp.status === "Active" ? common("active") : common("inactive")}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge variant={comp.unitType === "Company" ? "primary" : "info"} size="sm">
-                      {comp.unitType}
+                      {comp.unitType === "Company" ? t("company") : t("division")}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-m-text-muted">{comp.parentName ?? "--"}</TableCell>
                   <TableCell className="text-m-text-muted">
-                    {formatDate(comp.createdAt)}
+                    {formatDate(comp.createdAt, locale)}
                   </TableCell>
                   <TableCell className="text-m-text-muted">
-                    {formatDate(comp.lastModifiedAt)}
+                    {formatDate(comp.lastModifiedAt, locale)}
                   </TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <Button
@@ -280,7 +283,7 @@ export function CompanyListView() {
                       iconOnly
                       leftIcon={<Icon name="chevron-right" size="xs" />}
                       onClick={() => router.push(`/b2b/company/${comp.id}`)}
-                      aria-label="View Company"
+                      aria-label={common("view", { entity: t("company") })}
                     />
                   </TableCell>
                 </TableRow>
@@ -297,6 +300,7 @@ export function CompanyListView() {
             pageSize={perPage}
             onPageChange={setPage}
             onPageSizeChange={setPerPage}
+            labels={paginationLabels}
           />
         )}
       </Panel>

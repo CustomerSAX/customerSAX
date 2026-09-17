@@ -1,7 +1,9 @@
 "use client";
 
+import { DEFAULT_LOCALE } from "@csa/i18n";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   PageHeader,
   Panel,
@@ -31,10 +33,11 @@ import { useCompanies, useCompanyCommerceActivity } from "../hooks/use-companies
 
 type DetailTab = "general" | "address" | "cart" | "order" | "quote" | "employees";
 
-const formatCurrencyNumber = (value: number) => value.toLocaleString("en-US");
+const formatCurrencyNumber = (value: number) => value.toLocaleString(DEFAULT_LOCALE);
 
 export function CompanyDetailView({ id }: { id: string }) {
   const router = useRouter();
+  const common = useTranslations("Common");
   const { getCompanyById, updateCompany, addCompanyAddress, addCompanyAssociate, loading } = useCompanies();
 
   const company = getCompanyById(id);
@@ -199,12 +202,12 @@ export function CompanyDetailView({ id }: { id: string }) {
       {/* Tabs matching Legacy CT-CSA Standalone */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as DetailTab)}>
         <Tabs.List>
-          <Tabs.Trigger value="general">General</Tabs.Trigger>
-          <Tabs.Trigger value="address">Address ({company.addresses.length})</Tabs.Trigger>
-          <Tabs.Trigger value="cart">Cart ({companyCarts.length})</Tabs.Trigger>
-          <Tabs.Trigger value="order">Order ({companyOrders.length})</Tabs.Trigger>
-          <Tabs.Trigger value="quote">Quote ({companyQuotes.length})</Tabs.Trigger>
-          <Tabs.Trigger value="employees">Employees ({company.associates.length})</Tabs.Trigger>
+          <Tabs.Trigger value="general">{common("tabs.general")}</Tabs.Trigger>
+          <Tabs.Trigger value="address">{common("tabs.address")} ({company.addresses.length})</Tabs.Trigger>
+          <Tabs.Trigger value="cart">{common("tabs.cart")} ({companyCarts.length})</Tabs.Trigger>
+          <Tabs.Trigger value="order">{common("tabs.order")} ({companyOrders.length})</Tabs.Trigger>
+          <Tabs.Trigger value="quote">{common("tabs.quote")} ({companyQuotes.length})</Tabs.Trigger>
+          <Tabs.Trigger value="employees">{common("tabs.employees")} ({company.associates.length})</Tabs.Trigger>
         </Tabs.List>
 
         {/* Tab 1: General */}

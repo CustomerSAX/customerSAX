@@ -4,6 +4,7 @@ import { gql, useApolloClient, useMutation, useQuery } from "@apollo/client";
 import type { MutationFunction } from "@apollo/client";
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AppShell } from "@/components/shell/AppShell";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { Button, Checkbox, Icon, Input, Select, TextArea } from "@csa/ui";
@@ -57,14 +58,9 @@ const UPDATE_AI = gql`mutation UpdateAi($clientId: ID!, $input: AdminAiSettingsI
 
 const modules = ["dashboard", "tickets", "customers", "orders", "carts", "products", "reports", "knowledgebase", "assistant", "users", "roles", "email", "audit"];
 const blankPermissions = () => modules.map((module) => ({ module, view: true, create: false, update: false, delete: false }));
-const sections: Array<{ id: Section; label: string }> = [
-  { id: "users", label: "User Management" },
-  { id: "roles", label: "Role Management" },
-  { id: "email", label: "Email Settings" },
-  { id: "ai", label: "AI Agent" },
-];
-
 export function AdminSettingsView({ section }: { section: Section }) {
+  const t = useTranslations("AdminSettings");
+  const sections: Array<{ id: Section; label: string }> = (["users", "roles", "email", "ai"] as const).map((id) => ({ id, label: t(`sections.${id}`) }));
   const [activeSection, setActiveSection] = useState<Section>(section);
   const { user, loading: userLoading } = useCurrentUser();
   const clientId = user?.activeClientId ?? "";
@@ -76,13 +72,13 @@ export function AdminSettingsView({ section }: { section: Section }) {
     setActiveSection(section);
   }, [section]);
 
-  if (userLoading) return <AppShell><State text="Checking administrator access…" /></AppShell>;
-  if (!allowed) return <AppShell><State text="Administrator access is required." /></AppShell>;
-  if (!clientId || !projectKey) return <AppShell><State text="Select a project before opening Admin Settings." /></AppShell>;
+  if (userLoading) return <AppShell><State text={t("checkingAccess")} /></AppShell>;
+  if (!allowed) return <AppShell><State text={t("accessRequired")} /></AppShell>;
+  if (!clientId || !projectKey) return <AppShell><State text={t("selectProject")} /></AppShell>;
 
   return <AppShell><div className="space-y-6 p-6">
-    <div><p className="text-xs font-bold uppercase tracking-widest text-m-primary">Admin Settings</p><h1 className="text-2xl font-bold text-m-text">{data?.adminClient?.name ?? "Organisation"}</h1><p className="mt-1 text-sm text-m-text-muted">Settings apply to the active project. Switch projects in the header to manage another workspace.</p></div>
-    <nav className="flex flex-wrap gap-2 rounded-xl border border-m-border bg-m-surface p-2" aria-label="Admin settings sections">
+    <div><p className="text-xs font-bold uppercase tracking-widest text-m-primary">{t("eyebrow")}</p><h1 className="text-2xl font-bold text-m-text">{data?.adminClient?.name ?? t("organisation")}</h1><p className="mt-1 text-sm text-m-text-muted">{t("subtitle")}</p></div>
+    <nav className="flex flex-wrap gap-2 rounded-xl border border-m-border bg-m-surface p-2" aria-label={t("sectionsLabel")}>
       {sections.map(({ id, label }) => (
         <button
           key={id}
@@ -95,11 +91,12 @@ export function AdminSettingsView({ section }: { section: Section }) {
         </button>
       ))}
     </nav>
-    {loading ? <State text="Loading settings…" /> : error ? <State text={error.message} /> : !data ? <State text="Settings are unavailable." /> : activeSection === "users" ? <Users data={data} clientId={clientId} projectKey={projectKey} actor={user?.email ?? ""} refetch={refetch} /> : activeSection === "roles" ? <Roles roles={data.adminRoles} clientId={clientId} projectKey={projectKey} refetch={refetch} /> : activeSection === "email" ? <EmailSettings data={data} clientId={clientId} refetch={refetch} /> : <AiSettings settings={data.adminAiSettings} clientId={clientId} refetch={refetch} />}
+    {loading ? <State text={t("loading")} /> : error ? <State text={error.message} /> : !data ? <State text={t("unavailable")} /> : activeSection === "users" ? <Users data={data} clientId={clientId} projectKey={projectKey} actor={user?.email ?? ""} refetch={refetch} /> : activeSection === "roles" ? <Roles roles={data.adminRoles} clientId={clientId} projectKey={projectKey} refetch={refetch} /> : activeSection === "email" ? <EmailSettings data={data} clientId={clientId} refetch={refetch} /> : <AiSettings settings={data.adminAiSettings} clientId={clientId} refetch={refetch} />}
   </div></AppShell>;
 }
 
 function Users({ data, clientId, projectKey, actor, refetch }: { data: WorkspaceAdminData; clientId: string; projectKey: string; actor: string; refetch: () => Promise<unknown> }) {
+  const t = useTranslations("AdminSettings");
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [updateUser] = useMutation(UPDATE_USER);
@@ -110,22 +107,22 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold">User Management</h2>
-          <p className="text-sm text-m-text-muted">Manage roles for <strong>{projectKey}</strong>.</p>
+          <h2 className="text-xl font-bold">{t("userTitle")}</h2>
+          <p className="text-sm text-m-text-muted">{t("userSubtitle", { project: projectKey })}</p>
         </div>
         <Button variant="primary" size="sm" leftIcon={<Icon name="plus" size="xs" />} onClick={() => setIsAddOpen(true)}>
-          Add User
+          {t("addUser")}
         </Button>
       </div>
-      <input aria-label="Search users" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by email or name…" className="w-full rounded-lg border border-m-border bg-m-surface px-3 py-2"/>
+      <input aria-label={t("searchUsers")} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("searchUsers")} className="w-full rounded-lg border border-m-border bg-m-surface px-3 py-2"/>
       <div className="overflow-auto rounded-xl border border-m-border bg-m-surface">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-m-border text-left">
-              <th className="p-3">Email</th>
-              <th>Name</th>
-              <th>Role ({projectKey})</th>
-              <th>Change Role</th>
+              <th className="p-3">{t("email")}</th>
+              <th>{t("name")}</th>
+              <th>{t("role", { project: projectKey })}</th>
+              <th>{t("changeRole")}</th>
             </tr>
           </thead>
           <tbody>
@@ -138,7 +135,7 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
                   <td>{[u.firstName, u.lastName].filter(Boolean).join(" ") || "--"}</td>
                   <td>{membership.role}</td>
                   <td>
-                    <select aria-label={`Change role for ${u.email}`} value={membership.role} onChange={(e) => void changeRole(u, e.target.value)} className="rounded border border-m-border bg-m-surface px-2 py-1">
+                    <select aria-label={`${t("changeRole")} ${u.email}`} value={membership.role} onChange={(e) => void changeRole(u, e.target.value)} className="rounded border border-m-border bg-m-surface px-2 py-1">
                       {roles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
                     </select>
                   </td>

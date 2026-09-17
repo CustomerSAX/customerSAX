@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Accordion, Card, CardContent, Tabs } from "@csa/ui";
 import { FAQ_ARTICLES, TROUBLESHOOTING_ARTICLES } from "../hooks/use-knowledge-base";
 import type { KnowledgeBaseTabKey } from "../types/knowledge-base-types";
 
 export function KnowledgeBasePanel() {
+  const common = useTranslations("Common");
   const [activeTab, setActiveTab] = useState<KnowledgeBaseTabKey>("faq");
   const activeArticles = activeTab === "faq" ? FAQ_ARTICLES : TROUBLESHOOTING_ARTICLES;
 
@@ -18,8 +20,8 @@ export function KnowledgeBasePanel() {
           variant="pill"
         >
           <Tabs.List>
-            <Tabs.Trigger value="faq">Frequently Asked Questions</Tabs.Trigger>
-            <Tabs.Trigger value="troubleshoot">Troubleshooting Guides</Tabs.Trigger>
+            <Tabs.Trigger value="faq">{common("tabs.faq")}</Tabs.Trigger>
+            <Tabs.Trigger value="troubleshoot">{common("tabs.troubleshooting")}</Tabs.Trigger>
           </Tabs.List>
         </Tabs>
         <p className="text-xs font-medium text-m-text-muted">

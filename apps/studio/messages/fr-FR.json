@@ -1,0 +1,270 @@
+{
+  "Metadata": {
+    "title": "Administration CSA",
+    "description": "Portail interne du service client Commerce Customer Service Accelerator"
+  },
+  "AppShell": {
+    "groups": {
+      "operations": "Opérations",
+      "business-unit": "Unité commerciale",
+      "commerce": "Commerce",
+      "intelligence": "Intelligence",
+      "administration": "Administration"
+    },
+    "navigation": {
+      "dashboard": "Tableau de bord",
+      "tickets": "Tickets",
+      "customers": "Clients",
+      "orders": "Commandes",
+      "cart": "Panier",
+      "products": "Produits",
+      "reports": "Rapports",
+      "knowledgebase": "Base de connaissances",
+      "csa-assistant": "Assistant CSA",
+      "audit-log": "Journal d’audit",
+      "admin-settings": "Paramètres d’administration",
+      "superadmin": "Superadministrateur",
+      "b2b-company": "Entreprises",
+      "b2b-employees": "Employés",
+      "b2b-import-export": "Import / Export",
+      "b2b-quotes": "Devis"
+    },
+    "commands": {
+      "create-customer": {
+        "label": "Créer un client",
+        "description": "Nouveau profil client"
+      },
+      "create-ticket": {
+        "label": "Créer un ticket",
+        "description": "Nouveau ticket d’assistance"
+      },
+      "create-company": {
+        "label": "Créer une entreprise",
+        "description": "Nouvelle unité commerciale"
+      },
+      "add-employee": {
+        "label": "Ajouter un employé",
+        "description": "Nouvel employé B2B"
+      },
+      "create-quote": {
+        "label": "Créer un devis",
+        "description": "Nouvelle demande de devis"
+      }
+    },
+    "enterpriseVersion": "Entreprise v1.0",
+    "b2bMode": "Mode B2B",
+    "project": "Projet",
+    "globalSearch": "Recherche globale",
+    "myProfile": "Mon profil",
+    "organizationSettings": "Paramètres de l’organisation",
+    "signOut": "Se déconnecter",
+    "language": "Langue",
+    "collapseSidebar": "Réduire",
+    "expandSidebar": "Développer la barre latérale",
+    "roles": {
+      "agent": "Conseiller CSA",
+      "admin": "Administrateur CSA",
+      "superadmin": "Superadministrateur CSA"
+    },
+    "locales": {
+      "en-US": "English (US)",
+      "fr-FR": "Français (France)"
+    },
+    "search": {
+      "standardPlaceholder": "Rechercher des clients, commandes, tickets...",
+      "b2bPlaceholder": "Rechercher des entreprises, employés, commandes, devis...",
+      "standardDialogPlaceholder": "Rechercher des clients, commandes, tickets et plus encore...",
+      "b2bDialogPlaceholder": "Rechercher des entreprises, employés, commandes, devis et plus encore...",
+      "ariaLabel": "Rechercher des commandes",
+      "searching": "Recherche en cours...",
+      "noResults": "Aucun résultat correspondant.",
+      "navigate": "Navigation",
+      "results": "Résultats",
+      "create": "Créer",
+      "keyboardNavigate": "naviguer",
+      "keyboardOpen": "ouvrir",
+      "keyboardClose": "fermer"
+    }
+  },
+  "Dashboard": {
+    "eyebrow": "Tableau de bord",
+    "title": "Accélérateur de service client",
+    "description": "Console d’assistance d’entreprise prête pour GCP avec Next.js, un BFF GraphQL, des connecteurs commerciaux et le système de conception Meridian.",
+    "openTickets": "Tickets ouverts",
+    "highPriority": "{count, plural, one {# priorité élevée} other {# priorités élevées}}",
+    "activeUnresolved": "Actifs, non résolus",
+    "atRisk": "À risque (élevée/urgente)",
+    "unresolvedHighPriority": "Non résolus, priorité élevée",
+    "ordersReviewed": "Commandes examinées",
+    "aiAssistResolved": "Résolutions par l’IA",
+    "notAvailable": "Non disponible",
+    "ticketingUnavailable": "Service de tickets indisponible",
+    "loading": "Chargement…",
+    "activeWorkQueue": "File de travail active",
+    "loadingTickets": "Chargement des tickets ouverts…",
+    "ticketingBackendUnavailable": "Impossible de joindre le service de tickets pour le moment.",
+    "noOpenTickets": "Aucun ticket ouvert pour le moment.",
+    "unknownCustomer": "Client inconnu",
+    "priority": {
+      "Low": "Priorité faible",
+      "Medium": "Priorité moyenne",
+      "High": "Priorité élevée",
+      "Urgent": "Priorité urgente"
+    },
+    "justNow": "à l’instant",
+    "assistantTitle": "Assistant CSA",
+    "assistantDescription": "L’agent IA utilise le SDK Vercel AI avec des fournisseurs de modèles configurables — OpenAI ou Anthropic (Claude) — ainsi que des outils personnalisés pour le commerce et la gestion des tickets.",
+    "serviceHealth": "État des services principaux",
+    "checkingServices": "Vérification des services…",
+    "statusUnavailable": "État indisponible.",
+    "status": {
+      "online": "en ligne",
+      "offline": "hors ligne",
+      "unknown": "indisponible"
+    }
+  },
+  "Common": {
+    "search": "Rechercher",
+    "reset": "Réinitialiser",
+    "refresh": "Actualiser",
+    "retry": "Réessayer",
+    "status": "Statut",
+    "created": "Créé le",
+    "modified": "Modifié le",
+    "actions": "Actions",
+    "allFields": "Tous les champs",
+    "allStatuses": "Tous les statuts",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "view": "Voir {entity}",
+    "pagination": { "summary": "Affichage de {start} à {end} sur {total} entrées", "perPage": "Par page :", "page": "Page {page} sur {totalPages}", "previous": "Page précédente", "next": "Page suivante" },
+    "tabs": {
+      "general": "Général",
+      "address": "Adresse",
+      "cart": "Panier",
+      "order": "Commande",
+      "quote": "Devis",
+      "employees": "Employés",
+      "profile": "Profil",
+      "password": "Mot de passe",
+      "company": "Entreprise",
+      "return": "Retour",
+      "payment": "Paiement",
+      "ticket": "Ticket",
+      "customAttributes": "Attributs personnalisés",
+      "conversation": "Conversation",
+      "customer": "Client",
+      "aiAssist": "Assistant IA",
+      "internalNotes": "Notes internes",
+      "history": "Historique",
+      "shippingDelivery": "Expédition et livraison",
+      "returns": "Retours",
+      "payments": "Paiements",
+      "comments": "Commentaires",
+      "overview": "Vue d’ensemble",
+      "orders": "Commandes",
+      "quotes": "Devis",
+      "tickets": "Tickets",
+      "conversations": "Conversations",
+      "notes": "Notes",
+      "inventory": "Stock",
+      "variants": "Variantes",
+      "pricing": "Tarification",
+      "serviceInsights": "Indicateurs de service",
+      "batchImport": "Importation par lot (CSV)",
+      "dataExport": "Exportation des données (CSV)",
+      "faq": "Questions fréquentes",
+      "troubleshooting": "Guides de dépannage"
+    }
+  },
+  "Tickets": {
+    "title": "Tickets d’assistance",
+    "subtitle": "Recherchez, triez, priorisez et résolvez les tickets d’assistance client sur tous les canaux.",
+    "badge": "Centre d’assistance et Service Cloud",
+    "create": "Créer un ticket",
+    "ticketNumber": "Numéro du ticket",
+    "customerEmail": "E-mail du client",
+    "subject": "Objet",
+    "searchPlaceholder": "Rechercher par numéro, e-mail ou objet...",
+    "allPriorities": "Toutes les priorités",
+    "sectionTitle": "Tickets",
+    "countTitle": "Tickets ({count})",
+    "loadError": "Impossible de charger les tickets",
+    "emptyTitle": "Aucun ticket trouvé",
+    "emptyDescription": "Aucun ticket ne correspond actuellement aux filtres de recherche actifs.",
+    "resetFilters": "Réinitialiser les filtres",
+    "customer": "Client",
+    "source": "Canal",
+    "priorityLabel": "Priorité",
+    "category": "Catégorie",
+    "assignee": "Attribué à",
+    "status": {
+      "Open": "Ouvert",
+      "In Progress": "En cours",
+      "Pending": "En attente",
+      "Resolved": "Résolu",
+      "Closed": "Fermé"
+    },
+    "priority": {
+      "Urgent": "Urgente",
+      "High": "Élevée",
+      "Medium": "Moyenne",
+      "Low": "Faible"
+    },
+    "contactType": {
+      "Email": "E-mail",
+      "Phone": "Téléphone",
+      "Chat": "Chat",
+      "Web": "Portail web",
+      "Social": "Réseaux sociaux"
+    },
+    "categoryValues": {
+      "order_inquiry": "Question sur une commande",
+      "payment_methods": "Modes de paiement",
+      "returns_refunds": "Retours et remboursements",
+      "general_inquiry": "Demande générale",
+      "technical_support": "Assistance technique",
+      "account_management": "Gestion du compte"
+    }
+  },
+  "Companies": {
+    "eyebrow": "Opérations B2B",
+    "title": "Entreprises",
+    "subtitle": "Parcourez la hiérarchie, les adresses et les collaborateurs des entreprises dans CommerceTools B2B.",
+    "importExport": "Import / Export",
+    "create": "Créer une entreprise",
+    "companyName": "Nom de l’entreprise",
+    "key": "Clé",
+    "allUnitTypes": "Tous les types d’unité",
+    "unitType": "Type d’unité",
+    "parentUnit": "Unité parente",
+    "searchPlaceholder": "Rechercher des entreprises...",
+    "countTitle": "Entreprises ({count})",
+    "emptyTitle": "Aucune entreprise trouvée",
+    "emptyDescription": "Aucune unité commerciale ne correspond à vos filtres. Réinitialisez les critères ou créez une entreprise.",
+    "resetFilters": "Réinitialiser les filtres",
+    "company": "Entreprise",
+    "division": "Division"
+  },
+  "Employees": {
+    "title": "Employés", "subtitle": "Collaborateurs liés à une unité commerciale avec leurs rôles B2B.", "companies": "Entreprises", "importExport": "Import / Export", "add": "Ajouter un employé", "searchPlaceholder": "Rechercher par nom, e-mail ou numéro...", "allCompanies": "Toutes les entreprises", "allRoles": "Tous les rôles", "countTitle": "Employés ({count})", "customerNumber": "N° client", "externalId": "ID externe", "firstName": "Prénom", "lastName": "Nom", "company": "Entreprise", "email": "E-mail", "group": "Groupe", "roles": "Rôles", "emptyTitle": "Aucun employé trouvé", "emptyDescription": "Aucun collaborateur ne correspond aux filtres sélectionnés. Réinitialisez les critères ou ajoutez un employé.", "resetFilters": "Réinitialiser les filtres", "employee": "Employé", "member": "Membre"
+  },
+  "Quotes": {
+    "title": "Devis", "subtitle": "Demandes de devis B2B, offres commerciales et état des négociations.", "eyebrow": "Opérations B2B", "create": "Créer un devis", "searchPlaceholder": "Rechercher par ID, entreprise ou client...", "allCompanies": "Toutes les entreprises", "countTitle": "Devis ({count})", "quoteId": "ID du devis", "businessUnit": "Entreprise / Unité commerciale", "customer": "Client", "items": "Articles", "itemCount": "{count, plural, one {# article} other {# articles}}", "total": "Valeur / Total", "validUntil": "Valide jusqu’au", "requestedDate": "Date de demande", "emptyTitle": "Aucun devis trouvé", "emptyDescription": "Aucune demande ni offre ne correspond aux critères actuels. Réinitialisez les filtres ou créez un devis.", "resetFilters": "Réinitialiser les filtres", "quote": "Devis", "status": { "Draft": "Brouillon", "Requested": "Demandé", "Buyer Review": "Examen par l’acheteur", "Seller Review": "Examen par le vendeur", "Changes Requested": "Modifications demandées", "In Review": "En cours d’examen", "Accepted": "Accepté", "Approved": "Approuvé", "Rejected": "Rejeté", "Declined": "Refusé", "Converted": "Converti" }
+  },
+  "Orders": {
+    "title": "Gestion des commandes", "b2bTitle": "Commerce des commandes B2B", "subtitle": "Recherchez des commandes, contrôlez leur traitement et dupliquez des paniers pour le suivi.", "b2bSubtitle": "{count, plural, one {# résultat} other {# résultats}} — recherchez, consultez et copiez des commandes pour le suivi.", "badge": "Opérations de commande", "b2bBadge": "Commerce B2B", "importExport": "Import / Export", "refreshing": "Actualisation", "searchPlaceholder": "Rechercher par e-mail, numéro de commande, SKU, boutique...", "b2bSearchPlaceholder": "Rechercher par e-mail, prénom, nom, numéro de commande, SKU, etc.", "allOrderStatuses": "Tous les statuts de commande", "allPaymentStatuses": "Tous les statuts de paiement", "countTitle": "Commandes ({count})", "columnsTitle": "Colonnes des commandes", "emptyTitle": "Aucune commande trouvée", "emptyDescription": "Aucune commande ne correspond à la recherche ou aux filtres actifs.", "resetFilters": "Réinitialiser les filtres", "loadError": "Impossible de charger les commandes depuis le BFF. Vérifiez que le BFF et le service commercial sont disponibles.", "copy": "Copier", "duplicate": "Dupliquer", "copyOrder": "Copier la commande", "duplicateOrder": "Dupliquer la commande", "columns": { "orderNumber": "Numéro de commande", "customer": "Client", "customerEmail": "E-mail du client", "companyName": "Entreprise", "store": "Boutique", "grandTotal": "Total de la commande", "lineItemCount": "Nombre de lignes", "totalQuantity": "Quantité totale", "orderState": "Statut de la commande", "shipmentState": "Statut de l’expédition", "paymentState": "Statut du paiement", "createdAt": "Créée le", "lastModifiedAt": "Modifiée le", "duplicate": "Dupliquer" }, "b2bColumns": { "customerEmail": "E-mail (commande)", "grandTotal": "Total final TTC", "lineItemCount": "Lignes de commande", "totalQuantity": "Quantité totale", "createdAt": "Date de création", "lastModifiedAt": "Date de modification", "duplicate": "Copier la commande" }, "orderState": { "Open": "Ouverte", "Confirmed": "Confirmée", "Complete": "Terminée", "Cancelled": "Annulée" }, "shipmentState": { "Shipped": "Expédiée", "Ready": "Prête", "Pending": "En attente", "Delayed": "Retardée", "Backorder": "En réapprovisionnement" }, "paymentState": { "Paid": "Payée", "Pending": "En attente", "BalanceDue": "Solde dû", "Failed": "Échoué", "CreditOwed": "Crédit dû" }
+  },
+  "Carts": {
+    "title": "Paniers actifs", "subtitle": "Consultez les paniers clients, vérifiez les articles et facilitez la reprise du paiement.", "countBadge": "{count, plural, one {# panier} other {# paniers}}", "searchPlaceholder": "Filtrer par ID de panier ou e-mail client...", "countTitle": "Paniers ({count})", "columnsTitle": "Colonnes des paniers", "loading": "Chargement des paniers", "loadingDescription": "Récupération des paniers depuis le service commercial.", "loadError": "Impossible de charger les paniers", "emptyTitle": "Aucun panier actif", "emptySearch": "Aucun panier ne correspond à la recherche active.", "emptyDefault": "Il n’y a actuellement aucun panier actif dans le système.", "guest": "Invité / non attribué", "cartId": "ID du panier", "customerEmail": "E-mail du client", "columns": { "id": "ID du panier", "orderNumber": "Numéro de commande", "customer": "Client", "customerEmail": "E-mail du client", "companyName": "Entreprise", "store": "Boutique", "country": "Pays", "grandTotal": "Total du panier", "lineItemCount": "Nombre de lignes", "totalQuantity": "Quantité totale", "cartState": "Statut du panier", "createdAt": "Créé le", "lastModifiedAt": "Modifié le" }, "state": { "Active": "Actif", "Merged": "Fusionné", "Frozen": "Gelé", "Ordered": "Commandé" }
+  },
+  "Products": {
+    "eyebrow": "Opérations du catalogue", "title": "Catalogue de produits", "subtitle": "Parcourez et recherchez les produits, gérez les variantes et consultez les tarifs.", "searchPlaceholder": "Rechercher des produits (4 caractères min.)…", "countTitle": "Produits ({count})", "tableSettings": "Paramètres du tableau", "manageTable": "Gérer les colonnes, la densité et le retour à la ligne", "emptyTitle": "Aucun produit trouvé", "emptySearch": "Aucun produit ne correspond à votre recherche. Modifiez la requête ou réinitialisez la recherche.", "emptyDefault": "Le catalogue ne contient encore aucun produit.", "resetSearch": "Réinitialiser la recherche", "published": "Publié", "modifiedStatus": "Modifié", "columns": { "itemName": "Nom du produit", "productType": "Type de produit", "key": "Clé du produit", "status": "Statut", "created": "Date de création", "modified": "Date de modification", "sku": "SKU", "price": "Prix", "availability": "Disponibilité", "description": "Description", "id": "ID du produit", "categories": "Catégories" }
+  },
+  "ImportExport": {
+    "eyebrow": "Opérations B2B", "title": "Import / Export B2B", "subtitle": "Importez ou exportez par lot des employés, unités commerciales, paniers ou devis au format CSV.", "configuration": "Configuration de la gestion des données", "target": "Ressource B2B cible :", "resources": { "company": "Entreprises / Unités commerciales", "employee": "Employés", "cart": "Paniers", "quote": "Devis" }, "importTitle": "Importer : {resource}", "exportTitle": "Exporter : {resource}", "sample": "Télécharger le modèle CSV", "upload": "Cliquez ou déposez un fichier CSV à importer", "uploadHint": "Fichiers .csv jusqu’à 10 Mo", "ready": "{size} Ko — Prêt pour le traitement", "processing": "Importation en cours...", "process": "Lancer l’importation", "results": "Résultats de l’importation", "line": "Ligne n°", "messageLog": "Message / Journal", "success": "Réussite", "error": "Erreur", "recentImports": "Historique récent des importations", "recentExports": "Historique récent des exportations", "filename": "Nom du fichier", "resource": "Ressource", "fileSize": "Taille du fichier", "rowsProcessed": "Lignes traitées", "successError": "Réussites / Erreurs", "timestamp": "Horodatage", "records": "Enregistrements", "download": "Télécharger", "downloadCsv": "Télécharger le CSV", "filterCountry": "Filtrer par pays", "currencyFilter": "Filtrer par devise", "generating": "Génération du CSV...", "generate": "Générer et télécharger", "allCountries": "Tous les pays", "allCurrencies": "Toutes les devises", "errors": "{count, plural, one {# erreur} other {# erreurs}}", "status": { "Completed": "Terminée", "Failed": "Échouée" }
+  },
+  "AdminSettings": {
+    "eyebrow": "Paramètres d’administration", "organisation": "Organisation", "subtitle": "Les paramètres s’appliquent au projet actif. Changez de projet dans l’en-tête pour gérer un autre espace de travail.", "sectionsLabel": "Sections des paramètres d’administration", "sections": { "users": "Gestion des utilisateurs", "roles": "Gestion des rôles", "email": "Paramètres de messagerie", "ai": "Agent IA" }, "userTitle": "Gestion des utilisateurs", "userSubtitle": "Gérez les rôles pour {project}.", "addUser": "Ajouter un utilisateur", "searchUsers": "Rechercher par e-mail ou nom...", "email": "E-mail", "name": "Nom", "role": "Rôle ({project})", "changeRole": "Modifier le rôle", "loading": "Chargement des paramètres…", "unavailable": "Les paramètres sont indisponibles.", "checkingAccess": "Vérification de l’accès administrateur…", "accessRequired": "Un accès administrateur est requis.", "selectProject": "Sélectionnez un projet avant d’ouvrir les paramètres d’administration."
+  }
+}

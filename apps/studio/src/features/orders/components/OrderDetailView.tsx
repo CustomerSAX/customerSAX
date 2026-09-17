@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   DetailPage,
   BackLink,
@@ -151,6 +152,7 @@ function toTimelineState(tone: StatusTone): TimelineState {
 // ── Main Orchestrator ────────────────────────────────────────────────
 
 export function OrderDetailView({ id }: OrderDetailViewProps) {
+  const common = useTranslations("Common");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -188,13 +190,13 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   // ── Tabs ────────────────────────────────────────────────────────
   const TABS: EntityTab[] = useMemo(
     () => [
-      { id: "General", label: "General", icon: "layout-grid" },
-      { id: "Shipping & Delivery", label: "Shipping & Delivery", icon: "truck" },
-      { id: "Returns", label: "Returns", icon: "rotate-ccw", count: order.returnInfo?.length || 0 },
-      { id: "Payments", label: "Payments", icon: "credit-card", count: order.payments?.length || 0 },
-      { id: "Comments", label: "Comments", icon: "message-square", count: order.comments?.length || 0 },
+      { id: "General", label: common("tabs.general"), icon: "layout-grid" },
+      { id: "Shipping & Delivery", label: common("tabs.shippingDelivery"), icon: "truck" },
+      { id: "Returns", label: common("tabs.returns"), icon: "rotate-ccw", count: order.returnInfo?.length || 0 },
+      { id: "Payments", label: common("tabs.payments"), icon: "credit-card", count: order.payments?.length || 0 },
+      { id: "Comments", label: common("tabs.comments"), icon: "message-square", count: order.comments?.length || 0 },
     ],
-    [order.returnInfo, order.payments, order.comments]
+    [common, order.returnInfo, order.payments, order.comments]
   );
 
   const [activeTab, setActiveTab] = useState<string>("General");

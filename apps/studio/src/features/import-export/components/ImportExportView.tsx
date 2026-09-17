@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import {
   PageHeader,
   Panel,
@@ -25,13 +26,6 @@ import { useQuotes } from "@/features/quotes/hooks/use-quotes";
 import { downloadCsv, useImportExport } from "../hooks/use-import-export";
 import type { ImportCsvRow } from "../hooks/use-import-export";
 import type { B2BResourceType } from "../types/import-export-types";
-
-const RESOURCE_OPTIONS = [
-  { value: "company", label: "Company / Business Units" },
-  { value: "employee", label: "Employees" },
-  { value: "cart", label: "Carts" },
-  { value: "quote", label: "Quotes" },
-];
 
 type ImportExportTab = "import" | "export";
 
@@ -106,6 +100,12 @@ const EXPORT_COLUMNS: Record<B2BResourceType, string[]> = {
 };
 
 export function ImportExportView() {
+  const common = useTranslations("Common");
+  const t = useTranslations("ImportExport");
+  const locale = useLocale();
+  const resourceOptions = (["company", "employee", "cart", "quote"] as const).map((value) => ({ value, label: t(`resources.${value}`) }));
+  const countryOptions = COUNTRY_OPTIONS.map((option) => ({ ...option, label: option.value ? option.label : t("allCountries") }));
+  const currencyOptions = CURRENCY_OPTIONS.map((option) => ({ ...option, label: option.value ? option.label : t("allCurrencies") }));
   const searchParams = useSearchParams();
   const initialResource = (searchParams.get("resource") as B2BResourceType) || "company";
 
@@ -360,25 +360,25 @@ export function ImportExportView() {
     <div className="flex flex-col gap-6">
       {/* Page Header */}
       <PageHeader
-        title="B2B Import / Export"
-        subtitle="Batch import or export employees, business units, carts, or quotes via CSV."
+        title={t("title")}
+        subtitle={t("subtitle")}
         breadcrumbs={
           <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
-            B2B Operations
+            {t("eyebrow")}
           </span>
         }
       />
 
       {/* Target Resource Selector */}
-      <Panel title="Data Management Configuration">
+      <Panel title={t("configuration")}>
         <div className="flex flex-col sm:flex-row items-center gap-4 p-5">
           <label className="text-xs font-semibold text-m-text shrink-0">
-            Target B2B Resource:
+            {t("target")}
           </label>
           <div className="w-full sm:w-72">
             <Select
               value={selectedResource}
-              options={RESOURCE_OPTIONS}
+              options={resourceOptions}
               onChange={(e) => {
                 setSelectedResource(e.target.value as B2BResourceType);
                 setSelectedFile(null);
@@ -394,15 +394,15 @@ export function ImportExportView() {
         if (value === "import" || value === "export") setActiveTab(value);
       }}>
         <Tabs.List>
-          <Tabs.Trigger value="import">Batch Import (CSV)</Tabs.Trigger>
-          <Tabs.Trigger value="export">Data Export (CSV)</Tabs.Trigger>
+          <Tabs.Trigger value="import">{common("tabs.batchImport")}</Tabs.Trigger>
+          <Tabs.Trigger value="export">{common("tabs.dataExport")}</Tabs.Trigger>
         </Tabs.List>
 
         {/* Tab 1: Import */}
         <Tabs.Content value="import">
           <div className="flex flex-col gap-6 mt-4">
             <Panel
-              title={`Import ${RESOURCE_OPTIONS.find((r) => r.value === selectedResource)?.label}`}
+              title={t("importTitle", { resource: t(`resources.${selectedResource}`) })}
               headerActions={
                 <Button
                   variant="secondary"
@@ -410,7 +410,7 @@ export function ImportExportView() {
                   leftIcon={<Icon name="download" size="xs" />}
                   onClick={downloadSampleTemplate}
                 >
-                  Download Sample CSV Template
+                  {t("sample")}
                 </Button>
               }
             >
@@ -441,12 +441,12 @@ export function ImportExportView() {
                     <Icon name="upload-cloud" size="md" />
                   </div>
                   <p className="text-sm font-semibold text-m-text">
-                    {selectedFile ? selectedFile.name : "Click or drag & drop CSV file to upload"}
+                    {selectedFile ? selectedFile.name : t("upload")}
                   </p>
                   <p className="text-xs text-m-text-muted mt-1">
                     {selectedFile
-                      ? `${(selectedFile.size / 1024).toFixed(1)} KB — Ready for processing`
-                      : "Supports .csv files up to 10MB"}
+                      ? t("ready", { size: (selectedFile.size / 1024).toLocaleString(locale, { maximumFractionDigits: 1 }) })
+                      : t("uploadHint")}
                   </p>
                 </div>
 
@@ -469,7 +469,7 @@ export function ImportExportView() {
                       onClick={handleStartImport}
                       leftIcon={<Icon name="play" size="xs" />}
                     >
-                      {isProcessing ? "Processing Import..." : "Process Import"}
+                      {isProcessing ? t("processing") : t("process")}
                     </Button>
                   </div>
                 )}
@@ -478,14 +478,14 @@ export function ImportExportView() {
                 {importResults && (
                   <div className="flex flex-col gap-3 mt-2">
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-m-text">
-                      Import Process Results
+                      {t("results")}
                     </h4>
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-16">Line #</TableHead>
-                          <TableHead className="w-24">Status</TableHead>
-                          <TableHead>Message / Log</TableHead>
+                          <TableHead className="w-16">{t("line")}</TableHead>
+                          <TableHead className="w-24">{common("status")}</TableHead>
+                          <TableHead>{t("messageLog")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -496,7 +496,7 @@ export function ImportExportView() {
                             </TableCell>
                             <TableCell>
                               <Badge variant={res.success ? "success" : "error"} size="sm">
-                                {res.success ? "Success" : "Error"}
+                                {res.success ? t("success") : t("error")}
                               </Badge>
                             </TableCell>
                             <TableCell className={res.success ? "text-m-text" : "text-m-danger font-medium"}>
@@ -512,17 +512,17 @@ export function ImportExportView() {
             </Panel>
 
             {/* Recent Import History */}
-            <Panel title="Recent Import History">
+            <Panel title={t("recentImports")}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Filename</TableHead>
-                    <TableHead>Resource</TableHead>
-                    <TableHead>File Size</TableHead>
-                    <TableHead>Rows Processed</TableHead>
-                    <TableHead>Success / Error</TableHead>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>{t("filename")}</TableHead>
+                    <TableHead>{t("resource")}</TableHead>
+                    <TableHead>{t("fileSize")}</TableHead>
+                    <TableHead>{t("rowsProcessed")}</TableHead>
+                    <TableHead>{t("successError")}</TableHead>
+                    <TableHead>{t("timestamp")}</TableHead>
+                    <TableHead>{common("status")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -540,16 +540,16 @@ export function ImportExportView() {
                         <span className="text-m-success font-semibold">{job.successCount}</span>
                         {job.errorCount > 0 && (
                           <span className="text-m-danger font-semibold ml-1.5">
-                            ({job.errorCount} errors)
+                            ({t("errors", { count: job.errorCount })})
                           </span>
                         )}
                       </TableCell>
                       <TableCell className="text-m-text-muted">
-                        {formatDateTime(job.timestamp)}
+                        {formatDateTime(job.timestamp, locale)}
                       </TableCell>
                       <TableCell>
                         <Badge variant={job.status === "Completed" ? "success" : "error"} size="sm">
-                          {job.status}
+                          {t.has(`status.${job.status}`) ? t(`status.${job.status}`) : job.status}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -563,26 +563,26 @@ export function ImportExportView() {
         {/* Tab 2: Export */}
         <Tabs.Content value="export">
           <div className="flex flex-col gap-6 mt-4">
-            <Panel title={`Export ${RESOURCE_OPTIONS.find((r) => r.value === selectedResource)?.label}`}>
+            <Panel title={t("exportTitle", { resource: t(`resources.${selectedResource}`) })}>
               <div className="flex flex-col gap-5 p-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-m-text mb-1 block">
-                      Filter Country
+                      {t("filterCountry")}
                     </label>
                     <Select
                       value={exportCountry}
-                      options={COUNTRY_OPTIONS}
+                      options={countryOptions}
                       onChange={(e) => setExportCountry(e.target.value)}
                     />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-m-text mb-1 block">
-                      Currency Filter
+                      {t("currencyFilter")}
                     </label>
                     <Select
                       value={exportCurrency}
-                      options={CURRENCY_OPTIONS}
+                      options={currencyOptions}
                       onChange={(e) => setExportCurrency(e.target.value)}
                     />
                   </div>
@@ -596,23 +596,23 @@ export function ImportExportView() {
                     onClick={() => triggerExport(exportRows, EXPORT_COLUMNS[selectedResource])}
                     leftIcon={<Icon name="download" size="xs" />}
                   >
-                    {isProcessing || isExportLoading ? "Generating CSV..." : "Generate & Download Export"}
+                    {isProcessing || isExportLoading ? t("generating") : t("generate")}
                   </Button>
                 </div>
               </div>
             </Panel>
 
             {/* Recent Export History */}
-            <Panel title="Recent Export History">
+            <Panel title={t("recentExports")}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Filename</TableHead>
-                    <TableHead>Resource</TableHead>
-                    <TableHead>File Size</TableHead>
-                    <TableHead>Records</TableHead>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead className="w-12 text-right">Download</TableHead>
+                    <TableHead>{t("filename")}</TableHead>
+                    <TableHead>{t("resource")}</TableHead>
+                    <TableHead>{t("fileSize")}</TableHead>
+                    <TableHead>{t("records")}</TableHead>
+                    <TableHead>{t("timestamp")}</TableHead>
+                    <TableHead className="w-12 text-right">{t("download")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -627,7 +627,7 @@ export function ImportExportView() {
                       <TableCell className="text-m-text-muted">{exp.fileSize}</TableCell>
                       <TableCell>{exp.recordCount}</TableCell>
                       <TableCell className="text-m-text-muted">
-                        {formatDateTime(exp.timestamp)}
+                        {formatDateTime(exp.timestamp, locale)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -635,7 +635,7 @@ export function ImportExportView() {
                           size="sm"
                           iconOnly
                           leftIcon={<Icon name="download" size="xs" />}
-                          aria-label="Download CSV"
+                          aria-label={t("downloadCsv")}
                           onClick={() => downloadCsv(exp.filename, exp.csvContent)}
                         />
                       </TableCell>

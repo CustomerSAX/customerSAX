@@ -6,25 +6,34 @@ import "@csa/ui/styles/tokens.css";
 import "./global.css";
 
 import { RootProvider } from "fumadocs-ui/provider/next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: {
-    default: "customerSAX Documentation",
-    template: "%s · customerSAX Docs"
-  },
-  description:
-    "Documentation for customerSAX — the AI-native commerce customer-service resolution platform."
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("Metadata");
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+  return {
+    title: {
+      default: t("title"),
+      template: t("titleTemplate")
+    },
+    description: t("description")
+  };
+}
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const locale = await getLocale();
+
   return (
-    <html lang="en" className="light">
+    <html lang={locale} className="light">
       <body style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-        <RootProvider search={{ enabled: false }} theme={{ enabled: false }}>
-          {children}
-        </RootProvider>
+        <NextIntlClientProvider>
+          <RootProvider search={{ enabled: false }} theme={{ enabled: false }}>
+            {children}
+          </RootProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useFormatter, useNow, useTranslations } from "next-intl";
 import { Badge } from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
 import { PageHeader } from "../workspace/PageHeader";
@@ -21,7 +22,9 @@ function isAtRisk(ticket: Ticket): boolean {
   return isOpen(ticket) && (ticket.priority === "High" || ticket.priority === "Urgent");
 }
 
-function priorityBadgeVariant(priority: TicketPriority): "error" | "warning" | "neutral" | "success" {
+function priorityBadgeVariant(
+  priority: TicketPriority
+): "error" | "warning" | "neutral" | "success" {
   switch (priority) {
     case "Urgent":
     case "High":
@@ -33,28 +36,10 @@ function priorityBadgeVariant(priority: TicketPriority): "error" | "warning" | "
   }
 }
 
-// Honest relative time from a real timestamp; falls back to "—" when the
-// backend genuinely has no date rather than inventing one.
-function relativeTime(iso?: string): string {
-  if (!iso) return "—";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "—";
-  const diffMs = Date.now() - then;
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
-}
-
 type ServiceStatus = "online" | "offline" | "unknown";
 type ServiceHealth = { name: string; status: ServiceStatus };
 type HealthState =
-  | { phase: "loading" }
-  | { phase: "ok"; services: ServiceHealth[] }
-  | { phase: "error" };
+  { phase: "loading" } | { phase: "ok"; services: ServiceHealth[] } | { phase: "error" };
 
 function useServiceHealth(): HealthState {
   const [state, setState] = useState<HealthState>({ phase: "loading" });
@@ -64,9 +49,10 @@ function useServiceHealth(): HealthState {
     (async () => {
       try {
         const res = await fetch("/api/health", { cache: "no-store" });
-        const data = (await res.json().catch(() => null)) as
-          | { ok?: boolean; services?: ServiceHealth[] }
-          | null;
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          services?: ServiceHealth[];
+        } | null;
         if (cancelled) return;
         if (!res.ok || !data?.ok || !Array.isArray(data.services)) {
           setState({ phase: "error" });
@@ -86,6 +72,10 @@ function useServiceHealth(): HealthState {
 }
 
 export function Dashboard() {
+  const t = useTranslations("Dashboard");
+  const formatter = useFormatter();
+  const now = useNow({ updateInterval: 60_000 });
+
   // Real ticket data flows through the same authenticated Apollo path
   // (/api/graphql -> BFF -> ticketing) the tickets feature uses. `error` means
   // the backend is unreachable/unauthenticated; an empty `tickets` array with
@@ -95,7 +85,9 @@ export function Dashboard() {
   const { openCount, atRiskCount, highCount, queue } = useMemo(() => {
     const open = tickets.filter(isOpen);
     const atRisk = tickets.filter(isAtRisk);
-    const high = open.filter((t) => t.priority === "High" || t.priority === "Urgent").length;
+    const high = open.filter(
+      (t) => t.priority === "High" || t.priority === "Urgent"
+    ).length;
     const sortedQueue = [...open]
       .sort((a, b) => {
         const at = new Date(a.lastModifiedAt ?? a.createdAt ?? 0).getTime();
@@ -113,6 +105,19 @@ export function Dashboard() {
 
   const health = useServiceHealth();
 
+  // Locale-aware relative time from a real timestamp. `useNow` supplies the
+  // same initial value during SSR and hydration, then refreshes every minute.
+  const relativeTime = (iso?: string): string => {
+    if (!iso) return "—";
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) return "—";
+
+    const diffMs = then - now.getTime();
+    const minutes = Math.round(diffMs / 60_000);
+    if (Math.abs(minutes) < 1) return t("justNow");
+    return formatter.relativeTime(new Date(then), now);
+  };
+
   // Honest KPI values: real number when the backend answered, "…" while
   // loading, "—" (with an explicit reason) when the backend is unreachable.
   const ticketKpiValue = (value: number): string => {
@@ -121,8 +126,8 @@ export function Dashboard() {
     return String(value);
   };
   const ticketKpiSubtitle = (subtitle: string): string => {
-    if (error) return "Ticketing unavailable";
-    if (loading && tickets.length === 0) return "Loading…";
+    if (error) return t("ticketingUnavailable");
+    if (loading && tickets.length === 0) return t("loading");
     return subtitle;
   };
 
@@ -130,48 +135,60 @@ export function Dashboard() {
     <AppShell>
       <div className="flex flex-col gap-6">
         <PageHeader
-          description="Enterprise GCP-ready support console with Next.js, GraphQL BFF, commerce connectors, and Meridian design system."
-          eyebrow="Dashboard"
-          title="Customer Service Accelerator"
+          description={t("description")}
+          eyebrow={t("eyebrow")}
+          title={t("title")}
         />
 
         {/* KPI tiles */}
         <SummaryGrid>
           <SummaryCard
             icon="inbox"
-            label="Open Tickets"
+            label={t("openTickets")}
             value={ticketKpiValue(openCount)}
             sub={ticketKpiSubtitle(
-              highCount > 0 ? `${highCount} high priority` : "Active, unresolved"
+              highCount > 0
+                ? t("highPriority", { count: highCount })
+                : t("activeUnresolved")
             )}
             tone="primary"
           />
           <SummaryCard
             icon="alert-triangle"
-            label="At-Risk (High/Urgent)"
+            label={t("atRisk")}
             value={ticketKpiValue(atRiskCount)}
-            sub={ticketKpiSubtitle("Unresolved, high priority")}
+            sub={ticketKpiSubtitle(t("unresolvedHighPriority"))}
             tone={atRiskCount > 0 && !error ? "warning" : "default"}
           />
-          <SummaryCard icon="shopping-bag" label="Orders Reviewed" value="—" sub="Not available" />
-          <SummaryCard icon="sparkles" label="AI Assist Resolved" value="—" sub="Not available" />
+          <SummaryCard
+            icon="shopping-bag"
+            label={t("ordersReviewed")}
+            value="—"
+            sub={t("notAvailable")}
+          />
+          <SummaryCard
+            icon="sparkles"
+            label={t("aiAssistResolved")}
+            value="—"
+            sub={t("notAvailable")}
+          />
         </SummaryGrid>
 
         {/* Main grid */}
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <SectionCard
-            title="Active Work Queue"
+            title={t("activeWorkQueue")}
             icon="list"
             bodyClassName="p-0 divide-y divide-m-border/60"
           >
             {loading && tickets.length === 0 ? (
-              <p className="p-4 text-xs text-m-text-muted">Loading open tickets…</p>
+              <p className="p-4 text-xs text-m-text-muted">{t("loadingTickets")}</p>
             ) : error ? (
               <p className="p-4 text-xs text-m-text-muted">
-                Unable to reach the ticketing backend right now.
+                {t("ticketingBackendUnavailable")}
               </p>
             ) : queue.length === 0 ? (
-              <p className="p-4 text-xs text-m-text-muted">No open tickets right now.</p>
+              <p className="p-4 text-xs text-m-text-muted">{t("noOpenTickets")}</p>
             ) : (
               queue.map((item) => (
                 <div
@@ -180,16 +197,20 @@ export function Dashboard() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex items-center gap-2">
-                      <span className="text-xs font-bold text-m-primary">{item.ticketNumber}</span>
-                      <span className="truncate text-xs font-semibold text-m-text">{item.subject}</span>
+                      <span className="text-xs font-bold text-m-primary">
+                        {item.ticketNumber}
+                      </span>
+                      <span className="truncate text-xs font-semibold text-m-text">
+                        {item.subject}
+                      </span>
                     </div>
                     <p className="truncate text-xs text-m-text-muted">
-                      {item.email || item.customerId || "Unknown customer"}
+                      {item.email || item.customerId || t("unknownCustomer")}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <Badge variant={priorityBadgeVariant(item.priority)} size="sm" dot>
-                      {item.priority} Priority
+                      {t(`priority.${item.priority}`)}
                     </Badge>
                     <span className="text-[11px] font-medium text-m-text-muted">
                       {relativeTime(item.lastModifiedAt ?? item.createdAt)}
@@ -202,26 +223,34 @@ export function Dashboard() {
 
           {/* Sidebar */}
           <aside className="flex flex-col gap-5">
-            <SectionCard title="CSA Assistant" icon="sparkles">
+            <SectionCard title={t("assistantTitle")} icon="sparkles">
               <p className="text-xs leading-relaxed text-m-text-muted">
-                AI Agent runs on the Vercel AI SDK with configurable model providers — OpenAI or
-                Anthropic (Claude) — plus custom commerce and ticketing tools.
+                {t("assistantDescription")}
               </p>
             </SectionCard>
 
             <SectionCard
-              title="Core Service Health"
+              title={t("serviceHealth")}
               icon="activity"
               bodyClassName="p-0 divide-y divide-m-border/60"
             >
               {health.phase === "loading" ? (
-                <p className="px-4 py-3 text-xs text-m-text-muted">Checking services…</p>
+                <p className="px-4 py-3 text-xs text-m-text-muted">
+                  {t("checkingServices")}
+                </p>
               ) : health.phase === "error" ? (
-                <p className="px-4 py-3 text-xs text-m-text-muted">Status unavailable.</p>
+                <p className="px-4 py-3 text-xs text-m-text-muted">
+                  {t("statusUnavailable")}
+                </p>
               ) : (
                 health.services.map((service) => (
-                  <div className="flex items-center justify-between px-4 py-3" key={service.name}>
-                    <span className="text-xs font-medium text-m-text">{service.name}</span>
+                  <div
+                    className="flex items-center justify-between px-4 py-3"
+                    key={service.name}
+                  >
+                    <span className="text-xs font-medium text-m-text">
+                      {service.name}
+                    </span>
                     <Badge
                       variant={
                         service.status === "online"
@@ -233,11 +262,7 @@ export function Dashboard() {
                       size="sm"
                       dot
                     >
-                      {service.status === "online"
-                        ? "online"
-                        : service.status === "offline"
-                          ? "offline"
-                          : "unavailable"}
+                      {t(`status.${service.status}`)}
                     </Badge>
                   </div>
                 ))
