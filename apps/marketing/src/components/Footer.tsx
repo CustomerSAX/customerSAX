@@ -1,5 +1,30 @@
+import { useTranslations } from "next-intl";
+
 export function Footer() {
+  const footer = useTranslations("Footer");
+  const navigation = useTranslations("Navigation");
+
   return (
-    <footer><div className="shell footer-grid"><div><a className="brand" href="#top"><img className="brand-logo" src="brand/customerSAX-logo.svg" alt="customerSAX" /></a><p className="footer-copy">Customer service for a mixed human + AI workforce, connected to the commerce systems that complete the resolution. Product concept website — connector availability and launch capabilities should be validated against the roadmap before public release.</p></div><div className="footer-links"><a href="#service">Customer service</a><a href="#workforce">Human + AI</a><a href="#integrations">Integrations</a><a href="#brand">Brand</a><a href="#enterprise">Enterprise</a></div></div></footer>
+    <footer>
+      <div className="shell footer-grid">
+        <div>
+          <a className="brand" href="#top">
+            <img
+              className="brand-logo"
+              src="brand/customerSAX-logo.svg"
+              alt="customerSAX"
+            />
+          </a>
+          <p className="footer-copy">{footer("description")}</p>
+        </div>
+        <div className="footer-links">
+          <a href="#service">{navigation("customerService")}</a>
+          <a href="#workforce">{navigation("workforce")}</a>
+          <a href="#integrations">{navigation("integrations")}</a>
+          <a href="#brand">{footer("brand")}</a>
+          <a href="#enterprise">{navigation("enterprise")}</a>
+        </div>
+      </div>
+    </footer>
   );
 }

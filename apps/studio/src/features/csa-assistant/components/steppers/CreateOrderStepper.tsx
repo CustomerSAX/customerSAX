@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_LOCALE } from '@csa/i18n';
 import { useState, useEffect } from 'react';
 import { Button, Checkbox, Input, Select } from '@csa/ui';
 import './stepper.css';
@@ -216,7 +217,7 @@ export function CreateOrderStepper({
   const cartItems = workflow?.cart?.items ?? [];
   const cartHasItem = (sku: string) => cartItems.some((it) => it.sku === sku);
 
-  const money = (n: number) => '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (n: number) => '$' + n.toLocaleString(DEFAULT_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const selectCustomer = (c: CustomerSearchResult) => {
     onAction({ type: 'order.select_customer', customerId: c.id, name: c.name, email: c.email });

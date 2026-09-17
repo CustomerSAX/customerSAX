@@ -117,6 +117,13 @@ export interface TablePaginationProps {
   pageSizeOptions?: number[];
   className?: string;
   as?: 'div' | 'tfoot';
+  labels?: {
+    summary?: (start: number, end: number, total: number) => React.ReactNode;
+    perPage?: string;
+    page?: (page: number, totalPages: number) => React.ReactNode;
+    previousPage?: string;
+    nextPage?: string;
+  };
 }
 
 export function TablePagination({
@@ -129,6 +136,7 @@ export function TablePagination({
   pageSizeOptions = [10, 25, 50, 100],
   className,
   as = 'div',
+  labels,
 }: TablePaginationProps) {
   const startItem = totalItems ? (page - 1) * pageSize + 1 : 0;
   const endItem = totalItems ? Math.min(page * pageSize, totalItems) : 0;
@@ -137,7 +145,7 @@ export function TablePagination({
     <div className={cn('flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-m-border bg-m-surface-2/40 text-xs text-m-text-muted', className)}>
       <div className="flex items-center gap-4">
         {totalItems !== undefined && (
-          <span>
+          labels?.summary ? labels.summary(startItem, endItem, totalItems) : <span>
             Showing <strong className="font-semibold text-m-text">{startItem}</strong> to{' '}
             <strong className="font-semibold text-m-text">{endItem}</strong> of{' '}
             <strong className="font-semibold text-m-text">{totalItems}</strong> entries
@@ -145,7 +153,7 @@ export function TablePagination({
         )}
         {onPageSizeChange && (
           <div className="flex items-center gap-1.5">
-            <span>Per page:</span>
+            <span>{labels?.perPage ?? 'Per page:'}</span>
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
@@ -169,10 +177,10 @@ export function TablePagination({
           onClick={() => onPageChange(page - 1)}
           iconOnly
           leftIcon={<Icon name="chevron-left" size="xs" />}
-          aria-label="Previous page"
+          aria-label={labels?.previousPage ?? 'Previous page'}
         />
         <span className="px-2 font-medium text-m-text">
-          Page {page} of {totalPages}
+          {labels?.page ? labels.page(page, totalPages) : <>Page {page} of {totalPages}</>}
         </span>
         <Button
           variant="outline"
@@ -181,7 +189,7 @@ export function TablePagination({
           onClick={() => onPageChange(page + 1)}
           iconOnly
           leftIcon={<Icon name="chevron-right" size="xs" />}
-          aria-label="Next page"
+          aria-label={labels?.nextPage ?? 'Next page'}
         />
       </div>
     </div>

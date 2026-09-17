@@ -1,0 +1,27 @@
+{
+  "Metadata": {
+    "title": "customerSAX — Le service client pour le commerce, conçu pour résoudre",
+    "description": "customerSAX est la couche opérationnelle du service client pour le commerce, reliant les conversations aux commandes, au CRM, aux paiements, à la livraison, aux retours et aux actions d’IA gouvernées.",
+    "socialDescription": "customerSAX relie chaque conversation aux systèmes commerciaux capables de résoudre réellement le problème : commandes, CRM, paiements, livraison, retours, fidélité et plus encore."
+  },
+  "Navigation": {
+    "platform": "Plateforme",
+    "customerService": "Service client",
+    "workforce": "Humains + IA",
+    "useCases": "Cas d’usage",
+    "integrations": "Intégrations",
+    "enterprise": "Entreprise",
+    "explorePlatform": "Découvrir la plateforme",
+    "bookDemo": "Réserver une démo",
+    "openMenu": "Ouvrir le menu de navigation"
+  },
+  "Footer": {
+    "description": "Un service client pour des équipes mixtes humaines et IA, connecté aux systèmes commerciaux qui permettent de résoudre les demandes. Site conceptuel du produit — la disponibilité des connecteurs et les fonctionnalités de lancement doivent être validées par rapport à la feuille de route avant toute publication.",
+    "brand": "Marque"
+  },
+  "LocaleSwitcher": {
+    "label": "Langue",
+    "en-US": "English (US)",
+    "fr-FR": "Français (France)"
+  }
+}

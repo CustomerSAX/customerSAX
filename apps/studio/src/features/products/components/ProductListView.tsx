@@ -22,6 +22,7 @@
 
 import { Fragment, useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   PageHeader,
   Button,
@@ -40,6 +41,7 @@ import {
 import { SectionCard } from "@csa/ui";
 import { useProductList } from "../hooks/use-products";
 import { SelectableSearchInput } from "./SelectableSearchInput";
+import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 import type {
   ProductListRow,
   ProductSortKey,
@@ -320,13 +322,13 @@ function VariantSubTable({ productId, variants, colSpan }: VariantSubTableProps)
 // Status badge
 // ---------------------------------------------------------------------------
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, label }: { status: string; label: string }) {
   return (
     <Badge
       variant={status === "Published" ? "success" : "warning"}
       size="sm"
     >
-      {status}
+      {label}
     </Badge>
   );
 }
@@ -372,6 +374,13 @@ function TableSkeletonRows({
 
 export function ProductListView() {
   const router = useRouter();
+  const t = useTranslations("Products");
+  const common = useTranslations("Common");
+  const paginationLabels = useTablePaginationLabels();
+  const searchFieldOptions = SEARCH_FIELD_OPTIONS.map((option) => ({
+    ...option,
+    label: option.value === "allFields" ? common("allFields") : option.value === "name" ? t("columns.itemName") : option.value === "variants.sku" ? "SKU" : t(`columns.${option.value}`),
+  }));
 
   const {
     products,
@@ -412,8 +421,8 @@ export function ProductListView() {
   // Derive visible columns from settings
   const visibleColumns = useMemo(
     () =>
-      ALL_COLUMNS.filter((c) => settings.visibleColumnKeys.includes(c.key)),
-    [settings.visibleColumnKeys]
+      ALL_COLUMNS.filter((c) => settings.visibleColumnKeys.includes(c.key)).map((column) => ({ ...column, label: t(`columns.${column.key}`) })),
+    [settings.visibleColumnKeys, t]
   );
 
   // Total column count including the expand column
@@ -451,11 +460,11 @@ export function ProductListView() {
     <div className="flex flex-col gap-5">
       {/* Page Header */}
       <PageHeader
-        title="Product Directory"
-        subtitle="Browse and search catalog products, manage variants, and inspect pricing data."
+        title={t("title")}
+        subtitle={t("subtitle")}
         breadcrumbs={
           <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
-            Catalog Operations
+            {t("eyebrow")}
           </span>
         }
       />
@@ -465,8 +474,8 @@ export function ProductListView() {
         <SelectableSearchInput
           fieldValue={search.option}
           searchValue={search.text}
-          fieldOptions={SEARCH_FIELD_OPTIONS}
-          placeholder={`Search products (min 4 chars)…`}
+          fieldOptions={searchFieldOptions}
+          placeholder={t("searchPlaceholder")}
           onFieldChange={(f) =>
             setSearch({ text: search.text, option: f as typeof search.option })
           }
@@ -482,7 +491,7 @@ export function ProductListView() {
             Showing results for &quot;{appliedSearch.text}&quot; in{" "}
             <strong>
               {
-                SEARCH_FIELD_OPTIONS.find(
+                searchFieldOptions.find(
                   (o) => o.value === appliedSearch.option
                 )?.label
               }
@@ -498,15 +507,15 @@ export function ProductListView() {
 
       {/* Table container */}
       <SectionCard
-        title={`Products${!loading && totalItems > 0 ? ` (${totalItems})` : ""}`}
+        title={!loading && totalItems > 0 ? t("countTitle", { count: totalItems }) : t("title")}
         action={
           <div className="relative">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowManager((v) => !v)}
-              aria-label="Table settings"
-              title="Manage columns, density, and text wrapping"
+              aria-label={t("tableSettings")}
+              title={t("manageTable")}
             >
               <Icon name="settings-2" size="sm" />
             </Button>
@@ -582,16 +591,16 @@ export function ProductListView() {
                 >
                   <EmptyState
                     icon="package"
-                    title="No Products Found"
+                    title={t("emptyTitle")}
                     description={
                       isSearchActive
-                        ? "No products match your search. Try adjusting your query or resetting the search."
-                        : "There are no products in the catalog yet."
+                        ? t("emptySearch")
+                        : t("emptyDefault")
                     }
                     action={
                       isSearchActive ? (
                         <Button variant="secondary" onClick={onReset}>
-                          Reset Search
+                          {t("resetSearch")}
                         </Button>
                       ) : undefined
                     }
@@ -641,7 +650,7 @@ export function ProductListView() {
                           className={`${cellClass} ${textClass}`}
                         >
                           {col.key === "status" ? (
-                            <StatusBadge status={product.status} />
+                            <StatusBadge status={product.status} label={product.status === "Published" ? t("published") : t("modifiedStatus")} />
                           ) : (
                             <span>
                               {product[col.key as keyof ProductListRow] as string}
@@ -674,6 +683,7 @@ export function ProductListView() {
               totalItems={totalItems}
               pageSize={perPage}
               onPageChange={onPageChange}
+              labels={paginationLabels}
             />
           </div>
         )}

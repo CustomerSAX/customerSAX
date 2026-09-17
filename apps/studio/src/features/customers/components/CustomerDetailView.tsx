@@ -1,10 +1,12 @@
 "use client";
 
+import { DEFAULT_LOCALE } from "@csa/i18n";
 import { Fragment, useEffect, useState, useMemo, useCallback } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { CUSTOMER_ORDERS_QUERY, CUSTOMER_CARTS_QUERY, CUSTOMER_ADDRESSES_QUERY } from "../../orders/api/queries";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   Button,
   Avatar,
@@ -82,17 +84,6 @@ const CURRENCY_OPTIONS = [
   { value: "EUR", label: "EUR - Euro" },
   { value: "AUD", label: "AUD - Australian Dollar" },
   { value: "JPY", label: "JPY - Japanese Yen" },
-];
-
-const CUSTOMER_TABS: EntityTab[] = [
-  { id: "overview", label: "Overview", icon: "user" },
-  { id: "orders", label: "Orders", icon: "shopping-bag" },
-  { id: "returns", label: "Returns", icon: "rotate-ccw" },
-  { id: "quotes", label: "Quotes", icon: "file-text" },
-  { id: "payments", label: "Payments", icon: "credit-card" },
-  { id: "tickets", label: "Tickets", icon: "life-buoy" },
-  { id: "conversations", label: "Conversations", icon: "message-square" },
-  { id: "notes", label: "Notes", icon: "file-text" },
 ];
 
 const CUSTOMER_QUOTES_QUERY = gql`
@@ -294,6 +285,17 @@ function ticketPriorityTone(priority: string): StatusTone {
 }
 
 export function CustomerDetailView({ id }: CustomerDetailViewProps) {
+  const common = useTranslations("Common");
+  const localizedTabs: EntityTab[] = [
+    { id: "overview", label: common("tabs.overview"), icon: "user" },
+    { id: "orders", label: common("tabs.orders"), icon: "shopping-bag" },
+    { id: "returns", label: common("tabs.returns"), icon: "rotate-ccw" },
+    { id: "quotes", label: common("tabs.quotes"), icon: "file-text" },
+    { id: "payments", label: common("tabs.payments"), icon: "credit-card" },
+    { id: "tickets", label: common("tabs.tickets"), icon: "life-buoy" },
+    { id: "conversations", label: common("tabs.conversations"), icon: "message-square" },
+    { id: "notes", label: common("tabs.notes"), icon: "file-text" },
+  ];
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "overview";
@@ -396,7 +398,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   function formatMoney(m?: GqlMoney | null): string {
     if (!m) return "--";
     const amt = m.centAmount / Math.pow(10, m.fractionDigits ?? 2);
-    return `${m.currencyCode} ${amt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `${m.currencyCode} ${amt.toLocaleString(DEFAULT_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   const realOrders: CustomerOrder[] = useMemo(
@@ -430,7 +432,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       }
     }
     const amt = sum / Math.pow(10, fraction);
-    return `${currency} ${amt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `${currency} ${amt.toLocaleString(DEFAULT_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, [ordersGqlData]);
 
   // Derive returns from orders that carry returnInfo
@@ -1023,7 +1025,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
         </div>
       )}
 
-      <EntityTabs tabs={CUSTOMER_TABS} active={activeTab} onChange={setActiveTab} />
+      <EntityTabs tabs={localizedTabs} active={activeTab} onChange={setActiveTab} />
 
       <div className="mt-4">
         <SummaryGrid>

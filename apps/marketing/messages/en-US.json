@@ -1,0 +1,27 @@
+{
+  "Metadata": {
+    "title": "customerSAX — Commerce customer service, built for resolution",
+    "description": "customerSAX is the commerce service operating layer connecting customer conversations to orders, CRM, payments, fulfillment, returns and governed AI actions.",
+    "socialDescription": "customerSAX connects every conversation to the commerce systems that can actually fix the problem — orders, CRM, payments, fulfillment, returns, loyalty and more."
+  },
+  "Navigation": {
+    "platform": "Platform",
+    "customerService": "Customer service",
+    "workforce": "Human + AI",
+    "useCases": "Use cases",
+    "integrations": "Integrations",
+    "enterprise": "Enterprise",
+    "explorePlatform": "Explore platform",
+    "bookDemo": "Book a demo",
+    "openMenu": "Open navigation menu"
+  },
+  "Footer": {
+    "description": "Customer service for a mixed human + AI workforce, connected to the commerce systems that complete the resolution. Product concept website — connector availability and launch capabilities should be validated against the roadmap before public release.",
+    "brand": "Brand"
+  },
+  "LocaleSwitcher": {
+    "label": "Language",
+    "en-US": "English (US)",
+    "fr-FR": "Français (France)"
+  }
+}

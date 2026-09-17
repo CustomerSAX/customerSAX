@@ -1,23 +1,33 @@
 import type { Metadata } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import "@fontsource-variable/inter";
 import { AppProviders } from "./providers";
 import "./styles.css";
 
-export const metadata: Metadata = {
-  title: "CSA Admin",
-  description: "Commerce Customer Service Accelerator internal agent portal"
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("Metadata");
 
-export default function RootLayout({
+  return {
+    title: t("title"),
+    description: t("description")
+  };
+}
+
+export default async function RootLayout({
   children
 }: Readonly<{
   children: ReactNode;
 }>) {
+  const locale = await getLocale();
+
   return (
-    <html lang="en" className="light" data-theme="light">
+    <html lang={locale} className="light" data-theme="light">
       <body className="font-sans">
-        <AppProviders>{children}</AppProviders>
+        <NextIntlClientProvider>
+          <AppProviders>{children}</AppProviders>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import {
   PageHeader,
   Panel,
@@ -20,6 +21,7 @@ import {
   Skeleton,
 } from "@csa/ui";
 import { formatDate } from "@/lib/format-date";
+import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 import { useQuotes } from "../hooks/use-quotes";
 import { QuoteStatusChip } from "./QuoteStatusChip";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
@@ -30,23 +32,14 @@ import {
   workflowStatusLabel,
 } from "../utils/quote-workflow-status";
 
-const STATUS_OPTIONS = [
-  { value: "", label: "All Statuses" },
-  { value: "Draft", label: "Draft" },
-  { value: "Requested", label: "Requested" },
-  { value: "Buyer Review", label: "Buyer Review" },
-  { value: "Seller Review", label: "Seller Review" },
-  { value: "Changes Requested", label: "Changes Requested" },
-  { value: "In Review", label: "In Review" },
-  { value: "Accepted", label: "Accepted" },
-  { value: "Approved", label: "Approved" },
-  { value: "Rejected", label: "Rejected" },
-  { value: "Declined", label: "Declined" },
-  { value: "Converted", label: "Converted" },
-];
+const QUOTE_STATUSES = ["Draft", "Requested", "Buyer Review", "Seller Review", "Changes Requested", "In Review", "Accepted", "Approved", "Rejected", "Declined", "Converted"] as const;
 
 export function QuoteListView() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("Quotes");
+  const common = useTranslations("Common");
+  const paginationLabels = useTablePaginationLabels();
   const {
     quotes,
     totalItems,
@@ -64,9 +57,13 @@ export function QuoteListView() {
   const { allCompanies } = useCompanies();
 
   const [searchText, setSearchText] = useState("");
+  const statusOptions = [
+    { value: "", label: common("allStatuses") },
+    ...QUOTE_STATUSES.map((value) => ({ value, label: t(`status.${value}`) })),
+  ];
 
   const companyOptions = [
-    { value: "", label: "All Companies" },
+    { value: "", label: t("allCompanies") },
     ...allCompanies.map((c) => ({ value: c.id, label: c.name })),
   ];
 
@@ -95,11 +92,11 @@ export function QuoteListView() {
     <div className="flex flex-col gap-6">
       {/* Page Header */}
       <PageHeader
-        title="Quotes"
-        subtitle="B2B quote requests, merchant offers, and negotiation state."
+        title={t("title")}
+        subtitle={t("subtitle")}
         breadcrumbs={
           <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
-            B2B Operations
+            {t("eyebrow")}
           </span>
         }
         actions={
@@ -109,7 +106,7 @@ export function QuoteListView() {
             leftIcon={<Icon name="plus" size="xs" />}
             onClick={() => router.push("/b2b/quotes/create")}
           >
-            Create quote
+            {t("create")}
           </Button>
         }
       />
@@ -123,7 +120,7 @@ export function QuoteListView() {
               onChange={(val) => setSearchText(val)}
               onSearch={handleSearchSubmit}
               onClear={() => setSearchText("")}
-              placeholder="Search quotes by ID, company, or customer..."
+              placeholder={t("searchPlaceholder")}
               size="md"
             />
           </div>
@@ -143,7 +140,7 @@ export function QuoteListView() {
           <div className="w-full sm:w-40">
             <Select
               value={filter.statusFilter ?? ""}
-              options={STATUS_OPTIONS}
+              options={statusOptions}
               onChange={(e) => {
                 setFilter({ ...filter, statusFilter: e.target.value });
                 setPage(1);
@@ -154,11 +151,11 @@ export function QuoteListView() {
 
           <div className="flex items-center gap-2 shrink-0">
             <Button variant="primary" size="md" onClick={handleSearchSubmit}>
-              Search
+              {common("search")}
             </Button>
             {(filter.searchText || filter.statusFilter || filter.companyIdFilter) && (
               <Button variant="ghost" size="md" onClick={handleReset}>
-                Reset
+                {common("reset")}
               </Button>
             )}
           </div>
@@ -166,7 +163,7 @@ export function QuoteListView() {
       </Panel>
 
       {/* Quotes Table */}
-      <Panel title={`Quotes (${totalItems})`}>
+      <Panel title={t("countTitle", { count: totalItems })}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -175,46 +172,46 @@ export function QuoteListView() {
                 sortDirection={sort.key === "quoteNumber" ? sort.order : false}
                 onSort={() => handleSort("quoteNumber")}
               >
-                Quote ID
+                {t("quoteId")}
               </TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "companyName" ? sort.order : false}
                 onSort={() => handleSort("companyName")}
               >
-                Company / Business Unit
+                {t("businessUnit")}
               </TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "customerName" ? sort.order : false}
                 onSort={() => handleSort("customerName")}
               >
-                Customer
+                {t("customer")}
               </TableHead>
-              <TableHead>Items</TableHead>
+              <TableHead>{t("items")}</TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "negotiatedTotal" ? sort.order : false}
                 onSort={() => handleSort("negotiatedTotal")}
               >
-                Value / Total
+                {t("total")}
               </TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>{common("status")}</TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "validUntil" ? sort.order : false}
                 onSort={() => handleSort("validUntil")}
               >
-                Valid Until
+                {t("validUntil")}
               </TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "createdAt" ? sort.order : false}
                 onSort={() => handleSort("createdAt")}
               >
-                Requested Date
+                {t("requestedDate")}
               </TableHead>
-              <TableHead className="w-12 text-right">Actions</TableHead>
+              <TableHead className="w-12 text-right">{common("actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -233,11 +230,11 @@ export function QuoteListView() {
                 <TableCell colSpan={9} className="py-12">
                   <EmptyState
                     icon="file-text"
-                    title="No Quotes Found"
-                    description="No quote requests or offers match your current criteria. Try resetting filters or creating a new quote."
+                    title={t("emptyTitle")}
+                    description={t("emptyDescription")}
                     action={
                       <Button variant="secondary" onClick={handleReset}>
-                        Reset Filters
+                        {t("resetFilters")}
                       </Button>
                     }
                   />
@@ -268,19 +265,19 @@ export function QuoteListView() {
                       </div>
                     </TableCell>
                     <TableCell className="text-m-text-muted">
-                      {q.itemCount ?? q.lineItems.length} {(q.itemCount ?? q.lineItems.length) === 1 ? "item" : "items"}
+                      {t("itemCount", { count: q.itemCount ?? q.lineItems.length })}
                     </TableCell>
                     <TableCell className="font-semibold text-m-text">
-                      {q.currencyCode || "USD"} {q.negotiatedTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      {q.currencyCode || "USD"} {q.negotiatedTotal.toLocaleString(locale, { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell>
-                      <QuoteStatusChip status={displayStatus} />
+                      <QuoteStatusChip status={displayStatus} label={t.has(`status.${displayStatus}`) ? t(`status.${displayStatus}`) : displayStatus} />
                     </TableCell>
                     <TableCell className="text-m-text-muted">
-                      {formatDate(q.validUntil)}
+                      {formatDate(q.validUntil, locale)}
                     </TableCell>
                     <TableCell className="text-m-text-muted">
-                      {formatDate(q.createdAt)}
+                      {formatDate(q.createdAt, locale)}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <Button
@@ -289,7 +286,7 @@ export function QuoteListView() {
                         iconOnly
                         leftIcon={<Icon name="chevron-right" size="xs" />}
                         onClick={() => router.push(`/b2b/quotes/${q.id}`)}
-                        aria-label="View Quote"
+                        aria-label={common("view", { entity: t("quote") })}
                       />
                     </TableCell>
                   </TableRow>
@@ -307,6 +304,7 @@ export function QuoteListView() {
             pageSize={perPage}
             onPageChange={setPage}
             onPageSizeChange={setPerPage}
+            labels={paginationLabels}
           />
         )}
       </Panel>

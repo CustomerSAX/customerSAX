@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE } from '@csa/i18n';
 import { NextRequest, NextResponse } from 'next/server';
 import { projectScopedBffFetch } from '@/lib/project-scoped-bff';
 import { bffJsonHeaders } from '@/lib/commerce-headers';
@@ -48,11 +49,11 @@ async function bffQuery<T>(query: string, variables: Record<string, unknown>): P
 function formatMoney(money: { centAmount?: number; currencyCode?: string; fractionDigits?: number } | null | undefined) {
   if (!money?.currencyCode || typeof money.centAmount !== 'number') return null;
   const value = money.centAmount / Math.pow(10, money.fractionDigits ?? 2);
-  // Explicit 'en-US' — toLocaleString(undefined, ...) falls back to the
+  // Explicit default locale — toLocaleString(undefined, ...) falls back to the
   // server process's locale, which formatted this as "3,90,419.68" (Indian
   // digit grouping) instead of "390,419.68", inconsistent with money
   // formatting everywhere else in this app.
-  return `${money.currencyCode} ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${money.currencyCode} ${value.toLocaleString(DEFAULT_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export async function GET(request: NextRequest) {

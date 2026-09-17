@@ -1,29 +1,15 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 
-const sections = [
-  {
-    title: "Getting Started",
-    body: "Run the whole platform locally, learn the service map and ports.",
-    href: "/docs/getting-started"
-  },
-  {
-    title: "Architecture & Flows",
-    body: "Service topology, the platform-neutral commerce seam, the resolution flow.",
-    href: "/docs/architecture"
-  },
-  {
-    title: "API Reference",
-    body: "The federated GraphQL BFF surface, the ai-assist /chat endpoint, auth REST.",
-    href: "/docs/api-reference"
-  },
-  {
-    title: "Service Documentation",
-    body: "One page per service: auth, ai-assist, bff, commercetools, ticketing, admin.",
-    href: "/docs/services"
-  }
-];
+export default async function HomePage() {
+  const t = await getTranslations("Home");
+  const sections = [
+    { key: "gettingStarted", href: "/docs/getting-started" },
+    { key: "architecture", href: "/docs/architecture" },
+    { key: "api", href: "/docs/api-reference" },
+    { key: "services", href: "/docs/services" }
+  ] as const;
 
-export default function HomePage() {
   return (
     <main
       style={{
@@ -44,7 +30,7 @@ export default function HomePage() {
           border: "1px solid var(--csa-blue-200)"
         }}
       >
-        AI-native customer service
+        {t("badge")}
       </span>
 
       <h1
@@ -56,8 +42,7 @@ export default function HomePage() {
           letterSpacing: "-0.02em"
         }}
       >
-        customerSAX{" "}
-        <span style={{ color: "var(--csa-blue-500)" }}>Documentation</span>
+        customerSAX <span style={{ color: "var(--csa-blue-500)" }}>{t("title")}</span>
       </h1>
 
       <p
@@ -68,10 +53,7 @@ export default function HomePage() {
           marginTop: "1rem"
         }}
       >
-        customerSAX (CSA) is an AI-native commerce customer-service resolution
-        platform. A support rep works orders, carts, returns and tickets through
-        guided steppers or free-form chat — both paths call the same backend
-        tools, so they produce identical, real results.
+        {t("description")}
       </p>
 
       <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.75rem" }}>
@@ -86,7 +68,7 @@ export default function HomePage() {
             boxShadow: "var(--shadow-primary)"
           }}
         >
-          Read the docs
+          {t("readDocs")}
         </Link>
         <Link
           href="/docs/architecture"
@@ -98,7 +80,7 @@ export default function HomePage() {
             background: "var(--csa-yellow-500)"
           }}
         >
-          Architecture
+          {t("architecture")}
         </Link>
       </div>
 
@@ -129,7 +111,7 @@ export default function HomePage() {
                 color: "var(--color-fd-card-foreground)"
               }}
             >
-              {s.title}
+              {t(`sections.${s.key}.title`)}
             </div>
             <p
               style={{
@@ -138,7 +120,7 @@ export default function HomePage() {
                 color: "var(--color-fd-muted-foreground)"
               }}
             >
-              {s.body}
+              {t(`sections.${s.key}.body`)}
             </p>
           </Link>
         ))}

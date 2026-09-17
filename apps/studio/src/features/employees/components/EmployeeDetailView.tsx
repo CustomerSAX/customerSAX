@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@apollo/client";
 import {
   PageHeader,
@@ -80,6 +81,7 @@ const moneyToNumber = (money?: MoneyResult | null) => {
 };
 
 export function EmployeeDetailView({ id }: { id: string }) {
+  const common = useTranslations("Common");
   const router = useRouter();
   const { getEmployeeById, loading: employeesLoading, updateEmployee, addEmployeeAddress, addEmployeeMembership } = useEmployees();
   const { allCompanies } = useCompanies();
@@ -258,17 +260,17 @@ export function EmployeeDetailView({ id }: { id: string }) {
       {/* 11 Legacy Tabs */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as EmployeeTab)}>
         <Tabs.List className="overflow-x-auto">
-          <Tabs.Trigger value="profile">Profile</Tabs.Trigger>
-          <Tabs.Trigger value="address">Address ({employee.addresses.length})</Tabs.Trigger>
-          <Tabs.Trigger value="password">Password</Tabs.Trigger>
-          <Tabs.Trigger value="company">Company ({employee.memberships.length})</Tabs.Trigger>
-          <Tabs.Trigger value="cart">Cart ({customerCarts.length})</Tabs.Trigger>
-          <Tabs.Trigger value="quote">Quote ({customerQuotes.length})</Tabs.Trigger>
-          <Tabs.Trigger value="order">Order ({customerOrders.length})</Tabs.Trigger>
-          <Tabs.Trigger value="return">Return (0)</Tabs.Trigger>
-          <Tabs.Trigger value="payment">Payment (1)</Tabs.Trigger>
-          <Tabs.Trigger value="ticket">Ticket (1)</Tabs.Trigger>
-          <Tabs.Trigger value="custom-attributes">Custom Attributes</Tabs.Trigger>
+          <Tabs.Trigger value="profile">{common("tabs.profile")}</Tabs.Trigger>
+          <Tabs.Trigger value="address">{common("tabs.address")} ({employee.addresses.length})</Tabs.Trigger>
+          <Tabs.Trigger value="password">{common("tabs.password")}</Tabs.Trigger>
+          <Tabs.Trigger value="company">{common("tabs.company")} ({employee.memberships.length})</Tabs.Trigger>
+          <Tabs.Trigger value="cart">{common("tabs.cart")} ({customerCarts.length})</Tabs.Trigger>
+          <Tabs.Trigger value="quote">{common("tabs.quote")} ({customerQuotes.length})</Tabs.Trigger>
+          <Tabs.Trigger value="order">{common("tabs.order")} ({customerOrders.length})</Tabs.Trigger>
+          <Tabs.Trigger value="return">{common("tabs.return")} (0)</Tabs.Trigger>
+          <Tabs.Trigger value="payment">{common("tabs.payment")} (1)</Tabs.Trigger>
+          <Tabs.Trigger value="ticket">{common("tabs.ticket")} (1)</Tabs.Trigger>
+          <Tabs.Trigger value="custom-attributes">{common("tabs.customAttributes")}</Tabs.Trigger>
         </Tabs.List>
 
         {/* Tab 1: Profile (Customer General Profile) */}

@@ -1,3 +1,7 @@
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // "standalone" is required for Docker/GCP deployments.
@@ -6,4 +10,4 @@ const nextConfig = {
   output: process.env.NEXT_STANDALONE === "1" ? "standalone" : undefined
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

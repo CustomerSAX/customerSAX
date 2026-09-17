@@ -30,6 +30,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   Icon,
   Input,
@@ -128,6 +129,7 @@ function summaryPriorityTone(priority: TicketPriority): "default" | "primary" | 
 }
 
 export function TicketDetailView({ id }: TicketDetailViewProps) {
+  const common = useTranslations("Common");
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
   const backHref = customerIdParam ? `/customers/${customerIdParam}` : "/tickets";
@@ -272,12 +274,12 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   }
 
   const TABS: EntityTab[] = [
-    { id: "conversation", label: "Conversation", icon: "message-square" },
-    { id: "customer", label: "Customer", icon: "user" },
-    { id: "order", label: "Order", icon: "shopping-bag" },
-    { id: "ai", label: "AI Assist", icon: "sparkles" },
-    { id: "notes", label: "Internal Notes", icon: "file-text", count: ticket.comments.length },
-    { id: "history", label: "History", icon: "clock", count: ticket.history.length },
+    { id: "conversation", label: common("tabs.conversation"), icon: "message-square" },
+    { id: "customer", label: common("tabs.customer"), icon: "user" },
+    { id: "order", label: common("tabs.order"), icon: "shopping-bag" },
+    { id: "ai", label: common("tabs.aiAssist"), icon: "sparkles" },
+    { id: "notes", label: common("tabs.internalNotes"), icon: "file-text", count: ticket.comments.length },
+    { id: "history", label: common("tabs.history"), icon: "clock", count: ticket.history.length },
   ];
 
   return (

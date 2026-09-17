@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import {
   PageHeader,
   Button,
@@ -25,34 +26,36 @@ import { SectionCard } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES } from "../hooks/use-tickets";
 import type { Ticket, TicketStatus, TicketPriority } from "../types/ticket-types";
 import { formatDateTime } from "@/lib/format-date";
-
-const SEARCH_FIELD_OPTIONS = [
-  { value: "ticketNumber", label: "Ticket Number" },
-  { value: "email", label: "Customer Email" },
-  { value: "subject", label: "Subject" },
-  { value: "allFields", label: "All fields" },
-];
-
-const STATUS_FILTER_OPTIONS = [
-  { value: "", label: "All Statuses" },
-  { value: "Open", label: "Open" },
-  { value: "In Progress", label: "In Progress" },
-  { value: "Pending", label: "Pending" },
-  { value: "Resolved", label: "Resolved" },
-  { value: "Closed", label: "Closed" },
-];
-
-const PRIORITY_FILTER_OPTIONS = [
-  { value: "", label: "All Priorities" },
-  { value: "Urgent", label: "Urgent" },
-  { value: "High", label: "High" },
-  { value: "Medium", label: "Medium" },
-  { value: "Low", label: "Low" },
-];
+import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 
 export function TicketListView() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("Tickets");
+  const common = useTranslations("Common");
+  const paginationLabels = useTablePaginationLabels();
   const { tickets, loading, error, refetch } = useTicketStore();
+
+  const searchFieldOptions = [
+    { value: "ticketNumber", label: t("ticketNumber") },
+    { value: "email", label: t("customerEmail") },
+    { value: "subject", label: t("subject") },
+    { value: "allFields", label: common("allFields") },
+  ];
+  const statusFilterOptions = [
+    { value: "", label: common("allStatuses") },
+    ...(["Open", "In Progress", "Pending", "Resolved", "Closed"] as const).map((value) => ({
+      value,
+      label: t(`status.${value}`),
+    })),
+  ];
+  const priorityFilterOptions = [
+    { value: "", label: t("allPriorities") },
+    ...(["Urgent", "High", "Medium", "Low"] as const).map((value) => ({
+      value,
+      label: t(`priority.${value}`),
+    })),
+  ];
 
   const [searchOption, setSearchOption] = useState<"ticketNumber" | "email" | "subject" | "allFields">("ticketNumber");
   const [searchText, setSearchText] = useState("");
@@ -121,15 +124,15 @@ export function TicketListView() {
   const renderStatusBadge = (status: TicketStatus) => {
     switch (status) {
       case "Open":
-        return <Badge variant="primary" size="sm" dot>Open</Badge>;
+        return <Badge variant="primary" size="sm" dot>{t("status.Open")}</Badge>;
       case "In Progress":
-        return <Badge variant="warning" size="sm" dot>In Progress</Badge>;
+        return <Badge variant="warning" size="sm" dot>{t("status.In Progress")}</Badge>;
       case "Pending":
-        return <Badge variant="neutral" size="sm">Pending</Badge>;
+        return <Badge variant="neutral" size="sm">{t("status.Pending")}</Badge>;
       case "Resolved":
-        return <Badge variant="success" size="sm">Resolved</Badge>;
+        return <Badge variant="success" size="sm">{t("status.Resolved")}</Badge>;
       case "Closed":
-        return <Badge variant="neutral" size="sm">Closed</Badge>;
+        return <Badge variant="neutral" size="sm">{t("status.Closed")}</Badge>;
       default:
         return <Badge variant="neutral" size="sm">{status}</Badge>;
     }
@@ -138,13 +141,13 @@ export function TicketListView() {
   const renderPriorityBadge = (priority: TicketPriority) => {
     switch (priority) {
       case "Urgent":
-        return <Badge variant="error" size="sm">Urgent</Badge>;
+        return <Badge variant="error" size="sm">{t("priority.Urgent")}</Badge>;
       case "High":
-        return <Badge variant="warning" size="sm">High</Badge>;
+        return <Badge variant="warning" size="sm">{t("priority.High")}</Badge>;
       case "Medium":
-        return <Badge variant="primary" size="sm">Medium</Badge>;
+        return <Badge variant="primary" size="sm">{t("priority.Medium")}</Badge>;
       case "Low":
-        return <Badge variant="neutral" size="sm">Low</Badge>;
+        return <Badge variant="neutral" size="sm">{t("priority.Low")}</Badge>;
       default:
         return <Badge variant="neutral" size="sm">{priority}</Badge>;
     }
@@ -154,14 +157,14 @@ export function TicketListView() {
     <div className="flex flex-col gap-5">
       {/* Header */}
       <PageHeader
-        title="Support Tickets"
-        subtitle="Search, triage, prioritize, and resolve customer support tickets across all channels."
-        badge={<Badge variant="primary">Helpdesk & Service Cloud</Badge>}
+        title={t("title")}
+        subtitle={t("subtitle")}
+        badge={<Badge variant="primary">{t("badge")}</Badge>}
         actions={
           <div className="flex items-center gap-2">
             <Link href="/tickets/create">
               <Button variant="primary" size="md" leftIcon={<Icon name="plus" size="xs" />}>
-                Create Ticket
+                {t("create")}
               </Button>
             </Link>
             <Button
@@ -170,7 +173,7 @@ export function TicketListView() {
               leftIcon={<Icon name="refresh-cw" size="xs" />}
               onClick={handleRefresh}
             >
-              Refresh
+              {common("refresh")}
             </Button>
           </div>
         }
@@ -185,7 +188,7 @@ export function TicketListView() {
               setSearchOption(e.target.value as "ticketNumber" | "email" | "subject" | "allFields");
               resetPage();
             }}
-            options={SEARCH_FIELD_OPTIONS}
+            options={searchFieldOptions}
           />
         </div>
         <div className="min-w-[220px] flex-1">
@@ -199,7 +202,7 @@ export function TicketListView() {
               setSearchText("");
               resetPage();
             }}
-            placeholder="Search tickets by number, email, or subject..."
+            placeholder={t("searchPlaceholder")}
           />
         </div>
         <div className="w-40">
@@ -209,7 +212,7 @@ export function TicketListView() {
               setStatusFilter(e.target.value);
               resetPage();
             }}
-            options={STATUS_FILTER_OPTIONS}
+            options={statusFilterOptions}
           />
         </div>
         <div className="w-40">
@@ -219,7 +222,7 @@ export function TicketListView() {
               setPriorityFilter(e.target.value);
               resetPage();
             }}
-            options={PRIORITY_FILTER_OPTIONS}
+            options={priorityFilterOptions}
           />
         </div>
       </div>
@@ -232,14 +235,14 @@ export function TicketListView() {
           ))}
         </div>
       ) : error ? (
-        <SectionCard title="Tickets">
-          <EmptyState title="Unable to load tickets" description={error.message} action={<Button variant="primary" size="sm" onClick={handleRefresh}>Retry</Button>} />
+        <SectionCard title={t("sectionTitle")}>
+          <EmptyState title={t("loadError")} description={error.message} action={<Button variant="primary" size="sm" onClick={handleRefresh}>{common("retry")}</Button>} />
         </SectionCard>
       ) : totalItems === 0 ? (
-        <SectionCard title="Tickets">
+        <SectionCard title={t("sectionTitle")}>
           <EmptyState
-            title="No Tickets Found"
-            description="There are currently no tickets matching your active search filters."
+            title={t("emptyTitle")}
+            description={t("emptyDescription")}
             action={
               <Button
                 variant="primary"
@@ -250,65 +253,67 @@ export function TicketListView() {
                   setPriorityFilter("");
                 }}
               >
-                Reset Search Filters
+                {t("resetFilters")}
               </Button>
             }
           />
         </SectionCard>
       ) : (
-        <SectionCard title={`Tickets (${totalItems})`} bodyClassName="p-0">
+        <SectionCard title={t("countTitle", { count: totalItems })} bodyClassName="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead onClick={() => handleSort("ticketNumber")} className="cursor-pointer">
-                  Ticket Number {sortColumn === "ticketNumber" && (sortDirection === "asc" ? "↑" : "↓")}
+                  {t("ticketNumber")} {sortColumn === "ticketNumber" && (sortDirection === "asc" ? "↑" : "↓")}
                 </TableHead>
                 <TableHead onClick={() => handleSort("email")} className="cursor-pointer">
-                  Customer {sortColumn === "email" && (sortDirection === "asc" ? "↑" : "↓")}
+                  {t("customer")} {sortColumn === "email" && (sortDirection === "asc" ? "↑" : "↓")}
                 </TableHead>
                 <TableHead onClick={() => handleSort("createdAt")} className="cursor-pointer">
-                  Created {sortColumn === "createdAt" && (sortDirection === "asc" ? "↑" : "↓")}
+                  {common("created")} {sortColumn === "createdAt" && (sortDirection === "asc" ? "↑" : "↓")}
                 </TableHead>
                 <TableHead onClick={() => handleSort("lastModifiedAt")} className="cursor-pointer">
-                  Modified {sortColumn === "lastModifiedAt" && (sortDirection === "asc" ? "↑" : "↓")}
+                  {common("modified")} {sortColumn === "lastModifiedAt" && (sortDirection === "asc" ? "↑" : "↓")}
                 </TableHead>
-                <TableHead>Source</TableHead>
+                <TableHead>{t("source")}</TableHead>
                 <TableHead onClick={() => handleSort("status")} className="cursor-pointer">
-                  Status {sortColumn === "status" && (sortDirection === "asc" ? "↑" : "↓")}
+                  {common("status")} {sortColumn === "status" && (sortDirection === "asc" ? "↑" : "↓")}
                 </TableHead>
                 <TableHead onClick={() => handleSort("priority")} className="cursor-pointer">
-                  Priority {sortColumn === "priority" && (sortDirection === "asc" ? "↑" : "↓")}
+                  {t("priorityLabel")} {sortColumn === "priority" && (sortDirection === "asc" ? "↑" : "↓")}
                 </TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Assignee</TableHead>
+                <TableHead>{t("category")}</TableHead>
+                <TableHead>{t("subject")}</TableHead>
+                <TableHead>{t("assignee")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedTickets.map((t) => (
-                <TableRow key={t.id} clickable onClick={() => router.push(`/tickets/${t.id}`)}>
+              {paginatedTickets.map((ticket) => (
+                <TableRow key={ticket.id} clickable onClick={() => router.push(`/tickets/${ticket.id}`)}>
                   <TableCell className="font-mono text-xs font-bold text-m-primary">
-                    <Link href={`/tickets/${t.id}`} className="hover:underline">
-                      {t.ticketNumber}
+                    <Link href={`/tickets/${ticket.id}`} className="hover:underline">
+                      {ticket.ticketNumber}
                     </Link>
                   </TableCell>
-                  <TableCell className="font-medium text-m-primary">{t.email}</TableCell>
+                  <TableCell className="font-medium text-m-primary">{ticket.email}</TableCell>
                   <TableCell className="text-xs text-m-text-muted">
-                    {formatDateTime(t.createdAt)}
+                    {formatDateTime(ticket.createdAt, locale)}
                   </TableCell>
                   <TableCell className="text-xs text-m-text-muted">
-                    {formatDateTime(t.lastModifiedAt)}
+                    {formatDateTime(ticket.lastModifiedAt, locale)}
                   </TableCell>
-                  <TableCell>{t.contactType}</TableCell>
-                  <TableCell>{renderStatusBadge(t.status)}</TableCell>
-                  <TableCell>{renderPriorityBadge(t.priority)}</TableCell>
+                  <TableCell>{t.has(`contactType.${ticket.contactType}`) ? t(`contactType.${ticket.contactType}`) : ticket.contactType}</TableCell>
+                  <TableCell>{renderStatusBadge(ticket.status)}</TableCell>
+                  <TableCell>{renderPriorityBadge(ticket.priority)}</TableCell>
                   <TableCell className="text-xs font-medium">
-                    {TICKET_CATEGORIES[t.category] || t.category}
+                    {t.has(`categoryValues.${ticket.category}`)
+                      ? t(`categoryValues.${ticket.category}`)
+                      : TICKET_CATEGORIES[ticket.category] || ticket.category}
                   </TableCell>
                   <TableCell className="font-medium text-m-text max-w-xs truncate">
-                    {t.subject}
+                    {ticket.subject}
                   </TableCell>
-                  <TableCell className="text-xs text-m-text-muted">{t.assignedTo}</TableCell>
+                  <TableCell className="text-xs text-m-text-muted">{ticket.assignedTo}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -320,6 +325,7 @@ export function TicketListView() {
               totalPages={totalPages}
               totalItems={totalItems}
               onPageChange={(page) => setCurrentPage(page)}
+              labels={paginationLabels}
             />
           </div>
         </SectionCard>
