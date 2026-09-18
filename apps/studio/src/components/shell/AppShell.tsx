@@ -48,6 +48,7 @@ const sidebarGroups: SidebarGroup[] = [
     items: [
       { id: "orders", href: "/orders", label: "Orders", icon: "shopping-bag" },
       { id: "cart", href: "/cart", label: "Cart", icon: "shopping-cart" },
+      { id: "subscriptions", href: "/subscriptions", label: "Subscriptions", icon: "repeat" },
       { id: "products", href: "/products", label: "Products", icon: "package" }
     ]
   },
@@ -113,6 +114,7 @@ const b2bSidebarGroups: SidebarGroup[] = [
     items: [
       { id: "orders", href: "/orders", label: "Orders", icon: "shopping-bag" },
       { id: "cart", href: "/cart", label: "Cart", icon: "shopping-cart" },
+      { id: "subscriptions", href: "/subscriptions", label: "Subscriptions", icon: "repeat" },
       { id: "b2b-quotes", href: "/b2b/quotes", label: "Quotes", icon: "file-text" },
       { id: "products", href: "/products", label: "Products", icon: "package" }
     ]
@@ -326,6 +328,13 @@ const standardNavigateCommands: CommandItem[] = [
   },
   { id: "cart", label: "Cart", href: "/cart", icon: "shopping-cart", shortcut: "G A" },
   {
+    id: "subscriptions",
+    label: "Subscriptions",
+    href: "/subscriptions",
+    icon: "repeat",
+    shortcut: "G S"
+  },
+  {
     id: "products",
     label: "Products",
     href: "/products",
@@ -394,6 +403,13 @@ const b2bNavigateCommands: CommandItem[] = [
     shortcut: "G Q"
   },
   { id: "cart", label: "Cart", href: "/cart", icon: "shopping-cart", shortcut: "G A" },
+  {
+    id: "subscriptions",
+    label: "Subscriptions",
+    href: "/subscriptions",
+    icon: "repeat",
+    shortcut: "G S"
+  },
   {
     id: "products",
     label: "Products",
@@ -465,6 +481,7 @@ const navigationModuleById: Record<string, string | string[] | undefined> = {
   customers: "customers",
   orders: "orders",
   cart: "carts",
+  subscriptions: ["orders", "carts"],
   products: "products",
   reports: "reports",
   knowledgebase: "knowledgebase",
@@ -482,6 +499,7 @@ const commandPermissionById: Record<
   customers: { module: "customers", action: "view" },
   orders: { module: "orders", action: "view" },
   cart: { module: "carts", action: "view" },
+  subscriptions: { module: "orders", action: "view" },
   products: { module: "products", action: "view" },
   reports: { module: "reports", action: "view" },
   knowledgebase: { module: "knowledgebase", action: "view" },

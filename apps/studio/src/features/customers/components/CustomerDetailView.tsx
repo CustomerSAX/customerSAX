@@ -50,6 +50,7 @@ import {
   CardEmpty,
 } from "@csa/ui";
 import { useCustomerStore } from "../hooks/use-customers";
+import { SubscriptionManagementView } from "../../subscriptions/components/SubscriptionManagementView";
 import type {
   CustomerAddress,
   CustomerCart,
@@ -289,6 +290,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const localizedTabs: EntityTab[] = [
     { id: "overview", label: common("tabs.overview"), icon: "user" },
     { id: "orders", label: common("tabs.orders"), icon: "shopping-bag" },
+    { id: "subscriptions", label: "Subscriptions", icon: "repeat" },
     { id: "returns", label: common("tabs.returns"), icon: "rotate-ccw" },
     { id: "quotes", label: common("tabs.quotes"), icon: "file-text" },
     { id: "payments", label: common("tabs.payments"), icon: "credit-card" },
@@ -946,6 +948,18 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
   const defaultShippingAddress = addresses.find((a) => a.isDefaultShipping) || addresses[0];
   const defaultBillingAddress = addresses.find((a) => a.isDefaultBilling) || addresses[0];
+  const defaultSubscriptionAddress = defaultShippingAddress
+    ? [
+        defaultShippingAddress.streetNumber,
+        defaultShippingAddress.streetName,
+        defaultShippingAddress.city,
+        defaultShippingAddress.state,
+        defaultShippingAddress.postalCode,
+        defaultShippingAddress.country,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "";
 
   const customerFullName = customer?.firstName
     ? `${customer.firstName} ${customer.lastName}`
@@ -1333,6 +1347,18 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
             </SectionCard>
           </SideColumn>
         </ContentGrid>
+      )}
+
+      {activeTab === "subscriptions" && (
+        <SubscriptionManagementView
+          embedded
+          customerContext={{
+            id: customer?.id || id,
+            name: customerFullName,
+            email: customer?.email || "",
+            defaultAddress: defaultSubscriptionAddress,
+          }}
+        />
       )}
 
       {/* ── Quotes ──────────────────────────────────────────────────────── */}
