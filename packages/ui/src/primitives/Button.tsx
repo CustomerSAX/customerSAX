@@ -1,6 +1,9 @@
+'use client';
+
 import React from 'react';
 import { cn } from '../utils';
 import { Icon } from '../icons/Icon';
+import { useUI } from '../provider/UIContext';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -68,6 +71,28 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
+    const ui = useUI();
+    if (ui && ui.activeLibrary !== 'csa-custom' && ui.components?.Button) {
+      const AdapterButton = ui.components.Button;
+      return (
+        <AdapterButton
+          variant={variant}
+          size={size}
+          loading={loading}
+          iconOnly={iconOnly}
+          leftIcon={leftIcon}
+          rightIcon={rightIcon}
+          fullWidth={fullWidth}
+          disabled={disabled}
+          className={className}
+          type={type}
+          {...(props as any)}
+        >
+          {children}
+        </AdapterButton>
+      );
+    }
+
     const isDisabled = disabled || loading;
 
     return (

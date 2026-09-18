@@ -1,5 +1,8 @@
+'use client';
+
 import React from 'react';
 import { cn } from '../../utils';
+import { useUI } from '../../provider/UIContext';
 
 export type BadgeVariant = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'info' | 'brand';
 export type BadgeAppearance = 'subtle' | 'solid' | 'outline';
@@ -72,6 +75,22 @@ export function Badge({
   children,
   ...props
 }: BadgeProps) {
+  const ui = useUI();
+  if (ui && ui.activeLibrary !== 'csa-custom' && ui.components?.Badge) {
+    const AdapterBadge = ui.components.Badge;
+    return (
+      <AdapterBadge
+        variant={variant as any}
+        size={size === 'lg' ? 'md' : size}
+        dot={dot}
+        leftIcon={leftIcon}
+        className={className}
+        {...props}
+      >
+        {children}
+      </AdapterBadge>
+    );
+  }
   const appearanceStyle =
     appearance === 'solid'
       ? variantSolid[variant]

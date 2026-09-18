@@ -11,7 +11,8 @@ import {
   TopBar,
   Avatar,
   Dropdown,
-  Icon
+  Icon,
+  DevUISwitcher
 } from "@csa/ui";
 import { useCurrentUser, roleLabel, type CurrentUser } from "@/lib/use-current-user";
 import { apolloClient } from "@/graphql/client";
@@ -949,7 +950,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           }
           actions={
             <div className="flex items-center gap-2">
-              {/* Features removed until workflows are built */}
+              <DevUISwitcher />
             </div>
           }
           userSlot={
