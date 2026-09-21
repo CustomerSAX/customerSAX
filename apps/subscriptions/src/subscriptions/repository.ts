@@ -63,6 +63,7 @@ export async function createSubscription(draft: SubscriptionDraft, projectKey: s
 
 export async function updateSubscription(id: string, patch: SubscriptionUpdate, projectKey: string, actor: string): Promise<Subscription | null> {
   if (patch.status && !statuses.has(patch.status)) throw new Error("Invalid subscription status");
+  if (patch.scheduleTime !== undefined) validateScheduleTime(patch.scheduleTime);
   if (patch.lineItems) validateLineItems(patch.lineItems);
   const update = cleanDraft(patch);
   const event = history("Updated subscription", actor);
@@ -153,7 +154,7 @@ function matchesIdentity(doc: Document, id: string, projectKey: string) {
 }
 
 function cleanDraft(draft: SubscriptionUpdate): Document {
-  const allowed = ["ownerType", "customerId", "customerName", "customerEmail", "businessAccountName", "status", "frequency", "startDate", "nextDeliveryDate", "endDate", "shippingAddress", "paymentMethod", "currencyCode", "discountLabel", "priceOverride", "cancellationReason", "lastOrderNumber", "linkedOrderNumbers", "lineItems"] as const;
+  const allowed = ["ownerType", "customerId", "customerName", "customerEmail", "businessAccountName", "status", "frequency", "startDate", "scheduleTime", "nextDeliveryDate", "endDate", "shippingAddress", "paymentMethod", "currencyCode", "discountLabel", "priceOverride", "cancellationReason", "lastOrderNumber", "linkedOrderNumbers", "lineItems"] as const;
   const result: Document = {};
   for (const key of allowed) if (draft[key] !== undefined) result[key] = draft[key];
   return result;
@@ -163,6 +164,14 @@ function validateDraft(draft: SubscriptionDraft) {
   if (!draft.customerName.trim() || !draft.customerEmail.trim()) throw new Error("Customer name and email are required");
   if (!draft.nextDeliveryDate || !draft.shippingAddress.trim() || !draft.paymentMethod.trim()) throw new Error("Next delivery, shipping address and payment method are required");
   validateLineItems(draft.lineItems);
+  validateScheduleTime(draft.scheduleTime);
+}
+
+function validateScheduleTime(value: string | null | undefined) {
+  if (value == null || value === "") return;
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+    throw new Error("Schedule time must use 24-hour HH:mm format");
+  }
 }
 
 function validateLineItems(items: SubscriptionDraft["lineItems"]) {

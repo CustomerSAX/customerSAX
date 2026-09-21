@@ -16,6 +16,7 @@ export function mapSubscription(doc: Document): Subscription {
     status: normalizeStatus(doc.status),
     frequency: String(doc.frequency ?? "Monthly"),
     startDate: String(doc.startDate ?? ""),
+    scheduleTime: stringOrNull(doc.scheduleTime),
     nextDeliveryDate: String(doc.nextDeliveryDate ?? ""),
     endDate: stringOrNull(doc.endDate),
     shippingAddress: String(doc.shippingAddress ?? ""),

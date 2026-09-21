@@ -39,6 +39,7 @@ export interface CustomerSubscription {
   status: SubscriptionStatus;
   frequency: SubscriptionFrequency;
   startDate: string;
+  scheduleTime?: string;
   nextDeliveryDate: string;
   endDate?: string;
   shippingAddress: string;
