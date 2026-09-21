@@ -9,6 +9,7 @@ These docs **supersede CLAUDE.md** where they disagree (CLAUDE.md's layout/branc
 | [engineering/STANDARDS.md](engineering/STANDARDS.md) | The development contract: the "two worlds", rules A1–A14, violations by severity, **House Rules (Part C — how the owner builds)**, **Predecessor safeguards to restore (Part D)**, Definition of Done. |
 | [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) | Verified system model — services/ports, the contract→federation seam, the ai-assist pipeline, the scrape pattern, deployment, doc-drift corrections. |
 | [architecture/SECURITY-TENANCY.md](architecture/SECURITY-TENANCY.md) | The (undocumented) auth/tenancy/authorization layer + the S1–S9 hardening backlog. |
+| [operations/AUDITING-LOGGING-MONITORING.md](operations/AUDITING-LOGGING-MONITORING.md) | Confluence-ready, code-verified guide to the current audit trail, structured logging, health checks, monitoring, operating workflow, and known gaps. |
 | [product/MARKET-ANALYSIS.md](product/MARKET-ANALYSIS.md) | Competitor landscape + complaints, enterprise table-stakes, pricing thesis, P0–P3 gaps. Mission input. |
 
 ## Confirmed direction (2026-08-14)

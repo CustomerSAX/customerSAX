@@ -252,7 +252,8 @@ export function ReturnStepper({
                     <div className="opt-name">{selectedCustomer.name}</div>
                     <div className="opt-sub">{selectedCustomer.email}</div>
                   </div>
-                  <span
+                  <button
+                    type="button"
                     className="rm"
                     style={{ cursor: 'pointer', color: 'var(--color-text-subtle)', fontSize: '12px' }}
                     onClick={() => {
@@ -261,7 +262,7 @@ export function ReturnStepper({
                     }}
                   >
                     Change
-                  </span>
+                  </button>
                 </div>
 
                 {!localDraft.order ? (
@@ -281,13 +282,13 @@ export function ReturnStepper({
                         const price = o.totalPrice || '$0.00';
                         const orderNo = o.orderNumber || o.id;
                         return (
-                          <div key={o.id} className="opt-card" onClick={() => selectOrder(o)}>
+                          <button type="button" key={o.id} className="opt-card" onClick={() => selectOrder(o)}>
                             <div className="opt-main">
                               <div className="opt-name">{orderNo}</div>
                               <div className="opt-sub">{price} · {o.status}</div>
                             </div>
                             <div className="opt-chevron">&rsaquo;</div>
-                          </div>
+                          </button>
                         );
                       })
                     )}

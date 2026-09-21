@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_LOCALE } from "@csa/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@apollo/client";
 import Link from "next/link";
@@ -149,7 +150,7 @@ export function TicketCreateView() {
   const eligibleOrders = useMemo(() => {
     return (customerOrdersData?.orderPage.results ?? []).map((order) => {
       const money = order.totalPrice;
-      const total = money ? new Intl.NumberFormat("en-US", { style: "currency", currency: money.currencyCode }).format(money.centAmount / 10 ** money.fractionDigits) : "--";
+      const total = money ? new Intl.NumberFormat(DEFAULT_LOCALE, { style: "currency", currency: money.currencyCode }).format(money.centAmount / 10 ** money.fractionDigits) : "--";
       const number = order.orderNumber || order.id;
       return { value: number, label: `${number} (${total} - ${order.orderState || "Open"})` };
     });

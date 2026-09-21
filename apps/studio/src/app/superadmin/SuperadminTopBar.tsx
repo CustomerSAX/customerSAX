@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { stripLocalePrefix } from "@/i18n/routing";
 import { Icon, Button } from "@csa/ui";
 
 interface SuperadminTopBarProps {
@@ -31,7 +32,7 @@ export function SuperadminTopBar({ userEmail }: SuperadminTopBarProps) {
     window.location.href = "/login";
   };
 
-  const isClientsActive = pathname?.startsWith("/superadmin/clients");
+  const isClientsActive = stripLocalePrefix(pathname || "/").startsWith("/superadmin/clients");
 
   return (
     <header className="csa-topbar">

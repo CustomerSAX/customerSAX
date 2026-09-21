@@ -22,6 +22,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   Button,
   Icon,
@@ -161,15 +162,6 @@ function VariantsTable({ variants }: { variants: VariantDetailRow[] }) {
 // Tabs
 // ---------------------------------------------------------------------------
 
-const TABS: EntityTab[] = [
-  { id: "general", label: "General", icon: "info" },
-  { id: "inventory", label: "Inventory", icon: "warehouse" },
-  { id: "variants", label: "Variants", icon: "layers" },
-  { id: "pricing", label: "Pricing", icon: "dollar-sign" },
-  { id: "insights", label: "Service Insights", icon: "bar-chart-2" },
-  { id: "comments", label: "Comments", icon: "message-square" },
-];
-
 // ---------------------------------------------------------------------------
 // ProductDetailView
 // ---------------------------------------------------------------------------
@@ -179,6 +171,15 @@ export interface ProductDetailViewProps {
 }
 
 export function ProductDetailView({ id }: ProductDetailViewProps) {
+  const common = useTranslations("Common");
+  const localizedTabs: EntityTab[] = [
+    { id: "general", label: common("tabs.general"), icon: "info" },
+    { id: "inventory", label: common("tabs.inventory"), icon: "warehouse" },
+    { id: "variants", label: common("tabs.variants"), icon: "layers" },
+    { id: "pricing", label: common("tabs.pricing"), icon: "dollar-sign" },
+    { id: "insights", label: common("tabs.serviceInsights"), icon: "bar-chart-2" },
+    { id: "comments", label: common("tabs.comments"), icon: "message-square" },
+  ];
   const router = useRouter();
   const { product, loading, error } = useProductDetail(id);
   const [activeTab, setActiveTab] = useState<string>("general");
@@ -275,7 +276,7 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
         meta={`Key: ${product.key} • ID: ${product.id}`}
       />
 
-      <EntityTabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
+      <EntityTabs tabs={localizedTabs} active={activeTab} onChange={setActiveTab} />
 
       <SummaryGrid>
         <SummaryCard icon="tag" label="SKU" value={summarySku ?? "—"} />

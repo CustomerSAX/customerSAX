@@ -1,0 +1,170 @@
+{
+  "Metadata": {
+    "title": "CSA-Administration",
+    "description": "Internes Agentenportal des Commerce Customer Service Accelerator"
+  },
+  "AppShell": {
+    "groups": {
+      "operations": "Vorgänge",
+      "business-unit": "Geschäftseinheit",
+      "commerce": "Handel",
+      "intelligence": "Intelligenz",
+      "administration": "Administration"
+    },
+    "navigation": {
+      "dashboard": "Übersicht",
+      "tickets": "Tickets",
+      "customers": "Kunden",
+      "orders": "Bestellungen",
+      "cart": "Warenkorb",
+      "subscriptions": "Abonnements",
+      "products": "Produkte",
+      "reports": "Berichte",
+      "knowledgebase": "Wissensdatenbank",
+      "csa-assistant": "CSA-Assistent",
+      "audit-log": "Auditprotokoll",
+      "admin-settings": "Administrationseinstellungen",
+      "superadmin": "Superadmin",
+      "b2b-company": "Unternehmen",
+      "b2b-employees": "Mitarbeiter",
+      "b2b-import-export": "Import / Export",
+      "b2b-quotes": "Angebote"
+    },
+    "commands": {
+      "create-customer": { "label": "Kunden anlegen", "description": "Neues Kundenprofil" },
+      "create-ticket": { "label": "Ticket erstellen", "description": "Neues Support-Ticket" },
+      "create-company": { "label": "Unternehmen anlegen", "description": "Neue Geschäftseinheit" },
+      "add-employee": { "label": "Mitarbeiter hinzufügen", "description": "Neuer B2B-Mitarbeiter" },
+      "create-quote": { "label": "Angebot erstellen", "description": "Neue Angebotsanfrage" }
+    },
+    "enterpriseVersion": "Enterprise v1.0",
+    "b2bMode": "B2B-Modus",
+    "project": "Projekt",
+    "globalSearch": "Globale Suche",
+    "myProfile": "Mein Profil",
+    "organizationSettings": "Organisationseinstellungen",
+    "signOut": "Abmelden",
+    "language": "Sprache",
+    "collapseSidebar": "Einklappen",
+    "expandSidebar": "Seitenleiste ausklappen",
+    "roles": { "agent": "CSA-Agent", "admin": "CSA-Administrator", "superadmin": "CSA-Superadministrator" },
+    "locales": {
+      "en-US": "English (US)",
+      "fr-FR": "Français (France)",
+      "de-DE": "Deutsch (Deutschland)",
+      "es-ES": "Español (España)"
+    },
+    "search": {
+      "standardPlaceholder": "Kunden, Bestellungen, Tickets suchen...",
+      "b2bPlaceholder": "Unternehmen, Mitarbeiter, Bestellungen, Angebote suchen...",
+      "standardDialogPlaceholder": "Kunden, Bestellungen, Tickets und mehr suchen...",
+      "b2bDialogPlaceholder": "Unternehmen, Mitarbeiter, Bestellungen, Angebote und mehr suchen...",
+      "ariaLabel": "Befehle suchen",
+      "searching": "Suche läuft...",
+      "noResults": "Keine passenden Ergebnisse.",
+      "navigate": "Navigation",
+      "results": "Ergebnisse",
+      "create": "Erstellen",
+      "keyboardNavigate": "navigieren",
+      "keyboardOpen": "öffnen",
+      "keyboardClose": "schließen"
+    }
+  },
+  "Dashboard": {
+    "eyebrow": "Übersicht",
+    "title": "Customer Service Accelerator",
+    "description": "Unternehmensfähige GCP-Supportkonsole mit Next.js, GraphQL-BFF, Commerce-Konnektoren und Meridian-Designsystem.",
+    "openTickets": "Offene Tickets",
+    "highPriority": "{count, plural, one {# mit hoher Priorität} other {# mit hoher Priorität}}",
+    "activeUnresolved": "Aktiv, ungelöst",
+    "atRisk": "Gefährdet (hoch/dringend)",
+    "unresolvedHighPriority": "Ungelöst, hohe Priorität",
+    "ordersReviewed": "Geprüfte Bestellungen",
+    "aiAssistResolved": "Durch KI gelöst",
+    "notAvailable": "Nicht verfügbar",
+    "ticketingUnavailable": "Ticketdienst nicht verfügbar",
+    "loading": "Wird geladen…",
+    "activeWorkQueue": "Aktive Arbeitswarteschlange",
+    "loadingTickets": "Offene Tickets werden geladen…",
+    "ticketingBackendUnavailable": "Das Ticket-Backend ist derzeit nicht erreichbar.",
+    "noOpenTickets": "Derzeit keine offenen Tickets.",
+    "unknownCustomer": "Unbekannter Kunde",
+    "priority": { "Low": "Niedrige Priorität", "Medium": "Mittlere Priorität", "High": "Hohe Priorität", "Urgent": "Dringende Priorität" },
+    "justNow": "gerade eben",
+    "assistantTitle": "CSA-Assistent",
+    "assistantDescription": "Der KI-Agent nutzt das Vercel AI SDK mit konfigurierbaren Modellanbietern — OpenAI oder Anthropic (Claude) — sowie eigenen Commerce- und Ticketing-Werkzeugen.",
+    "serviceHealth": "Status der Kerndienste",
+    "checkingServices": "Dienste werden geprüft…",
+    "statusUnavailable": "Status nicht verfügbar.",
+    "status": { "online": "online", "offline": "offline", "unknown": "nicht verfügbar" }
+  },
+  "Common": {
+    "search": "Suchen",
+    "reset": "Zurücksetzen",
+    "refresh": "Aktualisieren",
+    "retry": "Erneut versuchen",
+    "status": "Status",
+    "created": "Erstellt",
+    "modified": "Geändert",
+    "actions": "Aktionen",
+    "allFields": "Alle Felder",
+    "allStatuses": "Alle Status",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "view": "{entity} anzeigen",
+    "pagination": { "summary": "Einträge {start} bis {end} von {total}", "perPage": "Pro Seite:", "page": "Seite {page} von {totalPages}", "previous": "Vorherige Seite", "next": "Nächste Seite" },
+    "tabs": {
+      "general": "Allgemein", "address": "Adresse", "cart": "Warenkorb", "order": "Bestellung", "quote": "Angebot", "employees": "Mitarbeiter", "profile": "Profil", "password": "Passwort", "company": "Unternehmen", "return": "Rückgabe", "payment": "Zahlung", "ticket": "Ticket", "customAttributes": "Benutzerdefinierte Attribute", "conversation": "Unterhaltung", "customer": "Kunde", "aiAssist": "KI-Unterstützung", "internalNotes": "Interne Notizen", "history": "Verlauf", "shippingDelivery": "Versand und Lieferung", "returns": "Rückgaben", "payments": "Zahlungen", "comments": "Kommentare", "overview": "Übersicht", "orders": "Bestellungen", "quotes": "Angebote", "tickets": "Tickets", "conversations": "Unterhaltungen", "notes": "Notizen", "inventory": "Bestand", "variants": "Varianten", "pricing": "Preise", "serviceInsights": "Service-Einblicke", "batchImport": "Stapelimport (CSV)", "dataExport": "Datenexport (CSV)", "faq": "Häufig gestellte Fragen", "troubleshooting": "Anleitungen zur Fehlerbehebung"
+    }
+  },
+  "Tickets": {
+    "title": "Support-Tickets",
+    "subtitle": "Support-Tickets aus allen Kanälen suchen, priorisieren, zuordnen und lösen.",
+    "badge": "Helpdesk & Service Cloud",
+    "create": "Ticket erstellen",
+    "ticketNumber": "Ticketnummer",
+    "customerEmail": "Kunden-E-Mail",
+    "subject": "Betreff",
+    "searchPlaceholder": "Nach Nummer, E-Mail oder Betreff suchen...",
+    "allPriorities": "Alle Prioritäten",
+    "sectionTitle": "Tickets",
+    "countTitle": "Tickets ({count})",
+    "loadError": "Tickets konnten nicht geladen werden",
+    "emptyTitle": "Keine Tickets gefunden",
+    "emptyDescription": "Derzeit entsprechen keine Tickets den aktiven Suchfiltern.",
+    "resetFilters": "Suchfilter zurücksetzen",
+    "customer": "Kunde",
+    "source": "Quelle",
+    "priorityLabel": "Priorität",
+    "category": "Kategorie",
+    "assignee": "Zugewiesen an",
+    "status": { "Open": "Offen", "In Progress": "In Bearbeitung", "Pending": "Ausstehend", "Resolved": "Gelöst", "Closed": "Geschlossen" },
+    "priority": { "Urgent": "Dringend", "High": "Hoch", "Medium": "Mittel", "Low": "Niedrig" },
+    "contactType": { "Email": "E-Mail", "Phone": "Telefon", "Chat": "Chat", "Web": "Webportal", "Social": "Soziale Medien" },
+    "categoryValues": { "order_inquiry": "Bestellanfrage", "payment_methods": "Zahlungsmethoden", "returns_refunds": "Rückgaben und Erstattungen", "general_inquiry": "Allgemeine Anfrage", "technical_support": "Technischer Support", "account_management": "Kontoverwaltung" }
+  },
+  "Companies": {
+    "eyebrow": "B2B-Vorgänge", "title": "Unternehmen", "subtitle": "Unternehmenshierarchie, Adressen und Mitarbeiter in CommerceTools B2B durchsuchen.", "importExport": "Import / Export", "create": "Unternehmen anlegen", "companyName": "Unternehmensname", "key": "Schlüssel", "allUnitTypes": "Alle Einheitstypen", "unitType": "Einheitstyp", "parentUnit": "Übergeordnete Einheit", "searchPlaceholder": "Unternehmen suchen...", "countTitle": "Unternehmen ({count})", "emptyTitle": "Keine Unternehmen gefunden", "emptyDescription": "Keine Geschäftseinheiten entsprechen den Filtern. Setzen Sie die Kriterien zurück oder legen Sie ein Unternehmen an.", "resetFilters": "Filter zurücksetzen", "company": "Unternehmen", "division": "Abteilung"
+  },
+  "Employees": {
+    "title": "Mitarbeiter", "subtitle": "Einer Geschäftseinheit zugeordnete Mitarbeiter mit ihren B2B-Rollen.", "companies": "Unternehmen", "importExport": "Import / Export", "add": "Mitarbeiter hinzufügen", "searchPlaceholder": "Nach Name, E-Mail oder Nummer suchen...", "allCompanies": "Alle Unternehmen", "allRoles": "Alle Rollen", "countTitle": "Mitarbeiter ({count})", "customerNumber": "Kundennr.", "externalId": "Externe ID", "firstName": "Vorname", "lastName": "Nachname", "company": "Unternehmen", "email": "E-Mail", "group": "Gruppe", "roles": "Rollen", "emptyTitle": "Keine Mitarbeiter gefunden", "emptyDescription": "Keine Mitarbeiter entsprechen den gewählten Filtern. Setzen Sie die Kriterien zurück oder fügen Sie einen Mitarbeiter hinzu.", "resetFilters": "Filter zurücksetzen", "employee": "Mitarbeiter", "member": "Mitglied"
+  },
+  "Quotes": {
+    "title": "Angebote", "subtitle": "B2B-Angebotsanfragen, Händlerangebote und Verhandlungsstatus.", "eyebrow": "B2B-Vorgänge", "create": "Angebot erstellen", "searchPlaceholder": "Nach ID, Unternehmen oder Kunde suchen...", "allCompanies": "Alle Unternehmen", "countTitle": "Angebote ({count})", "quoteId": "Angebots-ID", "businessUnit": "Unternehmen / Geschäftseinheit", "customer": "Kunde", "items": "Artikel", "itemCount": "{count, plural, one {# Artikel} other {# Artikel}}", "total": "Wert / Gesamt", "validUntil": "Gültig bis", "requestedDate": "Anfragedatum", "emptyTitle": "Keine Angebote gefunden", "emptyDescription": "Keine Angebotsanfragen oder Angebote entsprechen den aktuellen Kriterien. Setzen Sie die Filter zurück oder erstellen Sie ein Angebot.", "resetFilters": "Filter zurücksetzen", "quote": "Angebot", "status": { "Draft": "Entwurf", "Requested": "Angefragt", "Buyer Review": "Prüfung durch Käufer", "Seller Review": "Prüfung durch Verkäufer", "Changes Requested": "Änderungen angefordert", "In Review": "In Prüfung", "Accepted": "Angenommen", "Approved": "Genehmigt", "Rejected": "Abgelehnt", "Declined": "Zurückgewiesen", "Converted": "Umgewandelt" }
+  },
+  "Orders": {
+    "title": "Bestellvorgänge", "b2bTitle": "B2B-Bestellhandel", "subtitle": "Bestellungen suchen, Erfüllungsstatus prüfen und Warenkörbe für die Nachbearbeitung duplizieren.", "b2bSubtitle": "{count, plural, one {# Ergebnis} other {# Ergebnisse}} — Bestellungen für die Nachbearbeitung suchen, prüfen und kopieren.", "badge": "Bestellvorgänge", "b2bBadge": "B2B-Handel", "importExport": "Import / Export", "refreshing": "Wird aktualisiert", "searchPlaceholder": "Nach Kunden-E-Mail, Bestellnummer, SKU oder Shop suchen...", "b2bSearchPlaceholder": "Nach E-Mail, Vor- oder Nachname, Bestellnummer, SKU usw. suchen.", "allOrderStatuses": "Alle Bestellstatus", "allPaymentStatuses": "Alle Zahlungsstatus", "countTitle": "Bestellungen ({count})", "columnsTitle": "Bestellspalten", "emptyTitle": "Keine Bestellungen gefunden", "emptyDescription": "Keine Bestellungen entsprechen der aktiven Suche oder den Filtern.", "resetFilters": "Suchfilter zurücksetzen", "loadError": "Bestellungen konnten nicht vom BFF geladen werden. Prüfen Sie, ob BFF und Commerce-Dienst verfügbar sind.", "copy": "Kopieren", "duplicate": "Duplizieren", "copyOrder": "Bestellung kopieren", "duplicateOrder": "Bestellung duplizieren", "columns": { "orderNumber": "Bestellnummer", "customer": "Kunde", "customerEmail": "Kunden-E-Mail", "companyName": "Unternehmen", "store": "Shop", "grandTotal": "Bestellsumme", "lineItemCount": "Bestellpositionen", "totalQuantity": "Gesamtmenge", "orderState": "Bestellstatus", "shipmentState": "Versandstatus", "paymentState": "Zahlungsstatus", "createdAt": "Erstellt", "lastModifiedAt": "Geändert", "duplicate": "Duplizieren" }, "b2bColumns": { "customerEmail": "E-Mail (Bestellung)", "grandTotal": "Endsumme (brutto)", "lineItemCount": "Positionen", "totalQuantity": "Gesamtmenge", "createdAt": "Erstellungsdatum", "lastModifiedAt": "Änderungsdatum", "duplicate": "Bestellung kopieren" }, "orderState": { "Open": "Offen", "Confirmed": "Bestätigt", "Complete": "Abgeschlossen", "Cancelled": "Storniert" }, "shipmentState": { "Shipped": "Versendet", "Ready": "Bereit", "Pending": "Ausstehend", "Delayed": "Verspätet", "Backorder": "Rückstand" }, "paymentState": { "Paid": "Bezahlt", "Pending": "Ausstehend", "BalanceDue": "Restbetrag fällig", "Failed": "Fehlgeschlagen", "CreditOwed": "Gutschrift ausstehend" }
+  },
+  "Carts": {
+    "title": "Aktive Warenkörbe", "subtitle": "Kundenwarenkörbe prüfen, Artikel kontrollieren und die Wiederaufnahme des Checkouts unterstützen.", "countBadge": "{count, plural, one {# Warenkorb} other {# Warenkörbe}}", "searchPlaceholder": "Nach Warenkorb-ID oder Kunden-E-Mail filtern...", "countTitle": "Warenkörbe ({count})", "columnsTitle": "Warenkorbspalten", "loading": "Warenkörbe werden geladen", "loadingDescription": "Warenkörbe werden vom Commerce-Backend abgerufen.", "loadError": "Warenkörbe konnten nicht geladen werden", "emptyTitle": "Keine aktiven Warenkörbe", "emptySearch": "Keine Warenkörbe entsprechen der aktiven Suche.", "emptyDefault": "Derzeit gibt es keine aktiven Warenkörbe im System.", "guest": "Gast / nicht zugewiesen", "cartId": "Warenkorb-ID", "customerEmail": "Kunden-E-Mail", "columns": { "id": "Warenkorb-ID", "orderNumber": "Bestellnummer", "customer": "Kunde", "customerEmail": "Kunden-E-Mail", "companyName": "Unternehmen", "store": "Shop", "country": "Land", "grandTotal": "Warenkorbsumme", "lineItemCount": "Positionen", "totalQuantity": "Gesamtmenge", "cartState": "Warenkorbstatus", "createdAt": "Erstellt", "lastModifiedAt": "Geändert" }, "state": { "Active": "Aktiv", "Merged": "Zusammengeführt", "Frozen": "Gesperrt", "Ordered": "Bestellt" }
+  },
+  "Products": {
+    "eyebrow": "Katalogvorgänge", "title": "Produktverzeichnis", "subtitle": "Katalogprodukte durchsuchen, Varianten verwalten und Preisdaten prüfen.", "searchPlaceholder": "Produkte suchen (mind. 4 Zeichen)…", "countTitle": "Produkte ({count})", "tableSettings": "Tabelleneinstellungen", "manageTable": "Spalten, Dichte und Textumbruch verwalten", "emptyTitle": "Keine Produkte gefunden", "emptySearch": "Keine Produkte entsprechen Ihrer Suche. Passen Sie die Abfrage an oder setzen Sie die Suche zurück.", "emptyDefault": "Der Katalog enthält noch keine Produkte.", "resetSearch": "Suche zurücksetzen", "published": "Veröffentlicht", "modifiedStatus": "Geändert", "columns": { "itemName": "Produktname", "productType": "Produkttyp", "key": "Produktschlüssel", "status": "Status", "created": "Erstellungsdatum", "modified": "Änderungsdatum", "sku": "SKU", "price": "Preis", "availability": "Verfügbarkeit", "description": "Beschreibung", "id": "Produkt-ID", "categories": "Kategorien" }
+  },
+  "ImportExport": {
+    "eyebrow": "B2B-Vorgänge", "title": "B2B-Import / Export", "subtitle": "Mitarbeiter, Geschäftseinheiten, Warenkörbe oder Angebote stapelweise per CSV importieren oder exportieren.", "configuration": "Datenverwaltungskonfiguration", "target": "B2B-Zielressource:", "resources": { "company": "Unternehmen / Geschäftseinheiten", "employee": "Mitarbeiter", "cart": "Warenkörbe", "quote": "Angebote" }, "importTitle": "{resource} importieren", "exportTitle": "{resource} exportieren", "sample": "CSV-Beispielvorlage herunterladen", "upload": "CSV-Datei anklicken oder hierher ziehen", "uploadHint": "Unterstützt .csv-Dateien bis 10 MB", "ready": "{size} KB — Bereit zur Verarbeitung", "processing": "Import wird verarbeitet...", "process": "Import starten", "results": "Ergebnisse des Importvorgangs", "line": "Zeile", "messageLog": "Meldung / Protokoll", "success": "Erfolgreich", "error": "Fehler", "recentImports": "Letzte Importe", "recentExports": "Letzte Exporte", "filename": "Dateiname", "resource": "Ressource", "fileSize": "Dateigröße", "rowsProcessed": "Verarbeitete Zeilen", "successError": "Erfolgreich / Fehler", "timestamp": "Zeitstempel", "records": "Datensätze", "download": "Herunterladen", "downloadCsv": "CSV herunterladen", "filterCountry": "Nach Land filtern", "currencyFilter": "Nach Währung filtern", "generating": "CSV wird erstellt...", "generate": "Export erstellen und herunterladen", "allCountries": "Alle Länder", "allCurrencies": "Alle Währungen", "errors": "{count, plural, one {# Fehler} other {# Fehler}}", "status": { "Completed": "Abgeschlossen", "Failed": "Fehlgeschlagen" }
+  },
+  "AdminSettings": {
+    "eyebrow": "Administrationseinstellungen", "organisation": "Organisation", "subtitle": "Die Einstellungen gelten für das aktive Projekt. Wechseln Sie das Projekt in der Kopfzeile, um einen anderen Arbeitsbereich zu verwalten.", "sectionsLabel": "Bereiche der Administrationseinstellungen", "sections": { "users": "Benutzerverwaltung", "roles": "Rollenverwaltung", "email": "E-Mail-Einstellungen", "ai": "KI-Agent" }, "userTitle": "Benutzerverwaltung", "userSubtitle": "Rollen für {project} verwalten.", "addUser": "Benutzer hinzufügen", "searchUsers": "Nach E-Mail oder Name suchen...", "email": "E-Mail", "name": "Name", "role": "Rolle ({project})", "changeRole": "Rolle ändern", "loading": "Einstellungen werden geladen…", "unavailable": "Einstellungen sind nicht verfügbar.", "checkingAccess": "Administratorzugriff wird geprüft…", "accessRequired": "Administratorzugriff ist erforderlich.", "selectProject": "Wählen Sie ein Projekt aus, bevor Sie die Administrationseinstellungen öffnen."
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "Metadata": {
+    "title": "customerSAX Documentation",
+    "titleTemplate": "%s · customerSAX Docs",
+    "description": "Documentation for customerSAX — the AI-native commerce customer-service resolution platform."
+  },
+  "Navigation": {
+    "title": "customerSAX Docs",
+    "documentation": "Documentation"
+  },
+  "LocaleSwitcher": {
+    "label": "Language",
+    "en-US": "English (US)",
+    "fr-FR": "Français (France)",
+    "de-DE": "Deutsch (Deutschland)",
+    "es-ES": "Español (España)"
+  },
+  "Home": {
+    "badge": "AI-native customer service",
+    "title": "Documentation",
+    "description": "customerSAX (CSA) is an AI-native commerce customer-service resolution platform. A support rep works orders, carts, returns and tickets through guided steppers or free-form chat — both paths call the same backend tools, so they produce identical, real results.",
+    "readDocs": "Read the docs",
+    "architecture": "Architecture",
+    "sections": {
+      "gettingStarted": {
+        "title": "Getting Started",
+        "body": "Run the whole platform locally, learn the service map and ports."
+      },
+      "architecture": {
+        "title": "Architecture & Flows",
+        "body": "Service topology, the platform-neutral commerce seam, the resolution flow."
+      },
+      "api": {
+        "title": "API Reference",
+        "body": "The federated GraphQL BFF surface, the ai-assist /chat endpoint, auth REST."
+      },
+      "services": {
+        "title": "Service Documentation",
+        "body": "One page per service: auth, ai-assist, bff, commercetools, ticketing, admin."
+      }
+    }
+  }
+}

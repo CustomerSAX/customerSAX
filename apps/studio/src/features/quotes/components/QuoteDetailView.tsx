@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_LOCALE } from "@csa/i18n";
 import { useMemo, useState } from "react";
 import { gql, useQuery } from "@apollo/client";
 import { useRouter } from "next/navigation";
@@ -298,7 +299,7 @@ function inputAmount(value: string) {
 }
 
 function formatAmount(amount: number, currencyCode: string) {
-  return `${currencyCode} ${amount.toLocaleString("en-US", {
+  return `${currencyCode} ${amount.toLocaleString(DEFAULT_LOCALE, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

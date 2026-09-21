@@ -7,12 +7,15 @@ import { Button } from '../../primitives/Button';
 
 export interface TableProps extends React.TableHTMLAttributes<HTMLTableElement> {
   children: React.ReactNode;
+  caption?: React.ReactNode;
+  captionClassName?: string;
 }
 
-export function Table({ className, children, ...props }: TableProps) {
+export function Table({ className, children, caption, captionClassName, ...props }: TableProps) {
   return (
     <div className="w-full overflow-x-auto rounded-m-lg border border-m-border bg-m-surface shadow-m-xs">
       <table className={cn('w-full text-left border-collapse text-xs text-m-text', className)} {...props}>
+        {caption && <caption className={cn('sr-only', captionClassName)}>{caption}</caption>}
         {children}
       </table>
     </div>
@@ -41,16 +44,26 @@ export interface TableRowProps extends React.HTMLAttributes<HTMLTableRowElement>
 }
 
 export function TableRow({ selected = false, clickable = false, className, children, ...props }: TableRowProps) {
+  const { onClick, onKeyDown, ...rowProps } = props;
   return (
     <tr
       className={cn(
         'transition-colors duration-150',
-        clickable && 'cursor-pointer hover:bg-m-surface-2/70',
+        clickable && 'cursor-pointer hover:bg-m-surface-2/70 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-m-primary',
         !clickable && 'hover:bg-m-surface-2/40',
         selected && 'bg-m-primary-50/60 hover:bg-m-primary-50',
         className,
       )}
-      {...props}
+      tabIndex={clickable && onClick ? 0 : rowProps.tabIndex}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        if (!event.defaultPrevented && clickable && onClick && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onClick(event as unknown as React.MouseEvent<HTMLTableRowElement>);
+        }
+      }}
+      {...rowProps}
     >
       {children}
     </tr>
@@ -69,22 +82,34 @@ export function TableHead({
   onSort,
   className,
   children,
+  onClick,
+  scope = 'col',
   ...props
 }: TableHeadProps) {
+  const isInteractive = sortable || Boolean(onClick);
+  const handleSort = (event: React.MouseEvent<HTMLButtonElement>) => {
+    onSort?.();
+    if (onClick) onClick(event as unknown as React.MouseEvent<HTMLTableCellElement>);
+  };
   return (
     <th
+      scope={scope}
+      aria-sort={sortDirection === 'asc' ? 'ascending' : sortDirection === 'desc' ? 'descending' : undefined}
       className={cn(
         'px-4 py-3 font-semibold select-none',
-        sortable && 'cursor-pointer hover:text-m-text',
+        isInteractive && 'hover:text-m-text',
         className,
       )}
-      onClick={sortable ? onSort : undefined}
       {...props}
     >
-      <div className="inline-flex items-center gap-1.5">
+      {isInteractive ? (
+        <button
+          type="button"
+          onClick={handleSort}
+          className="inline-flex items-center gap-1.5 rounded outline-none focus-visible:ring-2 focus-visible:ring-m-primary focus-visible:ring-offset-2"
+        >
         <span>{children}</span>
-        {sortable && (
-          <span className="text-m-text-muted">
+          {sortable && <span className="text-m-text-muted" aria-hidden="true">
             {sortDirection === 'asc' ? (
               <Icon name="chevron-up" size="xs" />
             ) : sortDirection === 'desc' ? (
@@ -92,9 +117,11 @@ export function TableHead({
             ) : (
               <Icon name="chevrons-up-down" size="xs" />
             )}
-          </span>
-        )}
-      </div>
+          </span>}
+        </button>
+      ) : (
+        children
+      )}
     </th>
   );
 }
@@ -117,6 +144,13 @@ export interface TablePaginationProps {
   pageSizeOptions?: number[];
   className?: string;
   as?: 'div' | 'tfoot';
+  labels?: {
+    summary?: (start: number, end: number, total: number) => React.ReactNode;
+    perPage?: string;
+    page?: (page: number, totalPages: number) => React.ReactNode;
+    previousPage?: string;
+    nextPage?: string;
+  };
 }
 
 export function TablePagination({
@@ -129,7 +163,9 @@ export function TablePagination({
   pageSizeOptions = [10, 25, 50, 100],
   className,
   as = 'div',
+  labels,
 }: TablePaginationProps) {
+  const pageSizeId = React.useId();
   const startItem = totalItems ? (page - 1) * pageSize + 1 : 0;
   const endItem = totalItems ? Math.min(page * pageSize, totalItems) : 0;
 
@@ -137,7 +173,7 @@ export function TablePagination({
     <div className={cn('flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-m-border bg-m-surface-2/40 text-xs text-m-text-muted', className)}>
       <div className="flex items-center gap-4">
         {totalItems !== undefined && (
-          <span>
+          labels?.summary ? labels.summary(startItem, endItem, totalItems) : <span>
             Showing <strong className="font-semibold text-m-text">{startItem}</strong> to{' '}
             <strong className="font-semibold text-m-text">{endItem}</strong> of{' '}
             <strong className="font-semibold text-m-text">{totalItems}</strong> entries
@@ -145,8 +181,9 @@ export function TablePagination({
         )}
         {onPageSizeChange && (
           <div className="flex items-center gap-1.5">
-            <span>Per page:</span>
+            <label htmlFor={pageSizeId}>{labels?.perPage ?? 'Per page:'}</label>
             <select
+              id={pageSizeId}
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               className="rounded border border-m-border bg-m-surface px-2 py-1 text-xs text-m-text outline-none focus:border-m-primary"
@@ -169,10 +206,10 @@ export function TablePagination({
           onClick={() => onPageChange(page - 1)}
           iconOnly
           leftIcon={<Icon name="chevron-left" size="xs" />}
-          aria-label="Previous page"
+          aria-label={labels?.previousPage ?? 'Previous page'}
         />
         <span className="px-2 font-medium text-m-text">
-          Page {page} of {totalPages}
+          {labels?.page ? labels.page(page, totalPages) : <>Page {page} of {totalPages}</>}
         </span>
         <Button
           variant="outline"
@@ -181,7 +218,7 @@ export function TablePagination({
           onClick={() => onPageChange(page + 1)}
           iconOnly
           leftIcon={<Icon name="chevron-right" size="xs" />}
-          aria-label="Next page"
+          aria-label={labels?.nextPage ?? 'Next page'}
         />
       </div>
     </div>

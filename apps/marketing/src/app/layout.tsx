@@ -1,32 +1,35 @@
-import type { Metadata } from 'next';
-import { Navigation } from '../components/Navigation';
-import { Footer } from '../components/Footer';
-import './globals.css';
+import type { Metadata } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
+import { Navigation } from "../components/Navigation";
+import { Footer } from "../components/Footer";
+import "./globals.css";
 
-export const metadata: Metadata = {
-  title: 'customerSAX — Commerce customer service, built for resolution',
-  description:
-    'customerSAX is the commerce service operating layer connecting customer conversations to orders, CRM, payments, fulfillment, returns and governed AI actions.',
-  openGraph: {
-    title: 'customerSAX — Commerce customer service, built for resolution',
-    description:
-      'customerSAX connects every conversation to the commerce systems that can actually fix the problem — orders, CRM, payments, fulfillment, returns, loyalty and more.',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'customerSAX',
-    description: 'Commerce customer service, rebuilt around resolution.',
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("Metadata");
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+  return {
+    title: t("title"),
+    description: t("description"),
+    openGraph: {
+      title: t("title"),
+      description: t("socialDescription"),
+      type: "website"
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "customerSAX",
+      description: t("description")
+    }
+  };
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const metadata = await getTranslations("Metadata");
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -37,27 +40,29 @@ export default function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "SoftwareApplication",
-              "name": "customerSAX",
-              "applicationCategory": "BusinessApplication",
-              "description": "customerSAX is the commerce service operating layer connecting customer conversations to orders, CRM, payments, fulfillment, returns and governed AI actions.",
-              "operatingSystem": "Web",
-              "offers": {
+              name: "customerSAX",
+              applicationCategory: "BusinessApplication",
+              description: metadata("description"),
+              operatingSystem: "Web",
+              offers: {
                 "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
+                price: "0",
+                priceCurrency: "USD"
               },
-              "about": {
+              about: {
                 "@type": "Thing",
-                "name": "AI Customer Service Platform for Commerce"
+                name: "AI Customer Service Platform for Commerce"
               }
             })
           }}
         />
       </head>
       <body>
-        <Navigation />
-        {children}
-        <Footer />
+        <NextIntlClientProvider>
+          <Navigation />
+          {children}
+          <Footer />
+        </NextIntlClientProvider>
       </body>
     </html>
   );

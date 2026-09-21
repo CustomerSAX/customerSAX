@@ -285,11 +285,6 @@ export function CustomerListView() {
     window.localStorage.setItem(CUSTOMER_COLUMN_STORAGE_KEY, JSON.stringify(nextKeys));
   }, []);
 
-  const renderSortIndicator = (key: CustomerColumnKey) => {
-    if (sortColumn !== key) return null;
-    return sortDirection === "asc" ? " ↑" : " ↓";
-  };
-
   const renderCustomerCell = (cust: Customer, key: CustomerColumnKey) => {
     if (key === "id") {
       return (
@@ -609,13 +604,13 @@ export function CustomerListView() {
                     return (
                       <TableHead
                         key={column.key}
-                        onClick={
+                        sortable={isSortable}
+                        onSort={
                           isSortable ? () => handleSort(column.key as keyof Customer) : undefined
                         }
-                        className={isSortable ? "cursor-pointer" : undefined}
+                        sortDirection={sortColumn === column.key ? sortDirection : false}
                       >
                         {column.label}
-                        {isSortable ? renderSortIndicator(column.key) : null}
                       </TableHead>
                     );
                   })}

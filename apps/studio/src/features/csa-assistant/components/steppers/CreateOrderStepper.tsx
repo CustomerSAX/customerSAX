@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_LOCALE } from '@csa/i18n';
 import { useState, useEffect } from 'react';
 import { Button, Checkbox, Input, Select } from '@csa/ui';
 import './stepper.css';
@@ -216,7 +217,7 @@ export function CreateOrderStepper({
   const cartItems = workflow?.cart?.items ?? [];
   const cartHasItem = (sku: string) => cartItems.some((it) => it.sku === sku);
 
-  const money = (n: number) => '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (n: number) => '$' + n.toLocaleString(DEFAULT_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const selectCustomer = (c: CustomerSearchResult) => {
     onAction({ type: 'order.select_customer', customerId: c.id, name: c.name, email: c.email });
@@ -435,7 +436,7 @@ export function CreateOrderStepper({
                   <div key={it.sku} className="cart-row">
                     <span className="name">{it.name} &times; {it.quantity}</span>
                     <span>{it.price || ''}</span>
-                    <span className="cart-remove" onClick={() => removeFromCart(it.sku!)}>Remove</span>
+                    <button type="button" className="cart-remove" onClick={() => removeFromCart(it.sku!)}>Remove</button>
                   </div>
                 ))
               )}
@@ -453,19 +454,33 @@ export function CreateOrderStepper({
         {step === 'discount' && (
           <>
             <div className="discount-grid">
-              <div
+              <label
                 className={`discount-card ${localDraft.discount.type === 'none' ? 'active-choice' : ''}`}
-                onClick={() => setLocalDraft((prev) => ({ ...prev, discount: { type: 'none', value: 0 } }))}
               >
+                <input
+                  type="radio"
+                  name="discount-type"
+                  value="none"
+                  checked={localDraft.discount.type === 'none'}
+                  onChange={() => setLocalDraft((prev) => ({ ...prev, discount: { type: 'none', value: 0 } }))}
+                  className="sr-only"
+                />
                 <div className="row">
                   <b style={{ fontSize: '13px' }}>No discount</b>
                   {localDraft.discount.type === 'none' && '✓'}
                 </div>
-              </div>
-              <div
+              </label>
+              <label
                 className={`discount-card ${localDraft.discount.type === 'percent' ? 'active-choice' : ''}`}
-                onClick={() => setLocalDraft((prev) => ({ ...prev, discount: { ...prev.discount, type: 'percent' } }))}
               >
+                <input
+                  type="radio"
+                  name="discount-type"
+                  value="percent"
+                  checked={localDraft.discount.type === 'percent'}
+                  onChange={() => setLocalDraft((prev) => ({ ...prev, discount: { ...prev.discount, type: 'percent' } }))}
+                  className="sr-only"
+                />
                 <div className="row">
                   <b style={{ fontSize: '13px' }}>Percentage off</b>
                   {localDraft.discount.type === 'percent' && '✓'}
@@ -479,11 +494,18 @@ export function CreateOrderStepper({
                     onChange={(e) => setLocalDraft((prev) => ({ ...prev, discount: { ...prev.discount, value: parseFloat(e.target.value) || 0 } }))}
                   />
                 )}
-              </div>
-              <div
+              </label>
+              <label
                 className={`discount-card ${localDraft.discount.type === 'fixed' ? 'active-choice' : ''}`}
-                onClick={() => setLocalDraft((prev) => ({ ...prev, discount: { ...prev.discount, type: 'fixed' } }))}
               >
+                <input
+                  type="radio"
+                  name="discount-type"
+                  value="fixed"
+                  checked={localDraft.discount.type === 'fixed'}
+                  onChange={() => setLocalDraft((prev) => ({ ...prev, discount: { ...prev.discount, type: 'fixed' } }))}
+                  className="sr-only"
+                />
                 <div className="row">
                   <b style={{ fontSize: '13px' }}>Fixed amount off</b>
                   {localDraft.discount.type === 'fixed' && '✓'}
@@ -497,7 +519,7 @@ export function CreateOrderStepper({
                     onChange={(e) => setLocalDraft((prev) => ({ ...prev, discount: { ...prev.discount, value: parseFloat(e.target.value) || 0 } }))}
                   />
                 )}
-              </div>
+              </label>
             </div>
             <div className="options-sub" style={{ marginTop: '8px' }}>
               This won&apos;t change the order total automatically — let the customer know directly, and it&apos;ll be saved to the ticket for the record.
@@ -510,36 +532,35 @@ export function CreateOrderStepper({
             <div className="addr-section-title">Billing address</div>
             <div className="form-grid">
               <div>
-                <label className="field-label">Full name</label>
-                <Input onChange={(e) => updateField('billing', 'name', e.target.value)} value={localDraft.billing.name} />
+                <label className="field-label" htmlFor="billing-name">Full name</label>
+                <Input id="billing-name" autoComplete="name" onChange={(e) => updateField('billing', 'name', e.target.value)} value={localDraft.billing.name} />
               </div>
               <div>
-                <label className="field-label">Country</label>
-                <Select onChange={(e) => updateField('billing', 'country', e.target.value)} value={localDraft.billing.country}>
+                <label className="field-label" htmlFor="billing-country">Country</label>
+                <Select id="billing-country" autoComplete="country" onChange={(e) => updateField('billing', 'country', e.target.value)} value={localDraft.billing.country}>
                   {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                 </Select>
               </div>
             </div>
             <div className="form-grid">
               <div style={{ gridColumn: 'span 2' }}>
-                <label className="field-label">Street address</label>
-                <Input onChange={(e) => updateField('billing', 'street', e.target.value)} value={localDraft.billing.street} />
+                <label className="field-label" htmlFor="billing-street">Street address</label>
+                <Input id="billing-street" autoComplete="street-address" onChange={(e) => updateField('billing', 'street', e.target.value)} value={localDraft.billing.street} />
               </div>
             </div>
             <div className="form-grid">
               <div>
-                <label className="field-label">City</label>
-                <Input onChange={(e) => updateField('billing', 'city', e.target.value)} value={localDraft.billing.city} />
+                <label className="field-label" htmlFor="billing-city">City</label>
+                <Input id="billing-city" autoComplete="address-level2" onChange={(e) => updateField('billing', 'city', e.target.value)} value={localDraft.billing.city} />
               </div>
               <div>
-                <label className="field-label">Postal code</label>
-                <Input onChange={(e) => updateField('billing', 'postal', e.target.value)} value={localDraft.billing.postal} />
+                <label className="field-label" htmlFor="billing-postal">Postal code</label>
+                <Input id="billing-postal" autoComplete="postal-code" onChange={(e) => updateField('billing', 'postal', e.target.value)} value={localDraft.billing.postal} />
               </div>
             </div>
 
-            <div className="toggle-row" onClick={toggleSameAsBilling}>
-              <Checkbox checked={localDraft.sameAsBilling} readOnly size="sm" />
-              Shipping address is the same as billing
+            <div className="toggle-row">
+              <Checkbox checked={localDraft.sameAsBilling} onChange={toggleSameAsBilling} size="sm" label="Shipping address is the same as billing" />
             </div>
 
             {!localDraft.sameAsBilling && (
@@ -547,30 +568,30 @@ export function CreateOrderStepper({
                 <div className="addr-section-title">Shipping address</div>
                 <div className="form-grid">
                   <div>
-                    <label className="field-label">Full name</label>
-                    <Input onChange={(e) => updateField('shipping', 'name', e.target.value)} value={localDraft.shipping.name} />
+                    <label className="field-label" htmlFor="shipping-name">Full name</label>
+                    <Input id="shipping-name" autoComplete="name" onChange={(e) => updateField('shipping', 'name', e.target.value)} value={localDraft.shipping.name} />
                   </div>
                   <div>
-                    <label className="field-label">Country</label>
-                    <Select onChange={(e) => updateField('shipping', 'country', e.target.value)} value={localDraft.shipping.country}>
+                    <label className="field-label" htmlFor="shipping-country">Country</label>
+                    <Select id="shipping-country" autoComplete="country" onChange={(e) => updateField('shipping', 'country', e.target.value)} value={localDraft.shipping.country}>
                       {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                     </Select>
                   </div>
                 </div>
                 <div className="form-grid">
                   <div style={{ gridColumn: 'span 2' }}>
-                    <label className="field-label">Street address</label>
-                    <Input onChange={(e) => updateField('shipping', 'street', e.target.value)} value={localDraft.shipping.street} />
+                    <label className="field-label" htmlFor="shipping-street">Street address</label>
+                    <Input id="shipping-street" autoComplete="street-address" onChange={(e) => updateField('shipping', 'street', e.target.value)} value={localDraft.shipping.street} />
                   </div>
                 </div>
                 <div className="form-grid">
                   <div>
-                    <label className="field-label">City</label>
-                    <Input onChange={(e) => updateField('shipping', 'city', e.target.value)} value={localDraft.shipping.city} />
+                    <label className="field-label" htmlFor="shipping-city">City</label>
+                    <Input id="shipping-city" autoComplete="address-level2" onChange={(e) => updateField('shipping', 'city', e.target.value)} value={localDraft.shipping.city} />
                   </div>
                   <div>
-                    <label className="field-label">Postal code</label>
-                    <Input onChange={(e) => updateField('shipping', 'postal', e.target.value)} value={localDraft.shipping.postal} />
+                    <label className="field-label" htmlFor="shipping-postal">Postal code</label>
+                    <Input id="shipping-postal" autoComplete="postal-code" onChange={(e) => updateField('shipping', 'postal', e.target.value)} value={localDraft.shipping.postal} />
                   </div>
                 </div>
               </>
@@ -585,16 +606,23 @@ export function CreateOrderStepper({
               <div className="options-sub">No shipping methods are set up for this store yet — you can skip this and place the order without one.</div>
             )}
             {shipMethods.map(m => (
-              <div
+              <label
                 key={m.id}
                 className={`method-card ${localDraft.shipMethod === m.id ? 'selected' : ''}`}
-                onClick={() => selectShipMethod(m.id)}
               >
+                <input
+                  type="radio"
+                  name="shipping-method"
+                  value={m.id}
+                  checked={localDraft.shipMethod === m.id}
+                  onChange={() => selectShipMethod(m.id)}
+                  className="sr-only"
+                />
                 <div className="method-radio" />
                 <div className="opt-main">
                   <div className="opt-name">{m.name}</div>
                 </div>
-              </div>
+              </label>
             ))}
           </>
         )}

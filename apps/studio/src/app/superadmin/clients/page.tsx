@@ -16,7 +16,11 @@ import {
   Button,
   Icon,
   EmptyState,
-  LoadingSpinner
+  LoadingSpinner,
+  Modal,
+  ModalHeader,
+  ModalBody,
+  ModalFooter
 } from "@csa/ui";
 import { ADMIN_CLIENTS_QUERY, ADMIN_CREATE_CLIENT, ADMIN_SET_CLIENT_STATUS } from "@/features/superadmin/api/queries";
 
@@ -372,33 +376,21 @@ function AddClientModal({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/60 p-4 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="w-full max-w-lg rounded-m-2xl border border-m-border bg-m-surface p-7 sm:p-8 shadow-m-modal">
-        <div className="mb-6 flex items-start gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-m-lg bg-m-primary/10 text-m-primary">
-            <Icon name="building-2" size="md" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold leading-tight text-m-text">New Client Organisation</h2>
-            <p className="mt-1 text-xs leading-relaxed text-m-text-muted">
-              Create a new client tenant organisation. You can connect commerce projects and invite admin users after
-              creation.
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <Modal isOpen={isOpen} onClose={onClose} size="md">
+      <form onSubmit={handleSubmit}>
+        <ModalHeader
+          title="New Client Organisation"
+          subtitle="Create a new client tenant organisation. You can connect commerce projects and invite admin users after creation."
+          onClose={onClose}
+        />
+        <ModalBody className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-semibold text-m-text">
+            <label htmlFor="new-client-name" className="text-xs font-semibold text-m-text">
               Organisation Name <span className="text-m-error">*</span>
             </label>
             <input
               type="text"
+              id="new-client-name"
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               required
@@ -410,13 +402,14 @@ function AddClientModal({
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-m-text">
+              <label htmlFor="new-client-slug" className="text-xs font-semibold text-m-text">
                 Slug <span className="text-m-error">*</span>
               </label>
               <span className="text-[11px] font-medium text-m-text-subtle">Auto-derived for URLs</span>
             </div>
             <input
               type="text"
+              id="new-client-slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
               placeholder="acme-corporation"
@@ -425,11 +418,12 @@ function AddClientModal({
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-semibold text-m-text">
+            <label htmlFor="new-client-email" className="text-xs font-semibold text-m-text">
               Contact Email <span className="text-m-error">*</span>
             </label>
             <input
               type="email"
+              id="new-client-email"
               value={contactEmail}
               onChange={(e) => setContactEmail(e.target.value)}
               required
@@ -465,9 +459,8 @@ function AddClientModal({
             <Button type="submit" variant="primary" disabled={isSubmitting || !name.trim() || !contactEmail.trim()}>
               {isSubmitting ? "Creating…" : "Create Client"}
             </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+          </ModalFooter>
+      </form>
+    </Modal>
   );
 }

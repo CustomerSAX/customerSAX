@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import {
   PageHeader,
   Panel,
@@ -21,29 +22,18 @@ import {
   Skeleton,
 } from "@csa/ui";
 import { formatDate } from "@/lib/format-date";
+import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 import { useEmployees } from "../hooks/use-employees";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
 
-const SEARCH_OPTIONS = [
-  { value: "all", label: "All fields" },
-  { value: "firstName", label: "First Name" },
-  { value: "lastName", label: "Last Name" },
-  { value: "email", label: "Email" },
-  { value: "customerNumber", label: "Customer Number" },
-  { value: "externalId", label: "External Id" },
-];
-
 type EmployeeSearchField = "all" | "firstName" | "lastName" | "email" | "customerNumber" | "externalId";
-
-const ROLE_OPTIONS = [
-  { value: "", label: "All Roles" },
-  { value: "Admin", label: "Admin" },
-  { value: "Buyer", label: "Buyer" },
-  { value: "Approver", label: "Approver" },
-];
 
 export function EmployeeListView() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("Employees");
+  const common = useTranslations("Common");
+  const paginationLabels = useTablePaginationLabels();
   const {
     employees,
     totalItems,
@@ -63,8 +53,23 @@ export function EmployeeListView() {
   const [searchField, setSearchField] = useState<EmployeeSearchField>("all");
   const [searchText, setSearchText] = useState("");
 
+  const searchOptions = [
+    { value: "all", label: common("allFields") },
+    { value: "firstName", label: t("firstName") },
+    { value: "lastName", label: t("lastName") },
+    { value: "email", label: t("email") },
+    { value: "customerNumber", label: t("customerNumber") },
+    { value: "externalId", label: t("externalId") },
+  ];
+  const roleOptions = [
+    { value: "", label: t("allRoles") },
+    { value: "Admin", label: "Admin" },
+    { value: "Buyer", label: "Buyer" },
+    { value: "Approver", label: "Approver" },
+  ];
+
   const companyOptions = [
-    { value: "", label: "All Companies" },
+    { value: "", label: t("allCompanies") },
     ...allCompanies.map((c) => ({ value: c.id, label: c.name })),
   ];
 
@@ -95,11 +100,11 @@ export function EmployeeListView() {
     <div className="flex flex-col gap-6">
       {/* Page Header */}
       <PageHeader
-        title="Employees"
-        subtitle="Associates linked to a business unit with their B2B roles."
+        title={t("title")}
+        subtitle={t("subtitle")}
         breadcrumbs={
           <span className="text-xs font-medium text-m-text-muted uppercase tracking-widest">
-            Companies
+            {t("companies")}
           </span>
         }
         actions={
@@ -110,7 +115,7 @@ export function EmployeeListView() {
               leftIcon={<Icon name="arrow-left-right" size="xs" />}
               onClick={() => router.push("/b2b/import-export?resource=employee")}
             >
-              Import / Export
+              {t("importExport")}
             </Button>
             <Button
               variant="primary"
@@ -118,7 +123,7 @@ export function EmployeeListView() {
               leftIcon={<Icon name="plus" size="xs" />}
               onClick={() => router.push("/b2b/employees/create")}
             >
-              Add employee
+              {t("add")}
             </Button>
           </div>
         }
@@ -130,7 +135,7 @@ export function EmployeeListView() {
           <div className="w-full sm:w-44">
             <Select
               value={searchField}
-              options={SEARCH_OPTIONS}
+              options={searchOptions}
               onChange={(e) => setSearchField(e.target.value as EmployeeSearchField)}
               size="md"
             />
@@ -142,7 +147,7 @@ export function EmployeeListView() {
               onChange={(val) => setSearchText(val)}
               onSearch={handleSearchSubmit}
               onClear={() => setSearchText("")}
-              placeholder="Search employees by name, email, or number..."
+              placeholder={t("searchPlaceholder")}
               size="md"
             />
           </div>
@@ -162,7 +167,7 @@ export function EmployeeListView() {
           <div className="w-full sm:w-36">
             <Select
               value={filter.roleFilter ?? ""}
-              options={ROLE_OPTIONS}
+              options={roleOptions}
               onChange={(e) => {
                 setFilter({ ...filter, roleFilter: e.target.value });
                 setPage(1);
@@ -173,11 +178,11 @@ export function EmployeeListView() {
 
           <div className="flex items-center gap-2 shrink-0">
             <Button variant="primary" size="md" onClick={handleSearchSubmit}>
-              Search
+              {common("search")}
             </Button>
             {(filter.searchText || filter.companyIdFilter || filter.roleFilter) && (
               <Button variant="ghost" size="md" onClick={handleReset}>
-                Reset
+                {common("reset")}
               </Button>
             )}
           </div>
@@ -185,7 +190,7 @@ export function EmployeeListView() {
       </Panel>
 
       {/* Employees Table */}
-      <Panel title={`Employees (${totalItems})`}>
+      <Panel title={t("countTitle", { count: totalItems })}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -194,41 +199,41 @@ export function EmployeeListView() {
                 sortDirection={sort.key === "customerNumber" ? sort.order : false}
                 onSort={() => handleSort("customerNumber")}
               >
-                Customer #
+                {t("customerNumber")}
               </TableHead>
-              <TableHead>External ID</TableHead>
+              <TableHead>{t("externalId")}</TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "firstName" ? sort.order : false}
                 onSort={() => handleSort("firstName")}
               >
-                First Name
+                {t("firstName")}
               </TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "lastName" ? sort.order : false}
                 onSort={() => handleSort("lastName")}
               >
-                Last Name
+                {t("lastName")}
               </TableHead>
-              <TableHead>Company</TableHead>
+              <TableHead>{t("company")}</TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "email" ? sort.order : false}
                 onSort={() => handleSort("email")}
               >
-                Email
+                {t("email")}
               </TableHead>
-              <TableHead>Group</TableHead>
-              <TableHead>Roles</TableHead>
+              <TableHead>{t("group")}</TableHead>
+              <TableHead>{t("roles")}</TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "createdAt" ? sort.order : false}
                 onSort={() => handleSort("createdAt")}
               >
-                Created
+                {common("created")}
               </TableHead>
-              <TableHead className="w-12 text-right">Actions</TableHead>
+              <TableHead className="w-12 text-right">{common("actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -247,11 +252,11 @@ export function EmployeeListView() {
                 <TableCell colSpan={10} className="py-12">
                   <EmptyState
                     icon="user-check"
-                    title="No Employees Found"
-                    description="No associates match your selected filters. Try resetting search criteria or adding a new employee."
+                    title={t("emptyTitle")}
+                    description={t("emptyDescription")}
                     action={
                       <Button variant="secondary" onClick={handleReset}>
-                        Reset Filters
+                        {t("resetFilters")}
                       </Button>
                     }
                   />
@@ -260,7 +265,7 @@ export function EmployeeListView() {
             ) : (
               employees.map((emp) => {
                 const primaryCompany = emp.memberships[0]?.companyName ?? "--";
-                const roles = emp.memberships.flatMap((m) => m.roles).join(", ") || "Member";
+                const roles = emp.memberships.flatMap((m) => m.roles).join(", ") || t("member");
 
                 return (
                   <TableRow
@@ -285,7 +290,7 @@ export function EmployeeListView() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-m-text-muted">
-                      {formatDate(emp.createdAt)}
+                      {formatDate(emp.createdAt, locale)}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <Button
@@ -294,7 +299,7 @@ export function EmployeeListView() {
                         iconOnly
                         leftIcon={<Icon name="chevron-right" size="xs" />}
                         onClick={() => router.push(`/b2b/employees/${emp.id}`)}
-                        aria-label="View Employee"
+                        aria-label={common("view", { entity: t("employee") })}
                       />
                     </TableCell>
                   </TableRow>
@@ -312,6 +317,7 @@ export function EmployeeListView() {
             pageSize={perPage}
             onPageChange={setPage}
             onPageSizeChange={setPerPage}
+            labels={paginationLabels}
           />
         )}
       </Panel>

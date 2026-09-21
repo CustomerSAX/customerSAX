@@ -13,6 +13,12 @@
  *   { results: CtRawProduct[], total: number }
  */
 
+import {
+  DEFAULT_LOCALE,
+  isSupportedLocale,
+  LOCALE_COOKIE_NAME,
+  toCommerceLocale
+} from "@csa/i18n";
 import { NextRequest, NextResponse } from "next/server";
 import { projectScopedBffFetch } from "@/lib/project-scoped-bff";
 import { bffJsonHeaders } from "@/lib/commerce-headers";
@@ -91,8 +97,14 @@ export async function POST(request: NextRequest) {
   const text =
     typeof body.text === "string" ? body.text.trim() : "";
   const browse = body.browse === true;
+  const requestedUiLocale = request.cookies.get(LOCALE_COOKIE_NAME)?.value;
+  const uiLocale = requestedUiLocale && isSupportedLocale(requestedUiLocale)
+    ? requestedUiLocale
+    : DEFAULT_LOCALE;
   const locale =
-    typeof body.locale === "string" && body.locale ? body.locale : "en";
+    typeof body.locale === "string" && body.locale
+      ? body.locale
+      : toCommerceLocale(uiLocale);
   const currency =
     typeof body.currency === "string" && body.currency
       ? body.currency

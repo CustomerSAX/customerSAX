@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { createContext, useContext, useId, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../utils';
 import { Icon } from '../../icons/Icon';
+import { useDialogAccessibility } from '../../hooks/useDialogAccessibility';
+
+const ModalContext = createContext<{ titleId: string; descriptionId: string } | null>(null);
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
@@ -15,6 +18,7 @@ export interface ModalProps {
   closeOnEsc?: boolean;
   children: React.ReactNode;
   className?: string;
+  'aria-label'?: string;
 }
 
 const sizeStyles: Record<ModalSize, string> = {
@@ -33,19 +37,12 @@ export function Modal({
   closeOnEsc = true,
   children,
   className,
+  'aria-label': ariaLabel,
 }: ModalProps) {
-  useEffect(() => {
-    if (!isOpen || !closeOnEsc) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, closeOnEsc, onClose]);
+  const generatedId = useId();
+  const titleId = `${generatedId}-title`;
+  const descriptionId = `${generatedId}-description`;
+  const dialogRef = useDialogAccessibility<HTMLDivElement>({ isOpen, onClose, closeOnEsc });
 
   useEffect(() => {
     if (isOpen) {
@@ -62,9 +59,13 @@ export function Modal({
 
   return createPortal(
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
       role="dialog"
       aria-modal="true"
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabel ? undefined : titleId}
+      tabIndex={-1}
     >
       {/* Backdrop */}
       <div
@@ -73,16 +74,18 @@ export function Modal({
       />
 
       {/* Modal Dialog Surface */}
-      <div
-        className={cn(
-          'relative w-full rounded-m-2xl border border-m-border bg-m-surface shadow-m-modal overflow-hidden',
-          'animate-in zoom-in-95 fade-in duration-200 z-10 flex flex-col',
-          sizeStyles[size],
-          className,
-        )}
-      >
-        {children}
-      </div>
+      <ModalContext.Provider value={{ titleId, descriptionId }}>
+        <div
+          className={cn(
+            'relative w-full rounded-m-2xl border border-m-border bg-m-surface shadow-m-modal overflow-hidden',
+            'animate-in zoom-in-95 fade-in duration-200 z-10 flex flex-col',
+            sizeStyles[size],
+            className,
+          )}
+        >
+          {children}
+        </div>
+      </ModalContext.Provider>
     </div>,
     document.body,
   );
@@ -101,18 +104,19 @@ export function ModalHeader({
   className?: string;
   children?: React.ReactNode;
 }) {
+  const context = useContext(ModalContext);
   return (
     <div className={cn('flex items-start justify-between p-6 border-b border-m-border/60 bg-m-surface-1', className)}>
       <div className="flex flex-col gap-1">
-        {title && <h3 className="text-lg font-bold text-m-text tracking-tight">{title}</h3>}
-        {subtitle && <p className="text-xs text-m-text-muted">{subtitle}</p>}
+        {title && <h2 id={context?.titleId} className="text-lg font-bold text-m-text tracking-tight">{title}</h2>}
+        {subtitle && <p id={context?.descriptionId} className="text-xs text-m-text-muted">{subtitle}</p>}
         {children}
       </div>
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          className="p-1.5 rounded-m-md text-m-text-muted hover:text-m-text hover:bg-m-surface-2 transition-colors outline-none"
+          className="p-1.5 rounded-m-md text-m-text-muted hover:text-m-text hover:bg-m-surface-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-m-primary focus-visible:ring-offset-2"
           aria-label="Close modal"
         >
           <Icon name="x" size="sm" />

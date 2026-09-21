@@ -20,6 +20,9 @@ export interface RadioGroupProps {
   disabled?: boolean;
   className?: string;
   children: React.ReactNode;
+  label?: React.ReactNode;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
 }
 
 export function RadioGroup({
@@ -29,6 +32,9 @@ export function RadioGroup({
   disabled,
   className,
   children,
+  label,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
 }: RadioGroupProps) {
   const generatedName = useId();
   const groupName = name || generatedName;
@@ -39,9 +45,15 @@ export function RadioGroup({
 
   return (
     <RadioGroupContext.Provider value={{ name: groupName, value, onChange: handleChange, disabled }}>
-      <div role="radiogroup" className={cn('flex flex-col gap-2', className)}>
+      <fieldset
+        className={cn('flex flex-col gap-2 border-0 p-0 m-0 min-w-0', className)}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabel ? undefined : ariaLabelledBy}
+        disabled={disabled}
+      >
+        {label && <legend className="sr-only">{label}</legend>}
         {children}
-      </div>
+      </fieldset>
     </RadioGroupContext.Provider>
   );
 }

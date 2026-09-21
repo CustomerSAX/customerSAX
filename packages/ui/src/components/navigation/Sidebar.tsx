@@ -27,6 +27,8 @@ export interface SidebarProps {
   onSelectItem?: (item: SidebarItem) => void;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
+  collapseLabel?: string;
+  expandLabel?: string;
   footer?: React.ReactNode;
   className?: string;
 }
@@ -38,6 +40,8 @@ export function Sidebar({
   onSelectItem,
   collapsible = true,
   defaultCollapsed = false,
+  collapseLabel = 'Collapse',
+  expandLabel = 'Expand sidebar',
   footer,
   className,
 }: SidebarProps) {
@@ -230,10 +234,10 @@ export function Sidebar({
               (e.currentTarget as HTMLButtonElement).style.color = 'var(--sidebar-text)';
               (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
             }}
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isCollapsed ? expandLabel : collapseLabel}
           >
             <Icon name={isCollapsed ? 'panel-right-open' : 'panel-left-close'} size="sm" />
-            {!isCollapsed && <span className="text-[14px] font-medium">Collapse</span>}
+            {!isCollapsed && <span className="text-[14px] font-medium">{collapseLabel}</span>}
           </button>
         )}
       </div>

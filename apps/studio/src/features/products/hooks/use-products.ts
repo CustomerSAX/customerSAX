@@ -15,6 +15,7 @@ import {
   useCallback,
   useRef,
 } from "react";
+import { useLocale } from "next-intl";
 import type {
   ProductListRow,
   ProductSearch,
@@ -67,6 +68,7 @@ export interface UseProductListReturn {
 }
 
 export function useProductList(): UseProductListReturn {
+  const locale = useLocale();
   const [products, setProducts] = useState<ProductListRow[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   // Start loading so skeleton shows on first paint (no flash of empty state).
@@ -198,7 +200,7 @@ export function useProductList(): UseProductListReturn {
 
         const json = (await res.json()) as ProductSearchResponse;
         const rawResults: CtRawProduct[] = (json.results ?? []) as CtRawProduct[];
-        const rows = rawResults.map(mapRawToListRow);
+        const rows = rawResults.map((product) => mapRawToListRow(product, locale));
         const total = json.total ?? 0;
 
         const withPrices = await resolvePrices(rows);
@@ -220,7 +222,7 @@ export function useProductList(): UseProductListReturn {
         if (seq === searchSeq.current) setLoading(false);
       }
     },
-    [perPage, resolvePrices]
+    [locale, perPage, resolvePrices]
   );
 
   // -------------------------------------------------------------------------

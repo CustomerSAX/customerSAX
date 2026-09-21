@@ -3,6 +3,9 @@
 import { Fragment, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+// Keep route-mode checks independent from the locale segment shown in the URL.
+import { stripLocalePrefix } from "@/i18n/routing";
 import {
   PageHeader,
   Button,
@@ -27,6 +30,7 @@ import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnMana
 import { useOrderStore } from "../hooks/use-orders";
 import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
 import { formatDateTime } from "@/lib/format-date";
+import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 
 const B2C_SEARCH_FIELD_OPTIONS = [
   { value: "all", label: "All fields" },
@@ -37,23 +41,6 @@ const B2C_SEARCH_FIELD_OPTIONS = [
   { value: "sku", label: "SKU" },
   { value: "store", label: "Store" },
   { value: "orderState", label: "Order Status" },
-];
-
-const ORDER_STATE_OPTIONS = [
-  { value: "", label: "All Order Statuses" },
-  { value: "Open", label: "Open" },
-  { value: "Confirmed", label: "Confirmed" },
-  { value: "Complete", label: "Complete" },
-  { value: "Cancelled", label: "Cancelled" },
-];
-
-const PAYMENT_STATE_OPTIONS = [
-  { value: "", label: "All Payment Statuses" },
-  { value: "Paid", label: "Paid" },
-  { value: "Pending", label: "Pending" },
-  { value: "BalanceDue", label: "Balance Due" },
-  { value: "Failed", label: "Failed" },
-  { value: "CreditOwed", label: "Credit Owed" },
 ];
 
 type OrderColumnKey =
@@ -154,8 +141,12 @@ function readStoredColumnKeys<TKey extends string>(
 
 export function OrderListView() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("Orders");
+  const common = useTranslations("Common");
+  const paginationLabels = useTablePaginationLabels();
   const pathname = usePathname();
-  const isB2b = pathname?.startsWith("/b2b");
+  const isB2b = stripLocalePrefix(pathname || "/").startsWith("/b2b");
   const orderColumnStorageKey = isB2b ? "csa_b2b_order_columns" : "csa_order_columns";
   const defaultOrderColumnKeys = isB2b
     ? DEFAULT_B2B_ORDER_COLUMN_KEYS
@@ -167,6 +158,19 @@ export function OrderListView() {
   const [searchText, setSearchText] = useState("");
   const [orderStateFilter, setOrderStateFilter] = useState("");
   const [paymentStateFilter, setPaymentStateFilter] = useState("");
+  const searchFieldOptions = B2C_SEARCH_FIELD_OPTIONS.map((option) => ({
+    ...option,
+    label: option.value === "all" ? common("allFields") : option.value === "sku" ? "SKU" : t(`columns.${option.value === "firstName" ? "customer" : option.value === "lastName" ? "customer" : option.value}`),
+  }));
+  const orderStateOptions = [
+    { value: "", label: t("allOrderStatuses") },
+    ...(["Open", "Confirmed", "Complete", "Cancelled"] as const).map((value) => ({ value, label: t(`orderState.${value}`) })),
+  ];
+  const paymentStateOptions = [
+    { value: "", label: t("allPaymentStatuses") },
+    ...(["Paid", "Pending", "BalanceDue", "Failed", "CreditOwed"] as const).map((value) => ({ value, label: t(`paymentState.${value}`) })),
+  ];
+  const localizedOrderColumns = ORDER_COLUMNS.map((column) => ({ ...column, label: t(`columns.${column.key}`) }));
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [visibleOrderColumnKeys, setVisibleOrderColumnKeys] = useState<OrderColumnKey[]>(() =>
@@ -275,13 +279,13 @@ export function OrderListView() {
   const renderOrderStateBadge = (state: OrderState) => {
     switch (state) {
       case "Open":
-        return <Badge variant="primary" size="sm" dot>Open</Badge>;
+        return <Badge variant="primary" size="sm" dot>{t("orderState.Open")}</Badge>;
       case "Confirmed":
-        return <Badge variant="warning" size="sm">Confirmed</Badge>;
+        return <Badge variant="warning" size="sm">{t("orderState.Confirmed")}</Badge>;
       case "Complete":
-        return <Badge variant="success" size="sm">Complete</Badge>;
+        return <Badge variant="success" size="sm">{t("orderState.Complete")}</Badge>;
       case "Cancelled":
-        return <Badge variant="error" size="sm">Cancelled</Badge>;
+        return <Badge variant="error" size="sm">{t("orderState.Cancelled")}</Badge>;
       default:
         return <Badge variant="neutral" size="sm">{state}</Badge>;
     }
@@ -290,14 +294,14 @@ export function OrderListView() {
   const renderShipmentBadge = (state: ShipmentState) => {
     switch (state) {
       case "Shipped":
-        return <Badge variant="success" size="sm">Shipped</Badge>;
+        return <Badge variant="success" size="sm">{t("shipmentState.Shipped")}</Badge>;
       case "Ready":
-        return <Badge variant="info" size="sm">Ready</Badge>;
+        return <Badge variant="info" size="sm">{t("shipmentState.Ready")}</Badge>;
       case "Pending":
-        return <Badge variant="warning" size="sm">Pending</Badge>;
+        return <Badge variant="warning" size="sm">{t("shipmentState.Pending")}</Badge>;
       case "Delayed":
       case "Backorder":
-        return <Badge variant="error" size="sm">{state}</Badge>;
+        return <Badge variant="error" size="sm">{t(`shipmentState.${state}`)}</Badge>;
       default:
         return <Badge variant="neutral" size="sm">{state}</Badge>;
     }
@@ -306,13 +310,13 @@ export function OrderListView() {
   const renderPaymentBadge = (state: PaymentState) => {
     switch (state) {
       case "Paid":
-        return <Badge variant="success" size="sm">Paid</Badge>;
+        return <Badge variant="success" size="sm">{t("paymentState.Paid")}</Badge>;
       case "Pending":
-        return <Badge variant="warning" size="sm">Pending</Badge>;
+        return <Badge variant="warning" size="sm">{t("paymentState.Pending")}</Badge>;
       case "BalanceDue":
-        return <Badge variant="error" size="sm">Balance Due</Badge>;
+        return <Badge variant="error" size="sm">{t("paymentState.BalanceDue")}</Badge>;
       case "Failed":
-        return <Badge variant="error" size="sm">Failed</Badge>;
+        return <Badge variant="error" size="sm">{t("paymentState.Failed")}</Badge>;
       default:
         return <Badge variant="neutral" size="sm">{state}</Badge>;
     }
@@ -320,21 +324,10 @@ export function OrderListView() {
 
   const getOrderColumnLabel = (key: OrderColumnKey) => {
     if (isB2b) {
-      if (key === "customerEmail") return "Email (order)";
-      if (key === "grandTotal") return "Order final total (gross)";
-      if (key === "lineItemCount") return "Line items";
-      if (key === "totalQuantity") return "Total quantity";
-      if (key === "createdAt") return "Date created";
-      if (key === "lastModifiedAt") return "Date modified";
-      if (key === "duplicate") return "Copy order";
+      if (["customerEmail", "grandTotal", "lineItemCount", "totalQuantity", "createdAt", "lastModifiedAt", "duplicate"].includes(key)) return t(`b2bColumns.${key}`);
     }
 
-    return ORDER_COLUMNS.find((column) => column.key === key)?.label ?? key;
-  };
-
-  const renderSortIndicator = (key: OrderColumnKey) => {
-    if (sortColumn !== key) return null;
-    return sortDirection === "asc" ? " ↑" : " ↓";
+    return t(`columns.${key}`);
   };
 
   const renderOrderCell = (order: Order, key: OrderColumnKey) => {
@@ -367,7 +360,7 @@ export function OrderListView() {
     }
 
     if (key === "grandTotal") {
-      return <TableCell className="font-bold text-m-text">${order.grandTotal.toFixed(2)}</TableCell>;
+      return <TableCell className="font-bold text-m-text">{new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(order.grandTotal)}</TableCell>;
     }
 
     if (key === "lineItemCount") {
@@ -391,13 +384,13 @@ export function OrderListView() {
     }
 
     if (key === "createdAt") {
-      return <TableCell className="text-xs text-m-text-muted">{formatDateTime(order.createdAt)}</TableCell>;
+      return <TableCell className="text-xs text-m-text-muted">{formatDateTime(order.createdAt, locale)}</TableCell>;
     }
 
     if (key === "lastModifiedAt") {
       return (
         <TableCell className="text-xs text-m-text-muted">
-          {formatDateTime(order.lastModifiedAt)}
+          {formatDateTime(order.lastModifiedAt, locale)}
         </TableCell>
       );
     }
@@ -407,11 +400,11 @@ export function OrderListView() {
         <Button
           variant="ghost"
           size="sm"
-          title={isB2b ? "Copy order" : "Duplicate order"}
+          title={isB2b ? t("copyOrder") : t("duplicateOrder")}
           leftIcon={<Icon name="copy" size="xs" />}
           onClick={(e) => handleDuplicateOrder(e, order)}
         >
-          {isB2b ? "Copy" : "Duplicate"}
+          {isB2b ? t("copy") : t("duplicate")}
         </Button>
       </TableCell>
     );
@@ -421,13 +414,13 @@ export function OrderListView() {
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title={isB2b ? "B2B Orders Commerce" : "Orders Operations"}
+        title={isB2b ? t("b2bTitle") : t("title")}
         subtitle={
           isB2b
-            ? `${totalItems} result${totalItems === 1 ? "" : "s"} — search, inspect, and copy orders for follow-up work.`
-            : "Find orders, inspect fulfillment state, and duplicate carts for follow-up work."
+            ? t("b2bSubtitle", { count: totalItems })
+            : t("subtitle")
         }
-        badge={<Badge variant="primary">{isB2b ? "B2B Commerce" : "Order Operations"}</Badge>}
+        badge={<Badge variant="primary">{isB2b ? t("b2bBadge") : t("badge")}</Badge>}
         actions={
           <div className="flex items-center gap-2">
             {isB2b && (
@@ -436,7 +429,7 @@ export function OrderListView() {
                 size="md"
                 onClick={() => router.push("/b2b/import-export?resource=cart")}
               >
-                Import / Export
+                {t("importExport")}
               </Button>
             )}
             <Button
@@ -445,7 +438,7 @@ export function OrderListView() {
               leftIcon={<Icon name="refresh-cw" size="xs" />}
               onClick={handleRefresh}
             >
-              {isLoading ? "Refreshing" : "Refresh"}
+              {isLoading ? t("refreshing") : common("refresh")}
             </Button>
           </div>
         }
@@ -460,7 +453,7 @@ export function OrderListView() {
               setSearchOption(e.target.value);
               resetPage();
             }}
-            options={B2C_SEARCH_FIELD_OPTIONS}
+            options={searchFieldOptions}
           />
         </div>
         <div className="min-w-[240px] flex-1">
@@ -476,8 +469,8 @@ export function OrderListView() {
             }}
             placeholder={
               isB2b
-                ? "Search by email, first or last name, order number, SKU, etc."
-                : "Search by customer email, order number, SKU, store..."
+                ? t("b2bSearchPlaceholder")
+                : t("searchPlaceholder")
             }
           />
         </div>
@@ -488,7 +481,7 @@ export function OrderListView() {
               setOrderStateFilter(e.target.value);
               resetPage();
             }}
-            options={ORDER_STATE_OPTIONS}
+            options={orderStateOptions}
           />
         </div>
         <div className="w-40">
@@ -498,25 +491,25 @@ export function OrderListView() {
               setPaymentStateFilter(e.target.value);
               resetPage();
             }}
-            options={PAYMENT_STATE_OPTIONS}
+            options={paymentStateOptions}
           />
         </div>
       </div>
 
       {error && (
         <Panel className="p-4 rounded-lg border border-m-danger/30 bg-m-danger-surface text-sm text-m-danger">
-          Unable to load orders from the BFF. Check that the BFF is running and federated with the commerce service.
+          {t("loadError")}
         </Panel>
       )}
 
       {/* Orders — one quiet container */}
       <SectionCard
-        title={`Orders${!isLoading ? ` (${totalItems})` : ""}`}
+        title={!isLoading ? t("countTitle", { count: totalItems }) : t("title")}
         action={
           <ColumnManager
-            columns={ORDER_COLUMNS}
+            columns={localizedOrderColumns}
             defaultVisibleKeys={defaultOrderColumnKeys}
-            title="Order columns"
+            title={t("columnsTitle")}
             visibleKeys={visibleOrderColumnKeys}
             onChange={handleOrderColumnsChange}
           />
@@ -532,8 +525,8 @@ export function OrderListView() {
         ) : totalItems === 0 ? (
           <div className="p-8">
             <EmptyState
-              title="No Orders Found"
-              description="No orders match your active search query or filter parameters."
+              title={t("emptyTitle")}
+              description={t("emptyDescription")}
               action={
                 <Button
                   variant="primary"
@@ -544,7 +537,7 @@ export function OrderListView() {
                     setPaymentStateFilter("");
                   }}
                 >
-                  Reset Search Filters
+                  {t("resetFilters")}
                 </Button>
               }
             />
@@ -560,19 +553,20 @@ export function OrderListView() {
                     return (
                       <TableHead
                         key={column.key}
-                        onClick={isSortable ? () => handleSort(sortKey as keyof Order) : undefined}
+                        sortable={isSortable}
+                        onSort={isSortable ? () => handleSort(sortKey as keyof Order) : undefined}
+                        sortDirection={sortColumn === sortKey ? sortDirection : false}
                         className={
                           isSortable
                             ? column.key === "duplicate"
-                              ? "cursor-pointer text-right"
-                              : "cursor-pointer"
+                              ? "text-right"
+                              : undefined
                             : column.key === "duplicate"
                               ? "text-right"
                               : undefined
                         }
                       >
                         {getOrderColumnLabel(column.key)}
-                        {isSortable ? renderSortIndicator(sortKey as OrderColumnKey) : null}
                       </TableHead>
                     );
                   })}
@@ -594,6 +588,7 @@ export function OrderListView() {
                 totalPages={totalPages}
                 totalItems={totalItems}
                 onPageChange={(page) => setCurrentPage(page)}
+                labels={paginationLabels}
               />
             </div>
           </>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { cn } from '../../utils';
 import { Icon } from '../../icons/Icon';
 
@@ -24,6 +24,7 @@ export function Panel({
   ...props
 }: PanelProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const contentId = useId();
 
   return (
     <div
@@ -36,7 +37,6 @@ export function Panel({
             'flex items-center justify-between px-5 py-4 border-b border-m-border/60 bg-m-surface-1',
             collapsible && 'cursor-pointer select-none hover:bg-m-surface-2/50',
           )}
-          onClick={collapsible ? () => setIsExpanded(!isExpanded) : undefined}
         >
           <div className="flex flex-col gap-0.5">
             {title && <h3 className="text-sm font-semibold text-m-text">{title}</h3>}
@@ -49,8 +49,10 @@ export function Panel({
               <button
                 type="button"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="p-1 text-m-text-muted hover:text-m-text rounded transition-colors"
+                className="p-1 text-m-text-muted hover:text-m-text rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-m-primary focus-visible:ring-offset-2"
                 aria-label={isExpanded ? 'Collapse panel' : 'Expand panel'}
+                aria-expanded={isExpanded}
+                aria-controls={contentId}
               >
                 <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} size="sm" />
               </button>
@@ -59,7 +61,7 @@ export function Panel({
         </div>
       )}
 
-      {(!collapsible || isExpanded) && <div className="p-5">{children}</div>}
+      {(!collapsible || isExpanded) && <div id={contentId} className="p-5">{children}</div>}
     </div>
   );
 }

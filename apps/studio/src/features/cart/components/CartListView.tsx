@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import {
   PageHeader,
   Card,
@@ -26,15 +27,10 @@ import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnMana
 import { useCartStore } from "../hooks/use-carts";
 import type { Cart, CartState } from "../types/cart-types";
 import { formatDate } from "@/lib/format-date";
+import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 
-const SEARCH_OPTIONS = [
-  { value: "all", label: "All fields" },
-  { value: "id", label: "Cart ID" },
-  { value: "customerEmail", label: "Customer email" },
-];
-
-function formatCurrency(value: number, currencyCode = "USD") {
-  return new Intl.NumberFormat("en-US", {
+function formatCurrency(value: number, currencyCode = "USD", locale = "en-US") {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: currencyCode,
   }).format(value);
@@ -121,6 +117,16 @@ function readStoredColumnKeys<TKey extends string>(
 
 export function CartListView() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("Carts");
+  const common = useTranslations("Common");
+  const paginationLabels = useTablePaginationLabels();
+  const searchOptions = [
+    { value: "all", label: common("allFields") },
+    { value: "id", label: t("cartId") },
+    { value: "customerEmail", label: t("customerEmail") },
+  ];
+  const localizedCartColumns = CART_COLUMNS.map((column) => ({ ...column, label: t(`columns.${column.key}`) }));
 
   const { carts, loading, error, reloadCarts } = useCartStore();
 
@@ -205,13 +211,13 @@ export function CartListView() {
   const renderStatusBadge = (state: CartState) => {
     switch (state) {
       case "Active":
-        return <Badge variant="primary" size="sm" dot>Active</Badge>;
+        return <Badge variant="primary" size="sm" dot>{t("state.Active")}</Badge>;
       case "Merged":
-        return <Badge variant="info" size="sm">Merged</Badge>;
+        return <Badge variant="info" size="sm">{t("state.Merged")}</Badge>;
       case "Frozen":
-        return <Badge variant="warning" size="sm">Frozen</Badge>;
+        return <Badge variant="warning" size="sm">{t("state.Frozen")}</Badge>;
       case "Ordered":
-        return <Badge variant="success" size="sm">Ordered</Badge>;
+        return <Badge variant="success" size="sm">{t("state.Ordered")}</Badge>;
       default:
         return <Badge variant="neutral" size="sm">{state}</Badge>;
     }
@@ -223,15 +229,10 @@ export function CartListView() {
     window.localStorage.setItem(CART_COLUMN_STORAGE_KEY, JSON.stringify(nextKeys));
   }, []);
 
-  const renderSortIndicator = (key: CartColumnKey) => {
-    if (sortColumn !== key) return null;
-    return sortDirection === "asc" ? " ▲" : " ▼";
-  };
-
   const renderCartCell = (cart: Cart, key: CartColumnKey) => {
     const lineItemsCount = cart.lineItems.length;
     const totalItemsQty = cart.lineItems.reduce((acc, i) => acc + i.quantity, 0);
-    const customerLabel = cart.customerName || cart.customerId || "Guest / unassigned";
+    const customerLabel = cart.customerName || cart.customerId || t("guest");
 
     if (key === "id") {
       return (
@@ -277,7 +278,7 @@ export function CartListView() {
     if (key === "grandTotal") {
       return (
         <TableCell className="font-bold text-xs text-m-text font-mono">
-          {formatCurrency(cart.grandTotal, cart.currencyCode)}
+          {formatCurrency(cart.grandTotal, cart.currencyCode, locale)}
         </TableCell>
       );
     }
@@ -295,12 +296,12 @@ export function CartListView() {
     }
 
     if (key === "createdAt") {
-      return <TableCell className="text-xs text-m-text-muted">{formatDate(cart.createdAt)}</TableCell>;
+      return <TableCell className="text-xs text-m-text-muted">{formatDate(cart.createdAt, locale)}</TableCell>;
     }
 
     return (
       <TableCell className="text-xs text-m-text-muted">
-        {formatDate(cart.lastModifiedAt)}
+        {formatDate(cart.lastModifiedAt, locale)}
       </TableCell>
     );
   };
@@ -308,9 +309,9 @@ export function CartListView() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Active Carts"
-        subtitle="Inspect customer shopping carts, verify items, and support checkout recovery."
-        badge={<Badge variant="neutral" appearance="subtle" size="md">{filteredCarts.length} Carts</Badge>}
+        title={t("title")}
+        subtitle={t("subtitle")}
+        badge={<Badge variant="neutral" appearance="subtle" size="md">{t("countBadge", { count: filteredCarts.length })}</Badge>}
       />
 
       {/* Toolbar / Search Bar */}
@@ -320,7 +321,7 @@ export function CartListView() {
             <Select
               value={searchOption}
               onChange={(e) => setSearchOption(e.target.value)}
-              options={SEARCH_OPTIONS}
+              options={searchOptions}
             />
           </div>
 
@@ -328,17 +329,17 @@ export function CartListView() {
             <Input
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              placeholder="Filter by Cart ID or Customer Email..."
+              placeholder={t("searchPlaceholder")}
               leftIcon={<Icon name="search" size="xs" />}
             />
           </div>
 
           <div className="flex items-center gap-2">
             <Button type="submit" variant="primary" size="md">
-              Search
+              {common("search")}
             </Button>
             <Button type="button" variant="secondary" size="md" onClick={handleSearchReset}>
-              Reset
+              {common("reset")}
             </Button>
           </div>
         </form>
@@ -347,11 +348,11 @@ export function CartListView() {
       {/* Carts Table */}
       <Card variant="default">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Shopping Carts ({filteredCarts.length})</CardTitle>
+          <CardTitle>{t("countTitle", { count: filteredCarts.length })}</CardTitle>
           <ColumnManager
-            columns={CART_COLUMNS}
+            columns={localizedCartColumns}
             defaultVisibleKeys={DEFAULT_CART_COLUMN_KEYS}
-            title="Cart columns"
+            title={t("columnsTitle")}
             visibleKeys={visibleCartColumnKeys}
             onChange={handleCartColumnsChange}
           />
@@ -359,15 +360,15 @@ export function CartListView() {
         <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center space-y-2">
-              <div className="font-bold text-sm text-m-text">Loading carts</div>
-              <p className="text-xs text-m-text-muted">Fetching carts from the commerce backend.</p>
+              <div className="font-bold text-sm text-m-text">{t("loading")}</div>
+              <p className="text-xs text-m-text-muted">{t("loadingDescription")}</p>
             </div>
           ) : error ? (
             <div className="p-8 text-center space-y-3">
-              <div className="font-bold text-sm text-m-error">Unable to load carts</div>
+              <div className="font-bold text-sm text-m-error">{t("loadError")}</div>
               <p className="text-xs text-m-text-muted">{error}</p>
               <Button type="button" variant="secondary" size="sm" onClick={reloadCarts}>
-                Retry
+                {common("retry")}
               </Button>
             </div>
           ) : paginatedCarts.length > 0 ? (
@@ -380,11 +381,11 @@ export function CartListView() {
                     return (
                       <TableHead
                         key={column.key}
-                        className={isSortable ? "cursor-pointer select-none" : undefined}
-                        onClick={isSortable ? () => handleSort(sortKey as keyof Cart) : undefined}
+                        sortable={isSortable}
+                        onSort={isSortable ? () => handleSort(sortKey as keyof Cart) : undefined}
+                        sortDirection={sortColumn === sortKey ? sortDirection : false}
                       >
-                        {column.label}
-                        {isSortable ? renderSortIndicator(sortKey as CartColumnKey) : null}
+                        {t(`columns.${column.key}`)}
                       </TableHead>
                     );
                   })}
@@ -409,11 +410,11 @@ export function CartListView() {
           ) : (
             <div className="p-8 text-center space-y-2">
               <div className="text-2xl">🛒</div>
-              <div className="font-bold text-sm text-m-text">No Active Carts</div>
+              <div className="font-bold text-sm text-m-text">{t("emptyTitle")}</div>
               <p className="text-xs text-m-text-muted">
                 {submittedSearch
-                  ? "No shopping carts match your active search query."
-                  : "There are currently no active carts in the system."}
+                  ? t("emptySearch")
+                  : t("emptyDefault")}
               </p>
             </div>
           )}
@@ -426,6 +427,7 @@ export function CartListView() {
         totalItems={totalItems}
         pageSize={pageSize}
         onPageChange={setCurrentPage}
+        labels={paginationLabels}
       />
     </div>
   );

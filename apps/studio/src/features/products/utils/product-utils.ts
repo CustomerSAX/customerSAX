@@ -19,6 +19,7 @@ import type {
   ProductDetail,
   StandalonePriceResult,
 } from "../types/product-types";
+import { DEFAULT_LOCALE } from "@csa/i18n";
 import { formatDate } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
@@ -26,7 +27,7 @@ import { formatDate } from "@/lib/format-date";
 // ---------------------------------------------------------------------------
 
 /** Formats a CT money value (centAmount + currency) for display. */
-export function formatMoneyValue(value: CtMoneyValue | null | undefined): string {
+export function formatMoneyValue(value: CtMoneyValue | null | undefined, locale: string = DEFAULT_LOCALE): string {
   if (!value || typeof value.centAmount !== "number") return "--";
   const fractionDigits =
     typeof value.fractionDigits === "number" ? value.fractionDigits : 2;
@@ -34,7 +35,7 @@ export function formatMoneyValue(value: CtMoneyValue | null | undefined): string
   const currency =
     typeof value.currencyCode === "string" ? value.currencyCode : "USD";
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
       minimumFractionDigits: fractionDigits,
@@ -46,9 +47,10 @@ export function formatMoneyValue(value: CtMoneyValue | null | undefined): string
 
 /** Formats a variant embedded price object for display. */
 export function formatPrice(
-  price: { value?: CtMoneyValue } | null | undefined
+  price: { value?: CtMoneyValue } | null | undefined,
+  locale: string = DEFAULT_LOCALE
 ): string {
-  return formatMoneyValue(price?.value);
+  return formatMoneyValue(price?.value, locale);
 }
 
 /** Formats a centAmount with fractionDigits as $X.XX */
@@ -178,7 +180,7 @@ export function browseSortField(sortKey: string): string | null {
 // ---------------------------------------------------------------------------
 
 /** Maps a raw CT product node from productSearch into a ProductListRow. */
-export function mapRawToListRow(p: CtRawProduct): ProductListRow {
+export function mapRawToListRow(p: CtRawProduct, locale: string = DEFAULT_LOCALE): ProductListRow {
   const current = p.masterData?.current;
   const name = firstLocalized(current?.nameAllLocales) || "--";
   const description = firstLocalized(current?.descriptionAllLocales) || "--";
@@ -198,13 +200,13 @@ export function mapRawToListRow(p: CtRawProduct): ProductListRow {
     productType: p.productType?.name ?? "--",
     key: p.key ?? "--",
     sku,
-    price: formatPrice(masterVariant?.prices?.[0]),
+    price: formatPrice(masterVariant?.prices?.[0], locale),
     availability: deriveAvailability(masterVariant?.availability),
     description,
     categories: categoryNames.length > 0 ? categoryNames.join(", ") : "--",
     status: p.masterData?.hasStagedChanges ? "Modified" : "Published",
-    created: formatDate(p.createdAt),
-    modified: formatDate(p.lastModifiedAt),
+    created: formatDate(p.createdAt, locale),
+    modified: formatDate(p.lastModifiedAt, locale),
     variants: allVariants.map(
       (v): ProductVariantRow => ({
         id: v?.id != null ? String(v.id) : "--",

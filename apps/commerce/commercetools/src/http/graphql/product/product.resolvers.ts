@@ -108,6 +108,16 @@ const richProductDetailFields = `#graphql
 `;
 
 export const resolvers = {
+  availableCurrencies: async () => {
+    const data = await commercetoolsGraphql<{ project: { currencies?: string[] } }>(
+      `#graphql
+        query AvailableCurrencies {
+          project { currencies }
+        }
+      `
+    );
+    return data.project.currencies ?? [];
+  },
   product: (_parent: unknown, args: { id?: string; key?: string }) => getProductByIdOrKey(args),
   products: async (_parent: unknown, args: PagingArgs) => {
     const productPage = await listProducts(args);
@@ -130,6 +140,45 @@ export const resolvers = {
     );
 
     return mapProduct(data.products.results[0]);
+  },
+  productPrices: async (_parent: unknown, args: { sku: string }) => {
+    const sku = args.sku.trim();
+    if (!sku) return [];
+
+    const data = await commercetoolsGraphql<{
+      products: {
+        results: Array<{
+          masterData?: {
+            current?: {
+              allVariants?: Array<{ sku?: string; prices?: Array<{ value: { centAmount: number; currencyCode: string; fractionDigits: number } }> }>;
+              masterVariant?: { sku?: string; prices?: Array<{ value: { centAmount: number; currencyCode: string; fractionDigits: number } }> };
+            };
+          };
+        }>;
+      };
+    }>(
+      `#graphql
+        query ProductPrices($where: String!) {
+          products(where: $where, limit: 1) {
+            results {
+              masterData {
+                current {
+                  masterVariant { sku prices { value { centAmount currencyCode fractionDigits } } }
+                  allVariants { sku prices { value { centAmount currencyCode fractionDigits } } }
+                }
+              }
+            }
+          }
+        }
+      `,
+      { where: productExactWhere("variants.sku", escapeWhere(sku)) }
+    );
+
+    const current = data.products.results[0]?.masterData?.current;
+    const variant = [current?.masterVariant, ...(current?.allVariants ?? [])].find(
+      (candidate) => candidate?.sku === sku
+    );
+    return variant?.prices?.map((price) => price.value) ?? [];
   },
   // productSearch uses richProductListFields so it returns all 12 column data as Json!
   productSearch: async (_parent: unknown, args: ProductSearchArgs) => {
