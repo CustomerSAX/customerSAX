@@ -61,6 +61,7 @@ jobs:
             "${PREFIX}-ai-assist"
             "${PREFIX}-commerce-commercetools"
             "${PREFIX}-ticketing"
+            "${PREFIX}-subscriptions"
             "${PREFIX}-admin"
             "${PREFIX}-commerce-shopify"
             "${PREFIX}-commerce-bigcommerce"
@@ -269,6 +270,10 @@ jobs:
           import_cloud_run_if_exists 'google_cloud_run_v2_service.ticketing' \
             "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-ticketing" \
             "${PREFIX}-ticketing"
+
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.subscriptions' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-subscriptions" \
+            "${PREFIX}-subscriptions"
 
           terraform apply -auto-approve \
             -var="project_id=${{ env.PROJECT_ID }}" \
