@@ -25,7 +25,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "dev:all": "pnpm turbo run dev --parallel --filter=@csa/commerce-commercetools --filter=@csa/bff --filter=@csa/studio --filter=@csa/auth --filter=@csa/ticketing --filter=@csa/admin --filter=@csa/ai-assist --filter=marketing --filter=@csa/docs-site",
-    "dev:studio": "pnpm turbo run dev --parallel --filter=@csa/studio --filter=@csa/bff --filter=@csa/auth --filter=@csa/commerce-commercetools --filter=@csa/ticketing",
+    "dev:studio": "pnpm turbo run dev --parallel --filter=@csa/studio --filter=@csa/bff --filter=@csa/auth --filter=@csa/commerce-commercetools --filter=@csa/ticketing --filter=@csa/admin",
     "dev:marketing": "pnpm --filter marketing dev",
     "dev:docs": "pnpm --filter @csa/docs-site dev",
 

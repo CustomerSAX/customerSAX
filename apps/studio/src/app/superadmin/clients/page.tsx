@@ -26,6 +26,7 @@ interface ClientRow {
   slug: string;
   contactEmail: string;
   status: "active" | "blocked";
+  uiTheme?: string | null;
   projectCount: number;
   userCount: number;
 }
@@ -165,6 +166,7 @@ export default function SuperadminClientsPage() {
                 <TableHead>Organisation</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Contact Email</TableHead>
+                <TableHead>UI Theme</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Projects</TableHead>
                 <TableHead>Admins</TableHead>
@@ -177,6 +179,22 @@ export default function SuperadminClientsPage() {
                   <TableCell className="font-bold text-m-primary hover:underline">{c.name}</TableCell>
                   <TableCell className="font-mono text-[11px] font-semibold text-m-text-muted">{c.slug}</TableCell>
                   <TableCell className="font-medium">{c.contactEmail}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-mono font-semibold bg-m-neutral-100 text-m-text border border-m-border">
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{
+                          backgroundColor:
+                            c.uiTheme === "mantine"
+                              ? "#0D9488"
+                              : c.uiTheme === "mui"
+                                ? "#EA580C"
+                                : "#64748B"
+                        }}
+                      />
+                      {c.uiTheme || "csa-custom"}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={c.status === "active" ? "success" : "error"}
@@ -296,6 +314,7 @@ function AddClientModal({
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [uiTheme, setUiTheme] = useState("csa-custom");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -304,6 +323,7 @@ function AddClientModal({
       setName("");
       setSlug("");
       setContactEmail("");
+      setUiTheme("csa-custom");
       setError(null);
     }
   }, [isOpen]);
@@ -320,7 +340,27 @@ function AddClientModal({
     setIsSubmitting(true);
     setError(null);
     try {
-      await createClient({ variables: { name: name.trim(), contactEmail: contactEmail.trim(), slug: slug.trim() } });
+      const res = await createClient({
+        variables: {
+          name: name.trim(),
+          contactEmail: contactEmail.trim(),
+          slug: slug.trim(),
+          uiTheme
+        }
+      });
+      // Cache the organization theme locally for immediate sync
+      if (typeof window !== "undefined") {
+        try {
+          const stored = JSON.parse(localStorage.getItem("csa_org_themes") || "{}");
+          const createdId = res.data?.adminCreateClient?.id;
+          if (createdId) stored[createdId] = uiTheme;
+          if (slug.trim()) stored[slug.trim()] = uiTheme;
+          stored[name.trim()] = uiTheme;
+          localStorage.setItem("csa_org_themes", JSON.stringify(stored));
+        } catch {
+          // ignore storage error
+        }
+      }
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create client");
@@ -396,6 +436,24 @@ function AddClientModal({
               placeholder="admin@acmecorp.com"
               className="h-10 w-full rounded-m-md border border-m-border bg-m-surface px-3.5 text-xs font-medium text-m-text outline-none transition-colors focus:border-m-primary focus:ring-1 focus:ring-m-primary placeholder:text-m-text-subtle"
             />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold text-m-text">
+              UI Theme / UI Library
+            </label>
+            <select
+              value={uiTheme}
+              onChange={(e) => setUiTheme(e.target.value)}
+              className="h-10 w-full rounded-m-md border border-m-border bg-m-surface px-3.5 text-xs font-medium text-m-text outline-none transition-colors focus:border-m-primary focus:ring-1 focus:ring-m-primary"
+            >
+              <option value="csa-custom">csa-custom (CSA Custom / Tailwind)</option>
+              <option value="mantine">mantine (Mantine UI)</option>
+              <option value="mui">mui (Material UI)</option>
+            </select>
+            <span className="text-[11px] text-m-text-subtle">
+              The application interface will render using this UI library for all users in this organisation.
+            </span>
           </div>
 
           {error && <p className="text-xs text-m-error">{error}</p>}

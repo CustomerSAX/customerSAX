@@ -11,6 +11,9 @@ export interface UIContextValue {
   components: CSAUIComponentMap;
   config: UIConfig;
   setLibrary: (library: UILibrary) => void;
+  orgLibrary?: UILibrary;
+  isDevOverride?: boolean;
+  clearDevOverride?: () => void;
 }
 
 export const UIContext = createContext<UIContextValue | null>(null);

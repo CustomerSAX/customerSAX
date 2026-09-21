@@ -7,6 +7,9 @@ export interface UIConfig {
   theme?: UIThemeConfig;
 }
 
+export const ALLOWED_ORG_UI_THEMES = ['csa-custom', 'mantine', 'mui'] as const;
+export type OrgUITheme = (typeof ALLOWED_ORG_UI_THEMES)[number];
+
 export const DEFAULT_UI_CONFIG: UIConfig = {
   library: 'csa-custom',
 };

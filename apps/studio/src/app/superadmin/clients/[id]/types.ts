@@ -16,6 +16,7 @@ export type ClientDetail = {
   slug: string;
   contactEmail: string;
   status: "active" | "blocked";
+  uiTheme?: string | null;
   createdAt?: string | null;
   createdBy?: string | null;
   ssoConfig: SsoConfig;

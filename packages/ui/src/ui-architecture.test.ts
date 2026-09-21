@@ -3,6 +3,7 @@ import {
   UIRegistry,
   resolveUIConfig,
   SUPPORTED_UI_LIBRARIES,
+  ALLOWED_ORG_UI_THEMES,
   getTokensForLibrary,
   ADAPTER_SECONDARY_COLORS,
   CSA_BASE_PRIMARY,
@@ -13,13 +14,15 @@ import {
 } from './index';
 
 describe('CSA Pluggable Multi-UI Architecture', () => {
-  it('registers all 4 adapters', () => {
+  it('registers all 4 adapters and exposes supported library options', () => {
     const adapters = UIRegistry.listAdapters();
     expect(adapters.length).toBe(4);
     expect(UIRegistry.hasAdapter('csa-custom')).toBe(true);
     expect(UIRegistry.hasAdapter('mantine')).toBe(true);
     expect(UIRegistry.hasAdapter('mui')).toBe(true);
     expect(UIRegistry.hasAdapter('zcm')).toBe(true);
+    expect(SUPPORTED_UI_LIBRARIES.length).toBe(4);
+    expect(ALLOWED_ORG_UI_THEMES).toEqual(['csa-custom', 'mantine', 'mui']);
   });
 
   it('safely falls back to csa-custom for unknown libraries', () => {
@@ -61,6 +64,39 @@ describe('CSA Pluggable Multi-UI Architecture', () => {
     expect(resolveUIConfig({ customerId: 'customer-d' }).library).toBe('zcm');
     expect(resolveUIConfig({ projectId: 'unrecognized-tenant' }).library).toBe('csa-custom');
   });
+
+  it('resolves organization-based UI themes for Royal Cyber, Direct Wines, and defaults', () => {
+    // Royal Cyber -> mantine
+    expect(resolveUIConfig({ organizationName: 'Royal Cyber' }).library).toBe('mantine');
+    expect(resolveUIConfig({ customerId: 'royal-cyber' }).library).toBe('mantine');
+    expect(resolveUIConfig({ user: { activeClientId: 'royal-cyber' } }).library).toBe('mantine');
+
+    // Direct Wines -> mui
+    expect(resolveUIConfig({ organizationName: 'Direct Wines' }).library).toBe('mui');
+    expect(resolveUIConfig({ customerId: 'direct-wines' }).library).toBe('mui');
+    expect(resolveUIConfig({ user: { activeClientId: 'direct-wines' } }).library).toBe('mui');
+
+    // User with explicit organization uiTheme in session
+    expect(resolveUIConfig({ user: { uiTheme: 'mantine' } }).library).toBe('mantine');
+    expect(resolveUIConfig({ user: { organization: { id: 'org-1', uiTheme: 'mui' } } }).library).toBe('mui');
+    expect(
+      resolveUIConfig({
+        user: {
+          tenantId: 'csa',
+          activeProjectKey: 'rc_b2b_shop_july_2023',
+          organization: { id: '69fe23700e3e8b804372427a', uiTheme: 'mui' }
+        }
+      }).library
+    ).toBe('mui');
+
+    // Default / another organization -> csa-custom
+    expect(resolveUIConfig({ organizationName: 'Acme General' }).library).toBe('csa-custom');
+    expect(resolveUIConfig({ user: { activeClientId: 'unknown-client' } }).library).toBe('csa-custom');
+
+    // Invalid theme safely falls back to csa-custom
+    expect(resolveUIConfig({ user: { uiTheme: 'invalid-framework' as any } }).library).toBe('csa-custom');
+  });
+
 
   it('contains full component contracts for all 4 adapters', () => {
     const adapters = [csaCustomAdapter, mantineAdapter, muiAdapter, zcmAdapter];

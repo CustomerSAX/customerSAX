@@ -11,9 +11,9 @@ import {
   TopBar,
   Avatar,
   Dropdown,
-  Icon,
-  DevUISwitcher
+  Icon
 } from "@csa/ui";
+
 import { useCurrentUser, roleLabel, type CurrentUser } from "@/lib/use-current-user";
 import { apolloClient } from "@/graphql/client";
 
@@ -948,12 +948,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               </kbd>
             </div>
           }
-          actions={
-            <div className="flex items-center gap-2">
-              <DevUISwitcher />
-            </div>
-          }
           userSlot={
+
             <Dropdown
               trigger={
                 <div

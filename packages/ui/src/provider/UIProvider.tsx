@@ -18,34 +18,87 @@ export function UIProvider({
   onLibraryChange,
 }: UIProviderProps) {
   const [activeLibrary, setActiveLibrary] = useState<UILibrary>(config.library);
+  const [hasDevOverride, setHasDevOverride] = useState<boolean>(false);
 
-  // Sync with prop if it changes externally
+  // Sync with prop if it changes externally (e.g., once user/organization loads)
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlUi = urlParams.get('ui') as UILibrary;
+      const devOverride = localStorage.getItem('csa_dev_ui_override') as UILibrary;
+
+      // If developer override or URL override is active, keep it
+      if ((urlUi && UIRegistry.hasAdapter(urlUi)) || (devOverride && UIRegistry.hasAdapter(devOverride))) {
+        setHasDevOverride(true);
+        return;
+      }
+    }
+
+    setHasDevOverride(false);
     if (config.library && config.library !== activeLibrary) {
       setActiveLibrary(config.library);
     }
   }, [config.library]);
 
-  // Check URL param or local override in browser environment
+  // Check URL param or developer testing override in browser environment on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const urlLibrary = urlParams.get('ui') as UILibrary;
-      const storedLibrary = localStorage.getItem('csa_ui_library') as UILibrary;
+      const devOverride = localStorage.getItem('csa_dev_ui_override') as UILibrary;
 
-      const target = urlLibrary || storedLibrary;
-      if (target && UIRegistry.hasAdapter(target)) {
-        setActiveLibrary(target);
+      if (urlLibrary && UIRegistry.hasAdapter(urlLibrary)) {
+        setActiveLibrary(urlLibrary);
+        setHasDevOverride(true);
+        return;
+      }
+
+      if (devOverride && UIRegistry.hasAdapter(devOverride)) {
+        setActiveLibrary(devOverride);
+        setHasDevOverride(true);
+        return;
+      }
+
+      // Organization theme is the source of truth
+      setHasDevOverride(false);
+      if (config.library && UIRegistry.hasAdapter(config.library)) {
+        setActiveLibrary(config.library);
+        try {
+          localStorage.setItem('csa_org_ui_theme', config.library);
+        } catch {
+          // ignore
+        }
       }
     }
-  }, []);
+  }, [config.library]);
 
   const handleSetLibrary = (lib: UILibrary) => {
     setActiveLibrary(lib);
+    setHasDevOverride(true);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('csa_ui_library', lib);
+      try {
+        localStorage.setItem('csa_dev_ui_override', lib);
+        localStorage.setItem('csa_ui_library', lib);
+      } catch {
+        // ignore
+      }
     }
     onLibraryChange && onLibraryChange(lib);
+  };
+
+  const handleClearDevOverride = () => {
+    setHasDevOverride(false);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('csa_dev_ui_override');
+        localStorage.removeItem('csa_ui_library');
+      } catch {
+        // ignore
+      }
+    }
+    const orgTarget = config.library || 'csa-custom';
+    setActiveLibrary(orgTarget);
+    onLibraryChange && onLibraryChange(orgTarget);
   };
 
   const adapter = useMemo(() => {
@@ -63,8 +116,11 @@ export function UIProvider({
       components: adapter.components,
       config: { ...config, library: adapter.id },
       setLibrary: handleSetLibrary,
+      orgLibrary: config.library,
+      isDevOverride: hasDevOverride,
+      clearDevOverride: handleClearDevOverride,
     };
-  }, [adapter, config]);
+  }, [adapter, config, hasDevOverride]);
 
   const AdapterProvider = adapter.Provider;
 
