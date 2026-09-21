@@ -50,6 +50,12 @@ variable "ticketing_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "subscriptions_image" {
+  description = "Container image for the Subscriptions Cloud Run service."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
 variable "commerce_commercetools_image" {
   description = "Container image for the commercetools adapter Cloud Run service."
   type        = string

@@ -20,6 +20,7 @@ export const productTypeDefs = gql`
   }
 
   extend type Query {
+    availableCurrencies: [String!]!
     product(id: ID, key: String): Product
     products(limit: Int = 20, offset: Int = 0): [Product!]!
     productPage(limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): ProductPage!
@@ -35,9 +36,9 @@ export const productTypeDefs = gql`
       sortOrder: String
     ): Json!
     productDetail(id: ID!): Json
+    productPrices(sku: String!): [Money!]!
     productBySlug(slug: String!, locale: String = "en"): Product
     quickSearchProducts(q: String!, limit: Int = 10): [Product!]!
     standalonePrices(sku: String!): Json!
   }
 `;
-
