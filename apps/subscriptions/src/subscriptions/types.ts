@@ -29,6 +29,7 @@ export type Subscription = {
   status: SubscriptionStatus;
   frequency: string;
   startDate: string;
+  scheduleTime?: string | null;
   nextDeliveryDate: string;
   endDate?: string | null;
   shippingAddress: string;

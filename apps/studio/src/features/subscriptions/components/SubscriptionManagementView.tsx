@@ -1,7 +1,10 @@
 "use client";
 
 import { gql, useMutation, useQuery } from "@apollo/client";
+import { DEFAULT_LOCALE, isSupportedLocale } from "@csa/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Badge,
   Button,
@@ -25,6 +28,7 @@ import {
   type StatusTone
 } from "@csa/ui";
 import { formatDate, formatDateTime } from "@/lib/format-date";
+import { localizePathname } from "@/i18n/routing";
 import { useSubscriptions } from "../hooks/use-subscriptions";
 import type {
   CustomerSubscription,
@@ -77,16 +81,7 @@ const ADD_CUSTOMER_ADDRESS = gql`
   }
 `;
 
-const ADDRESS_COUNTRY_OPTIONS = [
-  { value: "US", label: "United States" },
-  { value: "CA", label: "Canada" },
-  { value: "GB", label: "United Kingdom" },
-  { value: "DE", label: "Germany" },
-  { value: "FR", label: "France" },
-  { value: "AU", label: "Australia" },
-  { value: "IN", label: "India" },
-  { value: "NZ", label: "New Zealand" }
-];
+const ADDRESS_COUNTRY_CODES = ["US", "CA", "GB", "DE", "FR", "AU", "IN", "NZ"];
 
 type SubscriptionManagementViewProps = {
   customerContext?: {
@@ -111,6 +106,7 @@ type FormState = {
   unitPrice: string;
   frequency: SubscriptionFrequency;
   startDate: string;
+  scheduleTime: string;
   nextDeliveryDate: string;
   endDate: string;
   shippingAddress: string;
@@ -118,6 +114,15 @@ type FormState = {
   currencyCode: string;
   discountLabel: string;
   priceOverride: string;
+  lineItems: SubscriptionLineItemForm[];
+};
+
+type SubscriptionLineItemForm = {
+  id: string;
+  sku: string;
+  name: string;
+  quantity: string;
+  unitPrice: string;
 };
 
 type CustomerSearchResult = {
@@ -198,7 +203,8 @@ function formatAddress(address: Omit<CustomerAddress, "id">) {
 }
 
 function emptyForm(
-  customerContext?: SubscriptionManagementViewProps["customerContext"]
+  customerContext?: SubscriptionManagementViewProps["customerContext"],
+  defaultPaymentMethod = "Authorized card on file"
 ): FormState {
   return {
     ownerType: "B2C",
@@ -213,18 +219,19 @@ function emptyForm(
     unitPrice: "",
     frequency: "Monthly",
     startDate: today(),
+    scheduleTime: "09:00",
     nextDeliveryDate: nextMonth(),
     endDate: "",
     shippingAddress: customerContext?.defaultAddress ?? "",
-    paymentMethod: "Authorized card on file",
+    paymentMethod: defaultPaymentMethod,
     currencyCode: "",
     discountLabel: "",
-    priceOverride: ""
+    priceOverride: "",
+    lineItems: []
   };
 }
 
 function formFromSubscription(subscription: CustomerSubscription): FormState {
-  const item = subscription.lineItems[0];
   return {
     ownerType: subscription.ownerType,
     customerId: subscription.customerId ?? "",
@@ -232,19 +239,27 @@ function formFromSubscription(subscription: CustomerSubscription): FormState {
     customerEmail: subscription.customerEmail,
     businessAccountName: subscription.businessAccountName ?? "",
     status: subscription.status,
-    productName: item?.name ?? "",
-    sku: item?.sku ?? "",
-    quantity: String(item?.quantity ?? 1),
-    unitPrice: String(item?.unitPrice ?? ""),
+    productName: "",
+    sku: "",
+    quantity: "1",
+    unitPrice: "",
     frequency: subscription.frequency,
     startDate: subscription.startDate,
+    scheduleTime: subscription.scheduleTime ?? new Date(subscription.createdAt).toTimeString().slice(0, 5),
     nextDeliveryDate: subscription.nextDeliveryDate,
     endDate: subscription.endDate ?? "",
     shippingAddress: subscription.shippingAddress,
     paymentMethod: subscription.paymentMethod,
     currencyCode: subscription.currencyCode,
     discountLabel: subscription.discountLabel ?? "",
-    priceOverride: subscription.priceOverride ?? ""
+    priceOverride: subscription.priceOverride ?? "",
+    lineItems: subscription.lineItems.map((item) => ({
+      id: item.id,
+      sku: item.sku,
+      name: item.name,
+      quantity: String(item.quantity),
+      unitPrice: String(item.unitPrice)
+    }))
   };
 }
 
@@ -258,6 +273,7 @@ function toDraft(form: FormState): SubscriptionDraft {
     status: form.status,
     frequency: form.frequency,
     startDate: form.startDate,
+    scheduleTime: form.scheduleTime,
     nextDeliveryDate: form.nextDeliveryDate,
     endDate: form.endDate || undefined,
     shippingAddress: form.shippingAddress.trim(),
@@ -266,15 +282,13 @@ function toDraft(form: FormState): SubscriptionDraft {
     discountLabel: form.discountLabel.trim() || undefined,
     priceOverride: form.priceOverride.trim() || undefined,
     lastOrderNumber: undefined,
-    lineItems: [
-      {
-        id: "line-1",
-        sku: form.sku.trim(),
-        name: form.productName.trim() || form.sku.trim(),
-        quantity: Math.max(1, Number(form.quantity) || 1),
-        unitPrice: Math.max(0, Number(form.unitPrice) || 0)
-      }
-    ]
+    lineItems: form.lineItems.map((item, index) => ({
+      id: item.id || `line-${index + 1}`,
+      sku: item.sku.trim(),
+      name: item.name.trim() || item.sku.trim(),
+      quantity: Math.max(1, Number(item.quantity) || 1),
+      unitPrice: Math.max(0, Number(item.unitPrice) || 0)
+    }))
   };
 }
 
@@ -294,8 +308,8 @@ function statusTone(status: SubscriptionStatus): StatusTone {
   }
 }
 
-function money(value: number, currencyCode: string) {
-  return new Intl.NumberFormat("en-US", {
+function money(value: number, currencyCode: string, locale: string) {
+  return new Intl.NumberFormat(locale, {
     currency: currencyCode,
     style: "currency"
   }).format(value);
@@ -312,6 +326,12 @@ export function SubscriptionManagementView({
   customerContext,
   embedded = false
 }: SubscriptionManagementViewProps) {
+  const t = useTranslations("Subscriptions");
+  const calendarT = useTranslations("Calendar");
+  const lineItemsT = useTranslations("SubscriptionLineItems");
+  const locale = useLocale();
+  const router = useRouter();
+  const currentLocale = isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
   const { data: currencyData, loading: currenciesLoading } = useQuery<{
     availableCurrencies: string[];
   }>(AVAILABLE_CURRENCIES_QUERY, { fetchPolicy: "cache-and-network" });
@@ -330,7 +350,9 @@ export function SubscriptionManagementView({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<CustomerSubscription | null>(null);
   const [viewing, setViewing] = useState<CustomerSubscription | null>(null);
-  const [form, setForm] = useState<FormState>(() => emptyForm(customerContext));
+  const [form, setForm] = useState<FormState>(() =>
+    emptyForm(customerContext, t("defaultPaymentMethod"))
+  );
   const [formError, setFormError] = useState("");
   const [customerSearchResults, setCustomerSearchResults] = useState<
     CustomerSearchResult[]
@@ -377,9 +399,13 @@ export function SubscriptionManagementView({
       value: currencyCode,
       label: availableCurrencies.includes(currencyCode)
         ? currencyCode
-        : `${currencyCode} (legacy)`
+        : t("legacyCurrency", { currency: currencyCode })
     }));
-  }, [availableCurrencies, form.currencyCode]);
+  }, [availableCurrencies, form.currencyCode, t]);
+  const countryOptions = ADDRESS_COUNTRY_CODES.map((countryCode) => ({
+    value: countryCode,
+    label: t(`countries.${countryCode}`)
+  }));
 
   useEffect(() => {
     if (!editing && !form.currencyCode && availableCurrencies.length > 0) {
@@ -473,7 +499,7 @@ export function SubscriptionManagementView({
           results?: CustomerSearchResult[];
         };
         if (!response.ok) {
-          throw new Error(payload.error || "Unable to search customers.");
+          throw new Error(payload.error || t("errors.searchCustomers"));
         }
         if (!cancelled) {
           setCustomerSearchResults(payload.results ?? []);
@@ -482,7 +508,7 @@ export function SubscriptionManagementView({
         if (!cancelled) {
           setCustomerSearchResults([]);
           setCustomerSearchError(
-            error instanceof Error ? error.message : "Unable to search customers."
+            error instanceof Error ? error.message : t("errors.searchCustomers")
           );
         }
       } finally {
@@ -494,7 +520,7 @@ export function SubscriptionManagementView({
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [customerContext, customerSearchText, editing, form.ownerType]);
+  }, [customerContext, customerSearchText, editing, form.ownerType, t]);
 
   useEffect(() => {
     if (!productSearchOpen) {
@@ -525,7 +551,7 @@ export function SubscriptionManagementView({
           results?: ProductSearchResult[];
         };
         if (!response.ok) {
-          throw new Error(payload.error || "Unable to search products.");
+          throw new Error(payload.error || t("errors.searchProducts"));
         }
         if (!cancelled) {
           setProductSearchResults(payload.results ?? []);
@@ -534,7 +560,7 @@ export function SubscriptionManagementView({
         if (!cancelled) {
           setProductSearchResults([]);
           setProductSearchError(
-            error instanceof Error ? error.message : "Unable to search products."
+            error instanceof Error ? error.message : t("errors.searchProducts")
           );
         }
       } finally {
@@ -546,22 +572,20 @@ export function SubscriptionManagementView({
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [productSearchOpen, productSearchText]);
+  }, [productSearchOpen, productSearchText, t]);
 
   const filteredSubscriptions = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return subscriptions.filter((subscription) => {
       if (statusFilter !== "all" && subscription.status !== statusFilter) return false;
       if (!needle) return true;
-      const firstItem = subscription.lineItems[0];
       return [
         subscription.subscriptionNumber,
         subscription.customerName,
         subscription.customerEmail,
         subscription.businessAccountName,
         subscription.status,
-        firstItem?.sku,
-        firstItem?.name
+        ...subscription.lineItems.flatMap((item) => [item.sku, item.name])
       ].some((value) => (value ?? "").toLowerCase().includes(needle));
     });
   }, [query, statusFilter, subscriptions]);
@@ -582,7 +606,7 @@ export function SubscriptionManagementView({
     defaultAddressAppliedForCustomer.current = null;
     setEditing(null);
     setViewing(null);
-    setForm(emptyForm(customerContext));
+    setForm(emptyForm(customerContext, t("defaultPaymentMethod")));
     setFormError("");
     setIsModalOpen(true);
   };
@@ -609,7 +633,7 @@ export function SubscriptionManagementView({
 
   const saveNewAddress = async () => {
     if (!form.customerId) {
-      setAddressError("Select a customer before adding an address.");
+      setAddressError(t("errors.selectCustomerForAddress"));
       return;
     }
     if (
@@ -618,7 +642,7 @@ export function SubscriptionManagementView({
       !newAddress.postalCode.trim() ||
       !newAddress.country
     ) {
-      setAddressError("Street, city, postal code and country are required.");
+      setAddressError(t("errors.addressRequired"));
       return;
     }
 
@@ -642,7 +666,7 @@ export function SubscriptionManagementView({
       setShowNewAddress(false);
     } catch (error) {
       setAddressError(
-        error instanceof Error ? error.message : "Unable to add the customer address."
+        error instanceof Error ? error.message : t("errors.addAddress")
       );
     } finally {
       setAddingAddress(false);
@@ -669,6 +693,53 @@ export function SubscriptionManagementView({
     setProductSearchError("");
   };
 
+  const addLineItem = () => {
+    if (!form.sku.trim()) {
+      setFormError(t("errors.skuRequired"));
+      return;
+    }
+
+    const nextItem: SubscriptionLineItemForm = {
+      id: `line-${Date.now()}-${form.lineItems.length + 1}`,
+      sku: form.sku.trim(),
+      name: form.productName.trim() || form.sku.trim(),
+      quantity: String(Math.max(1, Number(form.quantity) || 1)),
+      unitPrice: String(Math.max(0, Number(form.unitPrice) || 0))
+    };
+
+    setForm((previous) => ({
+      ...previous,
+      lineItems: [...previous.lineItems, nextItem],
+      productName: "",
+      sku: "",
+      quantity: "1",
+      unitPrice: ""
+    }));
+    setFormError("");
+    setProductSearchOpen(false);
+    setProductSearchResults([]);
+  };
+
+  const updateLineItem = (
+    id: string,
+    field: keyof Omit<SubscriptionLineItemForm, "id">,
+    value: string
+  ) => {
+    setForm((previous) => ({
+      ...previous,
+      lineItems: previous.lineItems.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      )
+    }));
+  };
+
+  const removeLineItem = (id: string) => {
+    setForm((previous) => ({
+      ...previous,
+      lineItems: previous.lineItems.filter((item) => item.id !== id)
+    }));
+  };
+
   const openEdit = (subscription: CustomerSubscription) => {
     setViewing(null);
     setEditing(subscription);
@@ -685,15 +756,15 @@ export function SubscriptionManagementView({
 
   const saveSubscription = async () => {
     if (!form.customerName.trim() || !form.customerEmail.trim()) {
-      setFormError("Customer name and email are required.");
+      setFormError(t("errors.customerRequired"));
       return;
     }
-    if (!form.sku.trim()) {
-      setFormError("SKU is required.");
+    if (form.lineItems.length === 0) {
+      setFormError(t("errors.skuRequired"));
       return;
     }
     if (!form.currencyCode) {
-      setFormError("Select a currency configured for this commercetools project.");
+      setFormError(t("errors.currencyRequired"));
       return;
     }
     if (
@@ -702,7 +773,7 @@ export function SubscriptionManagementView({
       !form.paymentMethod.trim()
     ) {
       setFormError(
-        "Next delivery, shipping address and authorized payment method are required."
+        t("errors.deliveryRequired")
       );
       return;
     }
@@ -717,24 +788,24 @@ export function SubscriptionManagementView({
       setIsModalOpen(false);
     } catch (error) {
       setFormError(
-        error instanceof Error ? error.message : "Unable to save the subscription."
+        error instanceof Error ? error.message : t("errors.save")
       );
     }
   };
 
   const cancelSubscription = async (subscription: CustomerSubscription) => {
-    const reason = window.prompt("Cancellation reason");
+    const reason = window.prompt(t("cancellationReason"));
     if (reason == null) return;
-    await changeStatus(subscription.id, "Cancelled", reason.trim() || "No reason provided");
+    await changeStatus(subscription.id, "Cancelled", reason.trim() || t("noReasonProvided"));
   };
 
   const renderActions = (subscription: CustomerSubscription) => (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex min-w-[290px] items-center gap-0.5 whitespace-nowrap">
       <Button variant="ghost" size="sm" onClick={() => openView(subscription)}>
-        View
+        {t("actions.view")}
       </Button>
       <Button variant="ghost" size="sm" onClick={() => openEdit(subscription)}>
-        Edit
+        {t("actions.edit")}
       </Button>
       {subscription.status === "Active" && (
         <>
@@ -743,21 +814,21 @@ export function SubscriptionManagementView({
             size="sm"
             onClick={() => void changeStatus(subscription.id, "On Hold", "Put on hold by agent")}
           >
-            Hold
+            {t("actions.hold")}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => void skipNextCycle(subscription.id)}
           >
-            Skip
+            {t("actions.skip")}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => void cancelSubscription(subscription)}
           >
-            Cancel
+            {t("actions.cancel")}
           </Button>
         </>
       )}
@@ -767,12 +838,12 @@ export function SubscriptionManagementView({
           size="sm"
           onClick={() => void changeStatus(subscription.id, "Active", "Resumed by agent")}
         >
-          Resume
+          {t("actions.resume")}
         </Button>
       )}
       {subscription.status === "Draft" && (
         <Button variant="ghost" size="sm" onClick={() => void deleteDraft(subscription.id)}>
-          Delete Draft
+          {t("actions.deleteDraft")}
         </Button>
       )}
     </div>
@@ -782,39 +853,48 @@ export function SubscriptionManagementView({
     <div className="flex flex-col gap-5">
       {!embedded && (
         <PageHeader
-          title="Subscriptions"
-          subtitle="Create and manage recurring purchases for B2C customers."
+          title={t("title")}
+          subtitle={t("subtitle")}
           breadcrumbs={
             <span className="text-xs font-medium uppercase tracking-widest text-m-text-muted">
-              Commerce
+              {t("commerce")}
             </span>
           }
           actions={
-            <Button
-              variant="primary"
-              leftIcon={<Icon name="plus" size="xs" />}
-              onClick={openCreate}
-            >
-              New Subscription
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                leftIcon={<Icon name="calendar-days" size="xs" />}
+                onClick={() => router.push(localizePathname("/calendar", currentLocale))}
+              >
+                {calendarT("button")}
+              </Button>
+              <Button
+                variant="primary"
+                leftIcon={<Icon name="plus" size="xs" />}
+                onClick={openCreate}
+              >
+                {t("newSubscription")}
+              </Button>
+            </>
           }
         />
       )}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Panel title="Active">
+        <Panel title={t("status.Active")}>
           <div className="p-4 text-2xl font-bold text-m-text">{counts.active}</div>
         </Panel>
-        <Panel title="Paused / On Hold">
+        <Panel title={t("pausedOrOnHold")}>
           <div className="p-4 text-2xl font-bold text-m-text">{counts.paused}</div>
         </Panel>
-        <Panel title="Drafts">
+        <Panel title={t("drafts")}>
           <div className="p-4 text-2xl font-bold text-m-text">{counts.draft}</div>
         </Panel>
       </div>
 
       <Panel
-        title={embedded ? "Subscriptions" : "Subscription Management"}
+        title={embedded ? t("title") : t("managementTitle")}
         headerActions={
           embedded ? (
             <Button
@@ -823,7 +903,7 @@ export function SubscriptionManagementView({
               leftIcon={<Icon name="plus" size="xs" />}
               onClick={openCreate}
             >
-              New Subscription
+              {t("newSubscription")}
             </Button>
           ) : undefined
         }
@@ -839,7 +919,7 @@ export function SubscriptionManagementView({
               value={query}
               onChange={setQuery}
               onClear={() => setQuery("")}
-              placeholder="Search by subscription, customer, product or SKU..."
+              placeholder={t("searchPlaceholder")}
             />
           </div>
           <div className="w-full md:w-52">
@@ -849,8 +929,11 @@ export function SubscriptionManagementView({
                 setStatusFilter(event.target.value as "all" | SubscriptionStatus)
               }
               options={[
-                { value: "all", label: "All statuses" },
-                ...STATUS_OPTIONS.map((status) => ({ value: status, label: status }))
+                { value: "all", label: t("allStatuses") },
+                ...STATUS_OPTIONS.map((status) => ({
+                  value: status,
+                  label: t(`status.${status}`)
+                }))
               ]}
             />
           </div>
@@ -859,31 +942,32 @@ export function SubscriptionManagementView({
         {filteredSubscriptions.length === 0 ? (
           <CardEmpty
             icon="repeat"
-            title="No subscriptions found"
+            title={t("emptyTitle")}
             hint={
               customerContext
-                ? "Create a recurring purchase for this customer."
-                : "Create the first customer subscription."
+                ? t("emptyCustomerHint")
+                : t("emptyDefaultHint")
             }
           />
         ) : (
-          <Table>
+          <Table className="min-w-[1560px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Subscription</TableHead>
-                {!customerContext && <TableHead>Customer</TableHead>}
-                <TableHead>Created By</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Cadence</TableHead>
-                <TableHead>Next Delivery</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead>{t("columns.subscription")}</TableHead>
+                {!customerContext && <TableHead>{t("columns.customer")}</TableHead>}
+                <TableHead>{t("columns.createdBy")}</TableHead>
+                <TableHead>{t("columns.product")}</TableHead>
+                <TableHead>{t("columns.cadence")}</TableHead>
+                <TableHead>{t("columns.nextDelivery")}</TableHead>
+                <TableHead>{t("columns.price")}</TableHead>
+                <TableHead>{t("columns.status")}</TableHead>
+                <TableHead className="w-[310px] whitespace-nowrap">
+                  {t("columns.actions")}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredSubscriptions.map((subscription) => {
-                const firstItem = subscription.lineItems[0];
                 return (
                   <TableRow key={subscription.id}>
                     <TableCell>
@@ -891,7 +975,9 @@ export function SubscriptionManagementView({
                         {subscription.subscriptionNumber}
                       </div>
                       <div className="text-[11px] text-m-text-muted">
-                        Updated {formatDateTime(subscription.updatedAt)}
+                        {t("updated", {
+                          date: formatDateTime(subscription.updatedAt, locale)
+                        })}
                       </div>
                     </TableCell>
                     {!customerContext && (
@@ -910,20 +996,29 @@ export function SubscriptionManagementView({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="font-semibold text-m-text">
-                        {firstItem?.name || "--"}
-                      </div>
-                      <div className="text-[11px] text-m-text-muted">
-                        {firstItem?.sku || "--"} × {firstItem?.quantity ?? 0}
-                      </div>
+                      {subscription.lineItems.length === 0 ? (
+                        <span className="text-m-text-muted">--</span>
+                      ) : (
+                        <div className="space-y-2">
+                          {subscription.lineItems.map((item) => (
+                            <div key={item.id}>
+                              <div className="font-semibold text-m-text">{item.name}</div>
+                              <div className="text-[11px] text-m-text-muted">
+                                {item.sku} × {item.quantity}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </TableCell>
-                    <TableCell>{subscription.frequency}</TableCell>
-                    <TableCell>{formatDate(subscription.nextDeliveryDate)}</TableCell>
+                    <TableCell>{t(`frequency.${subscription.frequency}`)}</TableCell>
+                    <TableCell>{formatDate(subscription.nextDeliveryDate, locale)}</TableCell>
                     <TableCell>
                       <div className="font-semibold">
                         {money(
                           subscriptionTotal(subscription),
-                          subscription.currencyCode
+                          subscription.currencyCode,
+                          locale
                         )}
                       </div>
                       {subscription.discountLabel && (
@@ -933,16 +1028,18 @@ export function SubscriptionManagementView({
                       )}
                       {subscription.priceOverride && (
                         <Badge variant="warning" size="sm">
-                          Override
+                          {t("override")}
                         </Badge>
                       )}
                     </TableCell>
                     <TableCell>
                       <StatusPill tone={statusTone(subscription.status)}>
-                        {subscription.status}
+                        {t(`status.${subscription.status}`)}
                       </StatusPill>
                     </TableCell>
-                    <TableCell>{renderActions(subscription)}</TableCell>
+                    <TableCell className="w-[310px] whitespace-nowrap">
+                      {renderActions(subscription)}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -955,44 +1052,44 @@ export function SubscriptionManagementView({
         {viewing && (
           <>
             <Modal.Header
-              title={`Subscription ${viewing.subscriptionNumber}`}
-              subtitle="Recurring purchase details, linked orders and change history."
+              title={t("viewTitle", { number: viewing.subscriptionNumber })}
+              subtitle={t("viewSubtitle")}
               onClose={() => setViewing(null)}
             />
             <Modal.Body>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-3">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-m-text-muted">
-                    Status
+                    {t("columns.status")}
                   </div>
                   <div className="mt-2">
                     <StatusPill tone={statusTone(viewing.status)}>
-                      {viewing.status}
+                      {t(`status.${viewing.status}`)}
                     </StatusPill>
                   </div>
                 </div>
                 <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-3">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-m-text-muted">
-                    Frequency
+                    {t("frequencyLabel")}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-m-text">
-                    {viewing.frequency}
+                    {t(`frequency.${viewing.frequency}`)}
                   </div>
                 </div>
                 <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-3">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-m-text-muted">
-                    Next Delivery
+                    {t("columns.nextDelivery")}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-m-text">
-                    {formatDate(viewing.nextDeliveryDate)}
+                    {formatDate(viewing.nextDeliveryDate, locale)}
                   </div>
                 </div>
                 <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-3">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-m-text-muted">
-                    Recurring Price
+                    {t("recurringPrice")}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-m-text">
-                    {money(subscriptionTotal(viewing), viewing.currencyCode)}
+                    {money(subscriptionTotal(viewing), viewing.currencyCode, locale)}
                   </div>
                 </div>
               </div>
@@ -1000,7 +1097,7 @@ export function SubscriptionManagementView({
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-4">
                   <div className="mb-3 text-xs font-bold uppercase tracking-wider text-m-text-muted">
-                    Customer
+                    {t("columns.customer")}
                   </div>
                   <div className="text-sm font-semibold text-m-text">
                     {viewing.customerName}
@@ -1010,7 +1107,7 @@ export function SubscriptionManagementView({
                   </div>
                   {viewing.businessAccountName && (
                     <div className="mt-3 text-xs text-m-text">
-                      Account:{" "}
+                      {t("account")}: {" "}
                       <span className="font-semibold">
                         {viewing.businessAccountName}
                       </span>
@@ -1020,29 +1117,31 @@ export function SubscriptionManagementView({
 
                 <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-4">
                   <div className="mb-3 text-xs font-bold uppercase tracking-wider text-m-text-muted">
-                    Schedule
+                    {t("schedule")}
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
-                      <div className="text-m-text-muted">Start Date</div>
+                      <div className="text-m-text-muted">{t("startDate")}</div>
                       <div className="font-semibold text-m-text">
-                        {formatDate(viewing.startDate)}
+                        {formatDate(viewing.startDate, locale)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-m-text-muted">End Date</div>
+                      <div className="text-m-text-muted">{t("endDate")}</div>
                       <div className="font-semibold text-m-text">
-                        {viewing.endDate ? formatDate(viewing.endDate) : "Open ended"}
+                        {viewing.endDate
+                          ? formatDate(viewing.endDate, locale)
+                          : t("openEnded")}
                       </div>
                     </div>
                     <div>
-                      <div className="text-m-text-muted">Payment</div>
+                      <div className="text-m-text-muted">{t("payment")}</div>
                       <div className="font-semibold text-m-text">
                         {viewing.paymentMethod}
                       </div>
                     </div>
                     <div>
-                      <div className="text-m-text-muted">Currency</div>
+                      <div className="text-m-text-muted">{t("currency")}</div>
                       <div className="font-semibold text-m-text">
                         {viewing.currencyCode}
                       </div>
@@ -1053,16 +1152,16 @@ export function SubscriptionManagementView({
 
               <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-4">
                 <div className="mb-3 text-xs font-bold uppercase tracking-wider text-m-text-muted">
-                  Products
+                  {t("products")}
                 </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Product</TableHead>
+                      <TableHead>{t("columns.product")}</TableHead>
                       <TableHead>SKU</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Unit Price</TableHead>
-                      <TableHead>Total</TableHead>
+                      <TableHead>{t("quantityShort")}</TableHead>
+                      <TableHead>{t("unitPrice")}</TableHead>
+                      <TableHead>{t("total")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1073,9 +1172,9 @@ export function SubscriptionManagementView({
                         </TableCell>
                         <TableCell className="font-mono text-xs">{item.sku}</TableCell>
                         <TableCell>{item.quantity}</TableCell>
-                        <TableCell>{money(item.unitPrice, viewing.currencyCode)}</TableCell>
+                        <TableCell>{money(item.unitPrice, viewing.currencyCode, locale)}</TableCell>
                         <TableCell className="font-semibold">
-                          {money(item.unitPrice * item.quantity, viewing.currencyCode)}
+                          {money(item.unitPrice * item.quantity, viewing.currencyCode, locale)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1086,7 +1185,7 @@ export function SubscriptionManagementView({
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-4">
                   <div className="mb-2 text-xs font-bold uppercase tracking-wider text-m-text-muted">
-                    Delivery Address
+                    {t("deliveryAddress")}
                   </div>
                   <div className="whitespace-pre-wrap text-xs font-medium text-m-text">
                     {viewing.shippingAddress}
@@ -1095,24 +1194,24 @@ export function SubscriptionManagementView({
 
                 <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-4">
                   <div className="mb-2 text-xs font-bold uppercase tracking-wider text-m-text-muted">
-                    Pricing Controls
+                    {t("pricingControls")}
                   </div>
                   <div className="space-y-2 text-xs">
                     <div>
-                      <span className="text-m-text-muted">Discount: </span>
+                      <span className="text-m-text-muted">{t("discount")}: </span>
                       <span className="font-semibold text-m-text">
-                        {viewing.discountLabel || "None"}
+                        {viewing.discountLabel || t("none")}
                       </span>
                     </div>
                     <div>
-                      <span className="text-m-text-muted">Price override: </span>
+                      <span className="text-m-text-muted">{t("priceOverride")}: </span>
                       <span className="font-semibold text-m-text">
-                        {viewing.priceOverride || "None"}
+                        {viewing.priceOverride || t("none")}
                       </span>
                     </div>
                     {viewing.cancellationReason && (
                       <div>
-                        <span className="text-m-text-muted">Cancellation reason: </span>
+                        <span className="text-m-text-muted">{t("cancellationReason")}: </span>
                         <span className="font-semibold text-m-text">
                           {viewing.cancellationReason}
                         </span>
@@ -1124,10 +1223,10 @@ export function SubscriptionManagementView({
 
               <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-4">
                 <div className="mb-3 text-xs font-bold uppercase tracking-wider text-m-text-muted">
-                  Linked Orders
+                  {t("linkedOrders")}
                 </div>
                 {viewing.linkedOrderNumbers.length === 0 ? (
-                  <div className="text-xs text-m-text-muted">No linked orders yet.</div>
+                  <div className="text-xs text-m-text-muted">{t("noLinkedOrders")}</div>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {viewing.linkedOrderNumbers.map((orderNumber) => (
@@ -1141,7 +1240,7 @@ export function SubscriptionManagementView({
 
               <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-4">
                 <div className="mb-3 text-xs font-bold uppercase tracking-wider text-m-text-muted">
-                  Change History
+                  {t("changeHistory")}
                 </div>
                 <div className="space-y-2">
                   {viewing.history.map((entry) => (
@@ -1156,7 +1255,7 @@ export function SubscriptionManagementView({
                         )}
                       </div>
                       <div className="shrink-0 text-m-text-muted">
-                        {formatDateTime(entry.createdAt)}
+                        {formatDateTime(entry.createdAt, locale)}
                       </div>
                     </div>
                   ))}
@@ -1165,10 +1264,10 @@ export function SubscriptionManagementView({
             </Modal.Body>
             <Modal.Footer>
               <Button variant="ghost" onClick={() => setViewing(null)}>
-                Close
+                {t("actions.close")}
               </Button>
               <Button variant="primary" onClick={() => openEdit(viewing)}>
-                Edit Details
+                {t("actions.editDetails")}
               </Button>
             </Modal.Footer>
           </>
@@ -1177,8 +1276,12 @@ export function SubscriptionManagementView({
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="xl">
         <Modal.Header
-          title={editing ? `Edit ${editing.subscriptionNumber}` : "Create Subscription"}
-          subtitle="Recurring purchase terms for future cycles. Existing orders are not amended here."
+          title={
+            editing
+              ? t("editTitle", { number: editing.subscriptionNumber })
+              : t("createTitle")
+          }
+          subtitle={t("formSubtitle")}
           onClose={() => setIsModalOpen(false)}
         />
         <Modal.Body>
@@ -1190,7 +1293,7 @@ export function SubscriptionManagementView({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <FormField>
-              <Label>Owner Type</Label>
+              <Label>{t("ownerType")}</Label>
               <Select
                 value={form.ownerType}
                 onChange={(event) =>
@@ -1200,14 +1303,14 @@ export function SubscriptionManagementView({
                   }))
                 }
                 options={[
-                  { value: "B2C", label: "B2C Customer" },
-                  { value: "B2B", label: "B2B Account" }
+                  { value: "B2C", label: t("b2cCustomer") },
+                  { value: "B2B", label: t("b2bAccount") }
                 ]}
                 disabled={Boolean(customerContext)}
               />
             </FormField>
             <FormField>
-              <Label required>Customer Name</Label>
+              <Label required>{t("customerName")}</Label>
               <Input
                 value={form.customerName}
                 onChange={(event) =>
@@ -1216,7 +1319,7 @@ export function SubscriptionManagementView({
               />
             </FormField>
             <FormField>
-              <Label required>Customer Email</Label>
+              <Label required>{t("customerEmail")}</Label>
               <Input
                 value={form.customerEmail}
                 onChange={(event) =>
@@ -1230,11 +1333,11 @@ export function SubscriptionManagementView({
             <div className="rounded-m-lg border border-m-border bg-m-surface-1">
               <div className="flex items-center justify-between gap-3 border-b border-m-border/70 px-3 py-2">
                 <div className="text-xs font-semibold text-m-text">
-                  Customer search
+                  {t("customerSearch")}
                 </div>
                 {customerSearchLoading && (
                   <div className="text-[11px] font-medium text-m-text-muted">
-                    Searching…
+                    {t("searching")}
                   </div>
                 )}
               </div>
@@ -1244,11 +1347,11 @@ export function SubscriptionManagementView({
                 </div>
               ) : customerSearchText.trim().length < 2 ? (
                 <div className="px-3 py-2 text-xs text-m-text-muted">
-                  Type a customer name or email to search existing customers.
+                  {t("customerSearchHint")}
                 </div>
               ) : customerSearchResults.length === 0 && !customerSearchLoading ? (
                 <div className="px-3 py-2 text-xs text-m-text-muted">
-                  No matching customers found.
+                  {t("noCustomers")}
                 </div>
               ) : (
                 <div className="divide-y divide-m-border/70">
@@ -1268,7 +1371,7 @@ export function SubscriptionManagementView({
                         </div>
                       </div>
                       <Badge variant="primary" size="sm">
-                        Select
+                        {t("actions.select")}
                       </Badge>
                     </button>
                   ))}
@@ -1279,7 +1382,7 @@ export function SubscriptionManagementView({
 
           {form.ownerType === "B2B" && (
             <FormField>
-              <Label>Business Account</Label>
+              <Label>{t("businessAccount")}</Label>
               <Input
                 value={form.businessAccountName}
                 onChange={(event) =>
@@ -1294,7 +1397,7 @@ export function SubscriptionManagementView({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
             <FormField>
-              <Label>Product Name</Label>
+              <Label>{t("productName")}</Label>
               <Input
                 value={form.productName}
                 onChange={(event) => {
@@ -1314,7 +1417,7 @@ export function SubscriptionManagementView({
               />
             </FormField>
             <FormField>
-              <Label>Quantity</Label>
+              <Label>{t("quantity")}</Label>
               <Input
                 type="number"
                 min={1}
@@ -1325,7 +1428,7 @@ export function SubscriptionManagementView({
               />
             </FormField>
             <FormField>
-              <Label required>Currency</Label>
+              <Label required>{t("currency")}</Label>
               <Select
                 value={form.currencyCode}
                 onChange={(event) =>
@@ -1334,15 +1437,15 @@ export function SubscriptionManagementView({
                 disabled={currenciesLoading || currencyOptions.length === 0}
                 options={
                   currenciesLoading
-                    ? [{ value: "", label: "Loading currencies..." }]
+                    ? [{ value: "", label: t("loadingCurrencies") }]
                     : currencyOptions.length > 0
                       ? currencyOptions
-                      : [{ value: "", label: "No currencies configured" }]
+                      : [{ value: "", label: t("noCurrencies") }]
                 }
               />
             </FormField>
             <FormField>
-              <Label>Unit Price</Label>
+              <Label>{t("unitPrice")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -1354,19 +1457,95 @@ export function SubscriptionManagementView({
               />
               {!productPricesLoading && form.sku.trim() && !selectedCatalogPrice && (
                 <div className="mt-1 text-[11px] text-m-warning">
-                  No catalog price is available in {form.currencyCode}.
+                  {t("noCatalogPrice", { currency: form.currencyCode })}
                 </div>
               )}
             </FormField>
           </div>
 
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Icon name="plus" size="xs" />}
+              onClick={addLineItem}
+            >
+              {lineItemsT("add")}
+            </Button>
+          </div>
+
+          <div className="overflow-hidden rounded-m-lg border border-m-border bg-m-surface-1">
+            <div className="flex items-center justify-between border-b border-m-border/70 px-3 py-2">
+              <div className="text-xs font-semibold text-m-text">{lineItemsT("title")}</div>
+              <Badge variant="neutral" size="sm">
+                {lineItemsT("count", { count: form.lineItems.length })}
+              </Badge>
+            </div>
+            {form.lineItems.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-m-text-muted">
+                {lineItemsT("empty")}
+              </div>
+            ) : (
+              <div className="divide-y divide-m-border/70">
+                {form.lineItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="grid grid-cols-1 items-end gap-3 p-3 md:grid-cols-[minmax(0,1fr)_150px_100px_130px_auto]"
+                  >
+                    <FormField>
+                      <Label>{t("productName")}</Label>
+                      <Input
+                        value={item.name}
+                        onChange={(event) => updateLineItem(item.id, "name", event.target.value)}
+                      />
+                    </FormField>
+                    <FormField>
+                      <Label required>SKU</Label>
+                      <Input
+                        value={item.sku}
+                        onChange={(event) => updateLineItem(item.id, "sku", event.target.value)}
+                      />
+                    </FormField>
+                    <FormField>
+                      <Label>{t("quantity")}</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(event) => updateLineItem(item.id, "quantity", event.target.value)}
+                      />
+                    </FormField>
+                    <FormField>
+                      <Label>{t("unitPrice")}</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={item.unitPrice}
+                        onChange={(event) => updateLineItem(item.id, "unitPrice", event.target.value)}
+                      />
+                    </FormField>
+                    <Button
+                      aria-label={lineItemsT("remove")}
+                      variant="ghost"
+                      size="sm"
+                      iconOnly
+                      leftIcon={<Icon name="trash-2" size="xs" />}
+                      onClick={() => removeLineItem(item.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {productSearchOpen && (
             <div className="rounded-m-lg border border-m-border bg-m-surface-1">
               <div className="flex items-center justify-between gap-3 border-b border-m-border/70 px-3 py-2">
-                <div className="text-xs font-semibold text-m-text">SKU search</div>
+                <div className="text-xs font-semibold text-m-text">{t("skuSearch")}</div>
                 {productSearchLoading && (
                   <div className="text-[11px] font-medium text-m-text-muted">
-                    Searching…
+                    {t("searching")}
                   </div>
                 )}
               </div>
@@ -1376,11 +1555,11 @@ export function SubscriptionManagementView({
                 </div>
               ) : productSearchText.trim().length < 2 ? (
                 <div className="px-3 py-2 text-xs text-m-text-muted">
-                  Type a SKU or product name to search catalog products.
+                  {t("productSearchHint")}
                 </div>
               ) : productSearchResults.length === 0 && !productSearchLoading ? (
                 <div className="px-3 py-2 text-xs text-m-text-muted">
-                  No matching products found.
+                  {t("noProducts")}
                 </div>
               ) : (
                 <div className="divide-y divide-m-border/70">
@@ -1390,7 +1569,8 @@ export function SubscriptionManagementView({
                         ? money(
                             product.price.centAmount /
                               10 ** (product.price.fractionDigits ?? 2),
-                            product.price.currencyCode || form.currencyCode
+                            product.price.currencyCode || form.currencyCode,
+                            locale
                           )
                         : null;
                     return (
@@ -1402,7 +1582,7 @@ export function SubscriptionManagementView({
                       >
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold text-m-text">
-                            {product.name || product.sku || "Unnamed product"}
+                            {product.name || product.sku || t("unnamedProduct")}
                           </div>
                           <div className="truncate text-[11px] text-m-text-muted">
                             {product.sku || "--"}
@@ -1410,7 +1590,7 @@ export function SubscriptionManagementView({
                           </div>
                         </div>
                         <Badge variant="primary" size="sm">
-                          Select
+                          {t("actions.select")}
                         </Badge>
                       </button>
                     );
@@ -1420,9 +1600,9 @@ export function SubscriptionManagementView({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
             <FormField>
-              <Label>Frequency</Label>
+              <Label>{t("frequencyLabel")}</Label>
               <Select
                 value={form.frequency}
                 onChange={(event) =>
@@ -1433,12 +1613,12 @@ export function SubscriptionManagementView({
                 }
                 options={FREQUENCY_OPTIONS.map((frequency) => ({
                   value: frequency,
-                  label: frequency
+                  label: t(`frequency.${frequency}`)
                 }))}
               />
             </FormField>
             <FormField>
-              <Label>Start Date</Label>
+              <Label>{t("startDate")}</Label>
               <Input
                 type="date"
                 value={form.startDate}
@@ -1448,7 +1628,17 @@ export function SubscriptionManagementView({
               />
             </FormField>
             <FormField>
-              <Label required>Next Delivery</Label>
+              <Label>{calendarT("scheduleTime")}</Label>
+              <Input
+                type="time"
+                value={form.scheduleTime}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, scheduleTime: event.target.value }))
+                }
+              />
+            </FormField>
+            <FormField>
+              <Label required>{t("columns.nextDelivery")}</Label>
               <Input
                 type="date"
                 value={form.nextDeliveryDate}
@@ -1458,7 +1648,7 @@ export function SubscriptionManagementView({
               />
             </FormField>
             <FormField>
-              <Label>End Date</Label>
+              <Label>{t("endDate")}</Label>
               <Input
                 type="date"
                 value={form.endDate}
@@ -1471,7 +1661,7 @@ export function SubscriptionManagementView({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField>
-              <Label>Status</Label>
+              <Label>{t("columns.status")}</Label>
               <Select
                 value={form.status}
                 onChange={(event) =>
@@ -1482,12 +1672,12 @@ export function SubscriptionManagementView({
                 }
                 options={STATUS_OPTIONS.map((status) => ({
                   value: status,
-                  label: status
+                  label: t(`status.${status}`)
                 }))}
               />
             </FormField>
             <FormField>
-              <Label required>Authorized Payment</Label>
+              <Label required>{t("authorizedPayment")}</Label>
               <Input
                 value={form.paymentMethod}
                 onChange={(event) =>
@@ -1499,7 +1689,7 @@ export function SubscriptionManagementView({
 
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <Label required>Delivery Address</Label>
+              <Label required>{t("deliveryAddress")}</Label>
               <Button
                 variant="ghost"
                 size="sm"
@@ -1510,21 +1700,21 @@ export function SubscriptionManagementView({
                 }}
                 disabled={!form.customerId}
               >
-                Add New Address
+                {t("addNewAddress")}
               </Button>
             </div>
 
             {!form.customerId ? (
               <div className="rounded-m-lg border border-dashed border-m-border px-3 py-3 text-xs text-m-text-muted">
-                Select a customer to load their saved delivery addresses.
+                {t("selectCustomerForAddresses")}
               </div>
             ) : addressesLoading ? (
               <div className="rounded-m-lg border border-m-border px-3 py-3 text-xs text-m-text-muted">
-                Loading customer addresses...
+                {t("loadingAddresses")}
               </div>
             ) : savedAddresses.length === 0 ? (
               <div className="rounded-m-lg border border-dashed border-m-border px-3 py-3 text-xs text-m-text-muted">
-                This customer has no saved shipping addresses. Add one to continue.
+                {t("noSavedAddresses")}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -1550,7 +1740,7 @@ export function SubscriptionManagementView({
                       </div>
                       {isDefault && (
                         <div className="mt-2 text-[11px] font-semibold text-m-primary">
-                          Default shipping address
+                          {t("defaultShippingAddress")}
                         </div>
                       )}
                     </button>
@@ -1561,7 +1751,7 @@ export function SubscriptionManagementView({
 
             {showNewAddress && (
               <div className="border-t border-m-border pt-4">
-                <div className="mb-3 text-sm font-bold text-m-text">Add New Address</div>
+                <div className="mb-3 text-sm font-bold text-m-text">{t("addNewAddress")}</div>
                 {addressError && (
                   <div className="mb-3 rounded-m-md border border-m-error-border bg-m-error-light px-3 py-2 text-xs font-semibold text-m-error">
                     {addressError}
@@ -1569,7 +1759,7 @@ export function SubscriptionManagementView({
                 )}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <FormField>
-                    <Label required>Street Name</Label>
+                    <Label required>{t("streetName")}</Label>
                     <Input
                       value={newAddress.streetName}
                       onChange={(event) =>
@@ -1578,7 +1768,7 @@ export function SubscriptionManagementView({
                     />
                   </FormField>
                   <FormField>
-                    <Label>Street Number</Label>
+                    <Label>{t("streetNumber")}</Label>
                     <Input
                       value={newAddress.streetNumber}
                       onChange={(event) =>
@@ -1589,7 +1779,7 @@ export function SubscriptionManagementView({
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                   <FormField>
-                    <Label required>City</Label>
+                    <Label required>{t("city")}</Label>
                     <Input
                       value={newAddress.city}
                       onChange={(event) =>
@@ -1598,7 +1788,7 @@ export function SubscriptionManagementView({
                     />
                   </FormField>
                   <FormField>
-                    <Label>State</Label>
+                    <Label>{t("state")}</Label>
                     <Input
                       value={newAddress.state}
                       onChange={(event) =>
@@ -1607,7 +1797,7 @@ export function SubscriptionManagementView({
                     />
                   </FormField>
                   <FormField>
-                    <Label required>Postal Code</Label>
+                    <Label required>{t("postalCode")}</Label>
                     <Input
                       value={newAddress.postalCode}
                       onChange={(event) =>
@@ -1618,13 +1808,13 @@ export function SubscriptionManagementView({
                 </div>
                 <div className="mt-4">
                   <FormField>
-                    <Label required>Country</Label>
+                    <Label required>{t("country")}</Label>
                     <Select
                       value={newAddress.country}
                       onChange={(event) =>
                         setNewAddress((previous) => ({ ...previous, country: event.target.value }))
                       }
-                      options={ADDRESS_COUNTRY_OPTIONS}
+                      options={countryOptions}
                     />
                   </FormField>
                 </div>
@@ -1638,10 +1828,10 @@ export function SubscriptionManagementView({
                       setShowNewAddress(false);
                     }}
                   >
-                    Cancel
+                    {t("actions.cancel")}
                   </Button>
                   <Button variant="primary" size="sm" onClick={() => void saveNewAddress()} loading={addingAddress}>
-                    Save Address
+                    {t("saveAddress")}
                   </Button>
                 </div>
               </div>
@@ -1650,23 +1840,23 @@ export function SubscriptionManagementView({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField>
-              <Label>Special Pricing / Discount</Label>
+              <Label>{t("specialPricing")}</Label>
               <Input
                 value={form.discountLabel}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, discountLabel: event.target.value }))
                 }
-                placeholder="10% subscription discount"
+                placeholder={t("discountPlaceholder")}
               />
             </FormField>
             <FormField>
-              <Label>Approved Price Override</Label>
+              <Label>{t("approvedPriceOverride")}</Label>
               <Input
                 value={form.priceOverride}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, priceOverride: event.target.value }))
                 }
-                placeholder="Approved offer reference"
+                placeholder={t("overridePlaceholder")}
               />
             </FormField>
           </div>
@@ -1674,7 +1864,7 @@ export function SubscriptionManagementView({
           {editing && (
             <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-3">
               <div className="mb-2 text-xs font-bold uppercase tracking-wider text-m-text-muted">
-                Change History
+                {t("changeHistory")}
               </div>
               <div className="space-y-2">
                 {editing.history.slice(0, 5).map((entry) => (
@@ -1689,7 +1879,7 @@ export function SubscriptionManagementView({
                       )}
                     </div>
                     <div className="shrink-0 text-m-text-muted">
-                      {formatDateTime(entry.createdAt)}
+                      {formatDateTime(entry.createdAt, locale)}
                     </div>
                   </div>
                 ))}
@@ -1699,10 +1889,10 @@ export function SubscriptionManagementView({
         </Modal.Body>
         <Modal.Footer>
           <Button variant="ghost" onClick={() => setIsModalOpen(false)}>
-            Cancel
+            {t("actions.cancel")}
           </Button>
           <Button variant="primary" onClick={saveSubscription}>
-            {editing ? "Save Changes" : "Create Subscription"}
+            {editing ? t("saveChanges") : t("createTitle")}
           </Button>
         </Modal.Footer>
       </Modal>
