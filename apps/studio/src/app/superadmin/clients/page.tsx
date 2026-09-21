@@ -451,16 +451,18 @@ function AddClientModal({
           </div>
 
           {error && <p className="text-xs text-m-error">{error}</p>}
+        </ModalBody>
 
-          <div className="mt-2 flex justify-end gap-3 border-t border-m-border pt-5">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" disabled={isSubmitting || !name.trim() || !contactEmail.trim()}>
-              {isSubmitting ? "Creating…" : "Create Client"}
-            </Button>
-          </ModalFooter>
+        <ModalFooter className="mt-2 flex justify-end gap-3 border-t border-m-border pt-5">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={isSubmitting || !name.trim() || !contactEmail.trim()}>
+            {isSubmitting ? "Creating…" : "Create Client"}
+          </Button>
+        </ModalFooter>
       </form>
     </Modal>
+
   );
 }
