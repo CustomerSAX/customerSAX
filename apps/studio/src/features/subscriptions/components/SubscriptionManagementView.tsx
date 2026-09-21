@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { gql, useMutation, useQuery } from "@apollo/client";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge,
   Button,
@@ -21,7 +22,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TextArea,
   type StatusTone
 } from "@csa/ui";
 import { formatDate, formatDateTime } from "@/lib/format-date";
@@ -47,6 +47,45 @@ const FREQUENCY_OPTIONS: SubscriptionFrequency[] = [
   "Monthly",
   "Quarterly",
   "Yearly"
+];
+
+const AVAILABLE_CURRENCIES_QUERY = gql`
+  query AvailableSubscriptionCurrencies {
+    availableCurrencies
+  }
+`;
+
+const PRODUCT_PRICES_QUERY = gql`
+  query SubscriptionProductPrices($sku: String!) {
+    productPrices(sku: $sku) {
+      centAmount
+      currencyCode
+      fractionDigits
+    }
+  }
+`;
+
+const CUSTOMER_ADDRESSES_QUERY = gql`
+  query SubscriptionCustomerAddresses($id: ID!) {
+    customerAddresses(id: $id)
+  }
+`;
+
+const ADD_CUSTOMER_ADDRESS = gql`
+  mutation AddSubscriptionCustomerAddress($id: ID!, $address: Json!, $addressType: String) {
+    addCustomerAddress(id: $id, address: $address, addressType: $addressType)
+  }
+`;
+
+const ADDRESS_COUNTRY_OPTIONS = [
+  { value: "US", label: "United States" },
+  { value: "CA", label: "Canada" },
+  { value: "GB", label: "United Kingdom" },
+  { value: "DE", label: "Germany" },
+  { value: "FR", label: "France" },
+  { value: "AU", label: "Australia" },
+  { value: "IN", label: "India" },
+  { value: "NZ", label: "New Zealand" }
 ];
 
 type SubscriptionManagementViewProps = {
@@ -98,6 +137,37 @@ type ProductSearchResult = {
   };
 };
 
+type ProductPrice = {
+  centAmount: number;
+  currencyCode: string;
+  fractionDigits: number;
+};
+
+type CustomerAddress = {
+  id: string;
+  streetName?: string | null;
+  streetNumber?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+};
+
+type CustomerAddressesResult = {
+  addresses: CustomerAddress[];
+  defaultShippingAddressId: string | null;
+  shippingAddressIds: string[];
+};
+
+type NewAddressForm = {
+  streetName: string;
+  streetNumber: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+};
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -106,6 +176,25 @@ function nextMonth() {
   const date = new Date();
   date.setMonth(date.getMonth() + 1);
   return date.toISOString().slice(0, 10);
+}
+
+function emptyNewAddress(): NewAddressForm {
+  return {
+    streetName: "",
+    streetNumber: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "US"
+  };
+}
+
+function formatAddress(address: Omit<CustomerAddress, "id">) {
+  const street = [address.streetNumber, address.streetName].filter(Boolean).join(" ");
+  const locality = [address.city, address.state, address.postalCode]
+    .filter(Boolean)
+    .join(", ");
+  return [street, locality, address.country].filter(Boolean).join("\n");
 }
 
 function emptyForm(
@@ -128,7 +217,7 @@ function emptyForm(
     endDate: "",
     shippingAddress: customerContext?.defaultAddress ?? "",
     paymentMethod: "Authorized card on file",
-    currencyCode: "USD",
+    currencyCode: "",
     discountLabel: "",
     priceOverride: ""
   };
@@ -173,7 +262,7 @@ function toDraft(form: FormState): SubscriptionDraft {
     endDate: form.endDate || undefined,
     shippingAddress: form.shippingAddress.trim(),
     paymentMethod: form.paymentMethod.trim(),
-    currencyCode: form.currencyCode.trim().toUpperCase() || "USD",
+    currencyCode: form.currencyCode,
     discountLabel: form.discountLabel.trim() || undefined,
     priceOverride: form.priceOverride.trim() || undefined,
     lastOrderNumber: undefined,
@@ -223,13 +312,17 @@ export function SubscriptionManagementView({
   customerContext,
   embedded = false
 }: SubscriptionManagementViewProps) {
+  const { data: currencyData, loading: currenciesLoading } = useQuery<{
+    availableCurrencies: string[];
+  }>(AVAILABLE_CURRENCIES_QUERY, { fetchPolicy: "cache-and-network" });
   const {
     subscriptions,
     createSubscription,
     updateSubscription,
     changeStatus,
     skipNextCycle,
-    deleteDraft
+    deleteDraft,
+    error: subscriptionsError
   } = useSubscriptions(customerContext?.id);
 
   const [query, setQuery] = useState("");
@@ -250,6 +343,99 @@ export function SubscriptionManagementView({
   const [productSearchLoading, setProductSearchLoading] = useState(false);
   const [productSearchError, setProductSearchError] = useState("");
   const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const [showNewAddress, setShowNewAddress] = useState(false);
+  const [newAddress, setNewAddress] = useState<NewAddressForm>(emptyNewAddress);
+  const [addressError, setAddressError] = useState("");
+  const [addingAddress, setAddingAddress] = useState(false);
+  const defaultAddressAppliedForCustomer = useRef<string | null>(null);
+  const { data: productPricesData, loading: productPricesLoading } = useQuery<{
+    productPrices: ProductPrice[];
+  }>(PRODUCT_PRICES_QUERY, {
+    variables: { sku: form.sku.trim() },
+    skip: form.sku.trim().length < 2 || !form.currencyCode,
+    fetchPolicy: "cache-and-network"
+  });
+  const { data: addressesData, loading: addressesLoading, refetch: refetchAddresses } = useQuery<{
+    customerAddresses: CustomerAddressesResult;
+  }>(CUSTOMER_ADDRESSES_QUERY, {
+    variables: { id: form.customerId },
+    skip: !form.customerId,
+    fetchPolicy: "cache-and-network"
+  });
+  const [addCustomerAddress] = useMutation(ADD_CUSTOMER_ADDRESS);
+
+  const availableCurrencies = useMemo(
+    () => [...new Set(currencyData?.availableCurrencies ?? [])].sort(),
+    [currencyData]
+  );
+  const currencyOptions = useMemo(() => {
+    const values = [...availableCurrencies];
+    if (form.currencyCode && !values.includes(form.currencyCode)) {
+      values.push(form.currencyCode);
+    }
+    return values.map((currencyCode) => ({
+      value: currencyCode,
+      label: availableCurrencies.includes(currencyCode)
+        ? currencyCode
+        : `${currencyCode} (legacy)`
+    }));
+  }, [availableCurrencies, form.currencyCode]);
+
+  useEffect(() => {
+    if (!editing && !form.currencyCode && availableCurrencies.length > 0) {
+      setForm((previous) => ({ ...previous, currencyCode: availableCurrencies[0] }));
+    }
+  }, [availableCurrencies, editing, form.currencyCode]);
+
+  const selectedCatalogPrice = useMemo(
+    () =>
+      productPricesData?.productPrices.find(
+        (price) => price.currencyCode === form.currencyCode
+      ),
+    [form.currencyCode, productPricesData]
+  );
+
+  useEffect(() => {
+    if (!form.sku.trim() || !form.currencyCode || productPricesLoading) return;
+    setForm((previous) => {
+      if (previous.sku !== form.sku || previous.currencyCode !== form.currencyCode) {
+        return previous;
+      }
+      return {
+        ...previous,
+        unitPrice: selectedCatalogPrice
+          ? String(
+              selectedCatalogPrice.centAmount /
+                10 ** selectedCatalogPrice.fractionDigits
+            )
+          : ""
+      };
+    });
+  }, [form.currencyCode, form.sku, productPricesLoading, selectedCatalogPrice]);
+
+  const savedAddresses = useMemo(
+    () => addressesData?.customerAddresses.addresses ?? [],
+    [addressesData]
+  );
+  const defaultShippingAddress = useMemo(() => {
+    const result = addressesData?.customerAddresses;
+    if (!result) return undefined;
+    return (
+      result.addresses.find((address) => address.id === result.defaultShippingAddressId) ??
+      result.addresses.find((address) => result.shippingAddressIds.includes(address.id)) ??
+      result.addresses[0]
+    );
+  }, [addressesData]);
+
+  useEffect(() => {
+    if (!form.customerId || !defaultShippingAddress) return;
+    if (defaultAddressAppliedForCustomer.current === form.customerId) return;
+    defaultAddressAppliedForCustomer.current = form.customerId;
+    setForm((previous) => ({
+      ...previous,
+      shippingAddress: formatAddress(defaultShippingAddress)
+    }));
+  }, [defaultShippingAddress, form.customerId]);
 
   const customerSearchText = useMemo(() => {
     return `${form.customerName} ${form.customerEmail}`.trim();
@@ -393,6 +579,7 @@ export function SubscriptionManagementView({
   }, [subscriptions]);
 
   const openCreate = () => {
+    defaultAddressAppliedForCustomer.current = null;
     setEditing(null);
     setViewing(null);
     setForm(emptyForm(customerContext));
@@ -401,6 +588,7 @@ export function SubscriptionManagementView({
   };
 
   const selectCustomer = (customer: CustomerSearchResult) => {
+    defaultAddressAppliedForCustomer.current = null;
     setForm((prev) => ({
       ...prev,
       customerId: customer.id,
@@ -409,6 +597,56 @@ export function SubscriptionManagementView({
     }));
     setCustomerSearchResults([]);
     setCustomerSearchError("");
+  };
+
+  const selectAddress = (address: CustomerAddress) => {
+    setForm((previous) => ({
+      ...previous,
+      shippingAddress: formatAddress(address)
+    }));
+    setAddressError("");
+  };
+
+  const saveNewAddress = async () => {
+    if (!form.customerId) {
+      setAddressError("Select a customer before adding an address.");
+      return;
+    }
+    if (
+      !newAddress.streetName.trim() ||
+      !newAddress.city.trim() ||
+      !newAddress.postalCode.trim() ||
+      !newAddress.country
+    ) {
+      setAddressError("Street, city, postal code and country are required.");
+      return;
+    }
+
+    setAddingAddress(true);
+    setAddressError("");
+    try {
+      const address = {
+        streetName: newAddress.streetName.trim(),
+        streetNumber: newAddress.streetNumber.trim() || undefined,
+        city: newAddress.city.trim(),
+        state: newAddress.state.trim() || undefined,
+        postalCode: newAddress.postalCode.trim(),
+        country: newAddress.country
+      };
+      await addCustomerAddress({
+        variables: { id: form.customerId, address, addressType: "shipping" }
+      });
+      await refetchAddresses();
+      setForm((previous) => ({ ...previous, shippingAddress: formatAddress(address) }));
+      setNewAddress(emptyNewAddress());
+      setShowNewAddress(false);
+    } catch (error) {
+      setAddressError(
+        error instanceof Error ? error.message : "Unable to add the customer address."
+      );
+    } finally {
+      setAddingAddress(false);
+    }
   };
 
   const selectProduct = (product: ProductSearchResult) => {
@@ -445,13 +683,17 @@ export function SubscriptionManagementView({
     setViewing(subscription);
   };
 
-  const saveSubscription = () => {
+  const saveSubscription = async () => {
     if (!form.customerName.trim() || !form.customerEmail.trim()) {
       setFormError("Customer name and email are required.");
       return;
     }
     if (!form.sku.trim()) {
       setFormError("SKU is required.");
+      return;
+    }
+    if (!form.currencyCode) {
+      setFormError("Select a currency configured for this commercetools project.");
       return;
     }
     if (
@@ -466,18 +708,24 @@ export function SubscriptionManagementView({
     }
 
     const draft = toDraft(form);
-    if (editing) {
-      updateSubscription(editing.id, draft);
-    } else {
-      createSubscription(draft);
+    try {
+      if (editing) {
+        await updateSubscription(editing.id, draft);
+      } else {
+        await createSubscription(draft);
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Unable to save the subscription."
+      );
     }
-    setIsModalOpen(false);
   };
 
-  const cancelSubscription = (subscription: CustomerSubscription) => {
+  const cancelSubscription = async (subscription: CustomerSubscription) => {
     const reason = window.prompt("Cancellation reason");
     if (reason == null) return;
-    changeStatus(subscription.id, "Cancelled", reason.trim() || "No reason provided");
+    await changeStatus(subscription.id, "Cancelled", reason.trim() || "No reason provided");
   };
 
   const renderActions = (subscription: CustomerSubscription) => (
@@ -493,21 +741,21 @@ export function SubscriptionManagementView({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => changeStatus(subscription.id, "On Hold", "Put on hold by agent")}
+            onClick={() => void changeStatus(subscription.id, "On Hold", "Put on hold by agent")}
           >
             Hold
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => skipNextCycle(subscription.id)}
+            onClick={() => void skipNextCycle(subscription.id)}
           >
             Skip
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => cancelSubscription(subscription)}
+            onClick={() => void cancelSubscription(subscription)}
           >
             Cancel
           </Button>
@@ -517,13 +765,13 @@ export function SubscriptionManagementView({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => changeStatus(subscription.id, "Active", "Resumed by agent")}
+          onClick={() => void changeStatus(subscription.id, "Active", "Resumed by agent")}
         >
           Resume
         </Button>
       )}
       {subscription.status === "Draft" && (
-        <Button variant="ghost" size="sm" onClick={() => deleteDraft(subscription.id)}>
+        <Button variant="ghost" size="sm" onClick={() => void deleteDraft(subscription.id)}>
           Delete Draft
         </Button>
       )}
@@ -580,6 +828,11 @@ export function SubscriptionManagementView({
           ) : undefined
         }
       >
+        {subscriptionsError && (
+          <div className="border-b border-m-error-border bg-m-error-light px-3 py-2 text-xs font-semibold text-m-error">
+            {subscriptionsError.message}
+          </div>
+        )}
         <div className="flex flex-col gap-3 border-b border-m-border/70 p-3 md:flex-row md:items-center">
           <div className="min-w-0 flex-1">
             <SearchBar
@@ -619,6 +872,7 @@ export function SubscriptionManagementView({
               <TableRow>
                 <TableHead>Subscription</TableHead>
                 {!customerContext && <TableHead>Customer</TableHead>}
+                <TableHead>Created By</TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Cadence</TableHead>
                 <TableHead>Next Delivery</TableHead>
@@ -650,6 +904,11 @@ export function SubscriptionManagementView({
                         </div>
                       </TableCell>
                     )}
+                    <TableCell>
+                      <div className="text-xs font-semibold text-m-text">
+                        {subscription.createdBy}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="font-semibold text-m-text">
                         {firstItem?.name || "--"}
@@ -1033,7 +1292,7 @@ export function SubscriptionManagementView({
             </FormField>
           )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
             <FormField>
               <Label>Product Name</Label>
               <Input
@@ -1066,6 +1325,23 @@ export function SubscriptionManagementView({
               />
             </FormField>
             <FormField>
+              <Label required>Currency</Label>
+              <Select
+                value={form.currencyCode}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, currencyCode: event.target.value }))
+                }
+                disabled={currenciesLoading || currencyOptions.length === 0}
+                options={
+                  currenciesLoading
+                    ? [{ value: "", label: "Loading currencies..." }]
+                    : currencyOptions.length > 0
+                      ? currencyOptions
+                      : [{ value: "", label: "No currencies configured" }]
+                }
+              />
+            </FormField>
+            <FormField>
               <Label>Unit Price</Label>
               <Input
                 type="number"
@@ -1076,6 +1352,11 @@ export function SubscriptionManagementView({
                   setForm((prev) => ({ ...prev, unitPrice: event.target.value }))
                 }
               />
+              {!productPricesLoading && form.sku.trim() && !selectedCatalogPrice && (
+                <div className="mt-1 text-[11px] text-m-warning">
+                  No catalog price is available in {form.currencyCode}.
+                </div>
+              )}
             </FormField>
           </div>
 
@@ -1188,7 +1469,7 @@ export function SubscriptionManagementView({
             </FormField>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField>
               <Label>Status</Label>
               <Select
@@ -1206,15 +1487,6 @@ export function SubscriptionManagementView({
               />
             </FormField>
             <FormField>
-              <Label>Currency</Label>
-              <Input
-                value={form.currencyCode}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, currencyCode: event.target.value }))
-                }
-              />
-            </FormField>
-            <FormField>
               <Label required>Authorized Payment</Label>
               <Input
                 value={form.paymentMethod}
@@ -1225,16 +1497,156 @@ export function SubscriptionManagementView({
             </FormField>
           </div>
 
-          <FormField>
-            <Label required>Delivery Address</Label>
-            <TextArea
-              rows={3}
-              value={form.shippingAddress}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, shippingAddress: event.target.value }))
-              }
-            />
-          </FormField>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label required>Delivery Address</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                leftIcon={<Icon name="plus" size="xs" />}
+                onClick={() => {
+                  setAddressError("");
+                  setShowNewAddress((visible) => !visible);
+                }}
+                disabled={!form.customerId}
+              >
+                Add New Address
+              </Button>
+            </div>
+
+            {!form.customerId ? (
+              <div className="rounded-m-lg border border-dashed border-m-border px-3 py-3 text-xs text-m-text-muted">
+                Select a customer to load their saved delivery addresses.
+              </div>
+            ) : addressesLoading ? (
+              <div className="rounded-m-lg border border-m-border px-3 py-3 text-xs text-m-text-muted">
+                Loading customer addresses...
+              </div>
+            ) : savedAddresses.length === 0 ? (
+              <div className="rounded-m-lg border border-dashed border-m-border px-3 py-3 text-xs text-m-text-muted">
+                This customer has no saved shipping addresses. Add one to continue.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {savedAddresses.map((address) => {
+                  const selected = form.shippingAddress === formatAddress(address);
+                  const isDefault = address.id === addressesData?.customerAddresses.defaultShippingAddressId;
+                  return (
+                    <button
+                      key={address.id}
+                      type="button"
+                      className={`relative min-h-24 rounded-m-lg border p-3 text-left transition-colors ${
+                        selected
+                          ? "border-m-primary bg-m-primary-light/40"
+                          : "border-m-border bg-m-surface hover:bg-m-surface-2"
+                      }`}
+                      onClick={() => selectAddress(address)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="whitespace-pre-line text-xs font-medium leading-5 text-m-text">
+                          {formatAddress(address)}
+                        </div>
+                        {selected && <Icon name="check" size="sm" className="shrink-0 text-m-primary" />}
+                      </div>
+                      {isDefault && (
+                        <div className="mt-2 text-[11px] font-semibold text-m-primary">
+                          Default shipping address
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {showNewAddress && (
+              <div className="border-t border-m-border pt-4">
+                <div className="mb-3 text-sm font-bold text-m-text">Add New Address</div>
+                {addressError && (
+                  <div className="mb-3 rounded-m-md border border-m-error-border bg-m-error-light px-3 py-2 text-xs font-semibold text-m-error">
+                    {addressError}
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <FormField>
+                    <Label required>Street Name</Label>
+                    <Input
+                      value={newAddress.streetName}
+                      onChange={(event) =>
+                        setNewAddress((previous) => ({ ...previous, streetName: event.target.value }))
+                      }
+                    />
+                  </FormField>
+                  <FormField>
+                    <Label>Street Number</Label>
+                    <Input
+                      value={newAddress.streetNumber}
+                      onChange={(event) =>
+                        setNewAddress((previous) => ({ ...previous, streetNumber: event.target.value }))
+                      }
+                    />
+                  </FormField>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <FormField>
+                    <Label required>City</Label>
+                    <Input
+                      value={newAddress.city}
+                      onChange={(event) =>
+                        setNewAddress((previous) => ({ ...previous, city: event.target.value }))
+                      }
+                    />
+                  </FormField>
+                  <FormField>
+                    <Label>State</Label>
+                    <Input
+                      value={newAddress.state}
+                      onChange={(event) =>
+                        setNewAddress((previous) => ({ ...previous, state: event.target.value }))
+                      }
+                    />
+                  </FormField>
+                  <FormField>
+                    <Label required>Postal Code</Label>
+                    <Input
+                      value={newAddress.postalCode}
+                      onChange={(event) =>
+                        setNewAddress((previous) => ({ ...previous, postalCode: event.target.value }))
+                      }
+                    />
+                  </FormField>
+                </div>
+                <div className="mt-4">
+                  <FormField>
+                    <Label required>Country</Label>
+                    <Select
+                      value={newAddress.country}
+                      onChange={(event) =>
+                        setNewAddress((previous) => ({ ...previous, country: event.target.value }))
+                      }
+                      options={ADDRESS_COUNTRY_OPTIONS}
+                    />
+                  </FormField>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setAddressError("");
+                      setNewAddress(emptyNewAddress());
+                      setShowNewAddress(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={() => void saveNewAddress()} loading={addingAddress}>
+                    Save Address
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField>

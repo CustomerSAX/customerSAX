@@ -53,6 +53,7 @@ deploy_service() {
     ai-assist)               MIN=0; MAX=10; MEM=1Gi;   CPU=2; PORT=8080; RUN_TIMEOUT=600s; CONC=40 ;;
     commerce-commercetools)  MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
     ticketing)               MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
+    subscriptions)           MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
     admin)                   MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
     *)                       MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
   esac
@@ -67,7 +68,7 @@ deploy_service() {
       SECRETS="COMMERCETOOLS_CLIENT_ID=${NAME_PREFIX}-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=${NAME_PREFIX}-commercetools-client-secret:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
     admin)
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
-    ticketing|auth)
+    ticketing|subscriptions|auth)
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     *)
       SECRETS="" ;;
@@ -94,6 +95,7 @@ deploy_service() {
       }
       CT_URL=$(get_url "commerce-commercetools")
       TICK_URL=$(get_url "ticketing")
+      SUBSCRIPTIONS_URL=$(get_url "subscriptions")
       ADMIN_URL=$(get_url "admin")
       FED_SERVICES="{}"
       if [ -n "${CT_URL}" ]; then
@@ -103,6 +105,10 @@ deploy_service() {
       if [ -n "${TICK_URL}" ]; then
         FED_SERVICES=$(echo "${FED_SERVICES}" | \
           python3 -c "import sys,json; d=json.load(sys.stdin); d['ticketing']='${TICK_URL}/graphql'; print(json.dumps(d))")
+      fi
+      if [ -n "${SUBSCRIPTIONS_URL}" ]; then
+        FED_SERVICES=$(echo "${FED_SERVICES}" | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); d['subscriptions']='${SUBSCRIPTIONS_URL}/graphql'; print(json.dumps(d))")
       fi
       if [ -n "${ADMIN_URL}" ]; then
         FED_SERVICES=$(echo "${FED_SERVICES}" | \

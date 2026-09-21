@@ -664,6 +664,46 @@ importers:
         specifier: ^5.5.4
         version: 5.9.3
 
+  apps/subscriptions:
+    dependencies:
+      '@apollo/server':
+        specifier: ^4.11.0
+        version: 4.13.0(graphql@16.14.2)
+      '@apollo/subgraph':
+        specifier: ^2.10.0
+        version: 2.14.3(graphql@16.14.2)
+      '@csa/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@csa/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@csa/mongodb':
+        specifier: workspace:*
+        version: link:../../packages/mongodb
+      '@csa/service-bootstrap':
+        specifier: workspace:*
+        version: link:../../packages/service-bootstrap
+      graphql:
+        specifier: ^16.9.0
+        version: 16.14.2
+      graphql-tag:
+        specifier: ^2.12.7
+        version: 2.12.7(graphql@16.14.2)
+    devDependencies:
+      '@csa/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@types/node':
+        specifier: ^20.14.11
+        version: 20.19.43
+      tsx:
+        specifier: ^4.16.2
+        version: 4.23.5
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
   configs/prettier:
     dependencies:
       prettier:

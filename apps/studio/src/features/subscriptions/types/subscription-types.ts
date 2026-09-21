@@ -34,6 +34,7 @@ export interface CustomerSubscription {
   customerId?: string;
   customerName: string;
   customerEmail: string;
+  createdBy: string;
   businessAccountName?: string;
   status: SubscriptionStatus;
   frequency: SubscriptionFrequency;
@@ -58,6 +59,7 @@ export type SubscriptionDraft = Omit<
   CustomerSubscription,
   | "id"
   | "subscriptionNumber"
+  | "createdBy"
   | "history"
   | "createdAt"
   | "updatedAt"

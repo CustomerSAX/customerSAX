@@ -13,6 +13,7 @@
     "app:commerce-sfcc": "pnpm --filter @csa/commerce-sfcc",
     "app:commerce-shopify": "pnpm --filter @csa/commerce-shopify",
     "app:ticketing": "pnpm --filter @csa/ticketing",
+    "app:subscriptions": "pnpm --filter @csa/subscriptions",
     "app:studio": "pnpm --filter @csa/studio",
     "app:marketing": "pnpm --filter marketing",
     "app:docs": "pnpm --filter @csa/docs-site",
@@ -24,13 +25,13 @@
 
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
-    "dev:all": "pnpm turbo run dev --parallel --filter=@csa/commerce-commercetools --filter=@csa/bff --filter=@csa/studio --filter=@csa/auth --filter=@csa/ticketing --filter=@csa/admin --filter=@csa/ai-assist --filter=marketing --filter=@csa/docs-site",
-    "dev:studio": "pnpm turbo run dev --parallel --filter=@csa/studio --filter=@csa/bff --filter=@csa/auth --filter=@csa/commerce-commercetools --filter=@csa/ticketing",
+    "dev:all": "pnpm turbo run dev --parallel --filter=@csa/commerce-commercetools --filter=@csa/bff --filter=@csa/studio --filter=@csa/auth --filter=@csa/ticketing --filter=@csa/subscriptions --filter=@csa/admin --filter=@csa/ai-assist --filter=marketing --filter=@csa/docs-site",
+    "dev:studio": "pnpm turbo run dev --parallel --filter=@csa/studio --filter=@csa/bff --filter=@csa/auth --filter=@csa/commerce-commercetools --filter=@csa/ticketing --filter=@csa/subscriptions",
     "dev:marketing": "pnpm --filter marketing dev",
     "dev:docs": "pnpm --filter @csa/docs-site dev",
 
     "start": "turbo run start",
-    "start:all": "pnpm turbo run start --filter=@csa/studio --filter=marketing --filter=@csa/docs-site --filter=@csa/bff --filter=@csa/auth --filter=@csa/admin --filter=@csa/ai-assist --filter=@csa/ticketing --filter=@csa/commerce-commercetools",
+    "start:all": "pnpm turbo run start --filter=@csa/studio --filter=marketing --filter=@csa/docs-site --filter=@csa/bff --filter=@csa/auth --filter=@csa/admin --filter=@csa/ai-assist --filter=@csa/ticketing --filter=@csa/subscriptions --filter=@csa/commerce-commercetools",
     "start:frontend": "pnpm turbo run start --filter=@csa/studio --filter=marketing --filter=@csa/docs-site",
 
     "cfg:prettier": "pnpm --filter @csa/config-prettier",

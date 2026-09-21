@@ -14,6 +14,7 @@
 #   ai-assist               → csa-dev-ai-assist       (private)
 #   commerce-commercetools  → csa-dev-commerce-commercetools (private)
 #   ticketing               → csa-dev-ticketing       (private)
+#   subscriptions           → csa-dev-subscriptions   (private)
 #   admin                   → csa-dev-admin           (private)
 #
 # Frontend (Vercel — excluded from Cloud Build): studio, marketing, docs-site
@@ -57,6 +58,7 @@ ALL_SVCS=(
   "ai-assist"
   "commerce-commercetools"
   "ticketing"
+  "subscriptions"
   "admin"
   "bff"
 )

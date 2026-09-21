@@ -37,6 +37,7 @@ locals {
     "commerce-shopify"       = google_cloud_run_v2_service.commerce_shopify.uri
     "commerce-bigcommerce"   = google_cloud_run_v2_service.commerce_bigcommerce.uri
     "commerce-sfcc"          = google_cloud_run_v2_service.commerce_sfcc.uri
+    "subscriptions"          = google_cloud_run_v2_service.subscriptions.uri
   }
 
   selected_commerce_service_url = (
@@ -443,6 +444,28 @@ resource "google_cloud_run_v2_service" "ticketing" {
 
       env {
         name  = "TICKETING_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [template, client, client_version]
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_run_v2_service" "subscriptions" {
+  name     = "${local.name_prefix}-subscriptions"
+  location = var.region
+
+  template {
+    containers {
+      image = var.subscriptions_image
+
+      env {
+        name  = "SUBSCRIPTIONS_PORT"
         value = "8080"
       }
     }

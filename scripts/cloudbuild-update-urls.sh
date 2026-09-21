@@ -7,7 +7,8 @@
 #   (a) bff          — routes all external traffic (needs all URLs)
 #   (b) ai-assist    — needs commerce service URL
 #   (c) ticketing    — needs auth URL (for token validation)
-#   (d) admin        — needs auth URL
+#   (d) subscriptions — needs auth URL
+#   (e) admin        — needs auth URL
 # ============================================================
 set -euo pipefail
 
@@ -26,6 +27,7 @@ ALL_SVCS=(
   "ai-assist"
   "commerce-commercetools"
   "ticketing"
+  "subscriptions"
   "admin"
 )
 
@@ -55,6 +57,7 @@ AUTH_URL=$(get_url "AUTH_URL")
 AI_ASSIST_URL=$(get_url "AI_ASSIST_URL")
 COMMERCE_CT_URL=$(get_url "COMMERCE_COMMERCETOOLS_URL")
 TICKETING_URL=$(get_url "TICKETING_URL")
+SUBSCRIPTIONS_URL=$(get_url "SUBSCRIPTIONS_URL")
 ADMIN_URL=$(get_url "ADMIN_URL")
 
 # ── (a) bff — inject all downstream service URLs ──────────────────────────────
@@ -69,6 +72,8 @@ FED_SERVICES="{}"
   python3 -c "import sys,json; d=json.load(sys.stdin); d['commerce-commercetools']='${COMMERCE_CT_URL}/graphql'; print(json.dumps(d))")
 [ -n "${TICKETING_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
   python3 -c "import sys,json; d=json.load(sys.stdin); d['ticketing']='${TICKETING_URL}/graphql'; print(json.dumps(d))")
+[ -n "${SUBSCRIPTIONS_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
+  python3 -c "import sys,json; d=json.load(sys.stdin); d['subscriptions']='${SUBSCRIPTIONS_URL}/graphql'; print(json.dumps(d))")
 [ -n "${ADMIN_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
   python3 -c "import sys,json; d=json.load(sys.stdin); d['admin']='${ADMIN_URL}/graphql'; print(json.dumps(d))")
 
@@ -107,7 +112,18 @@ gcloud run services update "${NAME_PREFIX}-ticketing" \
   --update-env-vars="${TICKET_ENV}" 2>/dev/null || \
   echo "  ⚠️  ${NAME_PREFIX}-ticketing not yet deployed – will get URLs on next deploy"
 
-# ── (d) admin — needs auth URL ───────────────────────────────────────────────
+# ── (d) subscriptions — needs auth URL ───────────────────────────────────────
+SUBSCRIPTIONS_ENV="NODE_ENV=production,SERVICE_NAME=subscriptions,ENVIRONMENT=${ENVIRONMENT}"
+[ -n "${AUTH_URL}" ] && SUBSCRIPTIONS_ENV="${SUBSCRIPTIONS_ENV},AUTH_SERVICE_URL=${AUTH_URL}"
+
+echo ""
+echo "🔧 Updating ${NAME_PREFIX}-subscriptions..."
+gcloud run services update "${NAME_PREFIX}-subscriptions" \
+  --region="${REGION}" --project="${PROJECT_ID}" \
+  --update-env-vars="${SUBSCRIPTIONS_ENV}" 2>/dev/null || \
+  echo "  ⚠️  ${NAME_PREFIX}-subscriptions not yet deployed – will get URLs on next deploy"
+
+# ── (e) admin — needs auth URL ───────────────────────────────────────────────
 ADMIN_ENV="NODE_ENV=production,SERVICE_NAME=admin,ENVIRONMENT=${ENVIRONMENT}"
 [ -n "${AUTH_URL}" ] && ADMIN_ENV="${ADMIN_ENV},AUTH_SERVICE_URL=${AUTH_URL}"
 
