@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { DEFAULT_LOCALE, isSupportedLocale, toCommerceLocale } from "@csa/i18n";
 import {
   PageHeader,
   Panel,
@@ -21,6 +23,7 @@ import { useEmployees } from "@/features/employees/hooks/use-employees";
 import type { QuoteLineItem } from "../types/quote-types";
 import type { CompanyAddress } from "@/features/companies/types/company-types";
 import type { EmployeeAddress } from "@/features/employees/types/employee-types";
+import { localizePathname } from "@/i18n/routing";
 
 interface ProductSearchHit {
   sku: string;
@@ -89,7 +92,8 @@ function clampDiscount(value: number) {
 }
 
 function mapProductSearchHit(
-  product: NonNullable<ProductSearchResponse["results"]>[number]
+  product: NonNullable<ProductSearchResponse["results"]>[number],
+  commerceLocale: string
 ): ProductSearchHit | null {
   const current = product.masterData?.current;
   const masterVariant = current?.masterVariant;
@@ -104,7 +108,9 @@ function mapProductSearchHit(
 
   const rawNameLocales = current?.nameAllLocales ?? product.nameAllLocales;
   const localeName = Array.isArray(rawNameLocales)
-    ? rawNameLocales.find((locale) => locale.locale === "en")?.value || rawNameLocales[0]?.value
+    ? rawNameLocales.find((locale) => locale.locale === commerceLocale)?.value ||
+      rawNameLocales.find((locale) => locale.locale === "en")?.value ||
+      rawNameLocales[0]?.value
     : "";
   const name = product.name ? String(product.name) : localeName || sku;
 
@@ -131,6 +137,10 @@ function mapProductSearchHit(
 
 export function QuoteCreateView() {
   const router = useRouter();
+  const t = useTranslations("QuoteCreate");
+  const locale = useLocale();
+  const currentLocale = isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
+  const commerceLocale = toCommerceLocale(currentLocale);
   const { allCompanies } = useCompanies();
   const { allEmployees } = useEmployees();
 
@@ -157,7 +167,7 @@ export function QuoteCreateView() {
   }, []);
 
   const companyOptions = [
-    { value: "", label: "Select Company / Business Unit" },
+    { value: "", label: t("selectCompany") },
     ...allCompanies.map((c) => ({ value: c.id, label: c.name }))
   ];
 
@@ -166,7 +176,7 @@ export function QuoteCreateView() {
   );
 
   const customerOptions = [
-    { value: "", label: "Select Customer / Associate" },
+    { value: "", label: t("selectCustomer") },
     ...availableEmployees.map((e) => ({
       value: e.id,
       label: `${e.firstName} ${e.lastName} (${e.email})`
@@ -215,7 +225,7 @@ export function QuoteCreateView() {
 
         const data = (await response.json()) as ProductSearchResponse;
         const results = (data.results || [])
-          .map(mapProductSearchHit)
+          .map((product) => mapProductSearchHit(product, commerceLocale))
           .filter((product): product is ProductSearchHit => Boolean(product));
 
         if (!cancelled) setProductSearchResults(results);
@@ -231,7 +241,7 @@ export function QuoteCreateView() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [activeProductQuery, activeSearchLineId]);
+  }, [activeProductQuery, activeSearchLineId, commerceLocale]);
 
   const handleAddLineItem = () => {
     const newItem: QuoteLineItem = {
@@ -282,7 +292,7 @@ export function QuoteCreateView() {
 
   const handleSelectProduct = (id: string, product: ProductSearchHit) => {
     if (!product.taxCategoryName) {
-      setFeedback(`${product.name} cannot be quoted because it is missing a tax category.`);
+      setFeedback(t("errors.missingTaxCategory", { product: product.name }));
       return;
     }
 
@@ -357,7 +367,7 @@ export function QuoteCreateView() {
   const handleSubmitQuote = async () => {
     if (!canSubmitQuote) return;
     if (!selectedShippingAddress) {
-      setFeedback("Cannot request a quote for a cart without a shipping address.");
+      setFeedback(t("errors.shippingAddress"));
       return;
     }
 
@@ -381,7 +391,7 @@ export function QuoteCreateView() {
       };
 
       if (!cartResponse.ok || !cartPayload.id) {
-        throw new Error(cartPayload.error || "Unable to create cart for quote request.");
+        throw new Error(cartPayload.error || t("errors.createCart"));
       }
 
       const updateResponse = await fetch(`/api/carts/${encodeURIComponent(cartPayload.id)}/update`, {
@@ -402,7 +412,7 @@ export function QuoteCreateView() {
       };
 
       if (!updateResponse.ok) {
-        throw new Error(updatePayload.error || "Unable to add quote items to cart.");
+        throw new Error(updatePayload.error || t("errors.addItems"));
       }
 
       const quoteComment = [
@@ -426,7 +436,7 @@ export function QuoteCreateView() {
       };
 
       if (!quoteResponse.ok || !quotePayload.id) {
-        throw new Error(quotePayload.error || "Unable to submit quote request.");
+        throw new Error(quotePayload.error || t("errors.submit"));
       }
 
       const authoredLineItems: AuthoredQuoteLineItem[] = lineItems.map((item) => ({
@@ -458,48 +468,57 @@ export function QuoteCreateView() {
         );
       }
 
-      router.push(`/b2b/quotes/${encodeURIComponent(quotePayload.id)}`);
+      router.push(
+        localizePathname(`/b2b/quotes/${encodeURIComponent(quotePayload.id)}`, currentLocale)
+      );
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Unable to submit quote request.");
+      setFeedback(error instanceof Error ? error.message : t("errors.submit"));
       setSubmitting(false);
     }
   };
+
+  const quoteListPath = localizePathname("/b2b/quotes", currentLocale);
+  const formatMoney = (value: number) =>
+    new Intl.NumberFormat(currentLocale, {
+      currency: "USD",
+      style: "currency"
+    }).format(value);
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto">
       {/* Page Header */}
       <PageHeader
-        title="Create Quote Request"
-        subtitle="Author a customized quote proposal with volume discounts on behalf of a buyer."
+        title={t("title")}
+        subtitle={t("subtitle")}
         breadcrumbs={
           <div className="flex items-center gap-1 text-xs text-m-text-muted">
             <button
-              onClick={() => router.push("/b2b/quotes")}
+              onClick={() => router.push(quoteListPath)}
               className="hover:text-m-primary"
             >
-              Quotes
+              {t("quotes")}
             </button>
             <span>/</span>
-            <span>Create</span>
+            <span>{t("create")}</span>
           </div>
         }
         actions={
           <Button
             variant="secondary"
             size="md"
-            onClick={() => router.push("/b2b/quotes")}
+            onClick={() => router.push(quoteListPath)}
           >
-            Cancel
+            {t("cancel")}
           </Button>
         }
       />
 
       {/* Panel 1: Target Buyer & Company */}
-      <Panel title="1. Buyer &amp; Company Context">
+      <Panel title={t("buyerContext")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
           <div>
             <label className="text-xs font-semibold text-m-text mb-1 block">
-              Target Company <span className="text-m-danger">*</span>
+              {t("targetCompany")} <span className="text-m-danger">*</span>
             </label>
             <Select
               value={companyId}
@@ -513,7 +532,7 @@ export function QuoteCreateView() {
 
           <div>
             <label className="text-xs font-semibold text-m-text mb-1 block">
-              Customer Associate
+              {t("customerAssociate")}
             </label>
             <Select
               value={customerId}
@@ -526,7 +545,7 @@ export function QuoteCreateView() {
 
       {/* Panel 2: Line Items Builder */}
       <Panel
-        title={`2. Quote Line Items (${lineItems.length})`}
+        title={t("lineItemsTitle", { count: lineItems.length })}
         headerActions={
           <Button
             variant="secondary"
@@ -534,7 +553,7 @@ export function QuoteCreateView() {
             leftIcon={<Icon name="plus" size="xs" />}
             onClick={handleAddLineItem}
           >
-            Add Product Item
+            {t("addProduct")}
           </Button>
         }
       >
@@ -542,12 +561,12 @@ export function QuoteCreateView() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Product Name</TableHead>
+                <TableHead>{t("columns.productName")}</TableHead>
                 <TableHead>SKU</TableHead>
-                <TableHead className="w-24">Quantity</TableHead>
-                <TableHead className="w-32">List Price ($)</TableHead>
-                <TableHead className="w-36">Negotiated Unit ($)</TableHead>
-                <TableHead className="w-32 text-right">Line Total ($)</TableHead>
+                <TableHead className="w-24">{t("columns.quantity")}</TableHead>
+                <TableHead className="w-32">{t("columns.listPrice")}</TableHead>
+                <TableHead className="w-36">{t("columns.negotiatedUnit")}</TableHead>
+                <TableHead className="w-32 text-right">{t("columns.lineTotal")}</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -555,8 +574,7 @@ export function QuoteCreateView() {
               {lineItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="py-8 text-center text-m-text-muted">
-                    No line items added yet. Click &quot;Add Product Item&quot; to build
-                    the quote proposal.
+                    {t("emptyLineItems")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -575,7 +593,11 @@ export function QuoteCreateView() {
                           value={query}
                           onFocus={() => setActiveSearchLineId(item.id)}
                           onChange={(e) => handleLineNameChange(item.id, e.target.value)}
-                          placeholder={isActiveSearchLine ? "Type at least 4 characters..." : "Search by name or SKU"}
+                          placeholder={
+                            isActiveSearchLine
+                              ? t("searchMinCharacters")
+                              : t("searchByNameOrSku")
+                          }
                         />
                       </TableCell>
                       <TableCell className="font-mono text-xs text-m-text-muted">
@@ -592,7 +614,7 @@ export function QuoteCreateView() {
                         />
                       </TableCell>
                       <TableCell className="text-m-text-muted">
-                        ${item.listPrice.toFixed(2)}
+                        {formatMoney(item.listPrice)}
                       </TableCell>
                       <TableCell>
                         <Input
@@ -606,7 +628,7 @@ export function QuoteCreateView() {
                         />
                       </TableCell>
                       <TableCell className="text-right font-semibold text-m-text">
-                        ${item.subtotal.toFixed(2)}
+                        {formatMoney(item.subtotal)}
                       </TableCell>
                       <TableCell>
                         <Button
@@ -624,11 +646,11 @@ export function QuoteCreateView() {
                           <div className="max-w-xl overflow-hidden rounded-m-md border border-m-border bg-m-surface shadow-m-panel">
                             {isSearchingProducts ? (
                               <div className="px-3 py-2 text-sm text-m-text-muted">
-                                Searching products...
+                                {t("searchingProducts")}
                               </div>
                             ) : productSearchResults.length === 0 ? (
                               <div className="px-3 py-2 text-sm text-m-text-muted">
-                                No products found.
+                                {t("noProducts")}
                               </div>
                             ) : (
                               productSearchResults.map((product) => {
@@ -651,12 +673,12 @@ export function QuoteCreateView() {
                                     </span>
                                     {!isQuotable && (
                                       <span className="block truncate text-xs font-semibold text-m-error">
-                                        Missing tax category
+                                        {t("missingTaxCategory")}
                                       </span>
                                     )}
                                   </span>
                                   <span className="shrink-0 font-semibold text-m-text">
-                                    ${product.price.toFixed(2)}
+                                    {formatMoney(product.price)}
                                   </span>
                                 </button>
                                 );
@@ -676,12 +698,12 @@ export function QuoteCreateView() {
       </Panel>
 
       {/* Panel 3: Financial Summary & Offer Settings */}
-      <Panel title="3. Offer Terms &amp; Summary">
+      <Panel title={t("offerTerms")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-5">
           <div className="flex flex-col gap-4">
             <div>
               <label className="text-xs font-semibold text-m-text mb-1 block">
-                Volume Discount (%)
+                {t("volumeDiscount")}
               </label>
               <Input
                 type="number"
@@ -702,14 +724,14 @@ export function QuoteCreateView() {
               />
               {!hasValidDiscount && (
                 <p className="mt-1 text-xs font-medium text-m-danger">
-                  Enter a discount from 0 to 100.
+                  {t("discountValidation")}
                 </p>
               )}
             </div>
 
             <div>
               <label className="text-xs font-semibold text-m-text mb-1 block">
-                Valid Until Date
+                {t("validUntil")}
               </label>
               <Input
                 type="date"
@@ -719,41 +741,41 @@ export function QuoteCreateView() {
               />
               {!hasValidDate && (
                 <p className="mt-1 text-xs font-medium text-m-danger">
-                  Choose today or a future date.
+                  {t("dateValidation")}
                 </p>
               )}
             </div>
 
             <div>
               <label className="text-xs font-semibold text-m-text mb-1 block">
-                Offer Notes / Message
+                {t("offerNotes")}
               </label>
               <Input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Initial comments or terms for the buyer..."
+                placeholder={t("offerNotesPlaceholder")}
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-3 p-4 rounded-m-xl bg-m-surface-1 border border-m-border">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-m-text mb-2">
-              Quote Calculation Summary
+              {t("calculationSummary")}
             </h4>
             <div className="flex justify-between border-b border-m-border/60 pb-2 text-sm">
-              <span className="text-m-text-muted">Gross Subtotal</span>
+              <span className="text-m-text-muted">{t("grossSubtotal")}</span>
               <span className="font-semibold text-m-text">
-                ${grossSubtotal.toFixed(2)}
+                {formatMoney(grossSubtotal)}
               </span>
             </div>
             <div className="flex justify-between border-b border-m-border/60 pb-2 text-sm">
-              <span className="text-m-text-muted">Applied Discount</span>
+              <span className="text-m-text-muted">{t("appliedDiscount")}</span>
               <span className="font-semibold text-m-success">-{discountPct}%</span>
             </div>
             <div className="flex justify-between text-base pt-1">
-              <span className="font-bold text-m-text">Negotiated Total</span>
+              <span className="font-bold text-m-text">{t("negotiatedTotal")}</span>
               <span className="font-bold text-m-primary">
-                ${negotiatedTotal.toFixed(2)}
+                {formatMoney(negotiatedTotal)}
               </span>
             </div>
           </div>
@@ -766,14 +788,14 @@ export function QuoteCreateView() {
         </div>
       )}
       <div className="flex justify-end gap-3 pt-2">
-        <Button variant="secondary" size="md" onClick={() => router.push("/b2b/quotes")}>
-          Cancel
+        <Button variant="secondary" size="md" onClick={() => router.push(quoteListPath)}>
+          {t("cancel")}
         </Button>
         <Button variant="outline" size="md" disabled>
-          Save as Draft
+          {t("saveDraft")}
         </Button>
         <Button variant="primary" size="md" disabled={!canSubmitQuote} onClick={handleSubmitQuote}>
-          {submitting ? "Submitting..." : "Submit Quote to Buyer"}
+          {submitting ? t("submitting") : t("submitToBuyer")}
         </Button>
       </div>
     </div>

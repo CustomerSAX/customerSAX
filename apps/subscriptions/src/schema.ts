@@ -27,6 +27,7 @@ export const typeDefs = gql`
     status: String!
     frequency: String!
     startDate: String!
+    scheduleTime: String
     nextDeliveryDate: String!
     endDate: String
     shippingAddress: String!
@@ -56,6 +57,7 @@ export const typeDefs = gql`
     status: String!
     frequency: String!
     startDate: String!
+    scheduleTime: String
     nextDeliveryDate: String!
     endDate: String
     shippingAddress: String!
@@ -77,6 +79,7 @@ export const typeDefs = gql`
     status: String
     frequency: String
     startDate: String
+    scheduleTime: String
     nextDeliveryDate: String
     endDate: String
     shippingAddress: String

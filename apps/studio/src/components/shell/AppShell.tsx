@@ -1090,6 +1090,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // Find active item ID
   let activeItemId = "dashboard";
+  // The calendar is currently a subscriptions workflow rather than a global
+  // destination, so retain the parent Commerce item as active.
+  if (appPathname === "/calendar" || appPathname.startsWith("/calendar/")) {
+    activeItemId = "subscriptions";
+  }
   for (const group of groups) {
     for (const item of group.items) {
       if (

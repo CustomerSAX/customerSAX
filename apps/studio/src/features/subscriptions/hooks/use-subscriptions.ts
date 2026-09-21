@@ -10,7 +10,11 @@ import {
   SUBSCRIPTIONS_QUERY,
   UPDATE_SUBSCRIPTION
 } from "../api/queries";
-import type { CustomerSubscription, SubscriptionDraft, SubscriptionStatus } from "../types/subscription-types";
+import type {
+  CustomerSubscription,
+  SubscriptionDraft,
+  SubscriptionStatus
+} from "../types/subscription-types";
 
 type SubscriptionQueryData = { subscriptions: CustomerSubscription[] };
 
@@ -32,8 +36,8 @@ export function useSubscriptions(customerId?: string) {
     return result.data.createSubscription as CustomerSubscription;
   }, [createMutation, refetch]);
 
-  const updateSubscription = useCallback(async (id: string, draft: SubscriptionDraft) => {
-    await updateMutation({ variables: { id, patch: draft } });
+  const updateSubscription = useCallback(async (id: string, patch: Partial<SubscriptionDraft>) => {
+    await updateMutation({ variables: { id, patch } });
     await refetch();
   }, [refetch, updateMutation]);
 
