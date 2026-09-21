@@ -1,5 +1,8 @@
 "use client";
 
+import { apolloClient } from "@/graphql/client";
+import { localizeHref, localizePathname, stripLocalePrefix } from "@/i18n/routing";
+import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
 import { gql, useQuery } from "@apollo/client";
 import {
   DEFAULT_LOCALE,
@@ -9,23 +12,20 @@ import {
   isSupportedLocale,
   type AppLocale
 } from "@csa/i18n";
-import { localizeHref, localizePathname, stripLocalePrefix } from "@/i18n/routing";
-import { usePathname, useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import {
+  Avatar,
+  Dropdown,
+  Icon,
   Sidebar,
   SidebarGroup,
   SidebarItem,
   TopBar,
-  Avatar,
-  Dropdown,
-  Icon,
   useDialogAccessibility
 } from "@csa/ui";
-import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
-import { apolloClient } from "@/graphql/client";
+import { useLocale, useTranslations } from "next-intl";
+import { usePathname, useRouter } from "next/navigation";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const sidebarGroups: SidebarGroup[] = [
   {
@@ -1298,7 +1298,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 ⌘K
               </kbd>
-            </div>
+            </button>
           }
           actions={
             <div className="flex items-center gap-2">
