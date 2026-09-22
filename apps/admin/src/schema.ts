@@ -28,6 +28,33 @@ function iso(d: Date | string | undefined | null): string | null {
   return d instanceof Date ? d.toISOString() : new Date(d).toISOString();
 }
 
+async function getKnownClientProjectKeys(
+  clientId: string,
+  contextProjectKey?: string,
+  existingUserProjects?: Array<{ clientId?: string; projectKey: string }>
+): Promise<Set<string>> {
+  const keys = new Set((await projectsRepo.listProjectsByClient(clientId)).map((p) => p.projectKey));
+  if (contextProjectKey) {
+    keys.add(contextProjectKey);
+  }
+  if (existingUserProjects) {
+    for (const item of existingUserProjects) {
+      if (item.clientId === clientId || !item.clientId) {
+        keys.add(item.projectKey);
+      }
+    }
+  }
+  const clientUsers = await usersRepo.listUsersByClient(clientId);
+  for (const u of clientUsers) {
+    for (const p of u.projects ?? []) {
+      if (p.clientId === clientId || !p.clientId) {
+        keys.add(p.projectKey);
+      }
+    }
+  }
+  return keys;
+}
+
 function clientUserView(user: CsaUser, clientId: string) {
   const { _id, passwordHash: _hash, ...rest } = user;
   void _hash;
@@ -710,7 +737,8 @@ export const resolvers = {
           lastName?: string;
           projects: { projectKey: string; role: string }[];
         };
-      }
+      },
+      context?: { projectKey?: string }
     ) => {
       const client = await requireClient(args.clientId);
       if (client.status === "blocked") throw new Error("Cannot add users to a blocked client");
@@ -719,7 +747,7 @@ export const resolvers = {
       }
       if (args.input.password.length < 8) throw new Error("Password must be at least 8 characters");
 
-      const clientProjectKeys = new Set((await projectsRepo.listProjectsByClient(args.clientId)).map((p) => p.projectKey));
+      const clientProjectKeys = await getKnownClientProjectKeys(args.clientId, context?.projectKey);
       for (const p of args.input.projects) {
         if (!clientProjectKeys.has(p.projectKey)) {
           throw new Error(`Project '${p.projectKey}' does not belong to this client`);
@@ -740,7 +768,8 @@ export const resolvers = {
 
     adminAssignClientUser: async (
       _p: unknown,
-      args: { clientId: string; grantedBy: string; input: { email: string; projects: { projectKey: string; role: string }[] } }
+      args: { clientId: string; grantedBy: string; input: { email: string; projects: { projectKey: string; role: string }[] } },
+      context?: { projectKey?: string }
     ) => {
       const client = await requireClient(args.clientId);
       if (client.status === "blocked") throw new Error("Cannot add users to a blocked client");
@@ -748,7 +777,7 @@ export const resolvers = {
         throw new Error("Select at least one project");
       }
 
-      const clientProjectKeys = new Set((await projectsRepo.listProjectsByClient(args.clientId)).map((p) => p.projectKey));
+      const clientProjectKeys = await getKnownClientProjectKeys(args.clientId, context?.projectKey);
       for (const p of args.input.projects) {
         if (!clientProjectKeys.has(p.projectKey)) {
           throw new Error(`Project '${p.projectKey}' does not belong to this client`);
@@ -777,9 +806,20 @@ export const resolvers = {
           password?: string;
           projects?: { projectKey: string; role: string }[];
         };
-      }
+      },
+      context: { userRole?: string; userEmail?: string; projectKey?: string }
     ) => {
       await requireClient(args.clientId);
+
+      if (context?.userRole !== "superadmin" && args.input.projects && context?.userEmail) {
+        const isSelf = args.input.email.toLowerCase().trim() === context.userEmail.toLowerCase().trim();
+        if (isSelf && context.projectKey) {
+          const targetMembership = args.input.projects.find((p) => p.projectKey === context.projectKey);
+          if (targetMembership && targetMembership.role !== "admin") {
+            throw new Error("You cannot change your own role to prevent accidental lockout.");
+          }
+        }
+      }
 
       const existingUser = await usersRepo.findUserByEmail(args.input.email);
       if (existingUser && args.input.projects) {
@@ -796,7 +836,11 @@ export const resolvers = {
       }
 
       if (args.input.projects !== undefined) {
-        const clientProjectKeys = new Set((await projectsRepo.listProjectsByClient(args.clientId)).map((p) => p.projectKey));
+        const clientProjectKeys = await getKnownClientProjectKeys(
+          args.clientId,
+          context?.projectKey,
+          existingUser?.projects
+        );
         for (const p of args.input.projects) {
           if (!clientProjectKeys.has(p.projectKey)) {
             throw new Error(`Project '${p.projectKey}' does not belong to this client`);
@@ -817,11 +861,47 @@ export const resolvers = {
       return clientUserView(updated, args.clientId);
     },
 
-    adminRemoveUserFromProject: async (_p: unknown, args: { clientId: string; email: string; projectKey: string }) => {
+    adminRemoveUserFromProject: async (
+      _p: unknown,
+      args: { clientId: string; email: string; projectKey: string },
+      context: { userRole?: string; userEmail?: string }
+    ) => {
+      if (context.userRole !== "superadmin") {
+        if (context.userEmail && args.email.toLowerCase().trim() === context.userEmail.toLowerCase().trim()) {
+          throw new Error("You cannot delete your own account.");
+        }
+        const user = await usersRepo.findUserByEmail(args.email);
+        if (user) {
+          const membership = (user.projects ?? []).find(
+            (p) => p.clientId === args.clientId && p.projectKey === args.projectKey
+          );
+          if (membership?.role === "admin" || (!membership && user.role === "admin")) {
+            throw new Error("Admin accounts cannot be deleted from the organisation portal. Superadmin access is required.");
+          }
+        }
+      }
       return usersRepo.removeUserFromProject(args.email, args.clientId, args.projectKey);
     },
 
-    adminRemoveUserFromClient: async (_p: unknown, args: { clientId: string; email: string }) => {
+    adminRemoveUserFromClient: async (
+      _p: unknown,
+      args: { clientId: string; email: string },
+      context: { userRole?: string; userEmail?: string }
+    ) => {
+      if (context.userRole !== "superadmin") {
+        if (context.userEmail && args.email.toLowerCase().trim() === context.userEmail.toLowerCase().trim()) {
+          throw new Error("You cannot delete your own account.");
+        }
+        const user = await usersRepo.findUserByEmail(args.email);
+        if (user) {
+          const hasAdminInClient =
+            (user.projects ?? []).some((p) => p.clientId === args.clientId && p.role === "admin") ||
+            user.role === "admin";
+          if (hasAdminInClient) {
+            throw new Error("Admin accounts cannot be deleted from the organisation portal. Superadmin access is required.");
+          }
+        }
+      }
       return usersRepo.removeUserFromClient(args.email, args.clientId);
     },
     adminUpdateClientContact: async (_p: unknown, args: { clientId: string; contactEmail: string }) => {

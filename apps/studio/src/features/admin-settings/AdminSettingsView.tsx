@@ -46,6 +46,7 @@ const WORKSPACE_ADMIN = gql`
 
 const UPDATE_USER = gql`mutation UpdateWorkspaceUser($clientId: ID!, $input: AdminUpdateClientUserInput!, $grantedBy: String!) { adminUpdateClientUser(clientId: $clientId, input: $input, grantedBy: $grantedBy) { email } }`;
 const CREATE_USER = gql`mutation CreateWorkspaceUser($clientId: ID!, $input: AdminCreateUserInput!, $grantedBy: String!) { adminCreateClientUser(clientId: $clientId, input: $input, grantedBy: $grantedBy) { id email firstName lastName active clientProjects { projectKey role } } }`;
+const REMOVE_USER_FROM_PROJECT = gql`mutation RemoveWorkspaceUser($clientId: ID!, $email: String!, $projectKey: String!) { adminRemoveUserFromProject(clientId: $clientId, email: $email, projectKey: $projectKey) }`;
 const UPDATE_CONTACT = gql`mutation UpdateContact($clientId: ID!, $contactEmail: String!) { adminUpdateClientContact(clientId: $clientId, contactEmail: $contactEmail) { id contactEmail } }`;
 const CREATE_ROLE = gql`mutation CreateRole($clientId: ID!, $projectKey: String!, $input: AdminRoleInput!) { adminCreateRole(clientId: $clientId, projectKey: $projectKey, input: $input) { id } }`;
 const UPDATE_ROLE = gql`mutation UpdateRole($id: ID!, $clientId: ID!, $projectKey: String!, $input: AdminRoleUpdateInput!) { adminUpdateRole(id: $id, clientId: $clientId, projectKey: $projectKey, input: $input) { id key label description system } }`;
@@ -99,10 +100,37 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
   const t = useTranslations("AdminSettings");
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<AdminUserRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [changingRoleEmail, setChangingRoleEmail] = useState<string | null>(null);
   const [updateUser] = useMutation(UPDATE_USER);
+  const [removeUser] = useMutation(REMOVE_USER_FROM_PROJECT);
   const roles: Role[] = data.adminRoles;
   const users = useMemo(() => data.adminUsersByClient.filter((u) => `${u.email} ${u.firstName ?? ""} ${u.lastName ?? ""}`.toLowerCase().includes(search.toLowerCase())), [data.adminUsersByClient, search]);
-  async function changeRole(user: AdminUserRow, role: string) { const projects = user.clientProjects.map((p) => p.projectKey === projectKey ? { ...p, role } : { projectKey: p.projectKey, role: p.role }); await updateUser({ variables: { clientId, grantedBy: actor, input: { email: user.email, projects } } }); await refetch(); }
+
+  async function changeRole(user: AdminUserRow, role: string) {
+    setActionError(null);
+    setActionSuccess(null);
+    setChangingRoleEmail(user.email);
+    try {
+      const projects = user.clientProjects.map((p) => ({
+        projectKey: p.projectKey,
+        role: p.projectKey === projectKey ? role : p.role,
+      }));
+      await updateUser({ variables: { clientId, grantedBy: actor, input: { email: user.email, projects } } });
+      await refetch();
+      setActionSuccess(`Role updated to "${role}" for ${user.email}.`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to change role";
+      setActionError(message);
+    } finally {
+      setChangingRoleEmail(null);
+    }
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -114,6 +142,21 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
           {t("addUser")}
         </Button>
       </div>
+
+      {actionError && (
+        <div className="flex items-center justify-between rounded-lg border border-m-error/40 bg-m-error/10 p-3 text-sm text-m-error">
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} className="ml-2 text-xs font-bold underline">Dismiss</button>
+        </div>
+      )}
+
+      {actionSuccess && (
+        <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-400">
+          <span>{actionSuccess}</span>
+          <button type="button" onClick={() => setActionSuccess(null)} className="ml-2 text-xs font-bold underline">Dismiss</button>
+        </div>
+      )}
+
       <input aria-label={t("searchUsers")} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("searchUsers")} className="w-full rounded-lg border border-m-border bg-m-surface px-3 py-2"/>
       <div className="overflow-auto rounded-xl border border-m-border bg-m-surface">
         <table className="w-full text-sm">
@@ -123,21 +166,59 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
               <th>{t("name")}</th>
               <th>{t("role", { project: projectKey })}</th>
               <th>{t("changeRole")}</th>
+              <th className="p-3 text-right pr-4">Actions</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u) => {
               const membership = u.clientProjects.find((p) => p.projectKey === projectKey);
               if (!membership) return null;
+              const isSelf = u.email.toLowerCase() === actor.toLowerCase();
+              const isAdmin = membership.role === "admin";
+              const isChanging = changingRoleEmail === u.email;
               return (
                 <tr key={u.id} className="border-b border-m-border">
                   <td className="p-3 font-medium">{u.email}</td>
                   <td>{[u.firstName, u.lastName].filter(Boolean).join(" ") || "--"}</td>
                   <td>{membership.role}</td>
                   <td>
-                    <select aria-label={`${t("changeRole")} ${u.email}`} value={membership.role} onChange={(e) => void changeRole(u, e.target.value)} className="rounded border border-m-border bg-m-surface px-2 py-1">
+                    <select
+                      aria-label={`${t("changeRole")} ${u.email}`}
+                      value={membership.role}
+                      onChange={(e) => void changeRole(u, e.target.value)}
+                      disabled={isSelf || isChanging}
+                      title={isSelf ? "You cannot change your own role to prevent accidental lockout." : undefined}
+                      className={`rounded border border-m-border bg-m-surface px-2 py-1 ${isSelf || isChanging ? "cursor-not-allowed opacity-60" : ""}`}
+                    >
                       {roles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
                     </select>
+                  </td>
+                  <td className="p-3 text-right pr-4">
+                    {isAdmin ? (
+                      <span title="Admin accounts cannot be deleted from this portal. Superadmin access is required.">
+                        <Button variant="danger" size="sm" disabled leftIcon={<Icon name="trash-2" size="xs" />}>
+                          Delete
+                        </Button>
+                      </span>
+                    ) : isSelf ? (
+                      <span title="You cannot delete your own account.">
+                        <Button variant="danger" size="sm" disabled leftIcon={<Icon name="trash-2" size="xs" />}>
+                          Delete
+                        </Button>
+                      </span>
+                    ) : (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        leftIcon={<Icon name="trash-2" size="xs" />}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setUserToDelete(u);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </td>
                 </tr>
               );
@@ -156,6 +237,37 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
         onSaved={async () => {
           setIsAddOpen(false);
           await refetch();
+        }}
+      />
+      <DeleteUserModal
+        isOpen={Boolean(userToDelete)}
+        onClose={() => {
+          setUserToDelete(null);
+          setDeleteError(null);
+        }}
+        user={userToDelete}
+        projectKey={projectKey}
+        isDeleting={isDeleting}
+        error={deleteError}
+        onConfirm={async () => {
+          if (!userToDelete) return;
+          setIsDeleting(true);
+          setDeleteError(null);
+          try {
+            await removeUser({
+              variables: {
+                clientId,
+                email: userToDelete.email,
+                projectKey,
+              },
+            });
+            setUserToDelete(null);
+            await refetch();
+          } catch (caught) {
+            setDeleteError(caught instanceof Error ? caught.message : "Failed to remove user");
+          } finally {
+            setIsDeleting(false);
+          }
         }}
       />
     </section>
@@ -304,6 +416,61 @@ function AddUserModal({ isOpen, onClose, clientId, projectKey, actor, roles, pro
             <Button type="submit" variant="primary" loading={isSaving} disabled={!email.trim() || password.length < 8 || !role || selectedProjectKeys.length === 0}>Create User</Button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function DeleteUserModal({
+  isOpen,
+  onClose,
+  user,
+  projectKey,
+  onConfirm,
+  isDeleting,
+  error,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  user: AdminUserRow | null;
+  projectKey: string;
+  onConfirm: () => Promise<void>;
+  isDeleting: boolean;
+  error: string | null;
+}) {
+  if (!isOpen || !user) return null;
+  const userName = [user.firstName, user.lastName].filter(Boolean).join(" ");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/45 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-user-title">
+      <div className="w-full max-w-md overflow-y-auto rounded-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-m-error-light text-m-error">
+            <Icon name="trash-2" size="sm" />
+          </div>
+          <div>
+            <h2 id="delete-user-title" className="text-lg font-bold text-m-text">Remove User</h2>
+            <p className="text-xs text-m-text-muted">From project: <code className="font-semibold text-m-text">{projectKey}</code></p>
+          </div>
+        </div>
+
+        <p className="mt-4 text-sm text-m-text">
+          Are you sure you want to remove <strong>{userName ? `${userName} (${user.email})` : user.email}</strong> from this project?
+        </p>
+        <p className="mt-2 text-xs text-m-text-muted">
+          This user will lose access to <strong>{projectKey}</strong>. Their account and access to other projects will remain unaffected.
+        </p>
+
+        {error && <p className="mt-3 rounded-lg border border-m-error-border bg-m-error-light px-3 py-2 text-sm text-m-error">{error}</p>}
+
+        <div className="mt-6 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button type="button" variant="danger" onClick={onConfirm} loading={isDeleting}>
+            Remove User
+          </Button>
+        </div>
       </div>
     </div>
   );

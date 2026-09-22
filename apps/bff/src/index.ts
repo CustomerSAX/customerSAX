@@ -46,17 +46,18 @@ log.info("http server listening", { port, host });
 // ── Compose gateway in the background with retries ────────────────────────────
 async function composeGateway(): Promise<void> {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    const gateway = buildGateway(log);
-    const server = gateway
-      ? new ApolloServer<GatewayContext>({
-          gateway,
-          plugins: [apolloLoggingPlugin(log), ApolloServerPluginDrainHttpServer({ httpServer })]
-        })
-      : new ApolloServer<GatewayContext>({
-          ...localSchema,
-          plugins: [apolloLoggingPlugin(log), ApolloServerPluginDrainHttpServer({ httpServer })]
-        });
+    let server: ApolloServer<GatewayContext> | undefined;
     try {
+      const gateway = buildGateway(log);
+      server = gateway
+        ? new ApolloServer<GatewayContext>({
+            gateway,
+            plugins: [apolloLoggingPlugin(log), ApolloServerPluginDrainHttpServer({ httpServer })]
+          })
+        : new ApolloServer<GatewayContext>({
+            ...localSchema,
+            plugins: [apolloLoggingPlugin(log), ApolloServerPluginDrainHttpServer({ httpServer })]
+          });
       await server.start();
       app.use(
         "/graphql",
@@ -69,7 +70,9 @@ async function composeGateway(): Promise<void> {
       log.info("gateway ready — graphql serving", { attempt });
       return;
     } catch (err) {
-      await server.stop().catch(() => {});
+      if (server) {
+        await server.stop().catch(() => {});
+      }
       if (attempt >= MAX_ATTEMPTS) {
         log.error("gateway failed to compose after retries; giving up", err, { attempt });
         // Don't throw — keep the healthz endpoint alive so Cloud Run doesn't restart.

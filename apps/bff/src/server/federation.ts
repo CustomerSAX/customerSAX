@@ -55,9 +55,11 @@ async function getIdentityToken(targetUrl: string, logger?: Logger): Promise<str
 }
 
 export function buildGateway(logger: Logger): ApolloGateway | undefined {
-  const services = parseFederatedServices(
-    process.env.FEDERATED_SERVICES ?? defaultLocalFederatedServices()
-  );
+  let services = parseFederatedServices(process.env.FEDERATED_SERVICES, logger);
+
+  if (services.length === 0 && process.env.NODE_ENV !== "production") {
+    services = parseFederatedServices(defaultLocalFederatedServices(), logger);
+  }
 
   if (services.length === 0) {
     logger.warn("running with local fallback schema — FEDERATED_SERVICES is not configured");
@@ -136,19 +138,24 @@ function defaultLocalFederatedServices() {
   });
 }
 
-function parseFederatedServices(value: string | undefined) {
+function parseFederatedServices(value: string | undefined, logger?: Logger) {
   if (!value) {
     return [];
   }
 
-  const parsed = JSON.parse(stripTrailingCommas(value)) as FederatedServices;
+  try {
+    const parsed = JSON.parse(stripTrailingCommas(value)) as FederatedServices;
 
-  return selectCommerceService(
-    Object.entries(parsed).map(([name, url]) => ({
-      name,
-      url
-    }))
-  );
+    return selectCommerceService(
+      Object.entries(parsed).map(([name, url]) => ({
+        name,
+        url
+      }))
+    );
+  } catch (err) {
+    logger?.error("failed to parse FEDERATED_SERVICES; check formatting or syntax", err);
+    return [];
+  }
 }
 
 function stripTrailingCommas(value: string) {

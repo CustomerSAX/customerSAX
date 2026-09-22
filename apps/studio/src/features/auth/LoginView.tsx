@@ -49,7 +49,12 @@ export function LoginView() {
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
-        setError("Invalid credentials. Please check your email and password.");
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          setError("Invalid credentials. Please check your email and password.");
+        } else {
+          setError(data.error ? `Server error: ${data.error}` : "Authentication service error. Please check your backend and database connection.");
+        }
         return;
       }
       window.location.href = callbackUrl;
