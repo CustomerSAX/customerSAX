@@ -308,7 +308,7 @@ export const typeDefs = gql`
   input AdminPermissionInput { module: String!, view: Boolean!, create: Boolean!, update: Boolean!, delete: Boolean! }
   type AdminRole { id: ID!, clientId: ID!, projectKey: String!, key: String!, label: String!, description: String!, system: Boolean!, permissions: [AdminPermission!]! }
   input AdminRoleInput { key: String!, label: String!, description: String!, permissions: [AdminPermissionInput!]! }
-  input AdminRoleUpdateInput { label: String, description: String, permissions: [AdminPermissionInput!] }
+  input AdminRoleUpdateInput { key: String, label: String, description: String, permissions: [AdminPermissionInput!] }
 
   type AdminAiSettings { clientId: ID!, enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKeySet: Boolean!, updatedBy: String, updatedAt: String }
   input AdminAiSettingsInput { enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKey: String }
@@ -830,7 +830,37 @@ export const resolvers = {
       return { ...clientViewIso(client), projectCount: await projectsRepo.countProjectsByClient(args.clientId), userCount: await usersRepo.countUsersByClient(args.clientId) };
     },
     adminCreateRole: (_p: unknown, args: { clientId: string; projectKey: string; input: { key: string; label: string; description: string; permissions: rolesRepo.Permission[] } }) => rolesRepo.createRole(args.clientId, args.projectKey, args.input),
-    adminUpdateRole: (_p: unknown, args: { id: string; clientId: string; projectKey: string; input: { label?: string; description?: string; permissions?: rolesRepo.Permission[] } }) => rolesRepo.updateRole(args.id, args.clientId, args.projectKey, args.input),
+    adminUpdateRole: async (
+      _p: unknown,
+      args: {
+        id: string;
+        clientId: string;
+        projectKey: string;
+        input: { key?: string; label?: string; description?: string; permissions?: rolesRepo.Permission[] };
+      }
+    ) => {
+      const existing = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.id === args.id);
+      if (!existing) throw new Error("Role not found");
+
+      let newKey: string | undefined = undefined;
+      if (args.input.key !== undefined) {
+        newKey = args.input.key.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+        if (!newKey) throw new Error("Role name/slug cannot be empty");
+        if (newKey !== existing.key) {
+          if (existing.system) throw new Error("System role name cannot be modified");
+          const conflict = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.key === newKey && item.id !== args.id);
+          if (conflict) throw new Error("A role with this slug already exists");
+          await usersRepo.reassignRole(args.clientId, args.projectKey, existing.key, newKey);
+        }
+      }
+
+      return rolesRepo.updateRole(args.id, args.clientId, args.projectKey, {
+        ...(newKey !== undefined ? { key: newKey } : {}),
+        ...(args.input.label !== undefined ? { label: args.input.label.trim() } : {}),
+        ...(args.input.description !== undefined ? { description: args.input.description.trim() } : {}),
+        ...(args.input.permissions !== undefined ? { permissions: args.input.permissions } : {}),
+      });
+    },
     adminDeleteRole: async (_p: unknown, args: { id: string; clientId: string; projectKey: string }) => {
       const role = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.id === args.id);
       if (!role) return false;
