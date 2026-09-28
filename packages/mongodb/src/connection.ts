@@ -12,11 +12,12 @@
  *  - `MONGO_DB_NAME` selects the default database (`csa` when unset).
  */
 
-import { env, requiredEnv, setupDnsFallback } from "@csa/config";
+import { env, loadEnv, requiredEnv, setupDnsFallback } from "@csa/config";
+import { resolve } from "node:path";
 import { MongoClient, type Collection, type Document } from "mongodb";
 
 // `env`/`requiredEnv`/`setupDnsFallback` live in `@csa/config`; re-exported for convenience
-export { env, requiredEnv, setupDnsFallback };
+export { env, loadEnv, requiredEnv, setupDnsFallback };
 
 let clientPromise: Promise<MongoClient> | undefined;
 
@@ -62,7 +63,22 @@ export async function getMongoCollection<TSchema extends Document = Document>(
  * unambiguous across services.
  */
 function mongoUri() {
-  const value = env("MONGO_URI");
+  let value = env("MONGO_URI");
+
+  if (!value) {
+    try {
+      loadEnv({
+        extraPaths: [
+          resolve(process.cwd(), ".env"),
+          resolve(process.cwd(), "../.env"),
+          resolve(process.cwd(), "../../.env")
+        ]
+      });
+      value = env("MONGO_URI");
+    } catch {
+      // Ignore
+    }
+  }
 
   if (!value) {
     throw new Error("Missing required environment variable: MONGO_URI");

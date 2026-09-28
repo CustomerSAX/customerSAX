@@ -8,8 +8,9 @@ import { useTranslations } from "next-intl";
 import { AppShell } from "@/components/shell/AppShell";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { Button, Checkbox, Icon, Input, Select, TextArea } from "@csa/ui";
+import { KnowledgeBaseAdmin } from "./KnowledgeBaseAdmin";
 
-type Section = "users" | "roles" | "email" | "ai";
+type Section = "users" | "roles" | "email" | "ai" | "knowledge-base";
 type Permission = { module: string; view: boolean; create: boolean; update: boolean; delete: boolean };
 type PermissionAction = keyof Omit<Permission, "module">;
 type Role = { id: string; key: string; label: string; description: string; system: boolean; permissions: Permission[] };
@@ -60,7 +61,7 @@ const modules = ["dashboard", "tickets", "customers", "orders", "carts", "produc
 const blankPermissions = () => modules.map((module) => ({ module, view: true, create: false, update: false, delete: false }));
 export function AdminSettingsView({ section }: { section: Section }) {
   const t = useTranslations("AdminSettings");
-  const sections: Array<{ id: Section; label: string }> = (["users", "roles", "email", "ai"] as const).map((id) => ({ id, label: t(`sections.${id}`) }));
+  const sections: Array<{ id: Section; label: string }> = (["users", "roles", "email", "ai", "knowledge-base"] as const).map((id) => ({ id, label: t(`sections.${id}`) }));
   const [activeSection, setActiveSection] = useState<Section>(section);
   const { user, loading: userLoading } = useCurrentUser();
   const clientId = user?.activeClientId ?? "";
@@ -91,7 +92,7 @@ export function AdminSettingsView({ section }: { section: Section }) {
         </button>
       ))}
     </nav>
-    {loading ? <State text={t("loading")} /> : error ? <State text={error.message} /> : !data ? <State text={t("unavailable")} /> : activeSection === "users" ? <Users data={data} clientId={clientId} projectKey={projectKey} actor={user?.email ?? ""} refetch={refetch} /> : activeSection === "roles" ? <Roles roles={data.adminRoles} clientId={clientId} projectKey={projectKey} refetch={refetch} /> : activeSection === "email" ? <EmailSettings data={data} clientId={clientId} refetch={refetch} /> : <AiSettings settings={data.adminAiSettings} clientId={clientId} refetch={refetch} />}
+    {loading ? <State text={t("loading")} /> : error ? <State text={error.message} /> : !data ? <State text={t("unavailable")} /> : activeSection === "users" ? <Users data={data} clientId={clientId} projectKey={projectKey} actor={user?.email ?? ""} refetch={refetch} /> : activeSection === "roles" ? <Roles roles={data.adminRoles} clientId={clientId} projectKey={projectKey} refetch={refetch} /> : activeSection === "email" ? <EmailSettings data={data} clientId={clientId} refetch={refetch} /> : activeSection === "ai" ? <AiSettings settings={data.adminAiSettings} clientId={clientId} refetch={refetch} /> : <KnowledgeBaseAdmin clientId={clientId} />}
   </div></AppShell>;
 }
 
