@@ -37,6 +37,7 @@ export interface CsaClient {
   contactEmail: string;
   status: ClientStatus;
   ssoConfig?: ClientSsoConfigStored;
+  uiTheme?: string;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;

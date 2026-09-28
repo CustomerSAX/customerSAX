@@ -12,6 +12,7 @@ export const ADMIN_CLIENTS_QUERY = gql`
       slug
       contactEmail
       status
+      uiTheme
       projectCount
       userCount
       createdAt
@@ -27,6 +28,7 @@ export const ADMIN_CLIENT_QUERY = gql`
       slug
       contactEmail
       status
+      uiTheme
       createdAt
       createdBy
       ssoConfig {
@@ -89,17 +91,19 @@ export const ADMIN_CLIENT_QUERY = gql`
 `;
 
 export const ADMIN_CREATE_CLIENT = gql`
-  mutation AdminCreateClient($name: String!, $contactEmail: String!, $slug: String) {
-    adminCreateClient(name: $name, contactEmail: $contactEmail, slug: $slug) {
+  mutation AdminCreateClient($name: String!, $contactEmail: String!, $slug: String, $uiTheme: String) {
+    adminCreateClient(name: $name, contactEmail: $contactEmail, slug: $slug, uiTheme: $uiTheme) {
       id
+      uiTheme
     }
   }
 `;
 
 export const ADMIN_UPDATE_CLIENT = gql`
-  mutation AdminUpdateClient($id: ID!, $name: String, $contactEmail: String, $ssoConfig: AdminSsoConfigInput) {
-    adminUpdateClient(id: $id, name: $name, contactEmail: $contactEmail, ssoConfig: $ssoConfig) {
+  mutation AdminUpdateClient($id: ID!, $name: String, $contactEmail: String, $uiTheme: String, $ssoConfig: AdminSsoConfigInput) {
+    adminUpdateClient(id: $id, name: $name, contactEmail: $contactEmail, uiTheme: $uiTheme, ssoConfig: $ssoConfig) {
       id
+      uiTheme
     }
   }
 `;

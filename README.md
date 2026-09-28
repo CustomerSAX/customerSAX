@@ -80,7 +80,7 @@ cp apps/studio/.env.example apps/studio/.env
 cp apps/bff/.env.example apps/bff/.env
 # ... repeat for each app
 
-# 3. Start core stack (Studio + BFF + Auth + Commerce + Ticketing)
+# 3. Start core stack (Studio + BFF + Auth + Commerce + Ticketing + Admin)
 pnpm dev:studio
 
 # 4. Or start everything
@@ -111,7 +111,7 @@ pnpm dev:all
 |---------|-------------|
 | `pnpm dev` | Start all packages with `dev` script |
 | `pnpm dev:all` | All backends + Studio + Marketing + Docs |
-| `pnpm dev:studio` | Studio + BFF + Auth + Commerce + Ticketing (core stack) |
+| `pnpm dev:studio` | Studio + BFF + Auth + Commerce + Ticketing + Admin (core stack) |
 | `pnpm dev:marketing` | Marketing site only |
 | `pnpm dev:docs` | Docs site only |
 

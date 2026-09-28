@@ -191,6 +191,7 @@ function OverviewTab({
 
   const [name, setName] = useState(client.name);
   const [contactEmail, setContactEmail] = useState(client.contactEmail);
+  const [uiTheme, setUiTheme] = useState(client.uiTheme || "csa-custom");
   const [isSaving, setIsSaving] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,15 +199,41 @@ function OverviewTab({
   useEffect(() => {
     setName(client.name);
     setContactEmail(client.contactEmail);
+    setUiTheme(client.uiTheme || "csa-custom");
   }, [client]);
 
-  const isDirty = name.trim() !== client.name || contactEmail.trim() !== client.contactEmail;
+  const isDirty =
+    name.trim() !== client.name ||
+    contactEmail.trim() !== client.contactEmail ||
+    uiTheme !== (client.uiTheme || "csa-custom");
 
   async function handleSave() {
     setIsSaving(true);
     setError(null);
     try {
-      await updateClient({ variables: { id: client.id, name: name.trim(), contactEmail: contactEmail.trim() } });
+      await updateClient({
+        variables: {
+          id: client.id,
+          name: name.trim(),
+          contactEmail: contactEmail.trim(),
+          uiTheme
+        }
+      });
+      // Cache the organization theme locally for immediate sync
+      if (typeof window !== "undefined") {
+        try {
+          const stored = JSON.parse(localStorage.getItem("csa_org_themes") || "{}");
+          stored[client.id] = uiTheme;
+          if (client.slug) stored[client.slug] = uiTheme;
+          stored[name.trim()] = uiTheme;
+          localStorage.setItem("csa_org_themes", JSON.stringify(stored));
+          localStorage.removeItem("csa_dev_ui_override");
+          localStorage.removeItem("csa_ui_library");
+        } catch {
+          // ignore storage error
+        }
+      }
+
       onUpdated();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
@@ -251,11 +278,29 @@ function OverviewTab({
               />
             </div>
           </div>
-          <div>
-            <label className={LABEL_CLASS}>
-              Slug <span className="font-normal text-m-text-subtle">— immutable after creation</span>
-            </label>
-            <Input className="font-mono text-m-text-muted" value={client.slug} disabled />
+          <div className="grid grid-cols-2 gap-3.5">
+            <div>
+              <label className={LABEL_CLASS}>
+                Slug <span className="font-normal text-m-text-subtle">— immutable after creation</span>
+              </label>
+              <Input className="font-mono text-m-text-muted" value={client.slug} disabled />
+            </div>
+            <div>
+              <label className={LABEL_CLASS}>UI Theme / UI Library</label>
+              <select
+                value={uiTheme}
+                onChange={(e) => setUiTheme(e.target.value)}
+                disabled={isSaving}
+                className="h-9 w-full rounded-m-md border border-m-border bg-m-surface px-3 text-xs font-medium text-m-text outline-none transition-colors focus:border-m-primary focus:ring-1 focus:ring-m-primary"
+              >
+                <option value="csa-custom">csa-custom (CSA Custom / Tailwind)</option>
+                <option value="mantine">mantine (Mantine UI)</option>
+                <option value="mui">mui (Material UI)</option>
+              </select>
+              <p className="mt-1 text-[11px] text-m-text-subtle">
+                Controls the active UI library for this organisation across CSA Studio.
+              </p>
+            </div>
           </div>
 
           {error && <p className="text-xs text-m-error">{error}</p>}

@@ -102,6 +102,7 @@ export const typeDefs = gql`
     contactEmail: String!
     status: String!
     ssoConfig: AdminSsoConfig!
+    uiTheme: String
     createdBy: String!
     createdAt: String
     updatedAt: String
@@ -325,8 +326,8 @@ export const typeDefs = gql`
   }
 
   extend type Mutation {
-    adminCreateClient(name: String!, contactEmail: String!, slug: String): AdminClient!
-    adminUpdateClient(id: ID!, name: String, contactEmail: String, ssoConfig: AdminSsoConfigInput): AdminClient!
+    adminCreateClient(name: String!, contactEmail: String!, slug: String, uiTheme: String): AdminClient!
+    adminUpdateClient(id: ID!, name: String, contactEmail: String, uiTheme: String, ssoConfig: AdminSsoConfigInput): AdminClient!
     adminSetClientStatus(id: ID!, status: String!): AdminClient!
     adminDeleteClient(id: ID!): Boolean!
 
@@ -414,7 +415,7 @@ export const resolvers = {
 
   Mutation: {
     // ── Clients ──────────────────────────────────────────────────────────
-    adminCreateClient: async (_p: unknown, args: { name: string; contactEmail: string; slug?: string }) => {
+    adminCreateClient: async (_p: unknown, args: { name: string; contactEmail: string; slug?: string; uiTheme?: string }) => {
       const slug =
         args.slug?.trim().toLowerCase() ||
         args.name
@@ -430,6 +431,7 @@ export const resolvers = {
         name: args.name,
         contactEmail: args.contactEmail,
         slug,
+        uiTheme: args.uiTheme,
         createdBy: "superadmin",
       });
       return { ...clientViewIso(client), projectCount: 0, userCount: 0 };
@@ -437,11 +439,12 @@ export const resolvers = {
 
     adminUpdateClient: async (
       _p: unknown,
-      args: { id: string; name?: string; contactEmail?: string; ssoConfig?: unknown }
+      args: { id: string; name?: string; contactEmail?: string; uiTheme?: string; ssoConfig?: unknown }
     ) => {
-      const patch: { name?: string; contactEmail?: string; ssoConfig?: ClientSsoConfigStored } = {};
+      const patch: { name?: string; contactEmail?: string; uiTheme?: string; ssoConfig?: ClientSsoConfigStored } = {};
       if (args.name !== undefined) patch.name = args.name;
       if (args.contactEmail !== undefined) patch.contactEmail = args.contactEmail;
+      if (args.uiTheme !== undefined) patch.uiTheme = args.uiTheme;
 
       if (args.ssoConfig !== undefined) {
         const existing = await clientsRepo.findClientByIdRaw(args.id);

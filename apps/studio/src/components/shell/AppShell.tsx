@@ -1,5 +1,8 @@
 "use client";
 
+import { apolloClient } from "@/graphql/client";
+import { localizeHref, localizePathname, stripLocalePrefix } from "@/i18n/routing";
+import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
 import { gql, useQuery } from "@apollo/client";
 import {
   DEFAULT_LOCALE,
@@ -9,23 +12,20 @@ import {
   isSupportedLocale,
   type AppLocale
 } from "@csa/i18n";
-import { localizeHref, localizePathname, stripLocalePrefix } from "@/i18n/routing";
-import { usePathname, useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import {
+  Avatar,
+  Dropdown,
+  Icon,
   Sidebar,
   SidebarGroup,
   SidebarItem,
   TopBar,
-  Avatar,
-  Dropdown,
-  Icon,
   useDialogAccessibility
 } from "@csa/ui";
-import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
-import { apolloClient } from "@/graphql/client";
+import { useLocale, useTranslations } from "next-intl";
+import { usePathname, useRouter } from "next/navigation";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const sidebarGroups: SidebarGroup[] = [
   {
@@ -675,31 +675,31 @@ export function AppShell({ children }: { children: ReactNode }) {
     baseGroups = baseGroups.map((group) =>
       group.id === "administration"
         ? {
-            ...group,
-            items: [
-              ...(currentUser.role === "admin" || currentUser.role === "superadmin"
-                ? [
-                    {
-                      id: "admin-settings",
-                      href: "/admin/users",
-                      label: "Admin Settings",
-                      icon: "settings"
-                    } as SidebarItem
-                  ]
-                : []),
-              ...group.items,
-              ...(currentUser.role === "superadmin"
-                ? [
-                    {
-                      id: "superadmin",
-                      href: "/superadmin",
-                      label: "Superadmin",
-                      icon: "shield-check"
-                    } as SidebarItem
-                  ]
-                : [])
-            ]
-          }
+          ...group,
+          items: [
+            ...(currentUser.role === "admin" || currentUser.role === "superadmin"
+              ? [
+                {
+                  id: "admin-settings",
+                  href: "/admin/users",
+                  label: "Admin Settings",
+                  icon: "settings"
+                } as SidebarItem
+              ]
+              : []),
+            ...group.items,
+            ...(currentUser.role === "superadmin"
+              ? [
+                {
+                  id: "superadmin",
+                  href: "/superadmin",
+                  label: "Superadmin",
+                  icon: "shield-check"
+                } as SidebarItem
+              ]
+              : [])
+          ]
+        }
         : group
     );
     return baseGroups
@@ -1398,13 +1398,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                   },
                   ...(isAdmin
                     ? [
-                        {
-                          id: "settings",
-                          label: t("organizationSettings"),
-                          icon: "settings",
-                          onClick: () => router.push(localizePathname("/admin/users", currentLocale))
-                        }
-                      ]
+                      {
+                        id: "settings",
+                        label: t("organizationSettings"),
+                        icon: "settings",
+                        onClick: () => router.push(localizePathname("/admin/users", currentLocale))
+                      }
+                    ]
                     : []),
                   "divider",
                   {
@@ -1506,11 +1506,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                               key={item.id}
                               type="button"
                               onClick={() => openCommand(item)}
-                              className={`flex w-full items-center gap-3 rounded-m-lg px-3 py-2.5 text-left transition ${
-                                activeCommandIndex === index
+                              className={`flex w-full items-center gap-3 rounded-m-lg px-3 py-2.5 text-left transition ${activeCommandIndex === index
                                   ? "bg-m-surface-2"
                                   : "hover:bg-m-surface-2"
-                              }`}
+                                }`}
                             >
                               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-m-md bg-m-surface-2 text-m-text-muted">
                                 <Icon name={item.icon} size="sm" />
@@ -1555,11 +1554,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                                   key={item.id}
                                   type="button"
                                   onClick={() => openCommand(item)}
-                                  className={`flex w-full items-center gap-3 rounded-m-lg px-3 py-2.5 text-left transition ${
-                                    activeCommandIndex === commandIndex
+                                  className={`flex w-full items-center gap-3 rounded-m-lg px-3 py-2.5 text-left transition ${activeCommandIndex === commandIndex
                                       ? "bg-m-surface-2"
                                       : "hover:bg-m-surface-2"
-                                  }`}
+                                    }`}
                                 >
                                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-m-md bg-m-surface-2 text-m-text-muted">
                                     <Icon name={item.icon} size="sm" />
@@ -1602,11 +1600,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                                 key={item.id}
                                 type="button"
                                 onClick={() => openCommand(item)}
-                                className={`flex items-center gap-3 rounded-m-lg border border-m-border px-3 py-3 text-left transition ${
-                                  activeCommandIndex === commandIndex
+                                className={`flex items-center gap-3 rounded-m-lg border border-m-border px-3 py-3 text-left transition ${activeCommandIndex === commandIndex
                                     ? "bg-m-surface-2"
                                     : "hover:bg-m-surface-2"
-                                }`}
+                                  }`}
                               >
                                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-m-lg bg-m-surface-2 text-m-primary">
                                   <Icon name={item.icon} size="sm" />
@@ -1657,9 +1654,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {/* ── Page content ─────────────────────── */}
         <main
-          className={`flex-1 flex flex-col ${
-            appPathname === "/csa-assistant" ? "overflow-hidden" : "overflow-auto"
-          }`}
+          className={`flex-1 flex flex-col ${appPathname === "/csa-assistant" ? "overflow-hidden" : "overflow-auto"
+            }`}
           style={{
             padding: appPathname === "/csa-assistant" ? 0 : "28px 32px",
             background: "var(--color-bg)"

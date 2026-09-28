@@ -67,6 +67,7 @@ export async function createClient(data: {
   slug: string;
   contactEmail: string;
   createdBy: string;
+  uiTheme?: string;
 }): Promise<CsaClient> {
   const col = await getClientsCollection();
   const now = new Date();
@@ -77,6 +78,7 @@ export async function createClient(data: {
     slug: data.slug.trim().toLowerCase().replace(/\s+/g, "-"),
     contactEmail: data.contactEmail.trim().toLowerCase(),
     status: "active",
+    uiTheme: data.uiTheme || "csa-custom",
     createdBy: data.createdBy,
     createdAt: now,
     updatedAt: now,
@@ -88,11 +90,12 @@ export async function createClient(data: {
 
 export async function updateClient(
   id: string,
-  updates: { name?: string; contactEmail?: string; ssoConfig?: ClientSsoConfigStored | null }
+  updates: { name?: string; contactEmail?: string; uiTheme?: string; ssoConfig?: ClientSsoConfigStored | null }
 ): Promise<boolean> {
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (updates.name !== undefined) set.name = updates.name.trim();
   if (updates.contactEmail !== undefined) set.contactEmail = updates.contactEmail.trim().toLowerCase();
+  if (updates.uiTheme !== undefined) set.uiTheme = updates.uiTheme;
   if (updates.ssoConfig !== undefined) {
     // Encrypt the secret fields (OIDC clientSecret / SAML idpCertPem) at rest.
     // The incoming value carries plaintext secrets (merged from a fresh input
