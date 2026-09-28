@@ -616,7 +616,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex flex-wrap items-center gap-2 pb-1">
             {[
               {
                 title: 'Create Order',
@@ -722,7 +722,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             value={input}
             onChange={handleInputChange}
             size="md"
-            className="flex-1"
+            className="min-w-0 flex-1"
             disabled={isLoading}
           />
           {isLoading ? (

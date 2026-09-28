@@ -445,7 +445,7 @@ export function OrderListView() {
       />
 
       {/* Search & Toolbar — flat, no card */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="w-full sm:w-48">
           <Select
             value={searchOption}
@@ -456,7 +456,7 @@ export function OrderListView() {
             options={searchFieldOptions}
           />
         </div>
-        <div className="min-w-[240px] flex-1">
+        <div className="min-w-0 w-full sm:min-w-[240px] flex-1">
           <SearchBar
             value={searchText}
             onChange={(val) => {
@@ -474,7 +474,7 @@ export function OrderListView() {
             }
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-52">
           <Select
             value={orderStateFilter}
             onChange={(e) => {
@@ -484,7 +484,7 @@ export function OrderListView() {
             options={orderStateOptions}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-52">
           <Select
             value={paymentStateFilter}
             onChange={(e) => {

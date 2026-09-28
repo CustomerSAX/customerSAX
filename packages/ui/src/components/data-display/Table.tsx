@@ -13,8 +13,8 @@ export interface TableProps extends React.TableHTMLAttributes<HTMLTableElement> 
 
 export function Table({ className, children, caption, captionClassName, ...props }: TableProps) {
   return (
-    <div className="w-full overflow-x-auto rounded-m-lg border border-m-border bg-m-surface shadow-m-xs">
-      <table className={cn('w-full text-left border-collapse text-xs text-m-text', className)} {...props}>
+    <div tabIndex={0} role="region" aria-label={props['aria-label'] || (typeof caption === 'string' ? caption : 'Table')} className="min-w-0 max-w-full w-full overflow-x-auto rounded-m-lg border border-m-border bg-m-surface shadow-m-xs">
+      <table className={cn('w-full whitespace-nowrap [overflow-wrap:normal] text-left border-collapse text-xs text-m-text', className)} {...props}>
         {caption && <caption className={cn('sr-only', captionClassName)}>{caption}</caption>}
         {children}
       </table>
@@ -171,7 +171,7 @@ export function TablePagination({
 
   const content = (
     <div className={cn('flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-m-border bg-m-surface-2/40 text-xs text-m-text-muted', className)}>
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 flex-wrap items-center gap-4">
         {totalItems !== undefined && (
           labels?.summary ? labels.summary(startItem, endItem, totalItems) : <span>
             Showing <strong className="font-semibold text-m-text">{startItem}</strong> to{' '}
@@ -198,7 +198,7 @@ export function TablePagination({
         )}
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <Button
           variant="outline"
           size="sm"

@@ -46,6 +46,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       const AdapterSelect = ui.components.Select;
       return (
         <AdapterSelect
+          size={size}
           options={options}
           value={props.value as string}
           defaultValue={props.defaultValue as string}

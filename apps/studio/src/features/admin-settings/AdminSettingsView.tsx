@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AppShell } from "@/components/shell/AppShell";
 import { useCurrentUser } from "@/lib/use-current-user";
-import { Button, Checkbox, Icon, Input, Select, TextArea } from "@csa/ui";
+import { Button, Checkbox, Icon, Input, Select, Table, TextArea } from "@csa/ui";
 
 type Section = "users" | "roles" | "email" | "ai";
 type Permission = { module: string; view: boolean; create: boolean; update: boolean; delete: boolean };
@@ -116,7 +116,7 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
       </div>
       <input aria-label={t("searchUsers")} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("searchUsers")} className="w-full rounded-lg border border-m-border bg-m-surface px-3 py-2"/>
       <div className="overflow-auto rounded-xl border border-m-border bg-m-surface">
-        <table className="w-full text-sm">
+        <Table className="w-full text-sm">
           <thead>
             <tr className="border-b border-m-border text-left">
               <th className="p-3">{t("email")}</th>
@@ -143,7 +143,7 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </div>
       <AddUserModal
         isOpen={isAddOpen}
@@ -420,7 +420,7 @@ function Roles({ roles, clientId, projectKey, refetch }: { roles: Role[]; client
               </div>
             </div>
             {error && <p className="mb-3 rounded-lg border border-m-error-border bg-m-error-light px-3 py-2 text-sm text-m-error">{error}</p>}
-            <table className="w-full text-sm">
+            <Table className="w-full text-sm">
               <thead>
                 <tr>
                   <th className="text-left">Module</th>
@@ -444,7 +444,7 @@ function Roles({ roles, clientId, projectKey, refetch }: { roles: Role[]; client
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
       </div>

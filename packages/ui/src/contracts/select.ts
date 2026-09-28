@@ -5,6 +5,7 @@ export interface CSASelectOption {
 }
 
 export interface CSASelectProps {
+  size?: 'sm' | 'md' | 'lg';
   options: CSASelectOption[];
   value?: string;
   defaultValue?: string;

@@ -105,7 +105,7 @@ export function AuditLogListView() {
             options={actionOptions}
           />
         </div>
-        <div className="min-w-[220px] flex-1">
+        <div className="min-w-0 w-full sm:min-w-[220px] flex-1">
           <div className="relative flex items-center">
             <Icon name="search" size="xs" className="pointer-events-none absolute left-3 text-m-text-muted" />
             <input

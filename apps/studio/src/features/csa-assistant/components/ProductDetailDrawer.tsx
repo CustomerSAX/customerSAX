@@ -394,7 +394,7 @@ export function ProductDetailDrawer({
             <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0 16px' }} />
 
             {/* Meta grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 20px', marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '12px 20px', marginBottom: 20 }}>
               <MetaRow label="SKU" value={activeSku} mono />
               <MetaRow label="Product key" value={richProduct?.key ?? activeSku} mono />
               {displayProduct.category && <MetaRow label="Product type" value={displayProduct.category} />}

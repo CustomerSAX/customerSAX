@@ -49,7 +49,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     }
 
     return (
-      <div className="relative flex items-center w-full">
+      <div className="relative min-w-0 flex items-center w-full">
         {leftIcon && (
           <span
             className="pointer-events-none absolute left-3 flex items-center text-m-text-muted"
@@ -63,7 +63,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           disabled={disabled}
           aria-invalid={error}
           className={cn(
-            'w-full rounded-m-lg border bg-m-surface outline-none text-m-text placeholder:text-m-text-subtle',
+            'min-w-0 w-full rounded-m-lg border bg-m-surface outline-none text-m-text placeholder:text-m-text-subtle',
             'transition-[border-color,box-shadow] duration-[var(--m-t-fast)] ease-[var(--m-ease-enterprise)]',
             !error && 'border-m-border hover:border-m-border-strong focus:border-m-primary focus:ring-2 focus:ring-m-primary/20',
             error && 'border-m-error focus:border-m-error focus:ring-2 focus:ring-m-error/20',

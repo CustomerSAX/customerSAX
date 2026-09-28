@@ -596,7 +596,7 @@ export function CompanyDetailView({ id }: { id: string }) {
                 <label className="text-xs font-semibold text-m-text mb-1 block">Street</label>
                 <Input value={street} onChange={(e) => setStreet(e.target.value)} placeholder="e.g. 100 Main St" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-m-text mb-1 block">City</label>
                   <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" />
@@ -606,7 +606,7 @@ export function CompanyDetailView({ id }: { id: string }) {
                   <Input value={state} onChange={(e) => setState(e.target.value)} placeholder="State" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-m-text mb-1 block">Postal Code</label>
                   <Input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Postal Code" />

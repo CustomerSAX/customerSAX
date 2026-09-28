@@ -1119,7 +1119,7 @@ export function SubscriptionManagementView({
                   <div className="mb-3 text-xs font-bold uppercase tracking-wider text-m-text-muted">
                     {t("schedule")}
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div>
                       <div className="text-m-text-muted">{t("startDate")}</div>
                       <div className="font-semibold text-m-text">

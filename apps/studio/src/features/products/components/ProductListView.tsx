@@ -292,7 +292,7 @@ function VariantSubTable({ productId, variants, colSpan }: VariantSubTableProps)
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-m-text-muted">
             Variants
           </p>
-          <table className="w-full text-xs">
+          <Table caption="Product variants" className="w-full text-xs">
             <thead>
               <tr className="text-[10px] font-semibold uppercase text-m-text-muted">
                 <th className="py-1.5 pr-6 text-left">Variant ID</th>
@@ -311,7 +311,7 @@ function VariantSubTable({ productId, variants, colSpan }: VariantSubTableProps)
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
       </TableCell>
     </TableRow>

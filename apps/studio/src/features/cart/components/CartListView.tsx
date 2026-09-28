@@ -316,7 +316,7 @@ export function CartListView() {
 
       {/* Toolbar / Search Bar */}
       <Card variant="default" className="p-4">
-        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row items-end gap-3">
+        <form onSubmit={handleSearchSubmit} className="flex flex-col items-stretch gap-3 md:flex-row md:flex-wrap md:items-center">
           <div className="w-full md:w-48">
             <Select
               value={searchOption}
@@ -325,7 +325,7 @@ export function CartListView() {
             />
           </div>
 
-          <div className="flex-1 w-full">
+          <div className="min-w-0 w-full md:min-w-[220px] md:flex-1">
             <Input
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}

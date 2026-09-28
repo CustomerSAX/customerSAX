@@ -60,7 +60,7 @@ export function Modal({
   return createPortal(
     <div
       ref={dialogRef}
-      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-label={ariaLabel}
@@ -77,7 +77,7 @@ export function Modal({
       <ModalContext.Provider value={{ titleId, descriptionId }}>
         <div
           className={cn(
-            'relative w-full rounded-m-2xl border border-m-border bg-m-surface shadow-m-modal overflow-hidden',
+            'relative my-auto min-w-0 w-full rounded-m-2xl border border-m-border bg-m-surface shadow-m-modal overflow-hidden',
             'animate-in zoom-in-95 fade-in duration-200 z-10 flex flex-col',
             sizeStyles[size],
             className,
@@ -136,7 +136,7 @@ export function ModalBody({ className, children, ...props }: React.HTMLAttribute
 
 export function ModalFooter({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('flex items-center justify-end gap-3 p-6 border-t border-m-border/60 bg-m-surface-2/40 rounded-b-m-2xl', className)} {...props}>
+    <div className={cn('flex flex-wrap items-center justify-end gap-3 p-6 border-t border-m-border/60 bg-m-surface-2/40 rounded-b-m-2xl', className)} {...props}>
       {children}
     </div>
   );
