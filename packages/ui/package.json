@@ -27,6 +27,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mantine/core": "^9.6.1",
+    "@mantine/hooks": "^9.6.1",
+    "@mui/material": "^9.4.0",
     "@radix-ui/react-separator": "^1.1.15",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",

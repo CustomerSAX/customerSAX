@@ -47,6 +47,13 @@ export type PublicUser = {
   requiresProjectSelection: boolean;
   role: AuthRole;
   tenantId: string;
+  uiTheme?: string;
+  organization?: {
+    id: string;
+    name?: string;
+    slug?: string;
+    uiTheme?: string;
+  };
 };
 
 export function projectsForUser(user: AuthUser): AuthUserProject[] {
@@ -60,8 +67,23 @@ export function toPublicUser(user: AuthUser, activeProjectKey?: string, activeCl
   const id = user.id || String(user._id ?? user.email);
   const projects = projectsForUser(user);
   const implicitProject = projects.length === 1 ? projects[0] : undefined;
-  const effectiveProjectKey = activeProjectKey ?? implicitProject?.projectKey;
-  const effectiveClientId = activeClientId ?? implicitProject?.clientId;
+  const effectiveProjectKey = activeProjectKey ?? implicitProject?.projectKey ?? user.defaultProjectKey ?? user.projectKey;
+  let effectiveClientId = activeClientId ?? implicitProject?.clientId;
+  if (!effectiveClientId && effectiveProjectKey) {
+    const matchingProject = projects.find((p) => p.projectKey === effectiveProjectKey && p.clientId);
+    if (matchingProject?.clientId) {
+      effectiveClientId = matchingProject.clientId;
+    }
+  }
+  if (!effectiveClientId) {
+    const anyProjectWithClient = projects.find((p) => p.clientId);
+    if (anyProjectWithClient?.clientId) {
+      effectiveClientId = anyProjectWithClient.clientId;
+    } else if ((user as any).clientId) {
+      effectiveClientId = (user as any).clientId;
+    }
+  }
+
   const activeMembership = projects.find((project) => project.projectKey === effectiveProjectKey && (!effectiveClientId || project.clientId === effectiveClientId));
   const effectiveRole: AuthRole = user.role === "superadmin" ? "superadmin" : activeMembership?.role === "admin" ? "admin" : "agent";
 
@@ -78,3 +100,4 @@ export function toPublicUser(user: AuthUser, activeProjectKey?: string, activeCl
     tenantId: user.tenantId
   };
 }
+

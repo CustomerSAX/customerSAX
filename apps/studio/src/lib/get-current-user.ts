@@ -23,6 +23,13 @@ export type CurrentUser = {
   requiresProjectSelection?: boolean;
   role: 'agent' | 'admin' | 'superadmin';
   tenantId: string;
+  uiTheme?: string;
+  organization?: {
+    id?: string;
+    name?: string;
+    slug?: string;
+    uiTheme?: string;
+  };
 };
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {

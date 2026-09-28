@@ -14,6 +14,13 @@ export type CurrentUser = {
   projectKey?: string;
   projects: Array<{ clientId?: string; displayName?: string; projectKey: string; role: string; shellMode?: "b2c" | "b2b" }>;
   requiresProjectSelection: boolean;
+  uiTheme?: string;
+  organization?: {
+    id?: string;
+    name?: string;
+    slug?: string;
+    uiTheme?: string;
+  };
 };
 
 /**
@@ -45,6 +52,8 @@ export function useCurrentUser() {
             requiresProjectSelection: Boolean(payload.user.requiresProjectSelection)
           } as CurrentUser);
         }
+
+
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -1,6 +1,9 @@
+'use client';
+
 import React from 'react';
 import { cn } from '../utils';
 import { Icon } from '../icons/Icon';
+import { useUI } from '../provider/UIContext';
 
 export type SelectSize = 'sm' | 'md' | 'lg';
 
@@ -38,6 +41,30 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     },
     ref,
   ) => {
+    const ui = useUI();
+    if (ui && ui.activeLibrary !== 'csa-custom' && ui.components?.Select && options) {
+      const AdapterSelect = ui.components.Select;
+      return (
+        <AdapterSelect
+          options={options}
+          value={props.value as string}
+          defaultValue={props.defaultValue as string}
+          disabled={disabled}
+          error={error}
+          className={className}
+          onChange={(val) => {
+            if (props.onChange) {
+              const event = {
+                target: { value: val, name: props.name },
+                currentTarget: { value: val, name: props.name },
+              } as any;
+              props.onChange(event);
+            }
+          }}
+        />
+      );
+    }
+
     return (
       <div className="relative flex items-center w-full">
         {leftIcon && (

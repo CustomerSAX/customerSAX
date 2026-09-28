@@ -48,20 +48,28 @@ export async function currentSessionToken() {
   return (await cookies()).get(sessionCookieName)?.value;
 }
 
-export async function ensureDefaultProjectSelection<T extends SessionUserWithProjects>(
+export async function ensureDefaultProjectSelection<T extends SessionUserWithProjects & Record<string, any>>(
   token: string,
   user: T | null | undefined
 ): Promise<T | null | undefined> {
-  if (!user || user.activeProjectKey) return user;
+  if (!user) return user;
+  if (user.activeProjectKey && user.activeClientId) return user;
 
-  const defaultProject = user.projects?.find((project) => project.projectKey);
+  const defaultProject =
+    user.projects?.find((project) => project.projectKey && project.clientId) ||
+    user.projects?.find((project) => project.projectKey);
   if (!defaultProject) return user;
+
+  const clientId =
+    defaultProject.clientId ||
+    user.projects?.find((p) => p.projectKey === defaultProject.projectKey && p.clientId)?.clientId ||
+    user.projects?.find((p) => p.clientId)?.clientId;
 
   try {
     const response = await fetch(`${authServiceUrl()}/sessions/current/project`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({ projectKey: defaultProject.projectKey, clientId: defaultProject.clientId }),
+      body: JSON.stringify({ projectKey: defaultProject.projectKey, clientId }),
       cache: "no-store"
     });
     const payload = (await response.json().catch(() => null)) as { user?: T } | null;
@@ -72,10 +80,21 @@ export async function ensureDefaultProjectSelection<T extends SessionUserWithPro
 
   return {
     ...user,
-    activeClientId: defaultProject.clientId,
+    activeClientId: clientId,
     activeProjectKey: defaultProject.projectKey,
     activeProjectShellMode: defaultProject.shellMode,
     projectKey: defaultProject.projectKey,
     requiresProjectSelection: false
   };
 }
+
+export async function enrichUserWithOrganizationTheme<T extends Record<string, any>>(
+  user: T | null | undefined
+): Promise<T | null | undefined> {
+  if (!user) return user;
+  if (user.uiTheme && user.organization) return user;
+
+  return user;
+}
+
+

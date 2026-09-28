@@ -1,5 +1,8 @@
+'use client';
+
 import React from 'react';
 import { cn } from '../utils';
+import { useUI } from '../provider/UIContext';
 
 export type InputSize = 'sm' | 'md' | 'lg';
 
@@ -29,6 +32,22 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     },
     ref,
   ) => {
+    const ui = useUI();
+    if (ui && ui.activeLibrary !== 'csa-custom' && ui.components?.Input) {
+      const AdapterInput = ui.components.Input;
+      return (
+        <AdapterInput
+          size={size}
+          error={error}
+          leftIcon={leftIcon}
+          rightIcon={rightElement}
+          disabled={disabled}
+          className={className}
+          {...(props as any)}
+        />
+      );
+    }
+
     return (
       <div className="relative flex items-center w-full">
         {leftIcon && (
