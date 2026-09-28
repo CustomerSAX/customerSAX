@@ -1,13 +1,13 @@
 "use client";
 
-import { gql, useApolloClient, useMutation, useQuery } from "@apollo/client";
-import type { MutationFunction } from "@apollo/client";
-import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
 import { AppShell } from "@/components/shell/AppShell";
 import { useCurrentUser } from "@/lib/use-current-user";
-import { Button, Checkbox, Icon, Input, Select, TextArea } from "@csa/ui";
+import type { MutationFunction } from "@apollo/client";
+import { gql, useApolloClient, useMutation, useQuery } from "@apollo/client";
+import { Button, Checkbox, Icon, Input, Select, Table, TextArea } from "@csa/ui";
+import { useTranslations } from "next-intl";
+import type { FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { KnowledgeBaseAdmin } from "./KnowledgeBaseAdmin";
 
 type Section = "users" | "roles" | "email" | "ai" | "knowledge-base";
@@ -115,9 +115,9 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
           {t("addUser")}
         </Button>
       </div>
-      <input aria-label={t("searchUsers")} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("searchUsers")} className="w-full rounded-lg border border-m-border bg-m-surface px-3 py-2"/>
+      <input aria-label={t("searchUsers")} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("searchUsers")} className="w-full rounded-lg border border-m-border bg-m-surface px-3 py-2" />
       <div className="overflow-auto rounded-xl border border-m-border bg-m-surface">
-        <table className="w-full text-sm">
+        <Table className="w-full text-sm">
           <thead>
             <tr className="border-b border-m-border text-left">
               <th className="p-3">{t("email")}</th>
@@ -144,7 +144,7 @@ function Users({ data, clientId, projectKey, actor, refetch }: { data: Workspace
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </div>
       <AddUserModal
         isOpen={isAddOpen}
@@ -265,12 +265,12 @@ function AddUserModal({ isOpen, onClose, clientId, projectKey, actor, roles, pro
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm font-semibold text-m-text">First Name<Input className="mt-1" value={firstName} onChange={(event)=>setFirstName(event.target.value)} /></label>
-            <label className="block text-sm font-semibold text-m-text">Last Name<Input className="mt-1" value={lastName} onChange={(event)=>setLastName(event.target.value)} /></label>
+            <label className="block text-sm font-semibold text-m-text">First Name<Input className="mt-1" value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label>
+            <label className="block text-sm font-semibold text-m-text">Last Name<Input className="mt-1" value={lastName} onChange={(event) => setLastName(event.target.value)} /></label>
           </div>
-          <label className="block text-sm font-semibold text-m-text">Email <span className="text-m-error">*</span><Input className="mt-1" type="email" value={email} onChange={(event)=>setEmail(event.target.value)} required /></label>
-          <label className="block text-sm font-semibold text-m-text">Password <span className="text-m-error">*</span><Input className="mt-1 pr-16" type={showPassword ? "text" : "password"} value={password} onChange={(event)=>setPassword(event.target.value)} required minLength={8} rightElement={<button type="button" className="text-xs font-semibold text-m-text-muted hover:text-m-text" onClick={()=>setShowPassword((value)=>!value)}>{showPassword ? "Hide" : "Show"}</button>} /></label>
-          <label className="block text-sm font-semibold text-m-text">Role <span className="text-m-error">*</span><Select className="mt-1" value={role} onChange={(event)=>setRole(event.target.value)}>{roles.length === 0 && <option value="admin">Admin</option>}{roles.map((item)=><option key={item.key} value={item.key}>{item.label}</option>)}</Select></label>
+          <label className="block text-sm font-semibold text-m-text">Email <span className="text-m-error">*</span><Input className="mt-1" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+          <label className="block text-sm font-semibold text-m-text">Password <span className="text-m-error">*</span><Input className="mt-1 pr-16" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} rightElement={<button type="button" className="text-xs font-semibold text-m-text-muted hover:text-m-text" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Hide" : "Show"}</button>} /></label>
+          <label className="block text-sm font-semibold text-m-text">Role <span className="text-m-error">*</span><Select className="mt-1" value={role} onChange={(event) => setRole(event.target.value)}>{roles.length === 0 && <option value="admin">Admin</option>}{roles.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</Select></label>
 
           <div className="rounded-lg border border-m-border bg-m-surface-2 p-3">
             <div className="text-xs font-bold uppercase text-m-text-muted">Allowed projects <span className="text-m-error">*</span></div>
@@ -421,7 +421,7 @@ function Roles({ roles, clientId, projectKey, refetch }: { roles: Role[]; client
               </div>
             </div>
             {error && <p className="mb-3 rounded-lg border border-m-error-border bg-m-error-light px-3 py-2 text-sm text-m-error">{error}</p>}
-            <table className="w-full text-sm">
+            <Table className="w-full text-sm">
               <thead>
                 <tr>
                   <th className="text-left">Module</th>
@@ -445,7 +445,7 @@ function Roles({ roles, clientId, projectKey, refetch }: { roles: Role[]; client
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
       </div>
@@ -551,13 +551,13 @@ function AddRoleModal({ isOpen, onClose, createRole, clientId, projectKey, exist
 }
 
 function EmailSettings({ data, clientId, refetch }: { data: WorkspaceAdminData; clientId: string; refetch: () => Promise<unknown> }) {
-  const [contact,setContact]=useState(data.adminClient.contactEmail??""); const [showAdd,setShowAdd]=useState(false); const [form,setForm]=useState({name:"",smtpHost:"",smtpPort:587,smtpUser:"",smtpPassword:"",emailFrom:"",smtpSecure:false,isDefault:false}); const [status,setStatus]=useState(""); const [saveContact]=useMutation(UPDATE_CONTACT); const [createSmtp]=useMutation(CREATE_SMTP); const [deleteSmtp]=useMutation(DELETE_SMTP); const [testSmtp]=useMutation(TEST_SMTP); const [routeSmtp]=useMutation(ROUTE_SMTP);
-  return <section className="space-y-6"><div><h2 className="text-xl font-bold">Email Settings</h2><p className="text-sm text-m-text-muted">Configure outbound email and project routing.</p></div><div className="rounded-xl border border-m-border bg-m-surface p-4"><label className="text-sm font-semibold">Organisation contact email</label><div className="mt-2 flex gap-2"><input value={contact} onChange={e=>setContact(e.target.value)} className="flex-1 rounded border border-m-border px-3 py-2"/><button onClick={async()=>{await saveContact({variables:{clientId,contactEmail:contact}});setStatus("Contact email saved")}} className="rounded bg-m-primary px-4 text-white">Save</button></div></div><div className="rounded-xl border border-m-border bg-m-surface p-4"><div className="flex justify-between"><h3 className="font-bold">SMTP profiles</h3><button onClick={()=>setShowAdd(!showAdd)} className="text-sm font-bold text-m-primary">+ Add profile</button></div>{showAdd&&<div className="mt-4 grid gap-2 md:grid-cols-2">{(["name","smtpHost","smtpUser","smtpPassword","emailFrom"] as Array<keyof SmtpForm>).map((key)=><input key={key} type={key==="smtpPassword"?"password":"text"} placeholder={({name:"Label",smtpHost:"Host",smtpUser:"Username",smtpPassword:"Password",emailFrom:"From"} as Record<string,string>)[key]} value={String(form[key] ?? "")} onChange={e=>setForm({...form,[key]:e.target.value})} className="rounded border border-m-border px-3 py-2"/>)}<button onClick={async()=>{await createSmtp({variables:{clientId,input:form}});setShowAdd(false);await refetch()}} className="rounded bg-m-primary px-3 py-2 text-white">Save profile</button></div>}<div className="mt-4 space-y-2">{data.adminSmtpProfilesByClient.map((p)=><div key={p.id} className="flex flex-wrap items-center justify-between rounded-lg border border-m-border p-3"><div><strong>{p.name}</strong><p className="text-xs text-m-text-muted">{p.smtpHost}:{p.smtpPort} · {p.emailFrom}</p></div><div className="flex gap-3"><button onClick={async()=>{const result=await testSmtp({variables:{id:p.id,clientId,to:contact}});setStatus(result.data.adminTestSmtpProfile.message)}} className="text-sm text-m-primary">Test</button><button onClick={async()=>{await deleteSmtp({variables:{id:p.id,clientId}});await refetch()}} className="text-sm text-m-error">Delete</button></div></div>)}</div></div><div className="rounded-xl border border-m-border bg-m-surface p-4"><h3 className="font-bold">Project routing</h3>{data.adminProjectsByClient.map((p)=><div key={p.id} className="mt-3 flex items-center justify-between"><code>{p.projectKey}</code><select value={p.smtpProfileId??""} onChange={async e=>{await routeSmtp({variables:{clientId,projectKey:p.projectKey,smtpProfileId:e.target.value||null}});await refetch()}} className="rounded border border-m-border p-2"><option value="">Organisation default</option>{data.adminSmtpProfilesByClient.map((s)=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>)}</div>{status&&<p role="status" className="text-sm text-m-success-dark">{status}</p>}</section>;
+  const [contact, setContact] = useState(data.adminClient.contactEmail ?? ""); const [showAdd, setShowAdd] = useState(false); const [form, setForm] = useState({ name: "", smtpHost: "", smtpPort: 587, smtpUser: "", smtpPassword: "", emailFrom: "", smtpSecure: false, isDefault: false }); const [status, setStatus] = useState(""); const [saveContact] = useMutation(UPDATE_CONTACT); const [createSmtp] = useMutation(CREATE_SMTP); const [deleteSmtp] = useMutation(DELETE_SMTP); const [testSmtp] = useMutation(TEST_SMTP); const [routeSmtp] = useMutation(ROUTE_SMTP);
+  return <section className="space-y-6"><div><h2 className="text-xl font-bold">Email Settings</h2><p className="text-sm text-m-text-muted">Configure outbound email and project routing.</p></div><div className="rounded-xl border border-m-border bg-m-surface p-4"><label className="text-sm font-semibold">Organisation contact email</label><div className="mt-2 flex gap-2"><input value={contact} onChange={e => setContact(e.target.value)} className="flex-1 rounded border border-m-border px-3 py-2" /><button onClick={async () => { await saveContact({ variables: { clientId, contactEmail: contact } }); setStatus("Contact email saved") }} className="rounded bg-m-primary px-4 text-white">Save</button></div></div><div className="rounded-xl border border-m-border bg-m-surface p-4"><div className="flex justify-between"><h3 className="font-bold">SMTP profiles</h3><button onClick={() => setShowAdd(!showAdd)} className="text-sm font-bold text-m-primary">+ Add profile</button></div>{showAdd && <div className="mt-4 grid gap-2 md:grid-cols-2">{(["name", "smtpHost", "smtpUser", "smtpPassword", "emailFrom"] as Array<keyof SmtpForm>).map((key) => <input key={key} type={key === "smtpPassword" ? "password" : "text"} placeholder={({ name: "Label", smtpHost: "Host", smtpUser: "Username", smtpPassword: "Password", emailFrom: "From" } as Record<string, string>)[key]} value={String(form[key] ?? "")} onChange={e => setForm({ ...form, [key]: e.target.value })} className="rounded border border-m-border px-3 py-2" />)}<button onClick={async () => { await createSmtp({ variables: { clientId, input: form } }); setShowAdd(false); await refetch() }} className="rounded bg-m-primary px-3 py-2 text-white">Save profile</button></div>}<div className="mt-4 space-y-2">{data.adminSmtpProfilesByClient.map((p) => <div key={p.id} className="flex flex-wrap items-center justify-between rounded-lg border border-m-border p-3"><div><strong>{p.name}</strong><p className="text-xs text-m-text-muted">{p.smtpHost}:{p.smtpPort} · {p.emailFrom}</p></div><div className="flex gap-3"><button onClick={async () => { const result = await testSmtp({ variables: { id: p.id, clientId, to: contact } }); setStatus(result.data.adminTestSmtpProfile.message) }} className="text-sm text-m-primary">Test</button><button onClick={async () => { await deleteSmtp({ variables: { id: p.id, clientId } }); await refetch() }} className="text-sm text-m-error">Delete</button></div></div>)}</div></div><div className="rounded-xl border border-m-border bg-m-surface p-4"><h3 className="font-bold">Project routing</h3>{data.adminProjectsByClient.map((p) => <div key={p.id} className="mt-3 flex items-center justify-between"><code>{p.projectKey}</code><select value={p.smtpProfileId ?? ""} onChange={async e => { await routeSmtp({ variables: { clientId, projectKey: p.projectKey, smtpProfileId: e.target.value || null } }); await refetch() }} className="rounded border border-m-border p-2"><option value="">Organisation default</option>{data.adminSmtpProfilesByClient.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>)}</div>{status && <p role="status" className="text-sm text-m-success-dark">{status}</p>}</section>;
 }
 
 function AiSettings({ settings, clientId, refetch }: { settings: AdminAiSettings; clientId: string; refetch: () => Promise<unknown> }) {
-  const [form,setForm]=useState<AiSettingsForm>({...settings,apiKey:""}); const [saved,setSaved]=useState(false); const [updateAi]=useMutation(UPDATE_AI);
-  return <section className="max-w-3xl space-y-4"><div><h2 className="text-xl font-bold">AI Agent</h2><p className="text-sm text-m-text-muted">Configure the assistant provider for this organisation. API keys are encrypted and never returned.</p></div><div className="space-y-4 rounded-xl border border-m-border bg-m-surface p-5"><label className="flex gap-2"><input type="checkbox" checked={form.enabled} onChange={e=>setForm({...form,enabled:e.target.checked})}/> Use organisation AI configuration</label><label className="block text-sm font-semibold">Provider<select value={form.provider} onChange={e=>setForm({...form,provider:e.target.value})} className="mt-1 w-full rounded border border-m-border p-2"><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Google Gemini</option><option value="other">Other (OpenAI-compatible)</option></select></label>{([["displayName","Display name"],["model","Model"],["baseUrl","API base URL"],["apiKey",settings.apiKeySet?"API key (leave blank to keep existing)":"API key"]] as Array<[AiSettingsField, string]>).map(([key,label])=><label key={key} className="block text-sm font-semibold">{label}<input type={key==="apiKey"?"password":"text"} value={form[key]??""} onChange={e=>setForm({...form,[key]:e.target.value})} className="mt-1 w-full rounded border border-m-border p-2"/></label>)}<button onClick={async()=>{await updateAi({variables:{clientId,input:{enabled:form.enabled,provider:form.provider,displayName:form.displayName,model:form.model,baseUrl:form.baseUrl||null,apiKey:form.apiKey||null}}});setSaved(true);await refetch()}} className="rounded bg-m-primary px-4 py-2 font-bold text-white">Save AI agent settings</button>{saved&&<span className="ml-3 text-sm text-m-success-dark">Saved</span>}</div></section>;
+  const [form, setForm] = useState<AiSettingsForm>({ ...settings, apiKey: "" }); const [saved, setSaved] = useState(false); const [updateAi] = useMutation(UPDATE_AI);
+  return <section className="max-w-3xl space-y-4"><div><h2 className="text-xl font-bold">AI Agent</h2><p className="text-sm text-m-text-muted">Configure the assistant provider for this organisation. API keys are encrypted and never returned.</p></div><div className="space-y-4 rounded-xl border border-m-border bg-m-surface p-5"><label className="flex gap-2"><input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} /> Use organisation AI configuration</label><label className="block text-sm font-semibold">Provider<select value={form.provider} onChange={e => setForm({ ...form, provider: e.target.value })} className="mt-1 w-full rounded border border-m-border p-2"><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Google Gemini</option><option value="other">Other (OpenAI-compatible)</option></select></label>{([["displayName", "Display name"], ["model", "Model"], ["baseUrl", "API base URL"], ["apiKey", settings.apiKeySet ? "API key (leave blank to keep existing)" : "API key"]] as Array<[AiSettingsField, string]>).map(([key, label]) => <label key={key} className="block text-sm font-semibold">{label}<input type={key === "apiKey" ? "password" : "text"} value={form[key] ?? ""} onChange={e => setForm({ ...form, [key]: e.target.value })} className="mt-1 w-full rounded border border-m-border p-2" /></label>)}<button onClick={async () => { await updateAi({ variables: { clientId, input: { enabled: form.enabled, provider: form.provider, displayName: form.displayName, model: form.model, baseUrl: form.baseUrl || null, apiKey: form.apiKey || null } } }); setSaved(true); await refetch() }} className="rounded bg-m-primary px-4 py-2 font-bold text-white">Save AI agent settings</button>{saved && <span className="ml-3 text-sm text-m-success-dark">Saved</span>}</div></section>;
 }
 
 function State({ text }: { text: string }) { return <div className="p-8 text-sm text-m-text-muted">{text}</div>; }

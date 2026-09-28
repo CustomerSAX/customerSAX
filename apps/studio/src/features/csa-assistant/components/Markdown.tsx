@@ -56,12 +56,12 @@ export function Markdown({ children }: { children: string }) {
             </pre>
           ),
           table: ({ children }) => (
-            <div className="mb-2.5 overflow-x-auto last:mb-0">
-              <table className="w-full border-collapse text-xs">{children}</table>
+            <div tabIndex={0} role="region" aria-label="Table" className="mb-2.5 min-w-0 max-w-full overflow-x-auto last:mb-0">
+              <table className="w-full border-collapse text-xs [overflow-wrap:normal]">{children}</table>
             </div>
           ),
           th: ({ children }) => (
-            <th className="border border-m-border bg-black/5 px-2.5 py-1.5 text-left font-semibold">{children}</th>
+            <th className="whitespace-nowrap border border-m-border bg-black/5 px-2.5 py-1.5 text-left font-semibold">{children}</th>
           ),
           td: ({ children }) => <td className="border border-m-border px-2.5 py-1.5 align-top">{children}</td>
         }}

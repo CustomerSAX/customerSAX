@@ -89,7 +89,7 @@
 
   html, body {
     max-width: 100vw;
-    overflow-x: hidden;
+
   }
 
   body {
@@ -106,17 +106,6 @@
   }
 
   *, *::before, *::after { box-sizing: border-box; }
-
-  /* Hide native scrollbars globally */
-  html, body, *, *::before, *::after {
-    -ms-overflow-style: none !important;
-    scrollbar-width: none !important;
-  }
-  ::-webkit-scrollbar, *::-webkit-scrollbar {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-  }
 
   a { color: inherit; text-decoration: none; }
   button, input, select, textarea { font: inherit; }
@@ -144,7 +133,9 @@
 
   /* ── Topbar (yellow header) ───────────────────────── */
   .csa-topbar {
-    height: var(--topbar-height);
+    min-height: var(--topbar-height);
+    height: auto;
+    flex-wrap: wrap;
     background: var(--topbar-bg);
     border-bottom: 1px solid var(--topbar-border);
     color: var(--topbar-text);
@@ -507,4 +498,71 @@
     border: none;
     margin: 0;
   }
+}
+
+/* Reflow uses the CSS viewport, including desktop browser zoom. */
+.csa-page-content { overflow-wrap: anywhere; }
+.csa-page-content > * { min-width: 0; max-width: 100%; }
+
+@media (max-width: 767px) {
+  .csa-app-shell { height: auto; min-height: 100dvh; flex-direction: column; overflow: visible; }
+  .csa-app-body { overflow: visible; }
+  .csa-navigation > aside { width: 100% !important; height: auto; }
+  .csa-topbar { position: static; height: auto; padding: 12px; flex-wrap: wrap; }
+  .csa-topbar-brand, .csa-topbar-user { max-width: 100%; }
+
+
+  .csa-page-content { --studio-page-padding: 16px 12px; overflow: visible; }
+  .csa-calendar-toolbar { padding: 12px; }
+  .csa-calendar-range { white-space: normal; }
+}
+
+@media (max-width: 1279px) {
+  .csa-assistant-workspace {
+    grid-template-columns: minmax(0, 1fr) !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .csa-assistant-workspace > div { min-width: 0; height: 40rem; }
+  .csa-page-content:has(.csa-assistant-workspace) { overflow-y: auto; }
+}
+
+/* Respond to the space beside the sidebar, not just the window width. */
+.csa-app-body { container-type: inline-size; }
+.csa-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 240px) minmax(240px, 1fr) auto;
+  gap: 12px;
+  padding-block: 10px;
+}
+.csa-topbar-brand, .csa-topbar-user, .csa-topbar-account { min-width: 0; max-width: 100%; }
+.csa-topbar-search { width: 100%; max-width: none; margin: 0; }
+.csa-topbar-search button { max-width: none !important; }
+.csa-topbar-user { margin-left: 0; justify-self: end; }
+.csa-topbar-account select { min-width: 0; }
+
+
+@container (max-width: 1000px) {
+  .csa-topbar { grid-template-columns: minmax(0, 1fr) auto; }
+  .csa-topbar-search { grid-column: 1 / -1; grid-row: 2; }
+  .csa-topbar-profile-name { display: none; }
+}
+
+@container (max-width: 400px) {
+  .csa-topbar { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .csa-topbar-user { grid-row: 2; justify-self: start; }
+  .csa-topbar-search { grid-row: 3; }
+}
+
+@media (max-width: 767px) {
+  .csa-topbar { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .csa-topbar-brand { width: 100%; }
+  .csa-topbar-project { width: 100%; gap: 8px; }
+  .csa-topbar-project select { flex: 1; max-width: none !important; }
+  .csa-topbar-user { grid-row: 2; width: 100%; justify-self: stretch; }
+  .csa-topbar-account { width: 100%; justify-content: space-between; }
+  .csa-topbar-account > label { flex: 1; }
+  .csa-topbar-account select { width: 100%; max-width: none !important; }
+  .csa-topbar-search { grid-row: 3; }
+  .csa-topbar-search kbd { display: none; }
 }

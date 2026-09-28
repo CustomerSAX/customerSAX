@@ -33,7 +33,7 @@ import { Dropdown } from "../overlays/Dropdown";
 export function DetailPage({ children }: { children: ReactNode }) {
   // max-width keeps dense operational screens readable on ultrawide monitors
   // without stretching a 12-col grid into unusable line lengths.
-  return <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">{children}</div>;
+  return <div className="mx-auto min-w-0 flex w-full max-w-[1400px] flex-col gap-6">{children}</div>;
 }
 
 export function BackLink({ href, children }: { href: string; children: ReactNode }) {
@@ -76,14 +76,14 @@ export function EntityHeader({
         </div>
         {meta && <div className="text-[13px] leading-snug text-m-text-muted">{meta}</div>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2.5">{actions}</div>}
+      {actions && <div className="flex min-w-0 flex-wrap items-center gap-2.5">{actions}</div>}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ *
- * Entity tabs — quiet sub-navigation. Sticky so it stays reachable on long
- * entity pages. Single 2px active underline, full-width neutral divider.
+ * Entity tabs — in-flow sub-navigation that scrolls with the page.
+ * Single 2px active underline, full-width neutral divider.
  * Controlled: the page owns the active-tab state.
  * ------------------------------------------------------------------ */
 
@@ -106,13 +106,10 @@ export function EntityTabs({
   return (
     <div
       role="tablist"
-      className="sticky z-20 flex items-end gap-8 overflow-x-auto border-b border-m-border"
+      className="flex flex-wrap items-end gap-x-4 gap-y-1 border-b border-m-border"
       style={{
-        top: "var(--topbar-height)",
         minHeight: 52,
         background: "rgba(248,249,252,.96)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
       }}
     >
       {tabs.map((tab) => {
@@ -125,7 +122,7 @@ export function EntityTabs({
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={[
-              "relative inline-flex h-[52px] items-center whitespace-nowrap text-[14px] font-semibold outline-none transition-colors",
+              "relative inline-flex h-[52px] items-center whitespace-normal text-[14px] font-semibold outline-none transition-colors",
               "focus-visible:ring-2 focus-visible:ring-m-primary/40",
               isActive
                 ? "text-m-primary"

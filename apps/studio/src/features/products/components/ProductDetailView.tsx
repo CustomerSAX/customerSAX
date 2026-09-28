@@ -403,7 +403,7 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
             <SectionCard title="Media Gallery" icon="image">
               <div className="flex flex-col gap-3">
                 {product.variants.some((v) => v.imageUrl) ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {product.variants.filter(v => v.imageUrl).map((v) => (
                       <div key={v.id} className="aspect-square rounded-m-md border border-m-border overflow-hidden bg-m-surface-2">
                         <img src={v.imageUrl!} alt={v.sku} className="w-full h-full object-cover" />

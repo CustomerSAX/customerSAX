@@ -381,7 +381,7 @@ export function CustomerListView() {
 
       {/* Search row — flat, no card */}
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="w-full sm:w-48">
             <Select
               value={filters.searchOption}
@@ -392,7 +392,7 @@ export function CustomerListView() {
               options={SEARCH_OPTIONS}
             />
           </div>
-          <div className="min-w-[220px] flex-1">
+          <div className="min-w-0 w-full sm:min-w-[220px] flex-1">
             <SearchBar
               value={filters.searchText}
               onChange={(val) => {
@@ -407,7 +407,7 @@ export function CustomerListView() {
               placeholder="Search customers by email, name, number..."
             />
           </div>
-          <div className="w-48">
+          <div className="w-full sm:w-48">
             <Select
               value={filters.customerGroupId}
               onChange={(e) => {
@@ -495,7 +495,7 @@ export function CustomerListView() {
               {/* Date Created Range */}
               <div className="space-y-2">
                 <label className="font-semibold text-m-text">Date Created Range</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input
                     type="date"
                     className="p-1.5 border border-m-border rounded text-xs text-m-text bg-transparent"
@@ -518,7 +518,7 @@ export function CustomerListView() {
               {/* Date Modified Range */}
               <div className="space-y-2">
                 <label className="font-semibold text-m-text">Date Modified Range</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input
                     type="date"
                     className="p-1.5 border border-m-border rounded text-xs text-m-text bg-transparent"

@@ -98,6 +98,7 @@ export const muiComponents: CSAUIComponentMap = {
 
     return (
       <MuiButton
+        sx={{ minHeight: size === 'sm' ? 32 : size === 'lg' ? 44 : 38 }}
         variant={muiVariant}
         color={color}
         size={muiSize}
@@ -134,10 +135,11 @@ export const muiComponents: CSAUIComponentMap = {
 
   Input: ({ inputSize = 'md', size, leftIcon, rightIcon, error, errorMessage, className, ...props }) => {
     const s = size || inputSize;
-    const muiSize = s === 'sm' ? 'small' : 'medium';
+    const muiSize = s === 'lg' ? 'medium' : 'small';
     return (
       <MuiTextField
         size={muiSize}
+        sx={{ '& .MuiInputBase-root': { height: s === 'sm' ? 32 : s === 'lg' ? 44 : 38 }, '& .MuiInputBase-input': { paddingBlock: s === 'sm' ? '4px' : s === 'lg' ? '10px' : '7px' } }}
         error={error || Boolean(errorMessage)}
         helperText={errorMessage}
         slotProps={{
@@ -174,6 +176,7 @@ export const muiComponents: CSAUIComponentMap = {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
+        sx={{ '& .MuiInputBase-root': { height: 38 } }}
         size="small"
         fullWidth
         slotProps={{
@@ -193,15 +196,16 @@ export const muiComponents: CSAUIComponentMap = {
     );
   },
 
-  Select: ({ options, value, defaultValue, placeholder, label, error, errorMessage, disabled, required, className, onChange }) => {
+  Select: ({ size = 'md', options, value, defaultValue, placeholder, label, error, errorMessage, disabled, required, className, onChange }) => {
     return (
       <MuiFormControl size="small" fullWidth error={error || Boolean(errorMessage)} className={className}>
         {label && <MuiInputLabel required={required}>{label}</MuiInputLabel>}
         <MuiSelect
+          sx={{ height: size === 'sm' ? 32 : size === 'lg' ? 44 : 38, '& .MuiSelect-select': { paddingBlock: size === 'sm' ? '4px' : size === 'lg' ? '10px' : '7px' } }}
           value={value ?? defaultValue ?? ''}
           label={label}
           disabled={disabled}
-          displayEmpty={Boolean(placeholder)}
+          displayEmpty={Boolean(placeholder) || options.some((option) => option.value === '')}
           onChange={(e) => onChange && onChange(e.target.value as string)}
         >
           {placeholder && (
@@ -532,8 +536,8 @@ export const muiComponents: CSAUIComponentMap = {
     }
 
     return (
-      <div className={`overflow-x-auto border border-gray-200 rounded-lg ${className || ''}`}>
-        <MuiTable size="small">
+      <div tabIndex={0} role="region" aria-label="Table" className={`min-w-0 max-w-full overflow-x-auto border border-gray-200 rounded-lg ${className || ''}`}>
+        <MuiTable size="small" sx={{ whiteSpace: 'nowrap', overflowWrap: 'normal' }}>
           <MuiTableHead sx={{ backgroundColor: 'grey.50' }}>
             <MuiTableRow>
               {columns.map((col) => (

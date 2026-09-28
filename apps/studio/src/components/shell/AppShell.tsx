@@ -49,7 +49,8 @@ const sidebarGroups: SidebarGroup[] = [
       { id: "orders", href: "/orders", label: "Orders", icon: "shopping-bag" },
       { id: "cart", href: "/cart", label: "Cart", icon: "shopping-cart" },
       { id: "subscriptions", href: "/subscriptions", label: "Subscriptions", icon: "repeat" },
-      { id: "products", href: "/products", label: "Products", icon: "package" }
+      { id: "products", href: "/products", label: "Products", icon: "package" },
+      { id: "algolia-search", href: "/algolia-search", label: "Algolia Search", icon: "search" }
     ]
   },
   {
@@ -116,7 +117,8 @@ const b2bSidebarGroups: SidebarGroup[] = [
       { id: "cart", href: "/cart", label: "Cart", icon: "shopping-cart" },
       { id: "subscriptions", href: "/subscriptions", label: "Subscriptions", icon: "repeat" },
       { id: "b2b-quotes", href: "/b2b/quotes", label: "Quotes", icon: "file-text" },
-      { id: "products", href: "/products", label: "Products", icon: "package" }
+      { id: "products", href: "/products", label: "Products", icon: "package" },
+      { id: "algolia-search", href: "/algolia-search", label: "Algolia Search", icon: "search" }
     ]
   },
   {
@@ -581,12 +583,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     skip: !canUseRolePermissions,
     fetchPolicy: "cache-and-network"
   });
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [entityResults, setEntityResults] = useState<GlobalSearchResult[]>([]);
   const [isEntitySearchLoading, setIsEntitySearchLoading] = useState(false);
   const commandSearchRef = useRef<HTMLInputElement>(null);
+  const navigationToggleRef = useRef<HTMLButtonElement>(null);
   const commandDialogRef = useDialogAccessibility<HTMLDivElement>({
     isOpen: isSearchOpen,
     onClose: () => setIsSearchOpen(false),
@@ -1109,6 +1113,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const handleSelectItem = (item: SidebarItem) => {
+    if (isNavigationOpen) navigationToggleRef.current?.focus();
+    setIsNavigationOpen(false);
     if (item.href) {
       router.push(localizeHref(item.href, currentLocale));
     }
@@ -1166,64 +1172,60 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="flex h-screen overflow-hidden font-sans"
+      className="csa-app-shell flex h-screen overflow-hidden font-sans"
       style={{ background: "var(--color-bg)", color: "var(--color-ink)" }}
     >
       {/* ── CSA Sidebar ──────────────────────────── */}
-      <Sidebar
-        brand={sidebarBrand}
-        groups={groups}
-        collapseLabel={t("collapseSidebar")}
-        expandLabel={t("expandSidebar")}
-        activeItemId={activeItemId}
-        onSelectItem={handleSelectItem}
-        footer={
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: "var(--text-xs)",
-              color: "var(--sidebar-text)"
-            }}
-          >
-            <Icon
-              name="shield-check"
-              size="xs"
-              style={{ color: "var(--csa-yellow-500)", flexShrink: 0 }}
-            />
-            <span>{t("enterpriseVersion")}</span>
-          </div>
-        }
-      />
+      <div id="studio-navigation" className={`${isNavigationOpen ? "block" : "hidden"} md:block csa-navigation`}>
+        <Sidebar
+          brand={sidebarBrand}
+          groups={groups}
+          collapseLabel={t("collapseSidebar")}
+          expandLabel={t("expandSidebar")}
+          activeItemId={activeItemId}
+          onSelectItem={handleSelectItem}
+          footer={
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: "var(--text-xs)",
+                color: "var(--sidebar-text)"
+              }}
+            >
+              <Icon
+                name="shield-check"
+                size="xs"
+                style={{ color: "var(--csa-yellow-500)", flexShrink: 0 }}
+              />
+              <span>{t("enterpriseVersion")}</span>
+            </div>
+          }
+        />
+
+      </div>
 
       {/* ── Main area ────────────────────────────── */}
       <div
-        className="flex min-w-0 flex-1 flex-col overflow-hidden"
+        className="csa-app-body flex min-w-0 flex-1 flex-col overflow-hidden"
         style={{ background: "var(--color-bg)" }}
       >
         {/* ── Yellow TopBar ─────────────────────── */}
         <TopBar
           brandOrBreadcrumbs={
-            <div className="flex items-center gap-3">
-              {isB2bMode && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "2px 10px",
-                    borderRadius: "var(--radius-full)",
-                    background: "rgba(5,8,46,0.12)",
-                    fontSize: "var(--text-xs)",
-                    fontWeight: "var(--weight-semibold)",
-                    color: "var(--topbar-text)"
-                  }}
-                >
-                  <Icon name="building-2" size="xs" />
-                  {t("b2bMode")}
-                </span>
-              )}
+            <div className="csa-topbar-project flex min-w-0 flex-wrap items-center gap-3">
+              <button
+          type="button"
+          ref={navigationToggleRef}
+          className="csa-navigation-toggle flex h-10 w-10 shrink-0 items-center justify-center rounded-md md:hidden"
+          aria-expanded={isNavigationOpen}
+          aria-controls="studio-navigation"
+          onClick={() => setIsNavigationOpen((open) => !open)}
+        >
+          <Icon name={isNavigationOpen ? "x" : "menu"} size="sm" />
+          <span className="sr-only">{isNavigationOpen ? t("collapseSidebar") : t("expandSidebar")}</span>
+        </button>
               {currentUser.projects.length > 0 && (
                 <select
                   aria-label={t("project")}
@@ -1235,7 +1237,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   onChange={(event) => void handleProjectChange(event.target.value)}
                   style={{
                     height: 34,
-                    minWidth: 170,
+                    minWidth: 0,
                     maxWidth: 240,
                     borderRadius: "var(--radius-full)",
                     border: "1px solid var(--topbar-overlay)",
@@ -1284,7 +1286,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               />
               <span
                 aria-hidden="true"
-                className="min-w-0 flex-1 text-left text-sm text-m-text-muted"
+                className="min-w-0 flex-1 truncate text-left text-sm text-m-text-muted"
               >
                 {
                   isB2bMode ? t("search.b2bPlaceholder") : t("search.standardPlaceholder")
@@ -1305,15 +1307,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               </kbd>
             </button>
           }
-          actions={
-            <div className="flex items-center gap-2">
-              {/* Features removed until workflows are built */}
-            </div>
-          }
           userSlot={
-            <div className="flex items-center gap-2">
+            <div className="csa-topbar-account flex min-w-0 items-center gap-2">
               <label
-                className="flex items-center gap-1.5"
+                className="flex min-w-0 items-center gap-1.5"
                 style={{
                   height: 36,
                   padding: "0 10px",
@@ -1361,7 +1358,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     }}
                   >
                     <Avatar name={userDisplayName} status="online" size="sm" />
-                    <div className="hidden flex-col sm:flex">
+                    <div className="csa-topbar-profile-name hidden min-w-0 flex-col sm:flex">
                       <span
                         style={{
                           fontSize: "14px",
@@ -1423,7 +1420,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {isSearchOpen && (
           <div
             ref={commandDialogRef}
-            className="fixed inset-0 z-[1000] flex items-start justify-center bg-black/40 px-4 pt-20 backdrop-blur-sm"
+            className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/40 p-3 sm:p-6 backdrop-blur-sm"
             role="dialog"
             aria-modal="true"
             aria-label={t("globalSearch")}
@@ -1434,7 +1431,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               className="w-full max-w-3xl overflow-hidden rounded-m-2xl border border-m-border bg-m-surface shadow-m-modal"
               onMouseDown={(event) => event.stopPropagation()}
             >
-              <div className="flex items-center gap-3 border-b border-m-border px-5 py-4">
+              <div className="flex items-center gap-3 border-b border-m-border px-3 py-4">
                 <Icon
                   name="search"
                   size="md"
@@ -1654,10 +1651,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {/* ── Page content ─────────────────────── */}
         <main
-          className={`flex-1 flex flex-col ${appPathname === "/csa-assistant" ? "overflow-hidden" : "overflow-auto"
+          className={`csa-page-content min-w-0 min-h-0 flex-1 flex flex-col ${appPathname === "/csa-assistant" ? "overflow-hidden" : "overflow-auto"
             }`}
           style={{
-            padding: appPathname === "/csa-assistant" ? 0 : "28px 32px",
+            padding: appPathname === "/csa-assistant" ? 0 : "var(--studio-page-padding, 28px 32px)",
             background: "var(--color-bg)"
           }}
         >

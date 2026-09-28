@@ -20,6 +20,7 @@
       "cart": "Cart",
       "subscriptions": "Subscriptions",
       "products": "Products",
+      "algolia-search": "Algolia Search",
       "reports": "Reports",
       "knowledgebase": "Knowledge Base",
       "csa-assistant": "CSA Assistant",

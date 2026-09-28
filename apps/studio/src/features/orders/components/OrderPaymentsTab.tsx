@@ -119,7 +119,7 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps) {
                   Created: {fmtDate(selectedPayment.createdAt)}
                 </span>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
                   <div>
                     <span className="text-m-text-muted block">Payment Method Name</span>
                     <span className="font-semibold text-m-text">{selectedPayment.method}</span>
