@@ -1226,24 +1226,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Icon name={isNavigationOpen ? "x" : "menu"} size="sm" />
           <span className="sr-only">{isNavigationOpen ? t("collapseSidebar") : t("expandSidebar")}</span>
         </button>
-              {isB2bMode && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "2px 10px",
-                    borderRadius: "var(--radius-full)",
-                    background: "rgba(5,8,46,0.12)",
-                    fontSize: "var(--text-xs)",
-                    fontWeight: "var(--weight-semibold)",
-                    color: "var(--topbar-text)"
-                  }}
-                >
-                  <Icon name="building-2" size="xs" />
-                  {t("b2bMode")}
-                </span>
-              )}
               {currentUser.projects.length > 0 && (
                 <select
                   aria-label={t("project")}
