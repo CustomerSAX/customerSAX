@@ -6,11 +6,8 @@ const config: Config = {
   darkMode: ["class"],
   content: [
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
-    // Scan the shared @csa/ui design-system source too. Its component class
-    // strings (e.g. `csa-topbar`) live only here; without this glob Tailwind
-    // tree-shakes those hand-authored `@layer components` rules out of the
-    // build, which is what made the yellow topbar render white on some routes.
     "../../packages/ui/src/**/*.{js,ts,jsx,tsx}",
+    "../../packages/search/src/**/*.{js,ts,jsx,tsx}",
   ],
   plugins: [],
 };

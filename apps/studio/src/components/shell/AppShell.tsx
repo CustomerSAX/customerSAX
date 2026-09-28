@@ -49,7 +49,8 @@ const sidebarGroups: SidebarGroup[] = [
       { id: "orders", href: "/orders", label: "Orders", icon: "shopping-bag" },
       { id: "cart", href: "/cart", label: "Cart", icon: "shopping-cart" },
       { id: "subscriptions", href: "/subscriptions", label: "Subscriptions", icon: "repeat" },
-      { id: "products", href: "/products", label: "Products", icon: "package" }
+      { id: "products", href: "/products", label: "Products", icon: "package" },
+      { id: "algolia-search", href: "/algolia-search", label: "Algolia Search", icon: "search" }
     ]
   },
   {
@@ -116,7 +117,8 @@ const b2bSidebarGroups: SidebarGroup[] = [
       { id: "cart", href: "/cart", label: "Cart", icon: "shopping-cart" },
       { id: "subscriptions", href: "/subscriptions", label: "Subscriptions", icon: "repeat" },
       { id: "b2b-quotes", href: "/b2b/quotes", label: "Quotes", icon: "file-text" },
-      { id: "products", href: "/products", label: "Products", icon: "package" }
+      { id: "products", href: "/products", label: "Products", icon: "package" },
+      { id: "algolia-search", href: "/algolia-search", label: "Algolia Search", icon: "search" }
     ]
   },
   {
