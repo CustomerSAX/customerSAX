@@ -280,6 +280,7 @@ export function CsaAssistant() {
       <CartDrawer />
 
       <div
+        className="csa-assistant-workspace"
         style={{
           display: "grid",
           gridTemplateColumns: rightPanelOpen

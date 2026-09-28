@@ -1830,7 +1830,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
               {editingAddrId ? "Edit Address" : "Add New Address"}
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField>
                 <Label>Street Name</Label>
                 <Input value={addrStreetName} onChange={(e) => setAddrStreetName(e.target.value)} />
@@ -1841,7 +1841,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
               </FormField>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <FormField>
                 <Label>City</Label>
                 <Input value={addrCity} onChange={(e) => setAddrCity(e.target.value)} />

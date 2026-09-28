@@ -81,7 +81,7 @@ export function Drawer({
       >
         <div
           className={cn(
-            'w-screen border-l border-m-border bg-m-surface shadow-m-panel flex flex-col',
+            'w-screen border-l border-m-border bg-m-surface shadow-m-panel flex flex-col overflow-y-auto',
             'animate-in slide-in-from-right duration-300 ease-out',
             sizeStyles[size],
             className,
@@ -133,7 +133,7 @@ export function DrawerHeader({
 
 export function DrawerContent({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('p-6 overflow-y-auto flex-1 space-y-4 text-xs text-m-text leading-relaxed', className)} {...props}>
+    <div className={cn('p-4 sm:p-6 shrink-0 sm:shrink overflow-y-auto flex-1 space-y-4 text-xs text-m-text leading-relaxed', className)} {...props}>
       {children}
     </div>
   );
@@ -141,7 +141,7 @@ export function DrawerContent({ className, children, ...props }: React.HTMLAttri
 
 export function DrawerFooter({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('flex items-center justify-end gap-3 p-6 border-t border-m-border/60 bg-m-surface-2/40', className)} {...props}>
+    <div className={cn('flex shrink-0 flex-wrap items-center justify-end gap-3 p-6 border-t border-m-border/60 bg-m-surface-2/40', className)} {...props}>
       {children}
     </div>
   );

@@ -1030,7 +1030,7 @@ export function QuoteDetailView({ id }: { id: string }) {
             <p className="text-sm text-m-text-muted">
               Same console handles both sides - pick who you&apos;re representing on this call. It picks up wherever the quote was left.
             </p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
               {(["buyer", "seller"] as const).map((role) => (
                 <button
                   key={role}
@@ -1285,7 +1285,7 @@ export function QuoteDetailView({ id }: { id: string }) {
                               onChange={(event) => updateNegotiationLine(line.id, { sku: event.target.value })}
                             />
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div>
                               <label className="mb-1 block text-[11px] font-semibold text-m-text-muted">
                                 Quantity

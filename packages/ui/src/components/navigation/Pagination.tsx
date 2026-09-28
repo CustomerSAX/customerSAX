@@ -33,7 +33,7 @@ export function Pagination({
   };
 
   return (
-    <nav aria-label="Pagination Navigation" className={cn('flex items-center gap-1 select-none', className)}>
+    <nav aria-label="Pagination Navigation" className={cn('flex flex-wrap items-center gap-1 select-none', className)}>
       <Button
         variant="outline"
         size="sm"

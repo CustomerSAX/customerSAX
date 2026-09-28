@@ -299,7 +299,7 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
                 {co.addresses.length === 0 && (
                   <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>No saved addresses — please enter one.</div>
                 )}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 10 }}>
                   <div><label style={labelStyle}>First name</label><input style={inputStyle} value={manualAddr.firstName} onChange={(e) => setManualAddr({ ...manualAddr, firstName: e.target.value })} /></div>
                   <div><label style={labelStyle}>Last name</label><input style={inputStyle} value={manualAddr.lastName} onChange={(e) => setManualAddr({ ...manualAddr, lastName: e.target.value })} /></div>
                   <div><label style={labelStyle}>Street no.</label><input style={inputStyle} value={manualAddr.streetNumber} onChange={(e) => setManualAddr({ ...manualAddr, streetNumber: e.target.value })} /></div>

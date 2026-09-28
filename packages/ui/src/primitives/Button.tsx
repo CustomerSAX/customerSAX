@@ -42,9 +42,9 @@ const variantStyles: Record<ButtonVariant, string> = {
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-xs gap-1.5',
-  md: 'h-[38px] px-4 text-xs gap-2',
-  lg: 'h-11 px-5 text-sm gap-2',
+  sm: 'min-h-8 py-1 px-3 text-xs gap-1.5',
+  md: 'min-h-[38px] py-1.5 px-4 text-xs gap-2',
+  lg: 'min-h-11 py-2 px-5 text-sm gap-2',
 };
 
 const iconOnlySizeStyles: Record<ButtonSize, string> = {
@@ -103,7 +103,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading}
         aria-disabled={isDisabled}
         className={cn(
-          'inline-flex items-center justify-center font-semibold rounded-m-lg',
+          'inline-flex max-w-full items-center justify-center whitespace-normal break-words font-semibold rounded-m-lg',
           'select-none outline-none transition-all duration-[var(--m-t-fast)] ease-[var(--m-ease-enterprise)]',
           !isDisabled && 'hover:-translate-y-px active:translate-y-0',
           'focus-visible:ring-2 focus-visible:ring-m-primary focus-visible:ring-offset-2',

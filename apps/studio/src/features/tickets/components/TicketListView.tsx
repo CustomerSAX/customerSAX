@@ -154,14 +154,14 @@ export function TicketListView() {
   };
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-5">
       {/* Header */}
       <PageHeader
         title={t("title")}
         subtitle={t("subtitle")}
         badge={<Badge variant="primary">{t("badge")}</Badge>}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/tickets/create">
               <Button variant="primary" size="md" leftIcon={<Icon name="plus" size="xs" />}>
                 {t("create")}
@@ -180,7 +180,7 @@ export function TicketListView() {
       />
 
       {/* Search & Filters — flat, no card */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="w-full sm:w-48">
           <Select
             value={searchOption}
@@ -191,7 +191,7 @@ export function TicketListView() {
             options={searchFieldOptions}
           />
         </div>
-        <div className="min-w-[220px] flex-1">
+        <div className="min-w-0 w-full sm:min-w-[220px] flex-1">
           <SearchBar
             value={searchText}
             onChange={(val) => {
@@ -205,7 +205,7 @@ export function TicketListView() {
             placeholder={t("searchPlaceholder")}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Select
             value={statusFilter}
             onChange={(e) => {
@@ -215,7 +215,7 @@ export function TicketListView() {
             options={statusFilterOptions}
           />
         </div>
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Select
             value={priorityFilter}
             onChange={(e) => {
@@ -260,7 +260,11 @@ export function TicketListView() {
         </SectionCard>
       ) : (
         <SectionCard title={t("countTitle", { count: totalItems })} bodyClassName="p-0">
-          <Table>
+          {/* Keep identifiers and dates readable; only the table region scrolls. */}
+          <Table
+            caption={t("sectionTitle")}
+            className="min-w-[1200px] whitespace-nowrap [overflow-wrap:normal]"
+          >
             <TableHeader>
               <TableRow>
                 <TableHead sortable onSort={() => handleSort("ticketNumber")} sortDirection={sortColumn === "ticketNumber" ? sortDirection : false}>
@@ -310,8 +314,8 @@ export function TicketListView() {
                       ? t(`categoryValues.${ticket.category}`)
                       : TICKET_CATEGORIES[ticket.category] || ticket.category}
                   </TableCell>
-                  <TableCell className="font-medium text-m-text max-w-xs truncate">
-                    {ticket.subject}
+                  <TableCell className="font-medium text-m-text">
+                    <div className="w-64 whitespace-normal break-words">{ticket.subject}</div>
                   </TableCell>
                   <TableCell className="text-xs text-m-text-muted">{ticket.assignedTo}</TableCell>
                 </TableRow>

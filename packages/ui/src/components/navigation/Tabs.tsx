@@ -43,7 +43,7 @@ export function Tabs({
 
   return (
     <TabsContext.Provider value={{ value: activeValue, onChange: handleChange, variant, baseId }}>
-      <div className={cn('w-full flex flex-col gap-4', className)}>{children}</div>
+      <div className={cn('min-w-0 w-full flex flex-col gap-4', className)}>{children}</div>
     </TabsContext.Provider>
   );
 }
@@ -61,7 +61,7 @@ export function TabsList({ className, children }: TabsListProps) {
     <div
       role="tablist"
       className={cn(
-        'flex items-center gap-1 overflow-x-auto select-none border-b border-m-border/60 pb-px',
+        'flex flex-wrap items-center gap-1 select-none border-b border-m-border/60 pb-px',
         context.variant === 'pill' && 'border-b-0 gap-2',
         context.variant === 'boxed' && 'border-b-0 p-1 bg-m-surface-2 rounded-m-lg gap-1 border border-m-border/60',
         className,
@@ -112,7 +112,7 @@ export function TabsTrigger({ value, icon, disabled, className, children, onKeyD
         tabs[nextIndex]?.click();
       }}
       className={cn(
-        'inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold transition-all outline-none rounded-m-md cursor-pointer whitespace-nowrap',
+        'inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold transition-all outline-none rounded-m-md cursor-pointer whitespace-normal',
         'focus-visible:ring-2 focus-visible:ring-m-primary',
         disabled && 'opacity-40 cursor-not-allowed',
 

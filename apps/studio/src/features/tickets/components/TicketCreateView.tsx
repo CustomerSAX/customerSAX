@@ -361,7 +361,7 @@ export function TicketCreateView() {
             )}
 
             {matchedCustomer && (
-              <div className="p-3 bg-m-bg-surface border border-m-border rounded-md grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 bg-m-bg-surface border border-m-border rounded-md grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div>
                   <span className="text-m-text-muted block">First Name</span>
                   <span className="font-semibold text-m-text">{matchedCustomer.firstName || "Mia"}</span>
@@ -532,13 +532,19 @@ export function TicketCreateView() {
                   onChange={(e) => setAttachmentNameInput(e.target.value)}
                   placeholder="File name (e.g. Invoice.pdf)"
                 />
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                   <Input
                     value={attachmentUrlInput}
                     onChange={(e) => setAttachmentUrlInput(e.target.value)}
                     placeholder="URL (https://...)"
                   />
-                  <Button type="button" variant="secondary" size="md" onClick={handleAddAttachment}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    className="w-full shrink-0 whitespace-nowrap sm:w-auto"
+                    onClick={handleAddAttachment}
+                  >
                     Attach
                   </Button>
                 </div>
@@ -561,7 +567,7 @@ export function TicketCreateView() {
         </Card>
 
         {/* Form Actions */}
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
           <Button
             type="button"
             variant="secondary"

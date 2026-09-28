@@ -170,7 +170,7 @@ export const mantineComponents: CSAUIComponentMap = {
     );
   },
 
-  Select: ({ options, value, defaultValue, placeholder, label, error, errorMessage, disabled, required, className, onChange }) => {
+  Select: ({ size = 'md', options, value, defaultValue, placeholder, label, error, errorMessage, disabled, required, className, onChange }) => {
     const data = options.map((opt) => ({
       value: opt.value,
       label: opt.label,
@@ -179,6 +179,7 @@ export const mantineComponents: CSAUIComponentMap = {
 
     return (
       <MantineSelect
+        size={size === 'sm' ? 'xs' : size === 'lg' ? 'md' : 'sm'}
         data={data}
         value={value}
         defaultValue={defaultValue}
@@ -441,8 +442,8 @@ export const mantineComponents: CSAUIComponentMap = {
     }
 
     return (
-      <div className={`overflow-x-auto border border-gray-200 rounded-lg ${className || ''}`}>
-        <MantineTable striped={striped} highlightOnHover={hoverable}>
+      <div tabIndex={0} role="region" aria-label="Table" className={`min-w-0 max-w-full overflow-x-auto border border-gray-200 rounded-lg ${className || ''}`}>
+        <MantineTable style={{ whiteSpace: 'nowrap', overflowWrap: 'normal' }} striped={striped} highlightOnHover={hoverable}>
           <MantineTable.Thead className="bg-gray-50">
             <MantineTable.Tr>
               {columns.map((col) => (

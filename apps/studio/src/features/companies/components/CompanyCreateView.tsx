@@ -461,7 +461,7 @@ export function CompanyCreateView() {
                 <label className="text-xs font-semibold text-m-text mb-1 block">Street Address</label>
                 <Input value={street} onChange={(e) => setStreet(e.target.value)} placeholder="e.g. 100 Market St" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-m-text mb-1 block">City</label>
                   <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. San Francisco" />
@@ -471,7 +471,7 @@ export function CompanyCreateView() {
                   <Input value={state} onChange={(e) => setState(e.target.value)} placeholder="e.g. CA" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-m-text mb-1 block">Postal Code</label>
                   <Input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="e.g. 94105" />
@@ -512,7 +512,7 @@ export function CompanyCreateView() {
                 <label className="text-xs font-semibold text-m-text mb-1 block">Email</label>
                 <Input value={assocEmail} onChange={(e) => setAssocEmail(e.target.value)} type="email" placeholder="e.g. jane@company.com" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-m-text mb-1 block">Password</label>
                   <Input value={assocPassword} onChange={(e) => setAssocPassword(e.target.value)} type="password" placeholder="At least 8 characters" />

@@ -16,9 +16,9 @@ export function Toolbar({ left, right, className, children, ...props }: ToolbarP
       )}
       {...props}
     >
-      {left && <div className="flex flex-wrap items-center gap-2.5">{left}</div>}
-      {children && <div className="flex flex-wrap items-center gap-2.5">{children}</div>}
-      {right && <div className="flex flex-wrap items-center gap-2.5 ml-auto">{right}</div>}
+      {left && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2.5">{left}</div>}
+      {children && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2.5">{children}</div>}
+      {right && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2.5 ml-auto">{right}</div>}
     </div>
   );
 }
