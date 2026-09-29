@@ -253,6 +253,21 @@ export async function deactivateUsersByClient(clientId: string): Promise<number>
   return result.modifiedCount;
 }
 
+/** Reassigns all users holding oldRole in a specific client+projectKey to newRole. */
+export async function reassignRole(clientId: string, projectKey: string, oldRole: string, newRole: string): Promise<number> {
+  const col = await getUsersCollection();
+  const result = await col.updateMany(
+    { projects: { $elemMatch: { clientId, projectKey, role: oldRole } } },
+    { $set: { "projects.$[elem].role": newRole, updatedAt: new Date() } },
+    { arrayFilters: [{ "elem.clientId": clientId, "elem.projectKey": projectKey, "elem.role": oldRole }] }
+  );
+  await col.updateMany(
+    { clientId, projectKey, role: oldRole },
+    { $set: { role: newRole, updatedAt: new Date() } }
+  );
+  return result.modifiedCount;
+}
+
 export async function ensureUsersIndex(): Promise<void> {
   const col = await getUsersCollection();
   await col.createIndex({ email: 1 }, { unique: true });

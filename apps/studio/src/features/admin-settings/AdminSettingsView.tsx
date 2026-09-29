@@ -48,7 +48,7 @@ const UPDATE_USER = gql`mutation UpdateWorkspaceUser($clientId: ID!, $input: Adm
 const CREATE_USER = gql`mutation CreateWorkspaceUser($clientId: ID!, $input: AdminCreateUserInput!, $grantedBy: String!) { adminCreateClientUser(clientId: $clientId, input: $input, grantedBy: $grantedBy) { id email firstName lastName active clientProjects { projectKey role } } }`;
 const UPDATE_CONTACT = gql`mutation UpdateContact($clientId: ID!, $contactEmail: String!) { adminUpdateClientContact(clientId: $clientId, contactEmail: $contactEmail) { id contactEmail } }`;
 const CREATE_ROLE = gql`mutation CreateRole($clientId: ID!, $projectKey: String!, $input: AdminRoleInput!) { adminCreateRole(clientId: $clientId, projectKey: $projectKey, input: $input) { id } }`;
-const UPDATE_ROLE = gql`mutation UpdateRole($id: ID!, $clientId: ID!, $projectKey: String!, $input: AdminRoleUpdateInput!) { adminUpdateRole(id: $id, clientId: $clientId, projectKey: $projectKey, input: $input) { id } }`;
+const UPDATE_ROLE = gql`mutation UpdateRole($id: ID!, $clientId: ID!, $projectKey: String!, $input: AdminRoleUpdateInput!) { adminUpdateRole(id: $id, clientId: $clientId, projectKey: $projectKey, input: $input) { id key label description system } }`;
 const DELETE_ROLE = gql`mutation DeleteRole($id: ID!, $clientId: ID!, $projectKey: String!) { adminDeleteRole(id: $id, clientId: $clientId, projectKey: $projectKey) }`;
 const CREATE_SMTP = gql`mutation CreateSmtp($clientId: ID!, $input: AdminSmtpProfileInput!) { adminCreateSmtpProfile(clientId: $clientId, input: $input) { id } }`;
 const DELETE_SMTP = gql`mutation DeleteSmtp($id: ID!, $clientId: ID!) { adminDeleteSmtpProfile(id: $id, clientId: $clientId) }`;
@@ -312,6 +312,7 @@ function AddUserModal({ isOpen, onClose, clientId, projectKey, actor, roles, pro
 function Roles({ roles, clientId, projectKey, refetch }: { roles: Role[]; clientId: string; projectKey: string; refetch: () => Promise<unknown> }) {
   const [selectedId, setSelectedId] = useState(roles[0]?.id ?? "");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const selected = roles.find((role) => role.id === selectedId) ?? roles[0];
   const selectedPermissions = permissionInputs(selected?.permissions ?? []);
   const [draftPermissions, setDraftPermissions] = useState<Permission[]>(selectedPermissions);
@@ -400,10 +401,25 @@ function Roles({ roles, clientId, projectKey, refetch }: { roles: Role[]; client
           <div className="overflow-auto rounded-xl border border-m-border bg-m-surface p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold">{selected.label} ACL</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold">{selected.label} ACL</h3>
+                  <span className="rounded bg-m-surface-2 px-2 py-0.5 text-xs text-m-text-muted">
+                    {selected.system ? "System" : selected.key}
+                  </span>
+                </div>
+                {selected.description && <p className="mt-0.5 text-xs text-m-text-muted">{selected.description}</p>}
                 {hasChanges && <p className="text-xs text-m-text-muted">Unsaved permission changes</p>}
               </div>
               <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<Icon name="edit" size="xs" />}
+                  onClick={() => setIsEditOpen(true)}
+                  disabled={isSaving}
+                >
+                  Edit Role
+                </Button>
                 {hasChanges && (
                   <Button variant="secondary" size="sm" onClick={() => setDraftPermissions(selectedPermissions)} disabled={isSaving}>
                     Discard
@@ -459,6 +475,26 @@ function Roles({ roles, clientId, projectKey, refetch }: { roles: Role[]; client
           setIsAddOpen(false);
           setSelectedId(roleId);
           await refetch();
+        }}
+      />
+      <EditRoleModal
+        role={selected ?? null}
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        existingKeys={roles.filter((role) => role.id !== selected?.id).map((role) => role.key)}
+        onSave={async (input) => {
+          if (!selected) return;
+          await updateRole({
+            variables: {
+              id: selected.id,
+              clientId,
+              projectKey,
+              input,
+            },
+          });
+          setIsEditOpen(false);
+          await refetch();
+          await apolloClient.refetchQueries({ include: ["ShellRoles"] });
         }}
       />
     </section>
@@ -527,7 +563,7 @@ function AddRoleModal({ isOpen, onClose, createRole, clientId, projectKey, exist
           <label className="block text-sm font-semibold text-m-text">
             Role Name (slug) <span className="text-m-error">*</span>
             <Input className="mt-1" value={key} onChange={(event) => setKey(event.target.value)} placeholder="e.g. supervisor" required />
-            <span className="mt-1 block text-xs font-normal text-m-text-muted">Lowercase letters, numbers, underscores only. Cannot be changed after creation.</span>
+            <span className="mt-1 block text-xs font-normal text-m-text-muted">Lowercase letters, numbers, underscores only.</span>
           </label>
           <label className="block text-sm font-semibold text-m-text">
             Display Label <span className="text-m-error">*</span>
@@ -542,6 +578,111 @@ function AddRoleModal({ isOpen, onClose, createRole, clientId, projectKey, exist
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={isSaving}>Cancel</Button>
             <Button type="submit" variant="primary" loading={isSaving} disabled={!isValid}>Create Role</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditRoleModal({
+  role,
+  isOpen,
+  onClose,
+  existingKeys,
+  onSave,
+}: {
+  role: Role | null;
+  isOpen: boolean;
+  onClose: () => void;
+  existingKeys: string[];
+  onSave: (input: { key: string; label: string; description: string }) => Promise<void>;
+}) {
+  const [key, setKey] = useState("");
+  const [label, setLabel] = useState("");
+  const [description, setDescription] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isSystem = Boolean(role?.system);
+  const normalizedKey = isSystem ? (role?.key ?? "") : slugifyRoleKey(key);
+  const isValid = Boolean(normalizedKey && label.trim());
+
+  useEffect(() => {
+    if (!isOpen || !role) return;
+    setKey(role.key);
+    setLabel(role.label);
+    setDescription(role.description || "");
+    setError(null);
+  }, [isOpen, role]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!role) return;
+    setError(null);
+
+    if (!isValid) {
+      setError("Role name and display label are required.");
+      return;
+    }
+    if (!isSystem && normalizedKey !== role.key && existingKeys.includes(normalizedKey)) {
+      setError("A role with this slug already exists.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onSave({
+        key: normalizedKey,
+        label: label.trim(),
+        description: description.trim(),
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to update role");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  if (!isOpen || !role) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/45 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-role-title">
+      <div className="w-full max-w-md overflow-y-auto rounded-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
+        <div className="flex items-center justify-between">
+          <h2 id="edit-role-title" className="text-lg font-bold text-m-primary">Edit Role</h2>
+          {isSystem && <span className="rounded bg-m-surface-2 px-2 py-0.5 text-xs font-semibold text-m-text-muted">System Role</span>}
+        </div>
+        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <label className="block text-sm font-semibold text-m-text">
+            Display Label <span className="text-m-error">*</span>
+            <Input className="mt-1" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="e.g. Supervisor" required />
+            <span className="mt-1 block text-xs font-normal text-m-text-muted">The friendly display name shown across the workspace.</span>
+          </label>
+          <label className="block text-sm font-semibold text-m-text">
+            Role Name (slug) <span className="text-m-error">*</span>
+            <Input
+              className="mt-1"
+              value={isSystem ? role.key : key}
+              onChange={(event) => setKey(event.target.value)}
+              placeholder="e.g. supervisor"
+              required
+              disabled={isSystem}
+            />
+            <span className="mt-1 block text-xs font-normal text-m-text-muted">
+              {isSystem
+                ? "System role identifier is locked and cannot be changed."
+                : "Lowercase letters, numbers, underscores only. Assigned users will be updated automatically."}
+            </span>
+          </label>
+          <label className="block text-sm font-semibold text-m-text">
+            Description
+            <TextArea className="mt-1" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What can this role do?" resize="vertical" />
+          </label>
+          {!isSystem && key && key !== normalizedKey && <p className="text-xs text-m-text-muted">Will be saved as <code>{normalizedKey}</code>.</p>}
+          {error && <p className="text-sm text-m-error">{error}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={isSaving}>Cancel</Button>
+            <Button type="submit" variant="primary" loading={isSaving} disabled={!isValid}>Save Changes</Button>
           </div>
         </form>
       </div>

@@ -31,7 +31,7 @@ export async function createRole(clientId: string, projectKey: string, input: Om
   return view(doc);
 }
 
-export async function updateRole(id: string, clientId: string, projectKey: string, input: { label?: string; description?: string; permissions?: Permission[] }) {
+export async function updateRole(id: string, clientId: string, projectKey: string, input: { key?: string; label?: string; description?: string; permissions?: Permission[] }) {
   const _id = new ObjectId(id);
   await (await getRolesCollection()).updateOne({ _id, clientId, projectKey }, { $set: { ...input, updatedAt: new Date() } });
   const doc = await (await getRolesCollection()).findOne({ _id, clientId, projectKey });
