@@ -873,9 +873,21 @@ function ProjectModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/45 p-4">
-      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-m-xl bg-m-surface p-7 shadow-m-modal">
-        <h2 className="mb-1 text-base font-bold text-m-primary">{isEdit ? "Edit Project" : "Add Project"}</h2>
-        <p className="mb-5 text-xs text-m-text-muted">Connect a commerce project to this client. Credentials are encrypted at rest.</p>
+      <div className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-m-xl bg-m-surface p-7 shadow-m-modal">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="mb-1 text-base font-bold text-m-primary">{isEdit ? "Edit Project" : "Add Project"}</h2>
+            <p className="text-xs text-m-text-muted">Connect a commerce project to this client. Credentials are encrypted at rest.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="-mr-2 -mt-2 inline-flex h-8 w-8 items-center justify-center rounded-m-md text-m-text-muted hover:bg-m-surface-2 hover:text-m-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-m-primary"
+            aria-label="Close modal"
+          >
+            <Icon name="x" size="sm" />
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
           <div>
@@ -1266,8 +1278,18 @@ function UserModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/45 p-4">
-      <div className="w-full max-w-lg overflow-y-auto rounded-m-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
-        <h2 className="mb-4 text-base font-bold text-m-primary">{isEdit ? "Edit User" : "Add User to Client"}</h2>
+      <div className="relative w-full max-w-lg overflow-y-auto rounded-m-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h2 className="text-base font-bold text-m-primary">{isEdit ? "Edit User" : "Add User to Client"}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="-mr-2 -mt-2 inline-flex h-8 w-8 items-center justify-center rounded-m-md text-m-text-muted hover:bg-m-surface-2 hover:text-m-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-m-primary"
+            aria-label="Close modal"
+          >
+            <Icon name="x" size="sm" />
+          </button>
+        </div>
 
         {!isEdit && (
           <div className="mb-5 flex gap-2 rounded-m-md bg-m-neutral-100 p-1">

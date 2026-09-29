@@ -283,8 +283,18 @@ function SmtpProfileModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/45 p-4">
-      <div className="w-full max-w-md overflow-y-auto rounded-m-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
-        <h2 className="mb-5 text-base font-bold text-m-primary">{isEdit ? "Edit SMTP Profile" : "Add SMTP Profile"}</h2>
+      <div className="relative w-full max-w-md overflow-y-auto rounded-m-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h2 className="text-base font-bold text-m-primary">{isEdit ? "Edit SMTP Profile" : "Add SMTP Profile"}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="-mr-2 -mt-2 inline-flex h-8 w-8 items-center justify-center rounded-m-md text-m-text-muted hover:bg-m-surface-2 hover:text-m-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-m-primary"
+            aria-label="Close modal"
+          >
+            <Icon name="x" size="sm" />
+          </button>
+        </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
           <div>
             <label className={LABEL_CLASS}>Label</label>

@@ -258,9 +258,21 @@ function AddUserModal({ isOpen, onClose, clientId, projectKey, actor, roles, pro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/45 p-4" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
-      <div className="w-full max-w-md overflow-y-auto rounded-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
-        <h2 id="add-user-title" className="text-lg font-bold text-m-primary">Add User</h2>
-        <p className="mt-1 text-sm text-m-text-muted">Creates a workspace user with access to the selected projects.</p>
+      <div className="relative w-full max-w-md overflow-y-auto rounded-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 id="add-user-title" className="text-lg font-bold text-m-primary">Add User</h2>
+            <p className="mt-1 text-sm text-m-text-muted">Creates a workspace user with access to the selected projects.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="-mr-2 -mt-2 inline-flex h-8 w-8 items-center justify-center rounded-m-md text-m-text-muted hover:bg-m-surface-2 hover:text-m-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-m-primary"
+            aria-label="Close modal"
+          >
+            <Icon name="x" size="sm" />
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -557,8 +569,18 @@ function AddRoleModal({ isOpen, onClose, createRole, clientId, projectKey, exist
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/45 p-4" role="dialog" aria-modal="true" aria-labelledby="add-role-title">
-      <div className="w-full max-w-md overflow-y-auto rounded-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
-        <h2 id="add-role-title" className="text-lg font-bold text-m-primary">Add Custom Role</h2>
+      <div className="relative w-full max-w-md overflow-y-auto rounded-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
+        <div className="flex items-center justify-between gap-4">
+          <h2 id="add-role-title" className="text-lg font-bold text-m-primary">Add Custom Role</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="-mr-2 -mt-2 inline-flex h-8 w-8 items-center justify-center rounded-m-md text-m-text-muted hover:bg-m-surface-2 hover:text-m-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-m-primary"
+            aria-label="Close modal"
+          >
+            <Icon name="x" size="sm" />
+          </button>
+        </div>
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <label className="block text-sm font-semibold text-m-text">
             Role Name (slug) <span className="text-m-error">*</span>
@@ -647,10 +669,20 @@ function EditRoleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-m-neutral-950/45 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-role-title">
-      <div className="w-full max-w-md overflow-y-auto rounded-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
-        <div className="flex items-center justify-between">
-          <h2 id="edit-role-title" className="text-lg font-bold text-m-primary">Edit Role</h2>
-          {isSystem && <span className="rounded bg-m-surface-2 px-2 py-0.5 text-xs font-semibold text-m-text-muted">System Role</span>}
+      <div className="relative w-full max-w-md overflow-y-auto rounded-xl bg-m-surface p-7 shadow-m-modal" style={{ maxHeight: "90vh" }}>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <h2 id="edit-role-title" className="text-lg font-bold text-m-primary">Edit Role</h2>
+            {isSystem && <span className="rounded bg-m-surface-2 px-2 py-0.5 text-xs font-semibold text-m-text-muted">System Role</span>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="-mr-2 -mt-2 inline-flex h-8 w-8 items-center justify-center rounded-m-md text-m-text-muted hover:bg-m-surface-2 hover:text-m-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-m-primary"
+            aria-label="Close modal"
+          >
+            <Icon name="x" size="sm" />
+          </button>
         </div>
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <label className="block text-sm font-semibold text-m-text">
