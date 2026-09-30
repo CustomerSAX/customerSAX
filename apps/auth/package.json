@@ -19,7 +19,7 @@
     "@csa/logger": "workspace:*",
     "@csa/mongodb": "workspace:*",
     "bcryptjs": "^3.0.3",
-    "redis": "^6.2.1"
+    "redis": "6.2.1"
   },
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",
