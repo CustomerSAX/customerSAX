@@ -1,15 +1,20 @@
+import { normalizeFreshdeskDomain, projectFreshdeskCredentials, freshdeskClient } from "./freshdesk.js";
 import { ObjectId } from "mongodb";
 import { getProjectsCollection } from "../admin/db.js";
 import { encrypt, decrypt } from "../encrypt.js";
 
 export type ProjectTicketing = {
-  provider: "internal" | "zendesk";
+  provider: "internal" | "zendesk" | "freshdesk";
+  freshdeskDomain?: string;
+  freshdeskApiKeyEncrypted?: string;
   subdomain?: string;
   clientId?: string;
   secretEncrypted?: string;
 };
 export type TicketingInput = {
   provider: string;
+  freshdeskDomain?: string | null;
+  freshdeskApiKey?: string | null;
   subdomain?: string | null;
   clientId?: string | null;
   clientSecret?: string | null;
@@ -34,7 +39,7 @@ export function normalizeZendeskSubdomain(value: string) {
 function requireKey() {
   if (!process.env.SUPERADMIN_ENCRYPTION_KEY?.trim())
     throw new Error(
-      "Configure SUPERADMIN_ENCRYPTION_KEY on admin and ticketing before storing Zendesk credentials"
+      "Configure SUPERADMIN_ENCRYPTION_KEY on admin and ticketing before storing ticketing credentials"
     );
 }
 export function ticketingSettingsView(settings?: ProjectTicketing) {
@@ -42,6 +47,8 @@ export function ticketingSettingsView(settings?: ProjectTicketing) {
     provider: settings?.provider ?? "internal",
     subdomain: settings?.subdomain ?? "",
     clientId: settings?.clientId ?? "",
+    freshdeskDomain: settings?.freshdeskDomain ?? "",
+    freshdeskApiKeySet: !!settings?.freshdeskApiKeyEncrypted,
     secretSet: !!settings?.secretEncrypted
   };
 }
@@ -60,10 +67,18 @@ export function prepareTicketing(
   input: TicketingInput,
   previous?: ProjectTicketing
 ): ProjectTicketing {
-  if (!["internal", "zendesk"].includes(input.provider))
+  if (!["internal", "zendesk", "freshdesk"].includes(input.provider))
     throw new Error("Unsupported ticketing provider");
   if (input.provider === "internal") return { ...previous, provider: "internal" };
   requireKey();
+  if (input.provider === "freshdesk") {
+    const freshdeskDomain = normalizeFreshdeskDomain(input.freshdeskDomain ?? "");
+    const apiKey = input.freshdeskApiKey?.trim();
+    if (!apiKey && previous?.freshdeskDomain !== freshdeskDomain) throw new Error("Enter the API key when changing the Freshdesk account");
+    const freshdeskApiKeyEncrypted = apiKey ? encrypt(apiKey) : previous?.freshdeskApiKeyEncrypted;
+    if (!freshdeskApiKeyEncrypted) throw new Error("Freshdesk API key is required");
+    return { ...previous, provider: "freshdesk", freshdeskDomain, freshdeskApiKeyEncrypted };
+  }
   const subdomain = normalizeZendeskSubdomain(input.subdomain ?? "");
   const clientId = input.clientId?.trim();
   if (!clientId) throw new Error("Zendesk OAuth Identifier is required");
@@ -72,7 +87,7 @@ export function prepareTicketing(
     throw new Error("Enter the secret when changing the Zendesk account or OAuth client");
   const secretEncrypted = secret ? encrypt(secret) : previous?.secretEncrypted;
   if (!secretEncrypted) throw new Error("Zendesk client secret is required");
-  return { provider: "zendesk", subdomain, clientId, secretEncrypted };
+  return { ...previous, provider: "zendesk", subdomain, clientId, secretEncrypted };
 }
 export async function saveProjectTicketing(
   clientId: string,
@@ -92,6 +107,9 @@ export async function saveProjectTicketing(
       name: "unique_ticketing_zendesk_account"
     }
   );
+  await collection.createIndex({ "ticketing.freshdeskDomain": 1 }, {
+    unique: true, partialFilterExpression: { "ticketing.freshdeskDomain": { $type: "string" } }, name: "unique_ticketing_freshdesk_account"
+  });
   try {
     const result = await collection.updateOne(
       { _id: existing._id, clientId },
@@ -100,7 +118,7 @@ export async function saveProjectTicketing(
     if (!result.matchedCount) throw new Error("Project no longer exists");
   } catch (e) {
     if ((e as { code?: number }).code === 11000)
-      throw new Error("This Zendesk account is already assigned to another project");
+      throw new Error("This ticketing account is already assigned to another project");
     throw e;
   }
   return ticketingSettingsView(settings);
@@ -167,6 +185,15 @@ export async function testProjectTicketing(
       success: true,
       message: "Native ticketing selected; no external connection required"
     };
+  if (settings.provider === "freshdesk") {
+    try {
+      const request = freshdeskClient(projectFreshdeskCredentials(settings));
+      await request("agents/me");
+      await request("tickets?per_page=1");
+      await request("ticket_fields");
+      return { success: true, message: "Connected: Freshdesk tickets and fields are accessible. No tickets were changed" };
+    } catch (e) { return { success: false, message: e instanceof Error ? e.message : "Freshdesk connection failed" }; }
+  }
   const credentials = projectZendeskCredentials(settings);
   try {
     const token = await issueZendeskServiceToken(credentials);
