@@ -181,3 +181,41 @@ pnpm --filter @csa/ticketing typecheck
 ```
 
 Tests mock Zendesk and do not authorize accounts or create real tickets.
+
+## Freshdesk project setup
+
+In **Superadmin → Client → Projects → Ticketing**, select **Freshdesk** and enter:
+
+- Domain, such as `royalcyber-help.freshdesk.com` (the HTTPS account URL also works).
+- Agent API key from Freshdesk Profile Settings.
+
+Use Test Connection, then Save Ticketing Settings. The test reads the current
+agent, tickets and field definitions; it does not create or modify tickets or
+verify every write permission. The key is encrypted using the existing shared
+`SUPERADMIN_ENCRYPTION_KEY`; it is never returned to Studio. Blank preserves the
+saved key. Changing the domain requires entering a key. No OAuth callback or
+Freshdesk environment credentials are required. Freshdesk and Zendesk credentials
+are stored separately and retained when switching providers. Each saved account
+stays reserved for this project until its domain changes or the project is deleted.
+
+Restart Admin and Ticketing, then BFF after building `@csa/mongodb`; reload Studio.
+The selected provider badge updates after saving. Existing tickets are not migrated.
+
+The initial Freshdesk adapter supports list/detail, create/update, private notes,
+conversation/attachment reads and read-only custom fields. New ticket descriptions
+use Freshdesk's standard create-ticket behavior and account notification rules;
+internal notes are explicitly private. HTML input is escaped. Freshdesk does not
+have the shared model's separate In Progress status, so it maps to Open.
+
+List queries use a bounded account snapshot (up to 1,000 accessible non-deleted
+non-spam tickets), including older tickets, to support the existing UI's totals,
+sorting and filters. Larger accounts return an explicit limit error and need a
+server-side search/pagination extension. Each page with requester details consumes
+extra API credits; avoid repeated refreshes on a trial account. Conversations load
+on the detail page only. There are no automatic write retries.
+
+Attachment uploads, public replies, custom-field editing, audit history and CSA
+business-field mappings are not included. Nonempty unmapped business fields are
+rejected rather than silently discarded. Categories sent on writes must match the
+Freshdesk account's Type choices; custom statuses and fully provider-specific
+create/workflow forms remain future work.

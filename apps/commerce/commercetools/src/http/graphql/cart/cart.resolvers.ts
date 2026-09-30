@@ -1,6 +1,6 @@
 import { createLogger } from "@csa/logger";
 import { commercetoolsGraphql } from "../../../commercetools/client.js";
-import { getCartByIdOrKey, listCarts } from "../../../commercetools/api/index.js";
+import { getCartByIdOrKey, listCarts, getCustomerById } from "../../../commercetools/api/index.js";
 import { mapCart, mapOrder } from "../../../commercetools/mappers.js";
 import type { CtCart, CtOrder } from "../../../commercetools/types.js";
 import {
@@ -14,6 +14,8 @@ import {
 import type { CartSearchArgs, DiscountCodeArgs } from "./cart.types.js";
 
 const log = createLogger("commercetools").child({ module: "cart.resolvers" });
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type CtLocalizedString = {
   locale?: string;
@@ -59,24 +61,49 @@ export const resolvers = {
   b2bCarts: async (
     _parent: unknown,
     args: PagingArgs & { businessUnitKey?: string; customerId?: string }
-  ) =>
-    queryCarts(
+  ) => {
+    let customerClause: string | undefined;
+    if (args.customerId) {
+      let email: string | undefined;
+      try {
+        const cust = await getCustomerById(args.customerId);
+        if (cust?.email) email = cust.email;
+      } catch {
+        // ignore
+      }
+      customerClause = email
+        ? `(customerId="${escapeWhere(args.customerId)}" or customerEmail="${escapeWhere(email)}")`
+        : `customerId="${escapeWhere(args.customerId)}"`;
+    }
+
+    return queryCarts(
       compactWhere([
-        args.customerId ? `customerId="${escapeWhere(args.customerId)}"` : undefined,
+        customerClause,
         args.businessUnitKey
           ? `businessUnit(key="${escapeWhere(args.businessUnitKey)}")`
           : undefined
       ]),
       args
-    ),
+    );
+  },
   activeCartCount: async (_parent: unknown, args: { customerId: string }) => {
+    let customerClause = `customerId="${escapeWhere(args.customerId)}"`;
+    try {
+      const cust = await getCustomerById(args.customerId);
+      if (cust?.email) {
+        customerClause = `(customerId="${escapeWhere(args.customerId)}" or customerEmail="${escapeWhere(cust.email)}")`;
+      }
+    } catch {
+      // ignore
+    }
+
     const data = await commercetoolsGraphql<{ carts: { total?: number } }>(
       `#graphql
         query ActiveCartCount($where: String!) {
           carts(where: $where, limit: 1) { total }
         }
       `,
-      { where: `customerId="${escapeWhere(args.customerId)}" and cartState="Active"` }
+      { where: `${customerClause} and cartState="Active"` }
     );
 
     return data.carts.total ?? 0;
@@ -274,6 +301,8 @@ function cartSearchWhere(args: CartSearchArgs) {
     return `id="" and cartState="Active"`;
   }
 
+  const isUuid = UUID_REGEX.test(text);
+
   let base: string;
   switch (args.option) {
     case "id":
@@ -283,7 +312,9 @@ function cartSearchWhere(args: CartSearchArgs) {
       base = `customerEmail="${text}"`;
       break;
     default:
-      base = `id="${text}" or customerEmail="${text}" or customerId="${text}"`;
+      base = isUuid
+        ? `id="${text}" or customerEmail="${text}" or customerId="${text}"`
+        : `customerEmail="${text}"`;
   }
 
   // Always restrict to Active carts.  commercetools changes a cart's state to

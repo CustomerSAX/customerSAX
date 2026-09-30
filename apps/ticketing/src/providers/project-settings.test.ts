@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { resolveProjectTicketing } from "@csa/mongodb";
 import { resolveTicketing } from "./index.js";
 import { zendeskProvider } from "../zendesk/provider.js";
-vi.mock("@csa/mongodb", async original => ({ ...(await original<typeof import("@csa/mongodb")>()), resolveProjectTicketing: vi.fn(), nativeTicketLegacyAccess: vi.fn(async () => false) }));
+vi.mock("@csa/mongodb", async original => ({ ...(await original<typeof import("@csa/mongodb")>()), resolveProjectTicketing: vi.fn(), nativeTicketLegacyAccess: vi.fn(async () => false), projectFreshdeskCredentials: vi.fn(() => ({ domain: "fresh.freshdesk.com", apiKey: "test-key" })) }));
 vi.mock("../zendesk/project-client.js", () => ({ projectZendeskClient: (clientId: string, projectKey: string, settings: { subdomain: string }) => ({ subdomain: settings.subdomain, clientId, projectKey }) }));
 vi.mock("../zendesk/provider.js", () => ({ zendeskProvider: vi.fn(() => ({ getTicket: vi.fn() })) }));
 beforeEach(() => { vi.clearAllMocks(); vi.stubEnv("TICKETING_PROVIDER", "zendesk"); });
@@ -27,4 +27,10 @@ it("rejects missing client context in production", async () => {
   vi.stubEnv("NODE_ENV", "production");
   await expect(resolveTicketing("project")).rejects.toThrow("authenticated client");
   expect(resolveProjectTicketing).not.toHaveBeenCalled();
+});
+
+it("selects Freshdesk for the active project without using Zendesk", async () => {
+  vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "freshdesk", freshdeskDomain: "fresh.freshdesk.com", freshdeskApiKeyEncrypted: "encrypted" });
+  expect((await resolveTicketing("project", "client")).name).toBe("freshdesk");
+  expect(zendeskProvider).not.toHaveBeenCalled();
 });

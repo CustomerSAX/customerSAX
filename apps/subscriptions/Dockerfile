@@ -1,7 +1,7 @@
 FROM node:20-slim AS build
 WORKDIR /app
 RUN corepack enable
-COPY package.json ./
+COPY package.json pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml pnpm-workspace.yaml
 COPY apps/subscriptions/package.json apps/subscriptions/package.json
 COPY packages/config/package.json packages/config/package.json
@@ -10,7 +10,7 @@ COPY packages/logger/package.json packages/logger/package.json
 COPY packages/mongodb/package.json packages/mongodb/package.json
 COPY packages/service-bootstrap/package.json packages/service-bootstrap/package.json
 COPY configs/typescript/package.json configs/typescript/package.json
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 COPY configs/typescript configs/typescript
 COPY packages/config packages/config
 COPY packages/headers packages/headers
