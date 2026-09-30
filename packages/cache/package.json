@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@csa/logger": "workspace:*",
-    "redis": "^6.2.1"
+    "redis": "6.2.1"
   },
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",

@@ -316,8 +316,8 @@ export const typeDefs = gql`
   type AdminAiSettings { clientId: ID!, enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKeySet: Boolean!, updatedBy: String, updatedAt: String }
   input AdminAiSettingsInput { enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKey: String }
 
-  type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean! }
-  input AdminProjectTicketingInput { provider: String!, subdomain: String, clientId: String, clientSecret: String }
+  type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean!, freshdeskDomain: String!, freshdeskApiKeySet: Boolean! }
+  input AdminProjectTicketingInput { provider: String!, subdomain: String, clientId: String, clientSecret: String, freshdeskDomain: String, freshdeskApiKey: String }
   type AdminTicketingTest { success: Boolean!, message: String! }
   extend type Query {
     adminProjectTicketing(clientId: ID!, id: ID!): AdminProjectTicketing!

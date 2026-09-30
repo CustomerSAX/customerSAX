@@ -4,7 +4,7 @@ import { useQuery } from "@apollo/client";
 import { SectionCard, InfoList, InfoRow, CardEmpty, SecondaryButton } from "@csa/ui";
 import { TICKET_PROVIDER_FIELDS } from "../api/queries";
 
-export function ZendeskFields({ id }: { id: string }) {
+export function ProviderFields({ id, provider }: { id: string; provider: string }) {
   const { data, loading, error, refetch } = useQuery<{
     ticketProviderFields: Array<{
       id: string;
@@ -15,7 +15,7 @@ export function ZendeskFields({ id }: { id: string }) {
   }>(TICKET_PROVIDER_FIELDS, { variables: { id }, fetchPolicy: "network-only" });
   return (
     <SectionCard
-      title="Zendesk Fields"
+      title={`${provider} Fields`}
       icon="tag"
       action={
         <SecondaryButton
@@ -31,15 +31,15 @@ export function ZendeskFields({ id }: { id: string }) {
       {error ? (
         <CardEmpty
           icon="alert-triangle"
-          title="Unable to load Zendesk fields"
+          title={`Unable to load ${provider} fields`}
           hint={error.message}
         />
       ) : loading && !data ? (
-        <CardEmpty icon="loader" title="Loading Zendesk fields…" />
+        <CardEmpty icon="loader" title={`Loading ${provider} fields…`} />
       ) : (
         <>
           <p className="mb-4 text-[12px] text-m-text-muted">
-            Values from Zendesk. Edit these fields in Zendesk, then refresh.
+            Values from {provider}. Edit these fields in {provider}, then refresh.
           </p>
           <InfoList>
             {data?.ticketProviderFields.map((field) => (
