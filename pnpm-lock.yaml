@@ -100,7 +100,7 @@ importers:
         specifier: ^7.1.1
         version: 7.5.0(socks@2.8.9)
       redis:
-        specifier: ^6.2.1
+        specifier: 6.2.1
         version: 6.2.1(@opentelemetry/api@1.9.1)
       zod:
         specifier: ^3.23.8
@@ -140,7 +140,7 @@ importers:
         specifier: ^3.0.3
         version: 3.0.3
       redis:
-        specifier: ^6.2.1
+        specifier: 6.2.1
         version: 6.2.1(@opentelemetry/api@1.9.1)
     devDependencies:
       '@csa/config-typescript':
@@ -739,7 +739,7 @@ importers:
         specifier: workspace:*
         version: link:../logger
       redis:
-        specifier: ^6.2.1
+        specifier: 6.2.1
         version: 6.2.1(@opentelemetry/api@1.9.1)
     devDependencies:
       '@csa/config-typescript':

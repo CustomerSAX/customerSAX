@@ -14,13 +14,13 @@ WORKDIR /app
 RUN corepack enable
 
 # Install with only the manifests needed to resolve the workspace graph.
-COPY package.json ./
+COPY package.json pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml pnpm-workspace.yaml
 COPY .npmrc .npmrc
 COPY apps/docs-site/package.json apps/docs-site/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY configs/typescript/package.json configs/typescript/package.json
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Copy sources and build the Next.js app.
 COPY configs/typescript configs/typescript
