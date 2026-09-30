@@ -708,8 +708,8 @@ function ProjectsTab({
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-m-text-muted">{formatDate(p.createdAt)}</TableCell>
                         <TableCell>
-                          <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${p.ticketingProvider === "zendesk" ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
-                            {p.ticketingProvider === "zendesk" ? "Zendesk" : "Native"}
+                          <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${(p.ticketingProvider === "zendesk" || p.ticketingProvider === "freshdesk") ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
+                            {p.ticketingProvider === "zendesk" ? "Zendesk" : p.ticketingProvider === "freshdesk" ? "Freshdesk" : "Native"}
                           </span>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right pr-4">

@@ -13,6 +13,8 @@ const READ = gql`
       subdomain
       clientId
       secretSet
+      freshdeskDomain
+      freshdeskApiKeySet
     }
   }
 `;
@@ -27,6 +29,8 @@ const SAVE = gql`
       subdomain
       clientId
       secretSet
+      freshdeskDomain
+      freshdeskApiKeySet
     }
   }
 `;
@@ -64,6 +68,8 @@ export function TicketingSettings({
   const [subdomain, setSubdomain] = useState("");
   const [oauthId, setOauthId] = useState("");
   const [secret, setSecret] = useState("");
+  const [freshdeskDomain, setFreshdeskDomain] = useState("");
+  const [freshdeskApiKey, setFreshdeskApiKey] = useState("");
   const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(null);
   useEffect(() => {
     const settings = data?.adminProjectTicketing;
@@ -72,6 +78,8 @@ export function TicketingSettings({
       setSubdomain(settings.subdomain);
       setOauthId(settings.clientId);
       setSecret("");
+      setFreshdeskDomain(settings.freshdeskDomain);
+      setFreshdeskApiKey("");
     }
   }, [data]);
   const busy = saving.loading || testing.loading;
@@ -79,7 +87,9 @@ export function TicketingSettings({
     provider,
     subdomain,
     clientId: oauthId,
-    clientSecret: secret || undefined
+    clientSecret: secret || undefined,
+    freshdeskDomain,
+    freshdeskApiKey: freshdeskApiKey || undefined
   };
   async function run(action: "save" | "test") {
     setNotice(null);
@@ -87,6 +97,7 @@ export function TicketingSettings({
       if (action === "save") {
         await save({ variables: { clientId, id: project.id, input } });
         setSecret("");
+        setFreshdeskApiKey("");
         await refetch();
         onSaved();
         setNotice({
@@ -141,10 +152,53 @@ export function TicketingSettings({
               disabled={busy}
               options={[
                 { value: "internal", label: "Native ticketing" },
-                { value: "zendesk", label: "Zendesk" }
+                { value: "zendesk", label: "Zendesk" },
+                { value: "freshdesk", label: "Freshdesk" }
               ]}
             />
           </label>
+          {provider === "freshdesk" && (
+            <>
+              <p className="text-sm text-m-text-muted">
+                Use your Freshdesk domain and an agent API key. Agents use this connection
+                automatically; no OAuth setup is required.
+              </p>
+              <label className={LABEL_CLASS}>
+                Freshdesk domain
+                <Input
+                  required
+                  value={freshdeskDomain}
+                  placeholder="royalcyber-help.freshdesk.com"
+                  disabled={busy}
+                  onChange={(e) => {
+                    setFreshdeskDomain(e.target.value);
+                    setNotice(null);
+                  }}
+                />
+              </label>
+              <label className={LABEL_CLASS}>
+                API key
+                {data?.adminProjectTicketing.freshdeskApiKeySet
+                  ? " — leave blank to keep saved key"
+                  : ""}
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={freshdeskApiKey}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setFreshdeskApiKey(e.target.value);
+                    setNotice(null);
+                  }}
+                />
+              </label>
+              <p className="text-sm text-m-text-muted">
+                Find the key in Freshdesk Profile Settings. Its permissions come from the
+                owning agent. This account is reserved for one project, and the project
+                can access the account's tickets permitted by that key.
+              </p>
+            </>
+          )}
           {provider === "zendesk" && (
             <>
               <p className="text-sm text-m-text-muted">

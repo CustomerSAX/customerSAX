@@ -69,7 +69,7 @@ import {
   type StatusTone,
 } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../hooks/use-tickets";
-import { ZendeskFields } from "./ZendeskFields";
+import { ProviderFields } from "./ProviderFields";
 import { ticketIdFromRoute } from "../api/ticket-id";
 import { useAssignees } from "../hooks/use-assignees";
 import { formatDate, formatDateTime } from "@/lib/format-date";
@@ -590,7 +590,8 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
         </MainColumn>
 
         <SideColumn span={4}>
-          {ticket.id.startsWith("zendesk:") && <ZendeskFields id={ticket.id} />}
+          {ticket.id.startsWith("zendesk:") && <ProviderFields id={ticket.id} provider="Zendesk" />}
+          {ticket.id.startsWith("freshdesk:") && <ProviderFields id={ticket.id} provider="Freshdesk" />}
           <SectionCard
             title="Ticket Workflow"
             icon="settings"

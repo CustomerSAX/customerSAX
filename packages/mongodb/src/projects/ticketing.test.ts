@@ -38,7 +38,7 @@ it("encrypts secrets, omits them from views, and retains them on blank updates",
     provider: "zendesk",
     subdomain: "acme",
     clientId: "oauth",
-    secretSet: true
+    secretSet: true, freshdeskDomain: "", freshdeskApiKeySet: false
   });
   expect(prepareTicketing({ ...input, clientSecret: "" }, saved).secretEncrypted).toBe(
     saved.secretEncrypted

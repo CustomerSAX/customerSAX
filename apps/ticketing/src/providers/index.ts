@@ -1,5 +1,6 @@
-import { resolveProjectTicketing, nativeTicketLegacyAccess } from "@csa/mongodb";
+import { resolveProjectTicketing, nativeTicketLegacyAccess, projectFreshdeskCredentials } from "@csa/mongodb";
 import { projectZendeskClient } from "../zendesk/project-client.js";
+import { freshdeskProvider } from "../freshdesk/provider.js";
 import * as native from "../tickets/repository.js";
 import { zendeskProvider } from "../zendesk/provider.js";
 import type { TicketingProvider } from "./types.js";
@@ -35,6 +36,7 @@ export async function resolveTicketing(projectKey: string, clientId?: string) {
   if (settings.provider === "internal") return {
     name: "internal", provider: nativeProvider(projectKey, { clientId, includeLegacy: await nativeTicketLegacyAccess(clientId, projectKey) })
   };
+  if (settings.provider === "freshdesk") return { name: "freshdesk", provider: freshdeskProvider(projectKey, projectFreshdeskCredentials(settings)) };
   if (settings.provider !== "zendesk") throw new Error("Unsupported saved ticketing provider");
   return { name: "zendesk", provider: zendeskProvider(projectKey, projectZendeskClient(clientId, projectKey, settings)) };
 }
