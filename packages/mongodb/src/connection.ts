@@ -1,10 +1,8 @@
 /**
  * MongoDB connection + environment helpers for the CSA data layer.
  *
- * A single `MongoClient` is created lazily on first use and its connect promise
- * is cached for the lifetime of the process, so every service (`apps/auth`,
- * `apps/admin`, `apps/commerce/commercetools`, `apps/ticketing`) shares one
- * pooled connection to the live Atlas cluster rather than reconnecting per call.
+ * One MongoClient per connection URI is created lazily and reused for the
+ * process lifetime. Settings and application data may live in different clusters.
  *
  * Environment contract:
  *  - `MONGO_URI` is the single canonical connection-string variable and is set
@@ -18,7 +16,7 @@ import { MongoClient, type Collection, type Document } from "mongodb";
 // `env`/`requiredEnv`/`setupDnsFallback` live in `@csa/config`; re-exported for convenience
 export { env, requiredEnv, setupDnsFallback };
 
-let clientPromise: Promise<MongoClient> | undefined;
+const clients = new Map<string, Promise<MongoClient>>();
 
 /**
  * Returns the shared, connected `MongoClient`, establishing the connection on
@@ -26,12 +24,14 @@ let clientPromise: Promise<MongoClient> | undefined;
  */
 export async function getMongoClient(uri = mongoUri()) {
   setupDnsFallback();
+  let clientPromise = clients.get(uri);
   if (!clientPromise) {
     const client = new MongoClient(uri);
     clientPromise = client.connect().catch((err) => {
-      clientPromise = undefined; // Reset on failure
+      clients.delete(uri); // Reset on failure
       throw err;
     });
+    clients.set(uri, clientPromise);
   }
 
   return clientPromise;
@@ -47,9 +47,11 @@ export async function getMongoDb(dbName = env("MONGO_DB_NAME") || "csa") {
 /** Resolves a typed `Collection` handle, optionally overriding the database. */
 export async function getMongoCollection<TSchema extends Document = Document>(
   collectionName: string,
-  options: { dbName?: string } = {}
+  options: { dbName?: string; uri?: string } = {}
 ): Promise<Collection<TSchema>> {
-  const db = await getMongoDb(options.dbName);
+  const db = options.uri
+    ? (await getMongoClient(options.uri)).db(options.dbName || env("MONGO_DB_NAME") || "csa")
+    : await getMongoDb(options.dbName);
 
   return db.collection<TSchema>(collectionName);
 }

@@ -9,6 +9,17 @@ const log = createLogger("ticketing").child({ module: "tickets/repository" });
 
 const memoryTickets: Document[] = [];
 
+export type NativeTicketScope = { clientId: string; includeLegacy: boolean };
+function ownerFilter(scope?: NativeTicketScope): Filter<Document> {
+  if (!scope) return { clientId: { $exists: false } };
+  return scope.includeLegacy
+    ? { $or: [{ clientId: scope.clientId }, { clientId: { $exists: false } }] }
+    : { clientId: scope.clientId };
+}
+function matchesOwner(ticket: Document, scope?: NativeTicketScope) {
+  return scope ? ticket.clientId === scope.clientId || (scope.includeLegacy && ticket.clientId === undefined) : ticket.clientId === undefined;
+}
+
 /**
  * Startup guard for the ticket data store. Call this ONCE at process boot,
  * before serving traffic.
@@ -37,10 +48,10 @@ export function assertTicketStoreConfigured() {
   );
 }
 
-export async function listTickets(args: TicketListArgs): Promise<TicketPage> {
+export async function listTickets(args: TicketListArgs, scope?: NativeTicketScope): Promise<TicketPage> {
   if (usesMemoryStore()) {
     const { limit, offset } = paging(args);
-    const filtered = memoryTickets.filter((ticket) => matchesArgs(ticket, args));
+    const filtered = memoryTickets.filter((ticket) => matchesArgs(ticket, args) && matchesOwner(ticket, scope));
     const sorted = sortMemoryTickets(filtered, args);
     const results = sorted.slice(offset, offset + limit);
 
@@ -49,7 +60,7 @@ export async function listTickets(args: TicketListArgs): Promise<TicketPage> {
 
   const collection = await getTicketsCollection();
   const { limit, offset } = paging(args);
-  const filter = buildFilter(args);
+  const filter = { $and: [buildFilter(args), ownerFilter(scope)] };
   const sort = buildSort(args);
   const [results, total] = await Promise.all([
     collection.find(filter).sort(sort).skip(offset).limit(limit).toArray(),
@@ -64,26 +75,27 @@ export async function listTickets(args: TicketListArgs): Promise<TicketPage> {
   };
 }
 
-export async function getTicket(id: string, projectKey?: string | null): Promise<Ticket | null> {
+export async function getTicket(id: string, projectKey?: string | null, scope?: NativeTicketScope): Promise<Ticket | null> {
   if (usesMemoryStore()) {
-    const doc = memoryTickets.find((ticket) => matchesIdentity(ticket, id, resolveProjectKey(projectKey)));
+    const doc = memoryTickets.find((ticket) => matchesIdentity(ticket, id, resolveProjectKey(projectKey)) && matchesOwner(ticket, scope));
     return doc ? mapTicket(doc) : null;
   }
 
   const collection = await getTicketsCollection();
-  const filter = ticketIdentityFilter(id, resolveProjectKey(projectKey));
+  const filter = ticketIdentityFilter(id, resolveProjectKey(projectKey), scope);
   const doc = await collection.findOne(filter);
 
   return doc ? mapTicket(doc) : null;
 }
 
-export async function createTicket(draft: TicketDraft): Promise<Ticket> {
+export async function createTicket(draft: TicketDraft, scope?: NativeTicketScope): Promise<Ticket> {
   const now = new Date();
   const projectKey = resolveProjectKey(draft.projectKey);
   // Durable atomic counter for the real Mongo store; random-suffix fallback for
   // the in-memory dev store (which has no counter to draw from).
   const ticketNumber = usesMemoryStore() ? generateTicketNumber() : await nextTicketNumber(projectKey);
   const doc = {
+    ...(scope ? { clientId: scope.clientId } : {}),
     assignee: draft.assignee ?? "Queue",
     category: draft.category ?? null,
     createdAt: now,
@@ -121,9 +133,9 @@ export async function createTicket(draft: TicketDraft): Promise<Ticket> {
   return mapTicket({ ...doc, _id: result.insertedId });
 }
 
-export async function addWorklog(id: string, comment: WorklogComment, projectKey?: string | null) {
+export async function addWorklog(id: string, comment: WorklogComment, projectKey?: string | null, scope?: NativeTicketScope) {
   if (usesMemoryStore()) {
-    const doc = memoryTickets.find((ticket) => matchesIdentity(ticket, id, resolveProjectKey(projectKey)));
+    const doc = memoryTickets.find((ticket) => matchesIdentity(ticket, id, resolveProjectKey(projectKey)) && matchesOwner(ticket, scope));
     if (!doc) return null;
     doc.comments = [...(Array.isArray(doc.comments) ? doc.comments : []), comment];
     doc.lastModifiedAt = new Date();
@@ -132,24 +144,24 @@ export async function addWorklog(id: string, comment: WorklogComment, projectKey
 
   const collection = await getTicketsCollection();
   const result = await collection.findOneAndUpdate(
-    ticketIdentityFilter(id, resolveProjectKey(projectKey)),
+    ticketIdentityFilter(id, resolveProjectKey(projectKey), scope),
     { $push: { comments: comment }, $set: { lastModifiedAt: new Date() } } as Document,
     { returnDocument: "after" }
   );
   return result ? mapTicket(result) : null;
 }
 
-export async function updateTicket(id: string, patch: TicketUpdate & { projectKey?: string | null }) {
+export async function updateTicket(id: string, patch: TicketUpdate & { projectKey?: string | null }, scope?: NativeTicketScope) {
   const projectKey = resolveProjectKey(patch.projectKey);
   const { projectKey: _projectKey, ...fields } = patch;
   const update = sanitizeUpdate(fields);
 
   if (Object.keys(update).length === 0) {
-    return getTicket(id, projectKey);
+    return getTicket(id, projectKey, scope);
   }
 
   if (usesMemoryStore()) {
-    const doc = memoryTickets.find((ticket) => matchesIdentity(ticket, id, projectKey));
+    const doc = memoryTickets.find((ticket) => matchesIdentity(ticket, id, projectKey) && matchesOwner(ticket, scope));
     if (!doc) return null;
     Object.assign(doc, update, { lastModifiedAt: new Date() });
     return mapTicket(doc);
@@ -158,7 +170,7 @@ export async function updateTicket(id: string, patch: TicketUpdate & { projectKe
   const collection = await getTicketsCollection();
 
   const result = await collection.findOneAndUpdate(
-    ticketIdentityFilter(id, projectKey),
+    ticketIdentityFilter(id, projectKey, scope),
     { $set: { ...update, lastModifiedAt: new Date() } },
     { returnDocument: "after" }
   );
@@ -207,7 +219,7 @@ function buildFilter(args: TicketListArgs): Filter<Document> {
   return filter;
 }
 
-function ticketIdentityFilter(id: string, projectKey: string): Filter<Document> {
+function ticketIdentityFilter(id: string, projectKey: string, scope?: NativeTicketScope): Filter<Document> {
   const identity: Document[] = [{ ticketNumber: id }];
 
   if (ObjectId.isValid(id) && id.length === 24) {
@@ -216,7 +228,7 @@ function ticketIdentityFilter(id: string, projectKey: string): Filter<Document> 
     identity.push({ _id: id });
   }
 
-  return { $or: identity, projectKey };
+  return { $or: identity, projectKey, $and: [ownerFilter(scope)] };
 }
 
 function sanitizeUpdate(patch: TicketUpdate): Record<string, unknown> {

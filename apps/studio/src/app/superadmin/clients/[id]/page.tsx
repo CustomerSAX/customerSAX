@@ -1,5 +1,7 @@
 "use client";
 
+import { TicketingSettings } from "./TicketingSettings";
+
 import { use, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@apollo/client";
@@ -622,6 +624,7 @@ function ProjectsTab({
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectRow | null>(null);
+  const [ticketingProject, setTicketingProject] = useState<ProjectRow | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   async function handleDelete(project: ProjectRow) {
@@ -673,7 +676,8 @@ function ProjectsTab({
                   <TableHead className="w-[90px]">Secret</TableHead>
                   <TableHead className="w-[120px]">Shell</TableHead>
                   <TableHead className="w-[100px]">Added</TableHead>
-                  <TableHead className="w-[90px] text-right pr-4">Actions</TableHead>
+                  <TableHead className="w-[110px]">Ticketing</TableHead>
+                  <TableHead className="min-w-[210px] text-right pr-4">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -685,9 +689,9 @@ function ProjectsTab({
                           </Button>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-medium text-m-text">{p.displayName}</span>
-                            <span className="rounded-full border border-m-primary-200 bg-m-primary-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-m-primary">
+                          <div className="flex items-center gap-2">
+                            <span className="max-w-[220px] truncate font-medium text-m-text" title={p.displayName}>{p.displayName}</span>
+                            <span className="shrink-0 rounded-full border border-m-primary-200 bg-m-primary-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-m-primary">
                               {p.platform === "shopify" ? "Shopify" : p.platform === "bigcommerce" ? "BigCommerce" : "CT"}
                             </span>
                           </div>
@@ -703,10 +707,18 @@ function ProjectsTab({
                           <ShellModePicker name={`shell-${p.id}`} value={shellModeFromFlags(p)} onChange={(mode) => void handleShellChange(p, mode)} compact />
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-m-text-muted">{formatDate(p.createdAt)}</TableCell>
+                        <TableCell>
+                          <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${p.ticketingProvider === "zendesk" ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
+                            {p.ticketingProvider === "zendesk" ? "Zendesk" : "Native"}
+                          </span>
+                        </TableCell>
                         <TableCell className="whitespace-nowrap text-right pr-4">
-                          <Button variant="danger" size="sm" onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
-                            Remove
-                          </Button>
+                          <div className="flex items-center justify-end gap-3">
+                            <Button variant="outline" size="sm" leftIcon={<Icon name="settings" size="xs" />} onClick={() => setTicketingProject(p)} disabled={clientBlocked}>Ticketing</Button>
+                            <Button variant="ghost" size="sm" leftIcon={<Icon name="trash-2" size="xs" />} aria-label={`Remove project ${p.displayName}`} onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
+                              Remove
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                   ))}
@@ -715,6 +727,8 @@ function ProjectsTab({
           </div>
         )}
       </div>
+
+      {ticketingProject && <TicketingSettings key={ticketingProject.id} clientId={clientId} project={ticketingProject} onClose={() => setTicketingProject(null)} onSaved={onChanged} />}
 
       <ProjectModal
         isOpen={isAddOpen || !!editing}
