@@ -165,6 +165,52 @@ export function useChatToolEffects(messages: UIMessage[], isLoading: boolean) {
           }
         }
 
+        if (toolName === "get_order" && p.output) {
+          const result = unwrapMcpResult(p.output) as {
+            order?: {
+              id?: string;
+              orderNumber?: string;
+              customerId?: string;
+              customerEmail?: string;
+              customer?: { id?: string; name?: string; email?: string; firstName?: string; lastName?: string };
+            };
+          } | null;
+          const ord = result?.order;
+          if (ord) {
+            sawAnyOrderSignal = true;
+            if (ord.customer?.id) {
+              newCustomerId = ord.customer.id;
+            } else if (ord.customerId) {
+              newCustomerId = ord.customerId;
+            }
+            if (ord.customer?.name) {
+              orderCustomerName = ord.customer.name;
+            } else if (ord.customer?.firstName || ord.customer?.lastName) {
+              orderCustomerName = [ord.customer.firstName, ord.customer.lastName].filter(Boolean).join(" ");
+            }
+            if (ord.customer?.email) {
+              newCustomerEmail = ord.customer.email;
+            } else if (ord.customerEmail) {
+              newCustomerEmail = ord.customerEmail;
+            }
+          }
+        }
+
+        if (toolName === "order_summary" && p.input) {
+          const args = p.input as {
+            orderId?: string;
+            orderNumber?: string;
+            customer?: { name?: string; email?: string };
+          };
+          sawAnyOrderSignal = true;
+          if (args.customer?.name && !args.customer.name.toLowerCase().includes("guest")) {
+            orderCustomerName = args.customer.name;
+          }
+          if (args.customer?.email) {
+            newCustomerEmail = args.customer.email;
+          }
+        }
+
         if (toolName === "cart_summary" && p.input) {
           const args = p.input as CartSummaryToolArgs;
           sawAnyOrderSignal = true;

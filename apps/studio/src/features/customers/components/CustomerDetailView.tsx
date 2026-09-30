@@ -303,8 +303,9 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const initialTab = searchParams.get("tab") || "overview";
 
   const { customers, groups, getCustomerById, updateCustomerProfile, loading, error } = useCustomerStore();
+  const customer = getCustomerById(id) || customers.find((c) => c.id === id) || customers[0];
 
-  // ── Real orders from BFF (filtered by this customer's ID) ─────────────────
+  // ── Real orders from BFF (filtered by this customer's ID and email) ───────
   type GqlMoney = { centAmount: number; currencyCode: string; fractionDigits: number };
   type GqlReturnItem = { id: string; type?: string | null; quantity: number; lineItemId?: string | null; shipmentState: string; paymentState: string; comment?: string | null };
   type GqlReturnInfo = { returnTrackingId?: string | null; returnDate?: string | null; items: GqlReturnItem[] };
@@ -321,7 +322,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const { data: ordersGqlData, loading: ordersLoading } = useQuery<{
     orderPage: { total: number; results: GqlOrderRow[] };
   }>(CUSTOMER_ORDERS_QUERY, {
-    variables: { customerId: id, limit: 100 },
+    variables: { customerId: id, customerEmail: customer?.email || undefined, limit: 100 },
   });
 
   // ── Real carts from BFF (filtered by customerId) ──────────────────────────
@@ -364,8 +365,6 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   // ── Real tickets from ticketing service (by customerEmail) ────────────────
   const [realTickets, setRealTickets] = useState<CustomerTicket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
-
-  const customer = getCustomerById(id) || customers[0];
 
   const fetchCustomerTickets = useCallback(async (email: string) => {
     setTicketsLoading(true);

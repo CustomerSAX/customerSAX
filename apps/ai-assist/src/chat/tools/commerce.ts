@@ -19,11 +19,26 @@ const log = createLogger("ai-assist").child({ module: "tools/commerce" });
 // ─── Fragments shared across tools ───────────────────────────────────────────
 
 const MONEY_FRAGMENT = `centAmount currencyCode fractionDigits`;
+const ADDRESS_FRAGMENT = `streetName streetNumber city state postalCode country`;
 const ORDER_FIELDS = `
-  id orderNumber customerId state createdAt
+  id orderNumber customerId customerEmail state orderState createdAt lastModifiedAt
   shipmentState paymentState
   totalPrice { ${MONEY_FRAGMENT} }
   lineItems { id productId sku name quantity totalPrice { ${MONEY_FRAGMENT} } }
+  shippingAddress { ${ADDRESS_FRAGMENT} }
+  billingAddress { ${ADDRESS_FRAGMENT} }
+  returnInfo {
+    returnTrackingId
+    returnDate
+    items {
+      id
+      type
+      quantity
+      shipmentState
+      paymentState
+      comment
+    }
+  }
 `;
 const CART_FIELDS = `
   id version key customerId currencyCode
@@ -36,6 +51,74 @@ const CUSTOMER_FIELDS = `
   version createdAt lastModifiedAt
 `;
 const PRODUCT_FIELDS = `id key sku name description slug imageUrl price { ${MONEY_FRAGMENT} }`;
+
+/**
+ * Enriches an order record with full customer profile details (name, email, etc.)
+ * so the AI assistant and UI cards receive actual customer identity rather than
+ * treating the order as an anonymous or guest order.
+ */
+async function enrichOrderWithCustomer(order: Record<string, unknown>): Promise<Record<string, unknown>> {
+  if (!order) return order;
+  const customerId = (order.customerId as string) || undefined;
+  const customerEmail = (order.customerEmail as string) || undefined;
+
+  if (!customerId && !customerEmail) {
+    return {
+      ...order,
+      customer: null
+    };
+  }
+
+  try {
+    let customerRecord: Record<string, unknown> | null = null;
+    if (customerId) {
+      const custData = await bffQuery<{ customer: Record<string, unknown> | null }>(
+        `query FindCustomerById($id: ID) {
+          customer(id: $id) { ${CUSTOMER_FIELDS} }
+        }`,
+        { id: customerId }
+      );
+      customerRecord = custData.customer ?? null;
+    }
+
+    if (!customerRecord && customerEmail) {
+      const custData = await bffQuery<{ customer: Record<string, unknown> | null }>(
+        `query FindCustomerByEmail($email: String) {
+          customer(email: $email) { ${CUSTOMER_FIELDS} }
+        }`,
+        { email: customerEmail }
+      );
+      customerRecord = custData.customer ?? null;
+    }
+
+    if (customerRecord) {
+      const fullName = [customerRecord.firstName, customerRecord.lastName].filter(Boolean).join(" ").trim();
+      return {
+        ...order,
+        customer: {
+          ...customerRecord,
+          name: fullName || (customerRecord.email as string) || (order.customerEmail as string) || "Customer",
+          email: (customerRecord.email as string) || (order.customerEmail as string) || undefined
+        }
+      };
+    }
+  } catch (err) {
+    log.warn("Failed to enrich order with customer profile", { customerId, customerEmail, err });
+  }
+
+  if (customerEmail) {
+    return {
+      ...order,
+      customer: {
+        id: customerId,
+        email: customerEmail,
+        name: customerEmail
+      }
+    };
+  }
+
+  return order;
+}
 
 // ─── find_customer ────────────────────────────────────────────────────────────
 
@@ -131,19 +214,61 @@ export const getOrderTool = tool({
   execute: async ({ orderId, orderNumber, customerId, customerEmail, limit }) => {
     try {
       if (orderId || orderNumber) {
+        let orderRecord: Record<string, unknown> | null = null;
+
         const data = await bffQuery<{ order: Record<string, unknown> | null }>(
           `query GetOrder($id: ID, $orderNumber: String) {
             order(id: $id, orderNumber: $orderNumber) { ${ORDER_FIELDS} }
           }`,
           { id: orderId, orderNumber }
         );
-        if (data.order) {
-          return { order: data.order, orders: [data.order], total: 1 };
+
+        orderRecord = data.order ?? null;
+
+        if (!orderRecord && orderNumber) {
+          const fallbackData = await bffQuery<{ orderPage: { results: Record<string, unknown>[] } }>(
+            `query FallbackGetOrder($orderRef: String) {
+              orderPage(orderRef: $orderRef, limit: 1) {
+                results { ${ORDER_FIELDS} }
+              }
+            }`,
+            { orderRef: orderNumber }
+          );
+          orderRecord = fallbackData.orderPage?.results?.[0] ?? null;
+        }
+
+        if (orderRecord) {
+          const enriched = await enrichOrderWithCustomer(orderRecord);
+          return { order: enriched, orders: [enriched], total: 1 };
         }
         return { order: null, orders: [], total: 0 };
       }
 
       if (customerId || customerEmail) {
+        let resolvedEmail = customerEmail;
+        let resolvedId = customerId;
+        if (customerId && !customerEmail) {
+          try {
+            const custData = await bffQuery<{ customer: Record<string, unknown> | null }>(
+              `query ResolveCustomerEmail($id: ID) { customer(id: $id) { email } }`,
+              { id: customerId }
+            );
+            if (custData.customer?.email) resolvedEmail = custData.customer.email as string;
+          } catch {
+            // ignore
+          }
+        } else if (customerEmail && !customerId) {
+          try {
+            const custData = await bffQuery<{ customer: Record<string, unknown> | null }>(
+              `query ResolveCustomerId($email: String) { customer(email: $email) { id } }`,
+              { email: customerEmail }
+            );
+            if (custData.customer?.id) resolvedId = custData.customer.id as string;
+          } catch {
+            // ignore
+          }
+        }
+
         const data = await bffQuery<{ orderPage: { results: Record<string, unknown>[]; total: number } }>(
           `query CustomerOrders($customerId: ID, $customerEmail: String, $limit: Int) {
             orderPage(customerId: $customerId, customerEmail: $customerEmail, limit: $limit, sortKey: "createdAt", sortOrder: "desc") {
@@ -151,9 +276,9 @@ export const getOrderTool = tool({
               total
             }
           }`,
-          { customerId, customerEmail, limit }
+          { customerId: resolvedId, customerEmail: resolvedEmail, limit }
         );
-        const results = data.orderPage?.results ?? [];
+        const results = await Promise.all((data.orderPage?.results ?? []).map(enrichOrderWithCustomer));
         return { order: results[0] ?? null, orders: results, total: data.orderPage?.total ?? results.length };
       }
 
@@ -178,7 +303,7 @@ export const b2bOrdersTool = tool({
   }),
   execute: async ({ businessUnitKey, customerId, limit }) => {
     try {
-      const data = await bffQuery<{ b2bOrders: { results: unknown[]; total: number } }>(
+      const data = await bffQuery<{ b2bOrders: { results: Record<string, unknown>[]; total: number } }>(
         `query B2BOrders($businessUnitKey: String, $customerId: ID, $limit: Int) {
           b2bOrders(businessUnitKey: $businessUnitKey, customerId: $customerId, limit: $limit, sortKey: "createdAt", sortOrder: "desc") {
             results { ${ORDER_FIELDS} }
@@ -187,6 +312,10 @@ export const b2bOrdersTool = tool({
         }`,
         { businessUnitKey, customerId, limit }
       );
+      if (data.b2bOrders?.results) {
+        const enriched = await Promise.all(data.b2bOrders.results.map(enrichOrderWithCustomer));
+        return { ...data.b2bOrders, results: enriched };
+      }
       return data.b2bOrders;
     } catch (err) {
       return { error: String(err) };

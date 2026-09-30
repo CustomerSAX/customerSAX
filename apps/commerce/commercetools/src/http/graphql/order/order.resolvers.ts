@@ -1,6 +1,6 @@
 import { createLogger } from "@csa/logger";
 import { commercetoolsGraphql } from "../../../commercetools/client.js";
-import { getOrderById, getOrderByNumber, listOrders } from "../../../commercetools/api/index.js";
+import { getCustomerById, getOrderById, getOrderByNumber, listOrders } from "../../../commercetools/api/index.js";
 import { mapOrder } from "./order.mapper.js";
 import type { CtOrder } from "../../../commercetools/types.js";
 import { compactWhere, escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
@@ -41,15 +41,41 @@ const orderFields = `#graphql
   }
 `;
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const resolvers = {
-  order: (_parent: unknown, args: { id?: string; orderNumber?: string }) =>
-    args.orderNumber ? getOrderByNumber(args.orderNumber) : args.id ? getOrderById(args.id) : null,
+  order: async (_parent: unknown, args: { id?: string; orderNumber?: string }) => {
+    if (args.orderNumber) {
+      const order = await getOrderByNumber(args.orderNumber);
+      if (order) return order;
+      if (UUID_REGEX.test(args.orderNumber.trim())) {
+        return getOrderById(args.orderNumber.trim());
+      }
+    }
+    if (args.id) {
+      const order = await getOrderById(args.id);
+      if (order) return order;
+      return getOrderByNumber(args.id);
+    }
+    return null;
+  },
   orders: async (_parent: unknown, args: PagingArgs) => {
     const orderPage = await listOrders(args);
 
     return orderPage.results;
   },
-  orderPage: async (_parent: unknown, args: OrderSearchArgs) => queryOrders(orderListWhere(args), args),
+  orderPage: async (_parent: unknown, args: OrderSearchArgs) => {
+    let customerEmail = args.customerEmail;
+    if (args.customerId && !customerEmail) {
+      try {
+        const cust = await getCustomerById(args.customerId);
+        if (cust?.email) customerEmail = cust.email;
+      } catch {
+        // ignore
+      }
+    }
+    return queryOrders(orderListWhere({ ...args, customerEmail }), args);
+  },
   b2bOrders: async (_parent: unknown, args: OrderSearchArgs) =>
     queryOrders(
       compactWhere([
@@ -115,6 +141,16 @@ export const resolvers = {
       { id: args.id }
     ),
   orderCount: async (_parent: unknown, args: { customerId: string; states?: string[] }) => {
+    let customerClause = `customerId="${escapeWhere(args.customerId)}"`;
+    try {
+      const cust = await getCustomerById(args.customerId);
+      if (cust?.email) {
+        customerClause = `(customerId="${escapeWhere(args.customerId)}" or customerEmail="${escapeWhere(cust.email)}")`;
+      }
+    } catch {
+      // ignore
+    }
+
     const stateWhere = args.states?.length
       ? `(${args.states.map((state) => `orderState="${escapeWhere(state)}"`).join(" or ")})`
       : undefined;
@@ -124,7 +160,7 @@ export const resolvers = {
           orders(where: $where, limit: 1) { total }
         }
       `,
-      { where: compactWhere([`customerId="${escapeWhere(args.customerId)}"`, stateWhere]) }
+      { where: compactWhere([customerClause, stateWhere]) }
     );
 
     return data.orders.total ?? 0;
@@ -188,10 +224,24 @@ async function queryOrders(where: string | undefined, args: PagingArgs) {
 }
 
 function orderListWhere(args: OrderSearchArgs) {
+  const isUuid = args.orderRef ? UUID_REGEX.test(args.orderRef.trim()) : false;
+
+  let customerClause: string | undefined;
+  if (args.customerId && args.customerEmail) {
+    customerClause = `(customerId="${escapeWhere(args.customerId)}" or customerEmail="${escapeWhere(args.customerEmail)}")`;
+  } else if (args.customerId) {
+    customerClause = `customerId="${escapeWhere(args.customerId)}"`;
+  } else if (args.customerEmail) {
+    customerClause = `customerEmail="${escapeWhere(args.customerEmail)}"`;
+  }
+
   return compactWhere([
-    args.customerId ? `customerId="${escapeWhere(args.customerId)}"` : undefined,
-    args.customerEmail ? `customerEmail="${escapeWhere(args.customerEmail)}"` : undefined,
-    args.orderRef ? `orderNumber="${escapeWhere(args.orderRef)}" or id="${escapeWhere(args.orderRef)}"` : undefined
+    customerClause,
+    args.orderRef
+      ? isUuid
+        ? `(orderNumber="${escapeWhere(args.orderRef)}" or id="${escapeWhere(args.orderRef)}")`
+        : `orderNumber="${escapeWhere(args.orderRef)}"`
+      : undefined
   ]);
 }
 
@@ -202,6 +252,8 @@ function orderSearchWhere(args: OrderSearchArgs) {
     return `id=""`;
   }
 
+  const isUuid = UUID_REGEX.test(text);
+
   switch (args.option) {
     case "customerEmail":
       return `customerEmail="${text}"`;
@@ -210,7 +262,9 @@ function orderSearchWhere(args: OrderSearchArgs) {
     case "id":
       return `id="${text}"`;
     default:
-      return `orderNumber="${text}" or id="${text}" or customerEmail="${text}"`;
+      return isUuid
+        ? `orderNumber="${text}" or id="${text}" or customerEmail="${text}"`
+        : `orderNumber="${text}" or customerEmail="${text}"`;
   }
 }
 
