@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "tf:check": "terraform fmt -check -recursive terraform",
     "tf:format": "terraform fmt -recursive terraform",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "zendesk:authorize": "tsx src/zendesk/authorize.ts"
   },
   "dependencies": {
     "@apollo/server": "^4.11.0",

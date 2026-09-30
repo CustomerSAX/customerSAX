@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "@apollo/client";
 import { useCallback, useMemo } from "react";
-import { ADD_WORKLOG, CREATE_TICKET, TICKETS_QUERY, UPDATE_TICKET } from "../api/queries";
+import { ADD_WORKLOG, CREATE_TICKET, TICKETS_QUERY, TICKET_QUERY, UPDATE_TICKET } from "../api/queries";
 import type { Ticket, TicketCategoryKey, TicketPriority, TicketStatus, WorklogComment } from "../types/ticket-types";
 
 export const TICKET_CATEGORIES: Record<TicketCategoryKey, string> = {
@@ -40,12 +40,14 @@ type ServerTicket = Partial<{
 }>;
 type NewTicket = Omit<Ticket, "id" | "ticketNumber" | "createdAt" | "comments" | "history"> & { comments?: WorklogComment[] };
 
-export function useTicketStore() {
-  const { data, loading, error, refetch } = useQuery(TICKETS_QUERY, { fetchPolicy: "cache-and-network", variables: { limit: 100, offset: 0 } });
+export function useTicketStore(detailId?: string) {
+  const list = useQuery(TICKETS_QUERY, { skip: detailId !== undefined, fetchPolicy: "cache-and-network", variables: { limit: 100, offset: 0 } });
+  const detail = useQuery(TICKET_QUERY, { skip: detailId === undefined, fetchPolicy: "cache-and-network", variables: { id: detailId } });
+  const { data, loading, error, refetch } = detailId === undefined ? list : detail;
   const [createMutation] = useMutation(CREATE_TICKET);
   const [updateMutation] = useMutation(UPDATE_TICKET);
   const [worklogMutation] = useMutation(ADD_WORKLOG);
-  const tickets = useMemo<Ticket[]>(() => (data?.ticketPage.results ?? []).map(mapTicket), [data]);
+  const tickets = useMemo<Ticket[]>(() => (detailId === undefined ? data?.ticketPage.results ?? [] : data?.ticket ? [data.ticket] : []).map(mapTicket), [data, detailId]);
   const getTicketById = useCallback((id: string) => tickets.find((ticket) => ticket.id === id || ticket.ticketNumber === id), [tickets]);
 
   const addTicket = useCallback(async (input: NewTicket) => {
