@@ -69,6 +69,8 @@ import {
   type StatusTone,
 } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../hooks/use-tickets";
+import { ZendeskFields } from "./ZendeskFields";
+import { ticketIdFromRoute } from "../api/ticket-id";
 import { useAssignees } from "../hooks/use-assignees";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { useCurrentUser } from "@/lib/use-current-user";
@@ -135,10 +137,11 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const backHref = customerIdParam ? `/customers/${customerIdParam}` : "/tickets";
   const backLabel = customerIdParam ? "Back to customer" : "Back to Tickets";
 
-  const { getTicketById, updateTicket, addWorklog, loading, error } = useTicketStore();
+  const ticketId = ticketIdFromRoute(id);
+  const { getTicketById, updateTicket, addWorklog, loading, error } = useTicketStore(ticketId);
   const { user: currentUser } = useCurrentUser();
 
-  const ticket = getTicketById(id);
+  const ticket = getTicketById(ticketId);
 
   const [activeTab, setActiveTab] = useState<string>("conversation");
 
@@ -587,6 +590,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
         </MainColumn>
 
         <SideColumn span={4}>
+          {ticket.id.startsWith("zendesk:") && <ZendeskFields id={ticket.id} />}
           <SectionCard
             title="Ticket Workflow"
             icon="settings"

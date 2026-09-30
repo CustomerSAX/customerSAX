@@ -1,6 +1,6 @@
 import { gql } from "graphql-tag";
-import { addWorklog, createTicket, getTicket, listTickets, updateTicket } from "./tickets/repository.js";
-import type { TicketDraft, TicketListArgs, TicketUpdate, WorklogComment } from "./tickets/types.js";
+import { resolveTicketing } from "./providers/index.js";
+import type { Ticket, TicketDraft, TicketListArgs, TicketUpdate, WorklogComment } from "./tickets/types.js";
 
 type TicketingContext = { clientId?: string; projectKey?: string };
 
@@ -10,7 +10,12 @@ function selectedProject(context: unknown) {
   return projectKey;
 }
 
+async function selectedProvider(context: unknown) {
+  return (await resolveTicketing(selectedProject(context), (context as TicketingContext | undefined)?.clientId)).provider;
+}
+
 export const typeDefs = gql`
+  type TicketProviderField { id: ID!, label: String!, type: String!, value: String }
   type Ticket @key(fields: "id") {
     id: ID!
     ticketNumber: String!
@@ -93,6 +98,8 @@ export const typeDefs = gql`
   }
 
   extend type Query {
+    ticketingProvider: String!
+    ticketProviderFields(id: ID!): [TicketProviderField!]!
     ticket(id: ID!, projectKey: String): Ticket
     ticketPage(
       projectKey: String
@@ -118,22 +125,42 @@ export const typeDefs = gql`
   }
 `;
 
+// Only load remote conversation data if requested; share the result between fields.
+const remoteDetails = new WeakMap<Ticket, Promise<Ticket | null>>();
+function detail(ticket: Ticket & { zendeskDetailsLoaded?: boolean }, context: unknown) {
+  if (!ticket.id.startsWith("zendesk:") || ticket.zendeskDetailsLoaded) return Promise.resolve(ticket);
+  let pending = remoteDetails.get(ticket);
+  if (!pending) {
+    pending = selectedProvider(context).then(provider => provider.getTicket(ticket.id));
+    remoteDetails.set(ticket, pending);
+  }
+  return pending;
+}
+
 export const resolvers = {
+  Ticket: {
+    comments: async (ticket: Ticket, _args: unknown, context: unknown) => (await detail(ticket, context))?.comments || [],
+    attachments: async (ticket: Ticket, _args: unknown, context: unknown) => (await detail(ticket, context))?.attachments || [],
+  },
   Mutation: {
-    createTicket: (_parent: unknown, args: { draft: TicketDraft }, context: unknown) =>
-      createTicket({ ...args.draft, projectKey: selectedProject(context) }),
-    updateTicket: (_parent: unknown, args: { id: string; patch: TicketUpdate & { projectKey?: string | null } }, context: unknown) =>
-      updateTicket(args.id, { ...args.patch, projectKey: selectedProject(context) }),
-    addTicketWorklog: (_parent: unknown, args: { id: string; comment: WorklogComment }, context: unknown) =>
-      addWorklog(args.id, args.comment, selectedProject(context))
+    createTicket: async (_parent: unknown, args: { draft: TicketDraft }, context: unknown) =>
+      (await selectedProvider(context)).createTicket(args.draft),
+    updateTicket: async (_parent: unknown, args: { id: string; patch: TicketUpdate & { projectKey?: string | null } }, context: unknown) =>
+      (await selectedProvider(context)).updateTicket(args.id, args.patch),
+    addTicketWorklog: async (_parent: unknown, args: { id: string; comment: WorklogComment }, context: unknown) =>
+      (await selectedProvider(context)).addWorklog(args.id, args.comment)
   },
   Query: {
-    ticket: (_parent: unknown, args: { id: string }, context: unknown) =>
-      getTicket(args.id, selectedProject(context)),
-    ticketPage: (_parent: unknown, args: TicketListArgs, context: unknown) =>
-      listTickets({ ...args, projectKey: selectedProject(context) }),
+    ticketingProvider: async (_parent: unknown, _args: unknown, context: unknown) =>
+      (await resolveTicketing(selectedProject(context), (context as TicketingContext | undefined)?.clientId)).name,
+    ticketProviderFields: async (_parent: unknown, args: { id: string }, context: unknown) =>
+      (await selectedProvider(context)).getFields?.(args.id) ?? [],
+    ticket: async (_parent: unknown, args: { id: string }, context: unknown) =>
+      (await selectedProvider(context)).getTicket(args.id),
+    ticketPage: async (_parent: unknown, args: TicketListArgs, context: unknown) =>
+      (await selectedProvider(context)).listTickets(args),
     tickets: async (_parent: unknown, args: TicketListArgs, context: unknown) => {
-      const page = await listTickets({ ...args, projectKey: selectedProject(context) });
+      const page = await (await selectedProvider(context)).listTickets(args);
 
       return page.results;
     }

@@ -72,3 +72,5 @@ export * as clientsRepo from "./clients/repository.js";
 export * as projectsRepo from "./projects/repository.js";
 export * as smtpRepo from "./smtp-profiles/repository.js";
 export * as usersRepo from "./users/repository.js";
+
+export * from "./projects/ticketing.js";
