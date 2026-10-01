@@ -8,7 +8,7 @@ import { authorizeOrganizationAccess } from "@/features/knowledge-base/api/auth-
 export const dynamic = "force-dynamic";
 
 type RouteContext = {
-  params: Promise<{ organizationId: string }> | { organizationId: string };
+  params: Promise<{ organizationId: string }>;
 };
 
 export async function GET(_request: NextRequest, context: RouteContext) {

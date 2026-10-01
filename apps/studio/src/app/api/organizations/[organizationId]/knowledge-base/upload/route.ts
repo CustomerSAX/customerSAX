@@ -6,7 +6,7 @@ import { parseAndValidateKnowledgeBaseExcel } from "@/features/knowledge-base/ut
 export const dynamic = "force-dynamic";
 
 type RouteContext = {
-  params: Promise<{ organizationId: string }> | { organizationId: string };
+  params: Promise<{ organizationId: string }>;
 };
 
 export async function POST(request: NextRequest, context: RouteContext) {
