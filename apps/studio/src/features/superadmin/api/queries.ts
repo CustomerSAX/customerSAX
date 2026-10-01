@@ -88,6 +88,51 @@ export const ADMIN_CLIENT_QUERY = gql`
       emailFrom
       isDefault
     }
+    adminAiSettings(clientId: $id) {
+      enabled
+      provider
+      displayName
+      model
+      baseUrl
+      apiKeySet
+    }
+  }
+`;
+
+export const ADMIN_PROJECT_TICKETING_QUERY = gql`
+  query AdminProjectTicketing($clientId: ID!, $id: ID!) {
+    adminProjectTicketing(clientId: $clientId, id: $id) {
+      provider
+      subdomain
+      clientId
+      secretSet
+      freshdeskDomain
+      freshdeskApiKeySet
+    }
+  }
+`;
+
+export const ADMIN_SAVE_PROJECT_TICKETING = gql`
+  mutation SaveProjectTicketing(
+    $clientId: ID!
+    $id: ID!
+    $input: AdminProjectTicketingInput!
+  ) {
+    adminSaveProjectTicketing(clientId: $clientId, id: $id, input: $input) {
+      provider
+      subdomain
+    }
+  }
+`;
+
+export const ADMIN_UPDATE_AI_SETTINGS = gql`
+  mutation AdminUpdateAiSettings($clientId: ID!, $input: AdminAiSettingsInput!) {
+    adminUpdateAiSettings(clientId: $clientId, input: $input) {
+      enabled
+      provider
+      displayName
+      model
+    }
   }
 `;
 

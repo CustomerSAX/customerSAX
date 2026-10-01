@@ -2,25 +2,83 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Icon } from "@csa/ui";
-import { INITIAL_ONBOARDING_STATE, ONBOARDING_DRAFT_STORAGE_KEY, STEPS } from "./constants";
-import type { OnboardingState, StepId } from "./types";
+import { useQuery } from "@apollo/client";
+import { Badge, Button, EmptyState, Icon, LoadingSpinner } from "@csa/ui";
+import {
+  ADMIN_CLIENT_QUERY,
+  ADMIN_PROJECT_TICKETING_QUERY
+} from "@/features/superadmin/api/queries";
+import {
+  INITIAL_ONBOARDING_STATE,
+  ONBOARDING_DRAFT_STORAGE_KEY,
+  STEPS
+} from "./constants";
+import type {
+  OnboardingState,
+  OnboardingWizardProps,
+  StepId
+} from "./types";
 import { Step1Organization } from "./steps/Step1Organization";
 import { Step2Appearance } from "./steps/Step2Appearance";
 import { Step3ProjectsCommerce } from "./steps/Step3ProjectsCommerce";
 import { Step4Connectors } from "./steps/Step4Connectors";
 import { Step5TeamAccess } from "./steps/Step5TeamAccess";
 import { Step6ReviewLaunch } from "./steps/Step6ReviewLaunch";
+import { mapClientToOnboardingState } from "./mapping";
 
-export function OnboardingWizard() {
+export function OnboardingWizard({
+  organizationId,
+  mode = organizationId ? "edit" : "create",
+  initialStep = 1,
+  onExit
+}: OnboardingWizardProps = {}) {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<StepId>(1);
+  const isEdit = mode === "edit" || Boolean(organizationId);
+
+  const [currentStep, setCurrentStep] = useState<StepId>(initialStep);
   const [state, setState] = useState<OnboardingState>(INITIAL_ONBOARDING_STATE);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(!isEdit);
   const [draftBannerVisible, setDraftBannerVisible] = useState(false);
 
-  // Restore draft from localStorage on mount
+  // Keep track of original backend IDs for edit mode
+  const [originalProjectIds, setOriginalProjectIds] = useState<string[]>([]);
+  const [originalSmtpProfileId, setOriginalSmtpProfileId] = useState<string | undefined>(undefined);
+
+  // 1. EDIT MODE: Load existing organization data via GraphQL
+  const {
+    data: clientData,
+    loading: clientLoading,
+    error: clientError,
+    refetch: refetchOrg
+  } = useQuery(ADMIN_CLIENT_QUERY, {
+    variables: { id: organizationId! },
+    skip: !isEdit || !organizationId,
+    fetchPolicy: "network-only"
+  });
+
+  const primaryProjectId = clientData?.adminProjectsByClient?.[0]?.id;
+
+  const { data: ticketingData } = useQuery(ADMIN_PROJECT_TICKETING_QUERY, {
+    variables: { clientId: organizationId!, id: primaryProjectId! },
+    skip: !isEdit || !organizationId || !primaryProjectId,
+    fetchPolicy: "network-only"
+  });
+
+  // Populate state when editing existing organization
   useEffect(() => {
+    if (!isEdit || !clientData?.adminClient) return;
+
+    const mapped = mapClientToOnboardingState(clientData, ticketingData, organizationId);
+    setOriginalProjectIds(mapped.originalProjectIds);
+    setOriginalSmtpProfileId(mapped.originalSmtpProfileId);
+    setState(mapped.state);
+    setIsLoaded(true);
+  }, [isEdit, clientData, ticketingData, organizationId]);
+
+  // 2. CREATE MODE: Restore draft from localStorage on mount
+  useEffect(() => {
+    if (isEdit) return;
+
     try {
       const saved = localStorage.getItem(ONBOARDING_DRAFT_STORAGE_KEY);
       if (saved) {
@@ -35,16 +93,18 @@ export function OnboardingWizard() {
     } finally {
       setIsLoaded(true);
     }
-  }, []);
+  }, [isEdit]);
 
-  // Auto-save draft on state change
+  // Auto-save draft on state change (in create mode only)
   const updateState = (patch: Partial<OnboardingState>) => {
     setState((prev) => {
       const next = { ...prev, ...patch };
-      try {
-        localStorage.setItem(ONBOARDING_DRAFT_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore storage error
+      if (!isEdit) {
+        try {
+          localStorage.setItem(ONBOARDING_DRAFT_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // ignore storage error
+        }
       }
       return next;
     });
@@ -58,12 +118,18 @@ export function OnboardingWizard() {
   };
 
   const handleSaveAndExit = () => {
-    try {
-      localStorage.setItem(ONBOARDING_DRAFT_STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // ignore
+    if (!isEdit) {
+      try {
+        localStorage.setItem(ONBOARDING_DRAFT_STORAGE_KEY, JSON.stringify(state));
+      } catch {
+        // ignore
+      }
     }
-    router.push("/superadmin/clients");
+    if (onExit) {
+      onExit();
+    } else {
+      router.push("/superadmin/clients");
+    }
   };
 
   // Step Completion Logic for status icons
@@ -77,11 +143,12 @@ export function OnboardingWizard() {
         return state.projects.some(
           (p) =>
             p.projectKey.trim() &&
-            (p.platform === "commercetools"
-              ? Boolean(p.ctClientId && p.ctClientSecret)
-              : p.platform === "shopify"
-                ? Boolean(p.shopifyStoreDomain && p.shopifyAdminAccessToken)
-                : Boolean(p.bigcommerceStoreHash && p.bigcommerceAccessToken))
+            (p.isExisting ||
+              (p.platform === "commercetools"
+                ? Boolean(p.ctClientId && (p.ctClientSecret || p.ctClientSecretMasked))
+                : p.platform === "shopify"
+                  ? Boolean(p.shopifyStoreDomain && p.shopifyAdminAccessToken)
+                  : Boolean(p.bigcommerceStoreHash && p.bigcommerceAccessToken)))
         );
       case 4:
         return true;
@@ -127,6 +194,34 @@ export function OnboardingWizard() {
   const currentStepMeta = STEPS.find((s) => s.id === currentStep) || STEPS[0];
   const progressPercent = Math.round(((currentStep - 1) / (STEPS.length - 1)) * 100);
 
+  // Loading state for edit mode
+  if (isEdit && clientLoading && !isLoaded) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-m-surface-subtle gap-3">
+        <LoadingSpinner />
+        <span className="text-xs font-semibold text-m-text-muted">Loading organization configuration...</span>
+      </div>
+    );
+  }
+
+  // Error state for edit mode
+  if (isEdit && (clientError || (!clientLoading && !clientData?.adminClient))) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-m-surface-subtle p-6">
+        <div className="max-w-md w-full bg-m-surface p-6 rounded-m-xl border border-m-border shadow-m-card text-center space-y-4">
+          <EmptyState
+            icon="alert-triangle"
+            title="Organization Not Found"
+            description={clientError?.message || "The requested client organization could not be found."}
+          />
+          <Button variant="primary" size="sm" onClick={() => router.push("/superadmin/clients")}>
+            Return to Client Organizations
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!isLoaded) {
     return null;
   }
@@ -147,7 +242,9 @@ export function OnboardingWizard() {
           </Button>
           <div className="h-4 w-px bg-m-border" />
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-m-text">Organization Onboarding</span>
+            <span className="text-xs font-bold text-m-text">
+              {isEdit ? `Edit Organization · ${state.name || "Loading..."}` : "Organization Onboarding"}
+            </span>
             <Badge variant="primary" size="sm" className="hidden sm:inline-flex">
               Step {currentStep} of {STEPS.length}
             </Badge>
@@ -158,16 +255,16 @@ export function OnboardingWizard() {
           <Button
             variant="secondary"
             size="sm"
-            leftIcon={<Icon name="save" size="xs" />}
+            leftIcon={<Icon name={isEdit ? "check" : "save"} size="xs" />}
             onClick={handleSaveAndExit}
           >
-            Save & Exit
+            {isEdit ? "Exit to Clients" : "Save & Exit"}
           </Button>
         </div>
       </header>
 
-      {/* Draft Resume Alert */}
-      {draftBannerVisible && (
+      {/* Draft Resume Alert (Create Mode Only) */}
+      {!isEdit && draftBannerVisible && (
         <div className="flex items-center justify-between bg-m-primary-50 px-6 py-2.5 border-b border-m-primary-200 text-xs text-m-primary">
           <div className="flex items-center gap-2">
             <Icon name="info" size="xs" />
@@ -208,7 +305,7 @@ export function OnboardingWizard() {
         <aside className="w-full shrink-0 border-b md:border-b-0 md:border-r border-m-border bg-m-surface p-4 md:w-72 lg:w-80">
           <div className="mb-4 hidden md:block">
             <div className="text-[10px] font-bold uppercase tracking-widest text-m-text-subtle">
-              Onboarding Journey
+              {isEdit ? "Organization Journey" : "Onboarding Journey"}
             </div>
             <div className="text-xs font-semibold text-m-text">
               {progressPercent}% Complete
@@ -262,22 +359,30 @@ export function OnboardingWizard() {
         <main className="flex flex-1 flex-col justify-between p-6 sm:p-10 max-w-4xl">
           <div className="flex-1 pb-10">
             {currentStep === 1 && (
-              <Step1Organization state={state} onChange={updateState} onNext={handleNext} />
+              <Step1Organization state={state} onChange={updateState} onNext={handleNext} mode={mode} />
             )}
             {currentStep === 2 && (
               <Step2Appearance state={state} onChange={updateState} onNext={handleNext} />
             )}
             {currentStep === 3 && (
-              <Step3ProjectsCommerce state={state} onChange={updateState} onNext={handleNext} />
+              <Step3ProjectsCommerce state={state} onChange={updateState} onNext={handleNext} mode={mode} />
             )}
             {currentStep === 4 && (
               <Step4Connectors state={state} onChange={updateState} onNext={handleNext} />
             )}
             {currentStep === 5 && (
-              <Step5TeamAccess state={state} onChange={updateState} onNext={handleNext} />
+              <Step5TeamAccess state={state} onChange={updateState} onNext={handleNext} mode={mode} />
             )}
             {currentStep === 6 && (
-              <Step6ReviewLaunch state={state} onGoToStep={handleGoToStep} />
+              <Step6ReviewLaunch
+                state={state}
+                onGoToStep={handleGoToStep}
+                mode={mode}
+                organizationId={organizationId}
+                originalProjectIds={originalProjectIds}
+                originalSmtpProfileId={originalSmtpProfileId}
+                onSuccess={() => void refetchOrg()}
+              />
             )}
           </div>
 
@@ -319,7 +424,7 @@ export function OnboardingWizard() {
                   onClick={handleNext}
                   disabled={!canProceed()}
                 >
-                  {currentStep === 5 ? "Continue to Review" : "Continue"}
+                  {currentStep === 5 ? (isEdit ? "Continue to Review & Save" : "Continue to Review") : "Continue"}
                 </Button>
               ) : null}
             </div>
