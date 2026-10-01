@@ -1,6 +1,6 @@
 export type ProductsProvider = "commercetools" | "algolia";
 
-/** Configuration boundary: env today; project settings can supply this later. */
+/** Environment fallback for projects without saved Products settings. */
 export function productsProvider(value: string | undefined): ProductsProvider {
   const provider = value?.trim().toLowerCase() || "commercetools";
   if (provider !== "commercetools" && provider !== "algolia") {

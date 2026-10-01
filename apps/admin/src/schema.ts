@@ -1,6 +1,7 @@
 import { gql } from "graphql-tag";
 
 import {
+  getProjectProducts, saveProjectProducts, testProjectProducts,
   getProjectTicketing, saveProjectTicketing, testProjectTicketing,
   clientsRepo,
   parseClientSsoConfigInput,
@@ -12,7 +13,7 @@ import {
   testSmtpProfile,
   usersRepo,
 } from "@csa/mongodb";
-import type { ClientSsoConfigStored, CsaUser, TicketingInput } from "@csa/mongodb";
+import type { ClientSsoConfigStored, CsaUser, TicketingInput, ProductsInput } from "@csa/mongodb";
 import { del as cacheDel, ctProjectConfig } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
@@ -140,6 +141,7 @@ export const typeDefs = gql`
     clientId: String!
     platform: String!
     ticketingProvider: String!
+    productsProvider: String
     projectKey: String!
     displayName: String!
     ctApiUrl: String!
@@ -317,9 +319,12 @@ export const typeDefs = gql`
   input AdminAiSettingsInput { enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKey: String }
 
   type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean!, freshdeskDomain: String!, freshdeskApiKeySet: Boolean! }
+  type AdminProjectProducts { configured: Boolean!, provider: String!, appId: String!, indexName: String!, searchApiKeySet: Boolean! }
+  input AdminProjectProductsInput { provider: String!, appId: String, indexName: String, searchApiKey: String }
   input AdminProjectTicketingInput { provider: String!, subdomain: String, clientId: String, clientSecret: String, freshdeskDomain: String, freshdeskApiKey: String }
   type AdminTicketingTest { success: Boolean!, message: String! }
   extend type Query {
+    adminProjectProducts(clientId: ID!, id: ID!): AdminProjectProducts!
     adminProjectTicketing(clientId: ID!, id: ID!): AdminProjectTicketing!
 
     adminClients: [AdminClient!]!
@@ -333,6 +338,8 @@ export const typeDefs = gql`
   }
 
   extend type Mutation {
+    adminSaveProjectProducts(clientId: ID!, id: ID!, input: AdminProjectProductsInput!): AdminProjectProducts!
+    adminTestProjectProducts(clientId: ID!, id: ID!, input: AdminProjectProductsInput!): AdminTicketingTest!
     adminSaveProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminProjectTicketing!
     adminTestProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminTicketingTest!
 
@@ -372,6 +379,7 @@ export const typeDefs = gql`
 
 export const resolvers = {
   Query: {
+    adminProjectProducts: (_p: unknown, args: { clientId: string; id: string }) => getProjectProducts(args.clientId, args.id),
     adminProjectTicketing: (_p: unknown, args: { clientId: string; id: string }) => getProjectTicketing(args.clientId, args.id),
     adminClients: async () => {
       const clients = await clientsRepo.listClients();
@@ -425,6 +433,8 @@ export const resolvers = {
   },
 
   Mutation: {
+    adminSaveProjectProducts: (_p: unknown, args: { clientId: string; id: string; input: ProductsInput }) => saveProjectProducts(args.clientId, args.id, args.input),
+    adminTestProjectProducts: (_p: unknown, args: { clientId: string; id: string; input: ProductsInput }) => testProjectProducts(args.clientId, args.id, args.input),
     adminSaveProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => saveProjectTicketing(args.clientId, args.id, args.input),
     adminTestProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => testProjectTicketing(args.clientId, args.id, args.input),
     // ── Clients ──────────────────────────────────────────────────────────

@@ -1,15 +1,19 @@
 "use client";
 
-import { AlgoliaSearchInterface } from "@csa/search";
+import { AlgoliaSearchInterface, type OrganizationSearchConfig } from "@csa/search";
 import { CommercetoolsCatalogProvider } from "../providers/CommercetoolsCatalogProvider";
 import type { ProductsProvider } from "../providers/config";
 
-const catalogProviders = {
-  commercetools: CommercetoolsCatalogProvider,
-  algolia: AlgoliaSearchInterface
-};
-
-export function ProductListView({ provider }: { provider: ProductsProvider }) {
-  const Provider = catalogProviders[provider];
-  return <Provider />;
+export function ProductListView({
+  provider,
+  searchConfig
+}: {
+  provider: ProductsProvider;
+  searchConfig?: OrganizationSearchConfig;
+}) {
+  return provider === "algolia" ? (
+    <AlgoliaSearchInterface config={searchConfig} />
+  ) : (
+    <CommercetoolsCatalogProvider />
+  );
 }

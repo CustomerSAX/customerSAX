@@ -3,15 +3,20 @@ import { Skeleton } from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
 import { ProductListView } from "../../features/products/components/ProductListView";
 
-import { productsProvider } from "../../features/products/providers/config";
+import { currentProductsConfiguration } from "../../features/products/providers/server-config";
 
 export const dynamic = "force-dynamic";
+
+async function ProjectProducts() {
+  const { key, provider, searchConfig } = await currentProductsConfiguration();
+  return <ProductListView key={key} provider={provider} searchConfig={searchConfig} />;
+}
 
 export default function ProductsPage() {
   return (
     <AppShell>
       <Suspense fallback={<Skeleton height={500} className="w-full" />}>
-        <ProductListView provider={productsProvider(process.env.PRODUCTS_PROVIDER)} />
+        <ProjectProducts />
       </Suspense>
     </AppShell>
   );
