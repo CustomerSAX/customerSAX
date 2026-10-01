@@ -102,6 +102,7 @@ export interface ProductVariantRow {
 
 /** One row in the Product List table */
 export interface ProductListRow {
+  priceValue?: CtMoneyValue | null;
   id: string;
   imageUrl: string;
   itemName: string;

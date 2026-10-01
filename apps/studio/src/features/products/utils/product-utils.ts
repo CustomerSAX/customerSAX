@@ -196,6 +196,7 @@ export function mapRawToListRow(p: CtRawProduct, locale: string = DEFAULT_LOCALE
 
   return {
     id: p.id,
+    priceValue: p.resolvedPrice !== undefined ? p.resolvedPrice : masterVariant?.prices?.[0]?.value,
     imageUrl: masterVariant?.images?.[0]?.url || allVariants.flatMap((v) => v.images ?? []).find((image) => image.url)?.url || "",
     itemName: name,
     productType: p.productType?.name ?? "--",

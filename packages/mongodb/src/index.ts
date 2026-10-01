@@ -83,3 +83,5 @@ export * as usersRepo from "./users/repository.js";
 export * from "./projects/ticketing.js";
 
 export * from "./projects/freshdesk.js";
+
+export * from "./projects/products.js";

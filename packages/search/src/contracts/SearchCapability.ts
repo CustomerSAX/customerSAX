@@ -6,6 +6,7 @@ import type {
 } from './types';
 
 export type SearchCapabilityStatus =
+  | 'loading'
   | 'connected'
   | 'disconnected'
   | 'disabled'
