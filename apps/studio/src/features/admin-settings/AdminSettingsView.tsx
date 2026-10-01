@@ -10,6 +10,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { AdminUserRow } from "./user-management";
 import { checkUserConflict, getAvailableExistingUsers } from "./user-management";
+import { KnowledgeBaseAdmin } from "./KnowledgeBaseAdmin";
 
 type Section = "users" | "roles" | "email" | "ai" | "knowledge-base";
 type Permission = {
@@ -395,12 +396,14 @@ export function AdminSettingsView({ section }: { section: Section }) {
           />
         ) : activeSection === "email" ? (
           <EmailSettings data={data} clientId={clientId} refetch={refetch} />
-        ) : (
+        ) : activeSection === "ai" ? (
           <AiSettings
             settings={data.adminAiSettings}
             clientId={clientId}
             refetch={refetch}
           />
+        ) : (
+          <KnowledgeBaseAdmin clientId={clientId} />
         )}
       </div>
     </AppShell>
