@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ProductListView — Product Directory (100% parity with CT-CSA-Standalone product-list.tsx)
+ * ProductListView — Product Directory with shared grid and table views
  *
  * Features:
  * - PageHeader with eyebrow, title, description
@@ -39,6 +39,9 @@ import {
   TablePagination,
 } from "@csa/ui";
 import { SectionCard } from "@csa/ui";
+import { LayoutGrid, List, Table2 } from "lucide-react";
+import { ProductFilters } from "./ProductFilters";
+import { ProductGridView } from "./ProductGridView";
 import { useProductList } from "../hooks/use-products";
 import { SelectableSearchInput } from "./SelectableSearchInput";
 import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
@@ -382,6 +385,8 @@ export function ProductListView() {
     label: option.value === "allFields" ? common("allFields") : option.value === "name" ? t("columns.itemName") : option.value === "variants.sku" ? "SKU" : t(`columns.${option.value}`),
   }));
 
+  const list = useProductList();
+  const [view, setView] = useState<"grid" | "list" | "table">("grid");
   const {
     products,
     totalItems,
@@ -399,7 +404,7 @@ export function ProductListView() {
     onSort,
     onPageChange,
     toggleExpanded,
-  } = useProductList();
+  } = list;
 
   // Start from deterministic DEFAULT_SETTINGS so the server-rendered HTML and the
   // first client render are identical — reading localStorage in the initializer
@@ -416,6 +421,7 @@ export function ProductListView() {
     setMounted(true);
   }, []);
 
+  const hasFilters = Object.values(list.filters).some((value) => Array.isArray(value) ? value.length > 0 : value != null);
   const isSearchActive = appliedSearch.text.trim().length > 0;
 
   // Derive visible columns from settings
@@ -460,6 +466,13 @@ export function ProductListView() {
     <div className="flex flex-col gap-5">
       {/* Page Header */}
       <PageHeader
+        actions={
+          <div className="flex flex-wrap gap-1 rounded-m-lg border border-m-border bg-m-surface p-1" role="group" aria-label={t("productView")}>
+            <Button variant={view === "grid" ? "secondary" : "ghost"} size="sm" aria-pressed={view === "grid"} onClick={() => setView("grid")}><LayoutGrid className="mr-2 h-4 w-4" />{t("gridView")}</Button>
+            <Button variant={view === "list" ? "secondary" : "ghost"} size="sm" aria-pressed={view === "list"} onClick={() => setView("list")}><List className="mr-2 h-4 w-4" />{t("listView")}</Button>
+            <Button variant={view === "table" ? "secondary" : "ghost"} size="sm" aria-pressed={view === "table"} onClick={() => setView("table")}><Table2 className="mr-2 h-4 w-4" />{t("tableView")}</Button>
+          </div>
+        }
         title={t("title")}
         subtitle={t("subtitle")}
         breadcrumbs={
@@ -469,7 +482,7 @@ export function ProductListView() {
         }
       />
 
-      {/* Search row — flat, no card */}
+      {/* Shared search below the directory header */}
       <div className="flex flex-col gap-2">
         <SelectableSearchInput
           fieldValue={search.option}
@@ -484,7 +497,7 @@ export function ProductListView() {
           }
           onSearch={onSearch}
           onReset={onReset}
-          showReset={search.text.length > 0 || sort !== null}
+          showReset={search.text.length > 0 || sort !== null || hasFilters}
         />
         {isSearchActive && (
           <p className="text-xs text-m-text-muted">
@@ -505,6 +518,12 @@ export function ProductListView() {
         )}
       </div>
 
+      <div className="flex flex-col items-start gap-6 lg:flex-row">
+        <aside id="ct-product-filters" aria-label={t("filtersTitle")} className="w-full shrink-0 lg:sticky lg:top-6 lg:w-72 xl:w-80">
+          <ProductFilters list={list} />
+        </aside>
+        <div className="w-full min-w-0 flex-1">
+      {view !== "table" ? <ProductGridView list={list} layout={view} /> : <>
       {/* Table container */}
       <SectionCard
         title={!loading && totalItems > 0 ? t("countTitle", { count: totalItems }) : t("title")}
@@ -593,12 +612,12 @@ export function ProductListView() {
                     icon="package"
                     title={t("emptyTitle")}
                     description={
-                      isSearchActive
+                      hasFilters ? t("emptyFilters") : isSearchActive
                         ? t("emptySearch")
                         : t("emptyDefault")
                     }
                     action={
-                      isSearchActive ? (
+                      isSearchActive || hasFilters ? (
                         <Button variant="secondary" onClick={onReset}>
                           {t("resetSearch")}
                         </Button>
@@ -688,6 +707,9 @@ export function ProductListView() {
           </div>
         )}
       </SectionCard>
+      </>}
+        </div>
+      </div>
     </div>
   );
 }

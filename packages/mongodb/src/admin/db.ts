@@ -26,17 +26,17 @@ function agentsDbName() {
 
 export async function getClientsCollection() {
   const collectionName = env("MONGO_ADMIN_COLLECTION") || "clients";
-  return getMongoCollection(collectionName, { dbName: adminDbName() });
+  return getMongoCollection(collectionName, { dbName: adminDbName(), uri: env("MONGO_ADMIN_URI") || undefined });
 }
 
 export async function getProjectsCollection() {
   const collectionName = env("MONGO_PROJECTS_COLLECTION") || "csa_projects";
-  return getMongoCollection(collectionName, { dbName: adminDbName() });
+  return getMongoCollection(collectionName, { dbName: adminDbName(), uri: env("MONGO_ADMIN_URI") || undefined });
 }
 
 export async function getSmtpProfilesCollection() {
   const collectionName = env("MONGO_SMTP_PROFILES_COLLECTION") || "csa_smtp_profiles";
-  return getMongoCollection(collectionName, { dbName: adminDbName() });
+  return getMongoCollection(collectionName, { dbName: adminDbName(), uri: env("MONGO_ADMIN_URI") || undefined });
 }
 
 export async function getRolesCollection() {

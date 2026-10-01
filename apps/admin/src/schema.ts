@@ -1,6 +1,7 @@
 import { gql } from "graphql-tag";
 
 import {
+  getProjectTicketing, saveProjectTicketing, testProjectTicketing,
   clientsRepo,
   parseClientSsoConfigInput,
   projectsRepo,
@@ -11,7 +12,7 @@ import {
   testSmtpProfile,
   usersRepo,
 } from "@csa/mongodb";
-import type { ClientSsoConfigStored, CsaUser } from "@csa/mongodb";
+import type { ClientSsoConfigStored, CsaUser, TicketingInput } from "@csa/mongodb";
 import { del as cacheDel, ctProjectConfig } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
@@ -138,6 +139,7 @@ export const typeDefs = gql`
     id: ID!
     clientId: String!
     platform: String!
+    ticketingProvider: String!
     projectKey: String!
     displayName: String!
     ctApiUrl: String!
@@ -309,12 +311,17 @@ export const typeDefs = gql`
   input AdminPermissionInput { module: String!, view: Boolean!, create: Boolean!, update: Boolean!, delete: Boolean! }
   type AdminRole { id: ID!, clientId: ID!, projectKey: String!, key: String!, label: String!, description: String!, system: Boolean!, permissions: [AdminPermission!]! }
   input AdminRoleInput { key: String!, label: String!, description: String!, permissions: [AdminPermissionInput!]! }
-  input AdminRoleUpdateInput { label: String, description: String, permissions: [AdminPermissionInput!] }
+  input AdminRoleUpdateInput { key: String, label: String, description: String, permissions: [AdminPermissionInput!] }
 
   type AdminAiSettings { clientId: ID!, enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKeySet: Boolean!, updatedBy: String, updatedAt: String }
   input AdminAiSettingsInput { enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKey: String }
 
+  type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean!, freshdeskDomain: String!, freshdeskApiKeySet: Boolean! }
+  input AdminProjectTicketingInput { provider: String!, subdomain: String, clientId: String, clientSecret: String, freshdeskDomain: String, freshdeskApiKey: String }
+  type AdminTicketingTest { success: Boolean!, message: String! }
   extend type Query {
+    adminProjectTicketing(clientId: ID!, id: ID!): AdminProjectTicketing!
+
     adminClients: [AdminClient!]!
     adminClient(id: ID!): AdminClient
     adminProjectsByClient(clientId: ID!): [AdminProject!]!
@@ -326,6 +333,9 @@ export const typeDefs = gql`
   }
 
   extend type Mutation {
+    adminSaveProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminProjectTicketing!
+    adminTestProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminTicketingTest!
+
     adminCreateClient(name: String!, contactEmail: String!, slug: String, uiTheme: String): AdminClient!
     adminUpdateClient(id: ID!, name: String, contactEmail: String, uiTheme: String, ssoConfig: AdminSsoConfigInput): AdminClient!
     adminSetClientStatus(id: ID!, status: String!): AdminClient!
@@ -362,6 +372,7 @@ export const typeDefs = gql`
 
 export const resolvers = {
   Query: {
+    adminProjectTicketing: (_p: unknown, args: { clientId: string; id: string }) => getProjectTicketing(args.clientId, args.id),
     adminClients: async () => {
       const clients = await clientsRepo.listClients();
       return Promise.all(
@@ -414,6 +425,8 @@ export const resolvers = {
   },
 
   Mutation: {
+    adminSaveProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => saveProjectTicketing(args.clientId, args.id, args.input),
+    adminTestProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => testProjectTicketing(args.clientId, args.id, args.input),
     // ── Clients ──────────────────────────────────────────────────────────
     adminCreateClient: async (_p: unknown, args: { name: string; contactEmail: string; slug?: string; uiTheme?: string }) => {
       const slug =
@@ -833,7 +846,37 @@ export const resolvers = {
       return { ...clientViewIso(client), projectCount: await projectsRepo.countProjectsByClient(args.clientId), userCount: await usersRepo.countUsersByClient(args.clientId) };
     },
     adminCreateRole: (_p: unknown, args: { clientId: string; projectKey: string; input: { key: string; label: string; description: string; permissions: rolesRepo.Permission[] } }) => rolesRepo.createRole(args.clientId, args.projectKey, args.input),
-    adminUpdateRole: (_p: unknown, args: { id: string; clientId: string; projectKey: string; input: { label?: string; description?: string; permissions?: rolesRepo.Permission[] } }) => rolesRepo.updateRole(args.id, args.clientId, args.projectKey, args.input),
+    adminUpdateRole: async (
+      _p: unknown,
+      args: {
+        id: string;
+        clientId: string;
+        projectKey: string;
+        input: { key?: string; label?: string; description?: string; permissions?: rolesRepo.Permission[] };
+      }
+    ) => {
+      const existing = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.id === args.id);
+      if (!existing) throw new Error("Role not found");
+
+      let newKey: string | undefined = undefined;
+      if (args.input.key !== undefined) {
+        newKey = args.input.key.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+        if (!newKey) throw new Error("Role name/slug cannot be empty");
+        if (newKey !== existing.key) {
+          if (existing.system) throw new Error("System role name cannot be modified");
+          const conflict = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.key === newKey && item.id !== args.id);
+          if (conflict) throw new Error("A role with this slug already exists");
+          await usersRepo.reassignRole(args.clientId, args.projectKey, existing.key, newKey);
+        }
+      }
+
+      return rolesRepo.updateRole(args.id, args.clientId, args.projectKey, {
+        ...(newKey !== undefined ? { key: newKey } : {}),
+        ...(args.input.label !== undefined ? { label: args.input.label.trim() } : {}),
+        ...(args.input.description !== undefined ? { description: args.input.description.trim() } : {}),
+        ...(args.input.permissions !== undefined ? { permissions: args.input.permissions } : {}),
+      });
+    },
     adminDeleteRole: async (_p: unknown, args: { id: string; clientId: string; projectKey: string }) => {
       const role = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.id === args.id);
       if (!role) return false;

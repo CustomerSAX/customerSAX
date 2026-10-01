@@ -29,6 +29,8 @@ const BFF_URL =
 
 const PRODUCT_SEARCH_QUERY = `
   query ProductSearch(
+    $filters: ProductCatalogFiltersInput
+    $includeFacets: Boolean
     $field: String
     $text: String
     $browse: Boolean
@@ -40,6 +42,8 @@ const PRODUCT_SEARCH_QUERY = `
     $sortOrder: String
   ) {
     productSearch(
+      filters: $filters
+      includeFacets: $includeFacets
       field: $field
       text: $text
       browse: $browse
@@ -127,6 +131,8 @@ export async function POST(request: NextRequest) {
   }
 
   const result = await bffPost(PRODUCT_SEARCH_QUERY, {
+    filters: body.filters,
+    includeFacets: body.includeFacets === true,
     field,
     text: text || undefined,
     browse: browse || undefined,
@@ -152,6 +158,7 @@ export async function POST(request: NextRequest) {
   const searchResult = result.data.productSearch as {
     results?: unknown[];
     total?: number;
+    facets?: unknown;
   } | null;
 
   if (!searchResult) {
@@ -159,7 +166,7 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { results: searchResult.results ?? [], total: searchResult.total ?? 0 },
+    { results: searchResult.results ?? [], total: searchResult.total ?? 0, facets: searchResult.facets },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

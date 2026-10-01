@@ -5,8 +5,8 @@ import { gql } from "@apollo/client";
  * Used by CustomerDetailView to replace hardcoded mock order data.
  */
 export const CUSTOMER_ORDERS_QUERY = gql`
-  query CustomerOrders($customerId: ID!, $limit: Int, $offset: Int) {
-    orderPage(customerId: $customerId, limit: $limit, offset: $offset, sortKey: "createdAt", sortOrder: "desc") {
+  query CustomerOrders($customerId: ID, $customerEmail: String, $limit: Int, $offset: Int) {
+    orderPage(customerId: $customerId, customerEmail: $customerEmail, limit: $limit, offset: $offset, sortKey: "createdAt", sortOrder: "desc") {
       total
       count
       offset

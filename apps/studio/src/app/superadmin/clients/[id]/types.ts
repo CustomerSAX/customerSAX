@@ -29,6 +29,7 @@ export interface ProjectRow {
   id: string;
   clientId: string;
   platform: Platform;
+  ticketingProvider?: "internal" | "zendesk" | "freshdesk";
   projectKey: string;
   displayName: string;
   ctApiUrl: string;
