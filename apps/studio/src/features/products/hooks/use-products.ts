@@ -16,7 +16,11 @@ import {
   useRef,
 } from "react";
 import { useLocale } from "next-intl";
+import { useSearchParams } from "next/navigation";
+import { productPageFromParam, productPageHref } from "../utils/product-pagination";
 import type {
+  CatalogFilters,
+  CatalogFacets,
   ProductListRow,
   ProductSearch,
   ProductSort,
@@ -31,6 +35,7 @@ import {
   mapRawToDetail,
   lowestPriceBySku,
   formatMoneyValue,
+  browseSortField,
 } from "../utils/product-utils";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +53,9 @@ const SEARCH_DEBOUNCE_MS = 350;
 // ---------------------------------------------------------------------------
 
 export interface UseProductListReturn {
+  filters: CatalogFilters;
+  facets: CatalogFacets | null;
+  onFiltersChange: (filters: CatalogFilters) => void;
   products: ProductListRow[];
   totalItems: number;
   loading: boolean;
@@ -60,8 +68,10 @@ export interface UseProductListReturn {
   expanded: Set<string>;
   setSearch: (s: ProductSearch) => void;
   onSearch: () => void;
+  onRetry: () => void;
   onReset: () => void;
   onSort: (columnKey: ProductSortKey) => void;
+  onSortChange: (sort: ProductSort) => void;
   onPageChange: (p: number) => void;
   onPerPageChange: (pp: number) => void;
   toggleExpanded: (id: string) => void;
@@ -69,6 +79,8 @@ export interface UseProductListReturn {
 
 export function useProductList(): UseProductListReturn {
   const locale = useLocale();
+  const [filters, setFilters] = useState<CatalogFilters>({});
+  const [facets, setFacets] = useState<CatalogFacets | null>(null);
   const [products, setProducts] = useState<ProductListRow[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   // Start loading so skeleton shows on first paint (no flash of empty state).
@@ -85,7 +97,15 @@ export function useProductList(): UseProductListReturn {
   });
 
   const [sort, setSort] = useState<ProductSort | null>(null);
-  const [page, setPage] = useState(1);
+  const searchParams = useSearchParams();
+  const page = productPageFromParam(searchParams.get("page"));
+  // Next's native history integration updates useSearchParams and supports
+  // back/forward navigation without reloading the page or resetting the view.
+  const setPage = useCallback((nextPage: number) => {
+    const href = productPageHref(window.location.href, nextPage);
+    const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (href !== currentHref) window.history.pushState(null, "", href);
+  }, []);
   const [perPage] = useState(20);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -183,7 +203,7 @@ export function useProductList(): UseProductListReturn {
               browse: true,
               limit: perPage,
               offset,
-              sortKey: sortState?.key,
+              sortKey: sortState ? browseSortField(sortState.key) : undefined,
               sortOrder: sortState?.order,
             };
 
@@ -191,23 +211,25 @@ export function useProductList(): UseProductListReturn {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify(requestBody),
+          body: JSON.stringify({ ...requestBody, includeFacets: true, filters }),
         });
 
         if (!res.ok) {
           throw new Error(`Product search failed: HTTP ${res.status}`);
         }
 
-        const json = (await res.json()) as ProductSearchResponse;
+        const json = (await res.json()) as ProductSearchResponse & { error?: string };
+        if (json.error) throw new Error(json.error);
         const rawResults: CtRawProduct[] = (json.results ?? []) as CtRawProduct[];
         const rows = rawResults.map((product) => mapRawToListRow(product, locale));
         const total = json.total ?? 0;
 
-        const withPrices = await resolvePrices(rows);
+        const withPrices = rawResults.every((product) => product.resolvedPrice !== undefined) ? rows : await resolvePrices(rows);
 
         // Drop stale results
         if (seq !== searchSeq.current) return;
 
+        setFacets(json.facets ?? null);
         setProducts(withPrices);
         setTotalItems(total);
         setExpanded(new Set());
@@ -222,7 +244,7 @@ export function useProductList(): UseProductListReturn {
         if (seq === searchSeq.current) setLoading(false);
       }
     },
-    [locale, perPage, resolvePrices]
+    [locale, perPage, resolvePrices, filters]
   );
 
   // -------------------------------------------------------------------------
@@ -245,7 +267,7 @@ export function useProductList(): UseProductListReturn {
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
 
-  }, [search.text, search.option, appliedSearch.text, appliedSearch.option]);
+  }, [search.text, search.option, appliedSearch.text, appliedSearch.option, setPage]);
 
   // -------------------------------------------------------------------------
   // Run fetch whenever applied search, page, or sort changes
@@ -254,7 +276,7 @@ export function useProductList(): UseProductListReturn {
   useEffect(() => {
     void doSearch(appliedSearch, sort, page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch.text, appliedSearch.option, page, sort?.key, sort?.order]);
+  }, [appliedSearch.text, appliedSearch.option, page, sort?.key, sort?.order, filters]);
 
   // -------------------------------------------------------------------------
   // Handlers
@@ -265,15 +287,16 @@ export function useProductList(): UseProductListReturn {
     if (trimmed.length > 0 && trimmed.length < MIN_SEARCH_LEN) return;
     setAppliedSearch({ text: search.text, option: search.option });
     setPage(1);
-  }, [search]);
+  }, [search, setPage]);
 
   const onReset = useCallback(() => {
     const empty: ProductSearch = { text: "", option: "allFields" };
     setSearch(empty);
     setAppliedSearch(empty);
     setSort(null);
+    setFilters({});
     setPage(1);
-  }, []);
+  }, [setPage]);
 
   const onSort = useCallback((columnKey: ProductSortKey) => {
     setSort((prev) =>
@@ -282,10 +305,10 @@ export function useProductList(): UseProductListReturn {
         : { key: columnKey, order: "asc" }
     );
     setPage(1);
-  }, []);
+  }, [setPage]);
 
-  const onPageChange = useCallback((p: number) => setPage(p), []);
-  const onPerPageChange = useCallback((_pp: number) => setPage(1), []);
+  const onPageChange = setPage;
+  const onPerPageChange = useCallback(() => setPage(1), [setPage]);
 
   const toggleExpanded = useCallback((id: string) => {
     setExpanded((prev) => {
@@ -297,6 +320,9 @@ export function useProductList(): UseProductListReturn {
   }, []);
 
   return {
+    filters,
+    facets,
+    onFiltersChange: (nextFilters: CatalogFilters) => { setFilters(nextFilters); setPage(1); },
     products,
     totalItems,
     loading,
@@ -309,8 +335,10 @@ export function useProductList(): UseProductListReturn {
     expanded,
     setSearch,
     onSearch,
+    onRetry: () => { void doSearch(appliedSearch, sort, page); },
     onReset,
     onSort,
+    onSortChange: (nextSort: ProductSort) => { setSort(nextSort); setPage(1); },
     onPageChange,
     onPerPageChange,
     toggleExpanded,

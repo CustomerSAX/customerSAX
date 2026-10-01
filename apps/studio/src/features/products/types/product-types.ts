@@ -64,6 +64,7 @@ export interface CtRawProduct {
   createdAt?: string;
   lastModifiedAt?: string;
   priceMode?: string;
+  resolvedPrice?: CtMoneyValue | null;
   taxCategory?: { name?: string } | null;
   productType?: { name?: string } | null;
   masterData?: {
@@ -102,6 +103,7 @@ export interface ProductVariantRow {
 /** One row in the Product List table */
 export interface ProductListRow {
   id: string;
+  imageUrl: string;
   itemName: string;
   productType: string;
   key: string;
@@ -193,7 +195,24 @@ export interface TableSettings {
 // API response shapes
 // ---------------------------------------------------------------------------
 
+export interface CatalogFilters {
+  productTypes?: string[];
+  categoryIds?: string[];
+  availability?: string[];
+  minPrice?: number;
+  maxPrice?: number;
+}
+
+export interface CatalogFacetOption { value: string; label: string; count: number }
+export interface CatalogFacets {
+  productTypes: CatalogFacetOption[];
+  categories: CatalogFacetOption[];
+  availability: { inStock: number; outOfStock: number; unknown: number };
+  price: { min: number | null; max: number | null; currency: string };
+}
+
 export interface ProductSearchResponse {
+  facets?: CatalogFacets;
   results: CtRawProduct[];
   total: number;
   count?: number;

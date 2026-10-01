@@ -1,27 +1,32 @@
-'use client';
+"use client";
 
-import { useMemo, useState } from 'react';
-import { InstantSearch } from 'react-instantsearch';
+import { useMemo, useState } from "react";
+import { InstantSearch } from "react-instantsearch";
+import { Button, Drawer, DrawerHeader, DrawerContent, PageHeader } from "@csa/ui";
 import {
-  Button,
-  Drawer,
-  DrawerHeader,
-  DrawerContent,
-  PageHeader
-} from '@csa/ui';
-import { SlidersHorizontal, Search as SearchIcon } from 'lucide-react';
-import type { OrganizationSearchConfig, SearchCapabilityState } from '../contracts/SearchCapability';
-import { SearchBox } from './SearchBox';
-import { SearchFilters } from './SearchFilters';
-import { SearchSort } from './SearchSort';
-import { SearchResults } from './SearchResults';
-import { SearchPagination } from './SearchPagination';
-import { SearchStats } from './SearchStats';
-import { SearchProviderStatus } from './SearchProviderStatus';
-import { SearchErrorState } from './SearchErrorState';
-import { getOrCreateAlgoliaClient } from '../providers/algolia/algoliaClient';
-import { resolveAlgoliaConfig } from '../providers/algolia/configuration';
-import { getDefaultSearchConfig } from '../config/searchConfig';
+  LayoutGrid,
+  List,
+  Table2,
+  SlidersHorizontal,
+  Search as SearchIcon
+} from "lucide-react";
+import type {
+  OrganizationSearchConfig,
+  SearchCapabilityState
+} from "../contracts/SearchCapability";
+import { SearchBox } from "./SearchBox";
+import { SearchFilters } from "./SearchFilters";
+import { SearchSort } from "./SearchSort";
+import { SearchResultCard } from "./SearchResultCard";
+import { SearchResults } from "./SearchResults";
+import { SearchPagination } from "./SearchPagination";
+import { SearchStats } from "./SearchStats";
+import { SearchProviderStatus } from "./SearchProviderStatus";
+import { SearchErrorState } from "./SearchErrorState";
+import { getOrCreateAlgoliaClient } from "../providers/algolia/algoliaClient";
+import { resolveAlgoliaConfig } from "../providers/algolia/configuration";
+import type { NormalizedSearchResultItem } from "../contracts/types";
+import { getDefaultSearchConfig } from "../config/searchConfig";
 
 export interface AlgoliaSearchInterfaceProps {
   config?: OrganizationSearchConfig;
@@ -30,9 +35,13 @@ export interface AlgoliaSearchInterfaceProps {
 
 export function AlgoliaSearchInterface({
   config: userConfig,
-  className = ''
+  className = ""
 }: AlgoliaSearchInterfaceProps) {
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const [layout, setLayout] = useState<"grid" | "list" | "table">("grid");
+  const [selectedProduct, setSelectedProduct] =
+    useState<NormalizedSearchResultItem | null>(null);
 
   // Merge default configuration with provided configuration
   const mergedConfig = useMemo(() => {
@@ -46,6 +55,12 @@ export function AlgoliaSearchInterface({
       fieldMapping: userConfig?.fieldMapping || defaults.fieldMapping
     };
   }, [userConfig]);
+
+  const algoliaConfig = useMemo(() => resolveAlgoliaConfig(mergedConfig), [mergedConfig]);
+  const searchClient = useMemo(
+    () => (algoliaConfig ? getOrCreateAlgoliaClient(algoliaConfig) : null),
+    [algoliaConfig]
+  );
 
   // Organization-level enable/disable check
   if (!mergedConfig.enabled) {
@@ -81,9 +96,7 @@ export function AlgoliaSearchInterface({
   }
 
   // Resolve Algolia client & credentials
-  const algoliaConfig = resolveAlgoliaConfig(mergedConfig);
-
-  if (!algoliaConfig) {
+  if (!algoliaConfig || !searchClient) {
     return (
       <div className="flex flex-col gap-6 w-full">
         <PageHeader
@@ -102,17 +115,13 @@ export function AlgoliaSearchInterface({
     );
   }
 
-  const searchClient = useMemo(() => {
-    return getOrCreateAlgoliaClient(algoliaConfig);
-  }, [algoliaConfig]);
-
   const capabilityState: SearchCapabilityState = {
     enabled: true,
-    providerId: 'algolia',
-    providerName: 'Algolia',
-    status: 'connected',
+    providerId: "algolia",
+    providerName: "Algolia",
+    status: "connected",
     indexName: algoliaConfig.indexName,
-    searchMode: 'Instant Search'
+    searchMode: "Instant Search"
   };
 
   return (
@@ -126,7 +135,35 @@ export function AlgoliaSearchInterface({
             Commerce
           </span>
         }
-        actions={<SearchProviderStatus state={capabilityState} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <SearchProviderStatus state={capabilityState} />
+            <div
+              role="group"
+              aria-label="Product view"
+              className="flex rounded-m-lg border border-m-border bg-m-surface p-1"
+            >
+              {(
+                [
+                  ["grid", LayoutGrid],
+                  ["list", List],
+                  ["table", Table2]
+                ] as const
+              ).map(([value, ViewIcon]) => (
+                <Button
+                  key={value}
+                  size="sm"
+                  variant={layout === value ? "secondary" : "ghost"}
+                  aria-pressed={layout === value}
+                  onClick={() => setLayout(value)}
+                >
+                  <ViewIcon className="mr-2 h-4 w-4" />
+                  {value[0].toUpperCase() + value.slice(1)}
+                </Button>
+              ))}
+            </div>
+          </div>
+        }
       />
 
       <InstantSearch
@@ -134,79 +171,72 @@ export function AlgoliaSearchInterface({
         indexName={algoliaConfig.indexName}
         future={{ preserveSharedStateOnUnmount: true }}
       >
-        {/* Mobile Filter & Search Bar (< lg) */}
-        <div className="lg:hidden flex items-center justify-between gap-3 bg-m-surface rounded-m-xl border border-m-border p-3.5 shadow-m-xs">
-          <div className="flex-1">
-            <SearchBox placeholder={mergedConfig.placeholder} />
-          </div>
+        <div
+          className="flex flex-wrap items-center gap-3"
+          role="search"
+          aria-label="Product search"
+        >
+          <SearchBox
+            placeholder={mergedConfig.placeholder}
+            className="min-w-[200px] flex-1"
+          />
           <Button
             variant="outline"
-            size="md"
-            onClick={() => setMobileFiltersOpen(true)}
-            className="flex items-center gap-1.5 rounded-m-lg text-xs font-semibold shrink-0"
-            aria-label="Open filter drawer"
+            aria-expanded={filtersOpen}
+            aria-controls="algolia-filters"
+            className="lg:hidden"
+            onClick={() => setFiltersOpen((open) => !open)}
           >
-            <SlidersHorizontal className="w-4 h-4" />
-            <span>Filters</span>
+            <SlidersHorizontal className="mr-2 h-4 w-4" />
+            Filters
           </Button>
         </div>
-
-        {/* Responsive Two-Column Layout */}
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-          {/* Desktop Left Sidebar: Reset, Search Box, You've Selected, Facet Accordions */}
-          <aside className="w-full lg:w-72 xl:w-80 shrink-0 hidden lg:block sticky top-6">
+        <div className="flex flex-col items-start gap-6 lg:flex-row">
+          <aside
+            id="algolia-filters"
+            aria-label="Catalog filters"
+            className={`${filtersOpen ? "block" : "hidden"} w-full shrink-0 lg:sticky lg:top-6 lg:block lg:w-72 xl:w-80`}
+          >
             <SearchFilters
               facets={mergedConfig.facets}
               numericFilters={mergedConfig.numericFilters}
-              placeholder={mergedConfig.placeholder}
+              showSearch={false}
             />
           </aside>
-
-          {/* Right Main Content Area */}
-          <main className="flex-1 w-full min-w-0 space-y-4">
-            {/* Results Sub-Header: Product Count (Left) & Sort Selector (Right) */}
-            <div className="flex items-center justify-between gap-4 py-1">
+          <section className="w-full min-w-0 flex-1 space-y-5" aria-label="Products">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <SearchStats />
               <SearchSort items={mergedConfig.sortOptions || []} />
             </div>
-
-            {/* Vertically Stacked Full-Width Product Result Cards */}
-            <SearchResults fieldMapping={mergedConfig.fieldMapping} />
-
-            {/* Pagination Controls */}
+            <SearchResults
+              fieldMapping={mergedConfig.fieldMapping}
+              layout={layout}
+              onViewDetails={setSelectedProduct}
+            />
             <SearchPagination />
-          </main>
+          </section>
         </div>
 
-        {/* Mobile Filter Drawer */}
         <Drawer
-          isOpen={mobileFiltersOpen}
-          onClose={() => setMobileFiltersOpen(false)}
+          isOpen={selectedProduct !== null}
+          onClose={() => setSelectedProduct(null)}
           position="right"
           size="md"
-          aria-label="Filter catalog"
+          aria-label="Product details"
         >
           <DrawerHeader
-            title="Search & Filters"
-            subtitle="Refine catalog results"
-            onClose={() => setMobileFiltersOpen(false)}
+            title={selectedProduct?.title || "Product details"}
+            onClose={() => setSelectedProduct(null)}
           />
-          <DrawerContent className="p-5">
-            <SearchFilters
-              facets={mergedConfig.facets}
-              numericFilters={mergedConfig.numericFilters}
-              placeholder={mergedConfig.placeholder}
-            />
-            <div className="pt-4 mt-4 border-t border-m-border">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setMobileFiltersOpen(false)}
-                className="w-full text-xs"
-              >
-                Apply Filters
-              </Button>
-            </div>
+          <DrawerContent className="space-y-4 p-5">
+            {selectedProduct && (
+              <>
+                <SearchResultCard item={selectedProduct} layout="grid" />
+                <p className="whitespace-pre-line text-sm text-m-text">
+                  {selectedProduct.description || "No description available."}
+                </p>
+              </>
+            )}
           </DrawerContent>
         </Drawer>
       </InstantSearch>

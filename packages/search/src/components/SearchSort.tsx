@@ -41,7 +41,7 @@ export function SearchSort({ items = [], className = '' }: SearchSortProps) {
   }
 
   // Structural fallback when no replica indices are configured
-  const defaultLabel = items[0]?.label || 'Name (A–Z)';
+  const defaultLabel = items[0]?.label || 'Relevance';
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
@@ -57,8 +57,6 @@ export function SearchSort({ items = [], className = '' }: SearchSortProps) {
         className="text-xs rounded-m-lg border border-m-border bg-m-surface text-m-text py-1.5 px-3 outline-none focus:border-m-primary cursor-pointer hover:border-m-border-strong transition-colors"
       >
         <option value="default">{defaultLabel}</option>
-        <option value="price-asc">Price: Low to High</option>
-        <option value="price-desc">Price: High to Low</option>
       </select>
     </div>
   );
