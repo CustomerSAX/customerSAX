@@ -56,7 +56,10 @@ export async function findStoredCommercetoolsProject(clientId: string, projectKe
     authUrl: credentials?.authUrl || project.ctAuthUrl,
     clientId: credentials?.clientId || project.ctClientId,
     clientSecret: decryptProjectSecret(encryptedSecret, projectKey),
-    scope: credentials?.scopes || project.scopes
+    scope:
+      (credentials?.scopes || project.scopes)?.trim() === "manage_project:"
+        ? undefined
+        : (credentials?.scopes || project.scopes)?.trim() || undefined
   };
 }
 
