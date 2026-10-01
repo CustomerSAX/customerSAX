@@ -73,7 +73,7 @@ interface FacetAccordionItemProps {
   config: SearchFacetConfig;
 }
 
-function FacetAccordionItem({ config }: FacetAccordionItemProps) {
+export function FacetAccordionItem({ config }: FacetAccordionItemProps) {
   const {
     items,
     refine,
@@ -192,8 +192,8 @@ interface NumericRangeAccordionItemProps {
   config: SearchNumericFilterConfig;
 }
 
-function NumericRangeAccordionItem({ config }: NumericRangeAccordionItemProps) {
-  const { range, refine } = useRange({
+export function NumericRangeAccordionItem({ config }: NumericRangeAccordionItemProps) {
+  const { range, start, refine } = useRange({
     attribute: config.attribute,
     min: config.min,
     max: config.max
@@ -204,15 +204,24 @@ function NumericRangeAccordionItem({ config }: NumericRangeAccordionItemProps) {
     .filter((group) => group.attribute === config.attribute)
     .reduce((acc, group) => acc + group.refinements.length, 0);
 
-  const minAvailable = range.min ?? 0;
-  const maxAvailable = range.max ?? 1000;
+  const minAvailable = range.min;
+  const maxAvailable = range.max;
 
-  const [minInput, setMinInput] = useState<string>('');
-  const [maxInput, setMaxInput] = useState<string>('');
+  const minimum = Number.isFinite(start[0]) ? String(start[0]) : '';
+  const maximum = Number.isFinite(start[1]) ? String(start[1]) : '';
+  const [appliedRange, setAppliedRange] = useState([minimum, maximum]);
+  const [minInput, setMinInput] = useState(minimum);
+  const [maxInput, setMaxInput] = useState(maximum);
+  if (appliedRange[0] !== minimum || appliedRange[1] !== maximum) {
+    setAppliedRange([minimum, maximum]);
+    setMinInput(minimum);
+    setMaxInput(maximum);
+  }
 
   const handleApply = () => {
     const minVal = minInput === '' ? undefined : Number(minInput);
     const maxVal = maxInput === '' ? undefined : Number(maxInput);
+    if (minVal !== undefined && maxVal !== undefined && minVal > maxVal) return;
     refine([minVal, maxVal]);
   };
 
@@ -239,7 +248,7 @@ function NumericRangeAccordionItem({ config }: NumericRangeAccordionItemProps) {
       </Accordion.Trigger>
       <Accordion.Content className="pt-0 px-4 pb-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-m-text-muted">Set price range</span>
+          <span className="text-xs text-m-text-muted">Set range</span>
           {(minInput !== '' || maxInput !== '') && (
             <button
               type="button"
@@ -254,11 +263,12 @@ function NumericRangeAccordionItem({ config }: NumericRangeAccordionItemProps) {
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <span className="absolute left-2.5 top-1.5 text-xs text-m-text-subtle">
-              {config.currencySymbol || '$'}
+              {config.currencySymbol || ''}
             </span>
             <input
               type="number"
-              placeholder={String(Math.floor(minAvailable))}
+              aria-label={`${config.label} minimum`}
+              placeholder={minAvailable === undefined ? 'Min' : String(minAvailable)}
               value={minInput}
               onChange={(e) => setMinInput(e.target.value)}
               className="w-full pl-6 pr-2 py-1 text-xs rounded-m-md border border-m-border bg-m-surface text-m-text placeholder:text-m-text-subtle focus:outline-none focus:border-m-primary"
@@ -267,11 +277,12 @@ function NumericRangeAccordionItem({ config }: NumericRangeAccordionItemProps) {
           <span className="text-m-text-subtle text-xs">-</span>
           <div className="relative flex-1">
             <span className="absolute left-2.5 top-1.5 text-xs text-m-text-subtle">
-              {config.currencySymbol || '$'}
+              {config.currencySymbol || ''}
             </span>
             <input
               type="number"
-              placeholder={String(Math.ceil(maxAvailable))}
+              aria-label={`${config.label} maximum`}
+              placeholder={maxAvailable === undefined ? 'Max' : String(maxAvailable)}
               value={maxInput}
               onChange={(e) => setMaxInput(e.target.value)}
               className="w-full pl-6 pr-2 py-1 text-xs rounded-m-md border border-m-border bg-m-surface text-m-text placeholder:text-m-text-subtle focus:outline-none focus:border-m-primary"
@@ -364,4 +375,3 @@ export function SearchFilters({
     </div>
   );
 }
-

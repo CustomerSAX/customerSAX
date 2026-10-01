@@ -23,3 +23,6 @@ export * from './components/SearchEmptyState';
 export * from './components/SearchErrorState';
 export * from './components/SearchProviderStatus';
 export * from './components/AlgoliaSearchInterface';
+
+export * from './components/CatalogView';
+export * from './components/CatalogResults';
