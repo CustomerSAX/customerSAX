@@ -11,6 +11,6 @@ describe("Products provider configuration", () => {
     expect(productsProvider("commercetools")).toBe("commercetools");
   });
   it("rejects unsupported providers rather than silently using another catalog", () => {
-    expect(() => productsProvider("typo")).toThrow("PRODUCTS_PROVIDER");
+    expect(() => productsProvider("typo")).toThrow("Products provider");
   });
 });

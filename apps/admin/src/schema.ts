@@ -1,4 +1,5 @@
 import { gql } from "graphql-tag";
+import { projectProductsConfiguration } from "./products/configuration.js";
 
 import {
   getProjectProducts, saveProjectProducts, testProjectProducts,
@@ -319,11 +320,13 @@ export const typeDefs = gql`
   input AdminAiSettingsInput { enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKey: String }
 
   type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean!, freshdeskDomain: String!, freshdeskApiKeySet: Boolean! }
+  type ProjectProductsConfiguration { provider: String!, appId: String, indexName: String, searchApiKey: String }
   type AdminProjectProducts { configured: Boolean!, provider: String!, appId: String!, indexName: String!, searchApiKeySet: Boolean! }
   input AdminProjectProductsInput { provider: String!, appId: String, indexName: String, searchApiKey: String }
   input AdminProjectTicketingInput { provider: String!, subdomain: String, clientId: String, clientSecret: String, freshdeskDomain: String, freshdeskApiKey: String }
   type AdminTicketingTest { success: Boolean!, message: String! }
   extend type Query {
+    projectProductsConfiguration: ProjectProductsConfiguration
     adminProjectProducts(clientId: ID!, id: ID!): AdminProjectProducts!
     adminProjectTicketing(clientId: ID!, id: ID!): AdminProjectTicketing!
 
@@ -379,6 +382,7 @@ export const typeDefs = gql`
 
 export const resolvers = {
   Query: {
+    projectProductsConfiguration,
     adminProjectProducts: (_p: unknown, args: { clientId: string; id: string }) => getProjectProducts(args.clientId, args.id),
     adminProjectTicketing: (_p: unknown, args: { clientId: string; id: string }) => getProjectTicketing(args.clientId, args.id),
     adminClients: async () => {

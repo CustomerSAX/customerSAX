@@ -1,5 +1,5 @@
 import "server-only";
-import { resolveProjectProducts } from "@csa/mongodb";
+import { applyCsaHeaders } from "@csa/headers";
 import { authServiceUrl, currentSessionToken } from "../../../app/api/auth/shared";
 import { productsProvider } from "./config";
 
@@ -13,15 +13,59 @@ export async function currentProductsConfiguration() {
   });
   if (!response.ok) throw new Error("Sign in to browse products");
   const { user } = (await response.json()) as {
-    user?: { activeClientId?: string; activeProjectKey?: string };
+    user?: {
+      activeClientId?: string;
+      activeProjectKey?: string;
+      email?: string;
+      role?: string;
+    };
   };
   if (!user?.activeClientId || !user.activeProjectKey)
     throw new Error("Select a project to browse products");
-  const settings = await resolveProjectProducts(
-    user.activeClientId,
-    user.activeProjectKey
+  const result = await fetch(
+    process.env.BFF_URL?.trim() ||
+      process.env.AI_COMMERCE_SERVICE_URL?.trim() ||
+      "http://127.0.0.1:4000/graphql",
+    {
+      method: "POST",
+      headers: applyCsaHeaders(
+        { "content-type": "application/json" } as Record<string, string>,
+        {
+          clientId: user.activeClientId,
+          projectKey: user.activeProjectKey,
+          userEmail: user.email,
+          userRole: user.role
+        }
+      ),
+      body: JSON.stringify({
+        query: `query CurrentProductsConfiguration {
+        projectProductsConfiguration { provider appId indexName searchApiKey }
+      }`
+      }),
+      cache: "no-store"
+    }
   );
-  const provider = settings?.provider ?? productsProvider(process.env.PRODUCTS_PROVIDER);
+  if (!result.ok) throw new Error("Products configuration service is unavailable");
+  const payload = (await result.json()) as {
+    data?: {
+      projectProductsConfiguration?: {
+        provider: "commercetools" | "algolia";
+        appId?: string;
+        indexName?: string;
+        searchApiKey?: string;
+      } | null;
+    };
+    errors?: unknown[];
+  };
+  if (payload.errors?.length || payload.data?.projectProductsConfiguration === undefined)
+    throw new Error("Unable to load Products configuration");
+  const settings = payload.data.projectProductsConfiguration;
+  if (
+    settings?.provider === "algolia" &&
+    (!settings.appId || !settings.indexName || !settings.searchApiKey)
+  )
+    throw new Error("Project Algolia configuration is incomplete");
+  const provider = productsProvider(settings?.provider);
   return {
     key: `${user.activeClientId}:${user.activeProjectKey}:${provider}`,
     provider,

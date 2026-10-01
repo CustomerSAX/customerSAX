@@ -33,7 +33,7 @@ export function prepareProducts(
   if (input.provider !== "algolia") throw new Error("Unsupported products provider");
   if (!process.env.SUPERADMIN_ENCRYPTION_KEY?.trim())
     throw new Error(
-      "Configure SUPERADMIN_ENCRYPTION_KEY on admin and Studio before storing Algolia credentials"
+      "Configure SUPERADMIN_ENCRYPTION_KEY on the admin service before storing Algolia credentials"
     );
   const appId = input.appId?.trim() ?? "";
   const indexName = input.indexName?.trim() ?? "";

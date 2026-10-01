@@ -137,8 +137,7 @@ export function ProductsSettings({
         >
           {!data?.adminProjectProducts.configured && (
             <p className="text-sm text-m-text-muted">
-              No project override is saved. Studio currently uses its environment
-              configuration.
+              No Products settings are saved. This project uses Products Native by default.
             </p>
           )}
           <label className={LABEL_CLASS}>
