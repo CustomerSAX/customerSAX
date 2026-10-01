@@ -313,6 +313,7 @@ export interface SearchFiltersProps {
   facets?: SearchFacetConfig[];
   numericFilters?: SearchNumericFilterConfig[];
   placeholder?: string;
+  showSearch?: boolean;
   className?: string;
 }
 
@@ -320,6 +321,7 @@ export function SearchFilters({
   facets = [],
   numericFilters = [],
   placeholder = 'Search products...',
+  showSearch = true,
   className = ''
 }: SearchFiltersProps) {
   return (
@@ -334,7 +336,7 @@ export function SearchFilters({
         className="space-y-3 divide-y-0 rounded-none border-none bg-transparent"
       >
         {/* Collapsible Search Accordion */}
-        <Accordion.Item
+        {showSearch && <Accordion.Item
           value="search"
           className="overflow-hidden rounded-m-xl border border-m-border bg-m-surface"
         >
@@ -344,7 +346,7 @@ export function SearchFilters({
           <Accordion.Content className="pt-0 px-4 pb-4">
             <SearchBox placeholder={placeholder} />
           </Accordion.Content>
-        </Accordion.Item>
+        </Accordion.Item>}
 
         {/* Selected Refinements ("You've selected:") */}
         <SelectedRefinements />

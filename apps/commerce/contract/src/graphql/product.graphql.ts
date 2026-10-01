@@ -19,12 +19,22 @@ export const productTypeDefs = gql`
     offset: Int!
   }
 
+  input ProductCatalogFiltersInput {
+    productTypes: [String!]
+    categoryIds: [String!]
+    availability: [String!]
+    minPrice: Float
+    maxPrice: Float
+  }
+
   extend type Query {
     availableCurrencies: [String!]!
     product(id: ID, key: String): Product
     products(limit: Int = 20, offset: Int = 0): [Product!]!
     productPage(limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): ProductPage!
     productSearch(
+      filters: ProductCatalogFiltersInput
+      includeFacets: Boolean = false
       field: String
       text: String
       browse: Boolean = false

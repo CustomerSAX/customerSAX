@@ -196,11 +196,12 @@ export function mapRawToListRow(p: CtRawProduct, locale: string = DEFAULT_LOCALE
 
   return {
     id: p.id,
+    imageUrl: masterVariant?.images?.[0]?.url || allVariants.flatMap((v) => v.images ?? []).find((image) => image.url)?.url || "",
     itemName: name,
     productType: p.productType?.name ?? "--",
     key: p.key ?? "--",
     sku,
-    price: formatPrice(masterVariant?.prices?.[0], locale),
+    price: p.resolvedPrice !== undefined ? formatMoneyValue(p.resolvedPrice, locale) : formatPrice(masterVariant?.prices?.[0], locale),
     availability: deriveAvailability(masterVariant?.availability),
     description,
     categories: categoryNames.length > 0 ? categoryNames.join(", ") : "--",
