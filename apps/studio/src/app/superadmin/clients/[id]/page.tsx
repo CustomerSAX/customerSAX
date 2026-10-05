@@ -1,6 +1,7 @@
 "use client";
 
 import { TicketingSettings } from "./TicketingSettings";
+import { CrmSettings } from "./CrmSettings";
 
 import { use, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -625,6 +626,7 @@ function ProjectsTab({
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectRow | null>(null);
   const [ticketingProject, setTicketingProject] = useState<ProjectRow | null>(null);
+  const [crmProject, setCrmProject] = useState<ProjectRow | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   async function handleDelete(project: ProjectRow) {
@@ -677,7 +679,8 @@ function ProjectsTab({
                   <TableHead className="w-[120px]">Shell</TableHead>
                   <TableHead className="w-[100px]">Added</TableHead>
                   <TableHead className="w-[110px]">Ticketing</TableHead>
-                  <TableHead className="min-w-[210px] text-right pr-4">Actions</TableHead>
+                  <TableHead className="w-[110px]">CRM</TableHead>
+                  <TableHead className="min-w-[290px] text-right pr-4">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -712,9 +715,15 @@ function ProjectsTab({
                             {p.ticketingProvider === "zendesk" ? "Zendesk" : p.ticketingProvider === "freshdesk" ? "Freshdesk" : "Native"}
                           </span>
                         </TableCell>
+                        <TableCell>
+                          <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${p.crmProvider === "salesforce" ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
+                            {p.crmProvider === "salesforce" ? "Salesforce" : "None"}
+                          </span>
+                        </TableCell>
                         <TableCell className="whitespace-nowrap text-right pr-4">
                           <div className="flex items-center justify-end gap-3">
-                            <Button variant="outline" size="sm" leftIcon={<Icon name="settings" size="xs" />} onClick={() => setTicketingProject(p)} disabled={clientBlocked}>Ticketing</Button>
+                            <Button variant="outline" size="sm" leftIcon={<Icon name="settings" size="xs" />} onClick={() => { setCrmProject(null); setTicketingProject(p); }} disabled={clientBlocked}>Ticketing</Button>
+                            <Button variant="outline" size="sm" leftIcon={<Icon name="settings" size="xs" />} onClick={() => { setTicketingProject(null); setCrmProject(p); }} disabled={clientBlocked}>CRM</Button>
                             <Button variant="ghost" size="sm" leftIcon={<Icon name="trash-2" size="xs" />} aria-label={`Remove project ${p.displayName}`} onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
                               Remove
                             </Button>
@@ -729,6 +738,7 @@ function ProjectsTab({
       </div>
 
       {ticketingProject && <TicketingSettings key={ticketingProject.id} clientId={clientId} project={ticketingProject} onClose={() => setTicketingProject(null)} onSaved={onChanged} />}
+      {crmProject && <CrmSettings key={crmProject.id} clientId={clientId} project={crmProject} onClose={() => setCrmProject(null)} onSaved={onChanged} />}
 
       <ProjectModal
         isOpen={isAddOpen || !!editing}

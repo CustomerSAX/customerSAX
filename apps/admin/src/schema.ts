@@ -2,6 +2,7 @@ import { gql } from "graphql-tag";
 
 import {
   getProjectTicketing, saveProjectTicketing, testProjectTicketing,
+  getProjectCrm, saveProjectCrm, testProjectCrm,
   clientsRepo,
   parseClientSsoConfigInput,
   projectsRepo,
@@ -12,7 +13,7 @@ import {
   testSmtpProfile,
   usersRepo,
 } from "@csa/mongodb";
-import type { ClientSsoConfigStored, CsaUser, TicketingInput } from "@csa/mongodb";
+import type { ClientSsoConfigStored, CrmInput, CsaUser, TicketingInput } from "@csa/mongodb";
 import { del as cacheDel, ctProjectConfig } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
@@ -140,6 +141,7 @@ export const typeDefs = gql`
     clientId: String!
     platform: String!
     ticketingProvider: String!
+    crmProvider: String!
     projectKey: String!
     displayName: String!
     ctApiUrl: String!
@@ -319,8 +321,12 @@ export const typeDefs = gql`
   type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean!, freshdeskDomain: String!, freshdeskApiKeySet: Boolean! }
   input AdminProjectTicketingInput { provider: String!, subdomain: String, clientId: String, clientSecret: String, freshdeskDomain: String, freshdeskApiKey: String }
   type AdminTicketingTest { success: Boolean!, message: String! }
+  type AdminProjectCrm { provider: String!, salesforceInstanceUrl: String!, salesforceClientId: String!, salesforceSecretSet: Boolean! }
+  input AdminProjectCrmInput { provider: String!, salesforceInstanceUrl: String, salesforceClientId: String, salesforceClientSecret: String }
+  type AdminCrmTest { success: Boolean!, message: String! }
   extend type Query {
     adminProjectTicketing(clientId: ID!, id: ID!): AdminProjectTicketing!
+    adminProjectCrm(clientId: ID!, id: ID!): AdminProjectCrm!
 
     adminClients: [AdminClient!]!
     adminClient(id: ID!): AdminClient
@@ -335,6 +341,8 @@ export const typeDefs = gql`
   extend type Mutation {
     adminSaveProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminProjectTicketing!
     adminTestProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminTicketingTest!
+    adminSaveProjectCrm(clientId: ID!, id: ID!, input: AdminProjectCrmInput!): AdminProjectCrm!
+    adminTestProjectCrm(clientId: ID!, id: ID!, input: AdminProjectCrmInput!): AdminCrmTest!
 
     adminCreateClient(name: String!, contactEmail: String!, slug: String, uiTheme: String): AdminClient!
     adminUpdateClient(id: ID!, name: String, contactEmail: String, uiTheme: String, ssoConfig: AdminSsoConfigInput): AdminClient!
@@ -373,6 +381,7 @@ export const typeDefs = gql`
 export const resolvers = {
   Query: {
     adminProjectTicketing: (_p: unknown, args: { clientId: string; id: string }) => getProjectTicketing(args.clientId, args.id),
+    adminProjectCrm: (_p: unknown, args: { clientId: string; id: string }) => getProjectCrm(args.clientId, args.id),
     adminClients: async () => {
       const clients = await clientsRepo.listClients();
       return Promise.all(
@@ -427,6 +436,8 @@ export const resolvers = {
   Mutation: {
     adminSaveProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => saveProjectTicketing(args.clientId, args.id, args.input),
     adminTestProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => testProjectTicketing(args.clientId, args.id, args.input),
+    adminSaveProjectCrm: (_p: unknown, args: { clientId: string; id: string; input: CrmInput }) => saveProjectCrm(args.clientId, args.id, args.input),
+    adminTestProjectCrm: (_p: unknown, args: { clientId: string; id: string; input: CrmInput }) => testProjectCrm(args.clientId, args.id, args.input),
     // ── Clients ──────────────────────────────────────────────────────────
     adminCreateClient: async (_p: unknown, args: { name: string; contactEmail: string; slug?: string; uiTheme?: string }) => {
       const slug =

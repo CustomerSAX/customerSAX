@@ -38,6 +38,7 @@ export interface ProjectCredentials {
 
 export interface CsaProject {
   ticketing?: import("./ticketing.js").ProjectTicketing;
+  crm?: import("./crm.js").ProjectCrm;
   _id: ObjectId;
   clientId: string;
   platform?: CommercePlatform;

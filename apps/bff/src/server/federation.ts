@@ -132,7 +132,8 @@ function defaultLocalFederatedServices() {
     "commerce-commercetools": "http://127.0.0.1:4310/graphql",
     ticketing: "http://127.0.0.1:4350/graphql",
     admin: "http://127.0.0.1:4370/graphql",
-    subscriptions: "http://127.0.0.1:4380/graphql"
+    subscriptions: "http://127.0.0.1:4380/graphql",
+    crm: "http://127.0.0.1:4390/graphql"
   });
 }
 
