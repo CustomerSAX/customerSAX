@@ -31,6 +31,7 @@ export interface ProjectRow {
   platform: Platform;
   ticketingProvider?: "internal" | "zendesk" | "freshdesk";
   crmProvider?: "none" | "salesforce";
+  productsProvider?: "commercetools" | "algolia" | null;
   projectKey: string;
   displayName: string;
   ctApiUrl: string;

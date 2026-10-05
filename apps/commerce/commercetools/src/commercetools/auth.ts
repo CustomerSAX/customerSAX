@@ -23,19 +23,41 @@ export async function getCommercetoolsToken(config: CommercetoolsProjectConfig) 
     ctToken(config.projectKey, config.clientId),
     (value) => Math.max(value.expiresIn - 60, 1),
     async () => {
-      const scope = config.scope || `manage_project:${config.projectKey}`;
+      const rawScope = config.scope?.trim();
+      const customScope = rawScope && rawScope !== "manage_project:" ? rawScope : undefined;
+      const initialScope = customScope || (config.projectKey ? `manage_project:${config.projectKey}` : undefined);
 
-      const response = await fetch(`${config.authUrl}/oauth/token`, {
-        body: new URLSearchParams({
-          grant_type: "client_credentials",
-          scope
-        }),
+      const body = new URLSearchParams({
+        grant_type: "client_credentials"
+      });
+      if (initialScope) {
+        body.set("scope", initialScope);
+      }
+
+      let response = await fetch(`${config.authUrl}/oauth/token`, {
+        body,
         headers: {
           authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`,
           "content-type": "application/x-www-form-urlencoded"
         },
         method: "POST"
       });
+
+      // If Commercetools rejected the scope and no explicit custom scope was provided,
+      // retry without the scope parameter so Commercetools automatically grants all scopes assigned to this client.
+      if (!response.ok && !customScope) {
+        const retryResponse = await fetch(`${config.authUrl}/oauth/token`, {
+          body: new URLSearchParams({ grant_type: "client_credentials" }),
+          headers: {
+            authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`,
+            "content-type": "application/x-www-form-urlencoded"
+          },
+          method: "POST"
+        });
+        if (retryResponse.ok) {
+          response = retryResponse;
+        }
+      }
 
       if (!response.ok) {
         throw new Error(`commercetools auth failed with ${response.status}: ${await safeErrorMessage(response)}`);

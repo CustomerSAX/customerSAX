@@ -88,16 +88,37 @@ export async function testCredentials(
       return { ok: false, message: "Missing CT auth URL, client ID, or client secret." };
     }
 
-    const scopes = creds.scopes?.trim() || `manage_project:${creds.projectKey ?? ""}`;
+    const rawScopes = creds.scopes?.trim();
+    const explicitScope = rawScopes && rawScopes !== "manage_project:" ? rawScopes : undefined;
+    const scopes = explicitScope || (creds.projectKey?.trim() ? `manage_project:${creds.projectKey.trim()}` : undefined);
     const tokenUrl = `${creds.ctAuthUrl.replace(/\/+$/, "")}/oauth/token`;
     const credentials = Buffer.from(`${creds.ctClientId.trim()}:${creds.ctClientSecret.trim()}`).toString("base64");
 
-    const response = await fetch(tokenUrl, {
+    const bodyParams = new URLSearchParams({ grant_type: "client_credentials" });
+    if (scopes) {
+      bodyParams.set("scope", scopes);
+    }
+
+    let response = await fetch(tokenUrl, {
       method: "POST",
       headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
-      body: `grant_type=client_credentials&scope=${encodeURIComponent(scopes)}`,
+      body: bodyParams.toString(),
       signal: AbortSignal.timeout(10_000),
     });
+
+    // If Commercetools rejected the scope and no explicit custom scope was provided,
+    // retry without the scope parameter so Commercetools grants the client's assigned scopes.
+    if (!response.ok && !explicitScope) {
+      const retryResponse = await fetch(tokenUrl, {
+        method: "POST",
+        headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: "grant_type=client_credentials",
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (retryResponse.ok) {
+        response = retryResponse;
+      }
+    }
 
     if (response.ok) {
       const data = (await response.json()) as { scope?: string; expires_in?: number };

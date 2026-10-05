@@ -1,17 +1,18 @@
 "use client";
 
-import { gql, useApolloClient, useMutation, useQuery } from "@apollo/client";
-import type { MutationFunction } from "@apollo/client";
-import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
 import { AppShell } from "@/components/shell/AppShell";
 import { useCurrentUser } from "@/lib/use-current-user";
+import type { MutationFunction } from "@apollo/client";
+import { gql, useApolloClient, useMutation, useQuery } from "@apollo/client";
 import { Button, Checkbox, Icon, Input, Select, Table, TextArea } from "@csa/ui";
+import { useTranslations } from "next-intl";
+import type { FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AdminUserRow } from "./user-management";
 import { checkUserConflict, getAvailableExistingUsers } from "./user-management";
+import { KnowledgeBaseAdmin } from "./KnowledgeBaseAdmin";
 
-type Section = "users" | "roles" | "email" | "ai";
+type Section = "users" | "roles" | "email" | "ai" | "knowledge-base";
 type Permission = {
   module: string;
   view: boolean;
@@ -306,9 +307,7 @@ const blankPermissions = () =>
   }));
 export function AdminSettingsView({ section }: { section: Section }) {
   const t = useTranslations("AdminSettings");
-  const sections: Array<{ id: Section; label: string }> = (
-    ["users", "roles", "email", "ai"] as const
-  ).map((id) => ({ id, label: t(`sections.${id}`) }));
+  const sections: Array<{ id: Section; label: string }> = (["users", "roles", "email", "ai", "knowledge-base"] as const).map((id) => ({ id, label: t(`sections.${id}`) }));
   const [activeSection, setActiveSection] = useState<Section>(section);
   const { user, loading: userLoading } = useCurrentUser();
   const clientId = user?.activeClientId ?? "";
@@ -397,12 +396,14 @@ export function AdminSettingsView({ section }: { section: Section }) {
           />
         ) : activeSection === "email" ? (
           <EmailSettings data={data} clientId={clientId} refetch={refetch} />
-        ) : (
+        ) : activeSection === "ai" ? (
           <AiSettings
             settings={data.adminAiSettings}
             clientId={clientId}
             refetch={refetch}
           />
+        ) : (
+          <KnowledgeBaseAdmin clientId={clientId} />
         )}
       </div>
     </AppShell>
@@ -780,11 +781,11 @@ function AddUserModal({
             email: trimmedEmail,
             name: fallbackConflict.userInOrg
               ? [
-                  fallbackConflict.userInOrg.firstName,
-                  fallbackConflict.userInOrg.lastName
-                ]
-                  .filter(Boolean)
-                  .join(" ")
+                fallbackConflict.userInOrg.firstName,
+                fallbackConflict.userInOrg.lastName
+              ]
+                .filter(Boolean)
+                .join(" ")
               : undefined,
             role
           });
@@ -840,11 +841,10 @@ function AddUserModal({
               setError(null);
               setExistingUserConflict(null);
             }}
-            className={`flex-1 rounded-md py-1.5 text-xs sm:text-sm font-semibold transition-all ${
-              mode === "create"
+            className={`flex-1 rounded-md py-1.5 text-xs sm:text-sm font-semibold transition-all ${mode === "create"
                 ? "bg-m-surface text-m-primary shadow-sm"
                 : "text-m-text-muted hover:text-m-text"
-            }`}
+              }`}
           >
             Create New User
           </button>
@@ -855,11 +855,10 @@ function AddUserModal({
               setError(null);
               setExistingUserConflict(null);
             }}
-            className={`flex-1 rounded-md py-1.5 text-xs sm:text-sm font-semibold transition-all ${
-              mode === "existing"
+            className={`flex-1 rounded-md py-1.5 text-xs sm:text-sm font-semibold transition-all ${mode === "existing"
                 ? "bg-m-surface text-m-primary shadow-sm"
                 : "text-m-text-muted hover:text-m-text"
-            }`}
+              }`}
           >
             Add Existing User{" "}
             {availableExistingUsers.length > 0

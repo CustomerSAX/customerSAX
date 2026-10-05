@@ -10,7 +10,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const sessionCookieName = process.env.AUTH_COOKIE_NAME?.trim() || "csa_session";
 
-const infrastructurePathPrefixes = ["/auth", "/api", "/_next", "/favicon.ico"];
+const infrastructurePathPrefixes = ["/auth", "/api", "/organizations", "/_next", "/favicon.ico"];
 const publicPagePrefixes = ["/login", "/sign-in", "/select-project"];
 
 export function middleware(request: NextRequest) {

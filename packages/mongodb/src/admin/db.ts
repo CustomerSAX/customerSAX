@@ -51,6 +51,11 @@ export async function getAuditCollection() {
   return getMongoCollection(env("MONGO_AUDIT_COLLECTION") || "csa_audit_log", { dbName: adminDbName() });
 }
 
+export async function getKnowledgeBasesCollection() {
+  const collectionName = env("MONGO_KNOWLEDGE_BASES_COLLECTION") || "csa_knowledge_bases";
+  return getMongoCollection(collectionName, { dbName: adminDbName() });
+}
+
 /** The exact collection apps/auth's login/session flow reads. */
 export async function getUsersCollection() {
   const collectionName = env("MONGO_USERS_COLLECTION") || "csa_users";

@@ -56,6 +56,20 @@ export default function SuperadminClientsPage() {
 
   const clients = data?.adminClients ?? [];
 
+  const [hasDraft, setHasDraft] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("csa_onboarding_draft_v1");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.name) setHasDraft(true);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   async function handleToggleStatus(c: ClientRow) {
     const nextStatus = c.status === "active" ? "blocked" : "active";
     setTogglingId(c.id);
@@ -82,6 +96,26 @@ export default function SuperadminClientsPage() {
 
   return (
     <PageShell maxWidth="lg">
+      {hasDraft && (
+        <div className="flex items-center justify-between rounded-m-lg border border-m-primary-200 bg-m-primary-50 px-4 py-3 text-xs text-m-primary shadow-m-sm">
+          <div className="flex items-center gap-2.5">
+            <Icon name="sparkles" size="sm" />
+            <span>
+              You have an unfinished organization onboarding journey in progress.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => router.push("/superadmin/onboarding")}
+            >
+              Resume Onboarding
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col justify-between gap-4 rounded-m-xl border border-m-border bg-m-surface p-6 shadow-m-card sm:flex-row sm:items-start">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="text-[11px] font-bold uppercase tracking-widest text-m-primary">Super Admin Portal</div>
@@ -91,8 +125,8 @@ export default function SuperadminClientsPage() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-1 sm:pt-0">
-          <Button variant="primary" leftIcon={<Icon name="plus" size="xs" />} onClick={() => setIsAddOpen(true)}>
-            New Client
+          <Button variant="primary" leftIcon={<Icon name="plus" size="xs" />} onClick={() => router.push("/superadmin/onboarding")}>
+            New Client Onboarding
           </Button>
         </div>
       </div>
@@ -156,8 +190,8 @@ export default function SuperadminClientsPage() {
                     Clear Search
                   </Button>
                 ) : (
-                  <Button variant="primary" size="sm" onClick={() => setIsAddOpen(true)}>
-                    Add First Client
+                  <Button variant="primary" size="sm" onClick={() => router.push("/superadmin/onboarding")}>
+                    Start Client Onboarding
                   </Button>
                 )
               }

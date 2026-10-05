@@ -3,6 +3,7 @@ import { mapProduct } from "./product.mapper.js";
 import type { CtProduct } from "../../../commercetools/types.js";
 import { getProductByIdOrKey, listProducts } from "../../../commercetools/api/index.js";
 import { escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
+import { catalogFacets, matchesCatalogFilters, type CatalogMoney, type FilterableProduct } from "./product.filters.js";
 import type { ProductSearchArgs } from "./product.types.js";
 
 // Minimal fields for the basic Product contract type (quickSearch, product resolver).
@@ -31,7 +32,8 @@ const richProductListFields = `#graphql
   createdAt
   lastModifiedAt
   taxCategory { name }
-  productType { name }
+  priceMode
+  productType { id name }
   masterData {
     hasStagedChanges
     current {
@@ -185,19 +187,13 @@ export const resolvers = {
     const { limit, offset } = paging(args);
     const text = args.text?.trim();
 
+    if (args.includeFacets || args.filters) return filteredCatalogSearch(args, limit, offset);
+
     if (!text) {
       return productsRichPage(undefined, limit, offset, sort(args, "createdAt"));
     }
 
-    const locale = normalizeLocale(args.locale);
-    const exactWhere = productExactWhere(args.field, escapeWhere(text));
-    const exact = await productsRichPage(exactWhere, limit, offset, sort(args, "createdAt"));
-
-    if (exact.total > 0) {
-      return exact;
-    }
-
-    return productRichTextScan(text, locale, limit, offset);
+    return productRichTextScan(text, args.field, limit, offset);
   },
   quickSearchProducts: async (_parent: unknown, args: { limit?: number; q: string }) => {
     const text = args.q.trim();
@@ -346,41 +342,86 @@ async function productsRichPage(
   };
 }
 
-async function productRichTextScan(text: string, locale: string, limit: number, offset: number) {
-  const needle = text.toLowerCase();
-  const data = await commercetoolsGraphql<{ products: { results: Record<string, unknown>[] } }>(
-    `#graphql
-      query ProductsRichScan($limit: Int!) {
-        products(limit: $limit) {
-          results { ${richProductListFields} }
+async function filteredCatalogSearch(args: ProductSearchArgs, limit: number, offset: number) {
+  const currency = args.currency || "USD";
+  const matches: Array<Record<string, unknown> & FilterableProduct> = [];
+  let scanOffset = 0;
+  const needle = args.text?.trim().toLowerCase();
+  while (true) {
+    const batch = await productsRichPage(undefined, 100, scanOffset, [...(sort(args, "createdAt") ?? []), "id asc"]);
+    const candidates = batch.results.filter((product) => !needle || richProductMatchesText(product, args.field, needle));
+    // Limit concurrent standalone price lookups. Resolve the same master-SKU
+    // price for filtering and display so the price range matches the cards.
+    for (let i = 0; i < candidates.length; i += 10) {
+      matches.push(...await Promise.all(candidates.slice(i, i + 10).map(async (product) => {
+        const current = (product.masterData as { current?: { masterVariant?: { sku?: string; prices?: Array<{ value: CatalogMoney }> } } })?.current;
+        const master = current?.masterVariant;
+        let prices = (master?.prices ?? []).map((price) => price.value);
+        if (master?.sku && (product.priceMode === "Standalone" || prices.length === 0)) {
+          const data = await commercetoolsGraphql<{ standalonePrices: { results: Array<{ value: CatalogMoney }> } }>(
+            `query CatalogStandalonePrices($where: String!) { standalonePrices(where: $where, limit: 500) { results { value { centAmount currencyCode fractionDigits } } } }`,
+            { where: `sku="${escapeWhere(master.sku)}"` }
+          );
+          prices = data.standalonePrices.results.map((price) => price.value);
         }
-      }
-    `,
-    { limit: 50 }
-  );
-
-  const matched = data.products.results.filter((p) => richProductMatchesText(p, locale, needle));
-  const results = matched.slice(offset, offset + limit);
-
-  return {
-    count: results.length,
-    offset,
-    results,
-    total: matched.length
-  };
+        const resolvedPrice = prices.filter((price) => price.currencyCode === currency).sort((a, b) =>
+          a.centAmount / 10 ** (a.fractionDigits ?? 2) - b.centAmount / 10 ** (b.fractionDigits ?? 2))[0] ?? null;
+        return { ...product, resolvedPrice };
+      })));
+    }
+    scanOffset += batch.results.length;
+    if (batch.results.length < 100 || scanOffset >= batch.total) break;
+  }
+  const filtered = matches.filter((product) => matchesCatalogFilters(product, args.filters ?? {}));
+  const results = filtered.slice(offset, offset + limit);
+  return { count: results.length, offset, total: filtered.length, results,
+    facets: catalogFacets(matches, args.locale || "en", currency) };
 }
 
-function richProductMatchesText(product: Record<string, unknown>, _locale: string, needle: string) {
-  const masterData = product.masterData as { current?: { nameAllLocales?: Array<{ value: string }>; descriptionAllLocales?: Array<{ value: string }> } } | undefined;
+async function productRichTextScan(text: string, field: string | undefined, limit: number, offset: number) {
+  const needle = text.toLowerCase();
+  const results: Record<string, unknown>[] = [];
+  let total = 0;
+  let scanOffset = 0;
+  const batchSize = 100;
+
+  // CT product predicates cannot perform substring matching. Scan every batch
+  // in stable order, applying pagination to matches rather than source products.
+  // Retain only the requested result page while still calculating the full total.
+  while (true) {
+    const batch = await productsRichPage(undefined, batchSize, scanOffset, ["id asc"]);
+    for (const product of batch.results) {
+      if (!richProductMatchesText(product, field, needle)) continue;
+      if (total >= offset && results.length < limit) results.push(product);
+      total += 1;
+    }
+    scanOffset += batch.results.length;
+    if (batch.results.length < batchSize || scanOffset >= batch.total) break;
+  }
+
+  return { count: results.length, offset, results, total };
+}
+
+function richProductMatchesText(product: Record<string, unknown>, field: string | undefined, needle: string) {
+  const masterData = product.masterData as {
+    current?: {
+      nameAllLocales?: Array<{ value: string }>;
+      descriptionAllLocales?: Array<{ value: string }>;
+      masterVariant?: { sku?: string };
+      allVariants?: Array<{ sku?: string }>;
+    };
+  } | undefined;
   const current = masterData?.current;
-  const localizedValues = (values: Array<{ value: string }> | undefined) =>
-    (values ?? []).map((entry) => entry.value);
-  const candidates: (string | undefined)[] = [
-    product.key as string | undefined,
-    ...localizedValues(current?.nameAllLocales),
-    ...localizedValues(current?.descriptionAllLocales)
-  ];
-  return candidates.filter((v): v is string => Boolean(v)).some((v) => v.toLowerCase().includes(needle));
+  const names = (current?.nameAllLocales ?? []).map((entry) => entry.value);
+  const descriptions = (current?.descriptionAllLocales ?? []).map((entry) => entry.value);
+  const skus = [current?.masterVariant?.sku, ...(current?.allVariants ?? []).map((variant) => variant.sku)];
+  const key = product.key as string | undefined;
+  const candidates = field === "name" ? names
+    : field === "description" ? descriptions
+    : field === "key" ? [key]
+    : field === "variants.sku" ? skus
+    : [key, ...names, ...descriptions, ...skus];
+  return candidates.some((value) => typeof value === "string" && value.toLowerCase().includes(needle));
 }
 
 function productMatchesText(product: CtProduct, _locale: string, needle: string) {

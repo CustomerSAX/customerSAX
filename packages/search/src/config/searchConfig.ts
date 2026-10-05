@@ -10,89 +10,9 @@ import type {
 import { getAlgoliaConfigFromEnv } from '../providers/algolia/configuration';
 
 export const DEFAULT_FACETS: SearchFacetConfig[] = [
-  {
-    attribute: 'searchType',
-    label: 'Search Type',
-    operator: 'or',
-    limit: 10,
-    showMore: true
-  },
-  {
-    attribute: 'productType',
-    label: 'Product Type',
-    operator: 'or',
-    limit: 10,
-    showMore: true
-  },
-  {
-    attribute: 'wineStyle',
-    label: 'Wine Style',
-    operator: 'or',
-    limit: 10,
-    showMore: true
-  },
-  {
-    attribute: 'grapes',
-    label: 'Grape',
-    operator: 'or',
-    limit: 10,
-    showMore: true,
-    searchable: true,
-    searchablePlaceholder: 'Search grapes...'
-  },
-  {
-    attribute: 'country',
-    label: 'Country',
-    operator: 'or',
-    limit: 10,
-    showMore: true,
-    searchable: true,
-    searchablePlaceholder: 'Search countries...'
-  },
-  {
-    attribute: 'region',
-    label: 'Region',
-    operator: 'or',
-    limit: 10,
-    showMore: true,
-    searchable: true,
-    searchablePlaceholder: 'Search regions...'
-  },
-  {
-    attribute: 'vppItem',
-    label: 'VPP Items',
-    operator: 'or',
-    limit: 10,
-    showMore: false
-  },
-  {
-    attribute: 'memberOffer',
-    label: 'Member Offers',
-    operator: 'or',
-    limit: 10,
-    showMore: false
-  },
-  {
-    attribute: 'saleable',
-    label: 'Show Only',
-    operator: 'or',
-    limit: 10,
-    showMore: false
-  },
-  {
-    attribute: 'salesActivity',
-    label: 'Sales Activity',
-    operator: 'or',
-    limit: 10,
-    showMore: true
-  },
-  {
-    attribute: 'stockStatus',
-    label: 'Stock Status',
-    operator: 'or',
-    limit: 10,
-    showMore: false
-  }
+  { attribute: 'productType', label: 'Product Type', operator: 'or', limit: 10, showMore: true },
+  { attribute: 'categories', label: 'Categories', operator: 'or', limit: 10, showMore: true },
+  { attribute: 'stockStatus', label: 'Availability', operator: 'or', limit: 10 }
 ];
 
 export const DEFAULT_NUMERIC_FILTERS: SearchNumericFilterConfig[] = [
@@ -108,6 +28,7 @@ export const DEFAULT_FIELD_MAPPING: SearchFieldMapping = {
   title: ['name', 'title', 'productName', 'label'],
   description: ['description', 'summary', 'details', 'wineStyle'],
   sku: ['sku', 'productCode', 'itemNumber', 'objectID'],
+  imageUrl: ['imageUrl', 'image_url', 'image', 'thumbnail'],
   price: ['price', 'amount', 'unitPrice', 'salePrice'],
   pricePerUnit: ['pricePerBottle', 'pricePerUnit', 'unitPrice'],
   currency: ['currency', 'priceCurrency'],
@@ -133,7 +54,7 @@ export function getDefaultSearchConfig(): OrganizationSearchConfig {
     facets: DEFAULT_FACETS,
     numericFilters: DEFAULT_NUMERIC_FILTERS,
     sortOptions: [
-      { label: 'Name (A–Z)', value: envConfig?.indexName || 'default' }
+      { label: 'Relevance', value: envConfig?.indexName || 'default' }
     ],
     fieldMapping: DEFAULT_FIELD_MAPPING
   };
@@ -172,7 +93,7 @@ export function normalizeSearchResultItem(
   const price = resolveFieldValue<number>(hit, mapping.price);
   const pricePerUnit = resolveFieldValue<number>(hit, mapping.pricePerUnit);
   const currency = resolveFieldValue<string>(hit, mapping.currency) || 'USD';
-  const imageUrl = resolveFieldValue<string>(hit, mapping.imageUrl);
+  const imageUrl = resolveFieldValue<unknown>(hit, mapping.imageUrl ?? DEFAULT_FIELD_MAPPING.imageUrl);
   const category = resolveFieldValue<string>(hit, mapping.category);
   const brand = resolveFieldValue<string>(hit, mapping.brand);
   const rating = resolveFieldValue<number>(hit, mapping.rating);
@@ -240,7 +161,7 @@ export function normalizeSearchResultItem(
     price: typeof price === 'number' ? price : undefined,
     pricePerUnit: typeof pricePerUnit === 'number' ? pricePerUnit : undefined,
     currency,
-    imageUrl,
+    imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : undefined,
     category,
     brand,
     rating: typeof rating === 'number' ? rating : undefined,

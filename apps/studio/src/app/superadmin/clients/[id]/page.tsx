@@ -1,5 +1,6 @@
 "use client";
 
+import { ProductsSettings } from "./ProductsSettings";
 import { TicketingSettings } from "./TicketingSettings";
 import { CrmSettings } from "./CrmSettings";
 
@@ -625,6 +626,7 @@ function ProjectsTab({
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectRow | null>(null);
+  const [productsProject, setProductsProject] = useState<ProjectRow | null>(null);
   const [ticketingProject, setTicketingProject] = useState<ProjectRow | null>(null);
   const [crmProject, setCrmProject] = useState<ProjectRow | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -678,8 +680,7 @@ function ProjectsTab({
                   <TableHead className="w-[90px]">Secret</TableHead>
                   <TableHead className="w-[120px]">Shell</TableHead>
                   <TableHead className="w-[100px]">Added</TableHead>
-                  <TableHead className="w-[110px]">Ticketing</TableHead>
-                  <TableHead className="w-[110px]">CRM</TableHead>
+                  <TableHead className="min-w-[180px]">Connectors</TableHead>
                   <TableHead className="min-w-[290px] text-right pr-4">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -711,19 +712,23 @@ function ProjectsTab({
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-m-text-muted">{formatDate(p.createdAt)}</TableCell>
                         <TableCell>
-                          <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${(p.ticketingProvider === "zendesk" || p.ticketingProvider === "freshdesk") ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
-                            {p.ticketingProvider === "zendesk" ? "Zendesk" : p.ticketingProvider === "freshdesk" ? "Freshdesk" : "Native"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${p.crmProvider === "salesforce" ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
-                            {p.crmProvider === "salesforce" ? "Salesforce" : "None"}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span title="Ticketing connector" aria-label={`Ticketing: ${p.ticketingProvider === "zendesk" ? "Zendesk" : p.ticketingProvider === "freshdesk" ? "Freshdesk" : "Native"}`} className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${(p.ticketingProvider === "zendesk" || p.ticketingProvider === "freshdesk") ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
+                              {p.ticketingProvider === "zendesk" ? "Zendesk" : p.ticketingProvider === "freshdesk" ? "Freshdesk" : "Ticketing Native"}
+                            </span>
+                            <span title={p.productsProvider ? "Products connector" : "Products uses Native by default until project settings are saved"} aria-label={`Products: ${p.productsProvider === "algolia" ? "Algolia" : "Native"}`} className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${p.productsProvider === "algolia" ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
+                              {p.productsProvider === "algolia" ? "Algolia" : "Products Native"}
+                            </span>
+                            <span title="CRM connector" aria-label={`CRM: ${p.crmProvider === "salesforce" ? "Salesforce" : "None"}`} className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${p.crmProvider === "salesforce" ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
+                              {p.crmProvider === "salesforce" ? "Salesforce" : "No CRM"}
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right pr-4">
                           <div className="flex items-center justify-end gap-3">
-                            <Button variant="outline" size="sm" leftIcon={<Icon name="settings" size="xs" />} onClick={() => { setCrmProject(null); setTicketingProject(p); }} disabled={clientBlocked}>Ticketing</Button>
-                            <Button variant="outline" size="sm" leftIcon={<Icon name="settings" size="xs" />} onClick={() => { setTicketingProject(null); setCrmProject(p); }} disabled={clientBlocked}>CRM</Button>
+                            <Button variant="outline" size="sm" leftIcon={<Icon name="settings" size="xs" />} onClick={() => { setProductsProject(null); setCrmProject(null); setTicketingProject(p); }} disabled={clientBlocked}>Ticketing</Button>
+                            <Button variant="outline" size="sm" leftIcon={<Icon name="settings" size="xs" />} onClick={() => { setTicketingProject(null); setCrmProject(null); setProductsProject(p); }} disabled={clientBlocked}>Products</Button>
+                            <Button variant="outline" size="sm" leftIcon={<Icon name="settings" size="xs" />} onClick={() => { setTicketingProject(null); setProductsProject(null); setCrmProject(p); }} disabled={clientBlocked}>CRM</Button>
                             <Button variant="ghost" size="sm" leftIcon={<Icon name="trash-2" size="xs" />} aria-label={`Remove project ${p.displayName}`} onClick={() => void handleDelete(p)} disabled={removingId === p.id}>
                               Remove
                             </Button>
@@ -736,6 +741,8 @@ function ProjectsTab({
           </div>
         )}
       </div>
+
+      {productsProject && <ProductsSettings key={productsProject.id} clientId={clientId} project={productsProject} onClose={() => setProductsProject(null)} onSaved={onChanged} />}
 
       {ticketingProject && <TicketingSettings key={ticketingProject.id} clientId={clientId} project={ticketingProject} onClose={() => setTicketingProject(null)} onSaved={onChanged} />}
       {crmProject && <CrmSettings key={crmProject.id} clientId={clientId} project={crmProject} onClose={() => setCrmProject(null)} onSaved={onChanged} />}
