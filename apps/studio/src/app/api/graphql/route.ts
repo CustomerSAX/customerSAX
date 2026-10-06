@@ -17,14 +17,18 @@ export async function POST(request: Request) {
     const session = await sessionResponse.json().catch(() => ({}));
     if (!sessionResponse.ok) return NextResponse.json({ errors: [{ message: "unauthenticated" }] }, { status: 401 });
     session.user = await ensureDefaultProjectSelection(token, session.user);
-    if (session.user?.requiresProjectSelection) {
+    if (session.user?.requiresProjectSelection && (session.user.projects?.length ?? 0) > 0) {
       return NextResponse.json({ errors: [{ message: "project selection required" }] }, { status: 409 });
     }
+    const activeClientId =
+      session.user?.activeClientId ||
+      session.user?.organization?.id ||
+      (session.user?.tenantId !== "csa" ? session.user?.tenantId : undefined);
     const headers = applyCsaHeaders({ "content-type": "application/json" } as Record<string, string>, {
-      projectKey: session.user.activeProjectKey,
-      clientId: session.user.activeClientId,
-      userRole: session.user.role,
-      userEmail: session.user.email
+      projectKey: session.user?.activeProjectKey,
+      clientId: activeClientId,
+      userRole: session.user?.role,
+      userEmail: session.user?.email
     });
     const requestBody = await request.text();
     const response = await fetch(bffUrl, {

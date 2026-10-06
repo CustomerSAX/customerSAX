@@ -150,6 +150,8 @@ export const typeDefs = gql`
     smtpProfileId: String
     standaloneB2cEnabled: Boolean
     standaloneB2bEnabled: Boolean
+    isConfigured: Boolean
+    status: String
     shopifyStoreDomain: String
     shopifyApiVersion: String
     bigcommerceStoreHash: String
@@ -291,7 +293,8 @@ export const typeDefs = gql`
     password: String!
     firstName: String
     lastName: String
-    projects: [AdminUserProjectInput!]!
+    role: String
+    projects: [AdminUserProjectInput!]
   }
 
   input AdminAssignUserInput {
@@ -557,6 +560,27 @@ export const resolvers = {
         standaloneB2cEnabled: modeCheck.standaloneB2cEnabled,
         standaloneB2bEnabled: modeCheck.standaloneB2bEnabled,
       });
+
+      // If the project was created by an admin of this client (or if there are org admins with 0 projects),
+      // ensure the creator and unassigned org admins get access to this project
+      try {
+        const orgUsers = await usersRepo.listUsersByClient(args.clientId);
+        for (const user of orgUsers) {
+          const isCreator = args.createdBy && user.email.toLowerCase() === args.createdBy.toLowerCase();
+          const hasNoProjects = !user.projects || user.projects.length === 0;
+          if (isCreator || (user.role === "admin" && hasNoProjects)) {
+            await usersRepo.assignUserToClient({
+              email: user.email,
+              clientId: args.clientId,
+              projects: [{ projectKey: args.input.projectKey, role: "admin" }],
+              grantedBy: args.createdBy || "system",
+            }).catch(() => {});
+          }
+        }
+      } catch (err) {
+        log.warn("adminCreateProject auto-assignment notice", { err });
+      }
+
       return projectViewIso(project);
     },
 
@@ -724,21 +748,22 @@ export const resolvers = {
           password: string;
           firstName?: string;
           lastName?: string;
-          projects: { projectKey: string; role: string }[];
+          role?: string;
+          projects?: { projectKey: string; role: string }[];
         };
       }
     ) => {
       const client = await requireClient(args.clientId);
       if (client.status === "blocked") throw new Error("Cannot add users to a blocked client");
-      if (!args.input.projects || args.input.projects.length === 0) {
-        throw new Error("Select at least one project");
-      }
       if (args.input.password.length < 8) throw new Error("Password must be at least 8 characters");
 
-      const clientProjectKeys = new Set((await projectsRepo.listProjectsByClient(args.clientId)).map((p) => p.projectKey));
-      for (const p of args.input.projects) {
-        if (!clientProjectKeys.has(p.projectKey)) {
-          throw new Error(`Project '${p.projectKey}' does not belong to this client`);
+      const projectsToAssign = args.input.projects ?? [];
+      if (projectsToAssign.length > 0) {
+        const clientProjectKeys = new Set((await projectsRepo.listProjectsByClient(args.clientId)).map((p) => p.projectKey));
+        for (const p of projectsToAssign) {
+          if (!clientProjectKeys.has(p.projectKey)) {
+            throw new Error(`Project '${p.projectKey}' does not belong to this client`);
+          }
         }
       }
 
@@ -747,8 +772,9 @@ export const resolvers = {
         password: args.input.password,
         firstName: args.input.firstName,
         lastName: args.input.lastName,
+        role: args.input.role ?? "admin",
         clientId: args.clientId,
-        projects: args.input.projects,
+        projects: projectsToAssign,
         grantedBy: args.grantedBy,
       });
       return clientUserView(user, args.clientId);

@@ -58,7 +58,16 @@ export async function ensureDefaultProjectSelection<T extends SessionUserWithPro
   const defaultProject =
     user.projects?.find((project) => project.projectKey && project.clientId) ||
     user.projects?.find((project) => project.projectKey);
-  if (!defaultProject) return user;
+  if (!defaultProject) {
+    if (!user.activeClientId && (user.organization?.id || (user.tenantId && user.tenantId !== "csa"))) {
+      return {
+        ...user,
+        activeClientId: user.organization?.id || user.tenantId,
+        requiresProjectSelection: false
+      };
+    }
+    return user;
+  }
 
   const clientId =
     defaultProject.clientId ||

@@ -53,11 +53,11 @@ export async function findUserById(id: string): Promise<CsaUser | null> {
   return (await users.findById(id)) as CsaUser | null;
 }
 
-/** Every user with at least one projects[] entry for this client (plus legacy top-level clientId rows). */
+/** Every user with at least one projects[] entry for this client (plus legacy top-level clientId/tenantId rows). */
 export async function listUsersByClient(clientId: string): Promise<CsaUser[]> {
   const col = await getUsersCollection();
   const docs = await col
-    .find({ $or: [{ "projects.clientId": clientId }, { clientId }] })
+    .find({ $or: [{ "projects.clientId": clientId }, { clientId }, { tenantId: clientId }] })
     .sort({ email: 1 })
     .toArray();
   return docs as unknown as CsaUser[];
@@ -65,7 +65,7 @@ export async function listUsersByClient(clientId: string): Promise<CsaUser[]> {
 
 export async function countUsersByClient(clientId: string): Promise<number> {
   const col = await getUsersCollection();
-  return col.countDocuments({ $or: [{ "projects.clientId": clientId }, { clientId }] });
+  return col.countDocuments({ $or: [{ "projects.clientId": clientId }, { clientId }, { tenantId: clientId }] });
 }
 
 export async function countUsersByProjectRole(clientId: string, projectKey: string, role: string): Promise<number> {
@@ -81,14 +81,15 @@ export async function countUsersAssignedRole(clientId: string, projectKey: strin
 // Writes
 // ---------------------------------------------------------------------------
 
-/** Creates a brand-new user with one or more project memberships, all scoped to the given client. */
+/** Creates a brand-new user with zero or more project memberships, all scoped to the given client. */
 export async function createUser(data: {
   email: string;
   password: string;
   firstName?: string;
   lastName?: string;
   clientId: string;
-  projects: { projectKey: string; role: string }[];
+  role?: string;
+  projects?: { projectKey: string; role: string }[];
   grantedBy: string;
 }): Promise<CsaUser> {
   const col = await getUsersCollection();
@@ -102,7 +103,7 @@ export async function createUser(data: {
   const now = new Date();
   const passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
 
-  const memberships: CsaUserProject[] = data.projects.map((p) => ({
+  const memberships: CsaUserProject[] = (data.projects ?? []).map((p) => ({
     projectKey: p.projectKey.trim(),
     role: p.role.trim(),
     clientId: data.clientId,
@@ -116,10 +117,12 @@ export async function createUser(data: {
     passwordHash,
     firstName: data.firstName?.trim() || undefined,
     lastName: data.lastName?.trim() || undefined,
-    role: primary?.role ?? "admin",
+    role: data.role?.trim() || primary?.role || "admin",
     projectKey: primary?.projectKey ?? "",
     defaultProjectKey: primary?.projectKey,
     projects: memberships,
+    clientId: data.clientId,
+    tenantId: data.clientId,
     active: true,
     grantedBy: data.grantedBy,
     createdAt: now,
@@ -161,11 +164,22 @@ export async function assignUserToClient(data: {
     throw new Error(`User ${email} is already assigned to the selected project(s) in this client`);
   }
 
+  const setObj: Record<string, unknown> = {
+    updatedAt: new Date(),
+    grantedBy: data.grantedBy,
+    clientId: data.clientId,
+    tenantId: data.clientId
+  };
+  if (!existing.projectKey && assignmentsToAdd.length > 0) {
+    setObj.projectKey = assignmentsToAdd[0].projectKey;
+    setObj.defaultProjectKey = assignmentsToAdd[0].projectKey;
+  }
+
   await col.updateOne(
     { email },
     {
       $push: { projects: { $each: assignmentsToAdd } } as never,
-      $set: { updatedAt: new Date(), grantedBy: data.grantedBy },
+      $set: setObj,
     }
   );
 

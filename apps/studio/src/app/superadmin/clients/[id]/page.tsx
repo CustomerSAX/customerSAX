@@ -1,13 +1,13 @@
 "use client";
 
 import { use } from "react";
-import { OnboardingWizard } from "@/features/onboarding/OnboardingWizard";
+import { SuperadminClientDetailsView } from "@/features/superadmin/SuperadminClientDetailsView";
 
-export default function SuperadminClientEditPage({
+export default function SuperadminClientDetailsPage({
   params
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  return <OnboardingWizard organizationId={id} mode="edit" />;
+  return <SuperadminClientDetailsView organizationId={id} />;
 }

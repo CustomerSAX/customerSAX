@@ -58,6 +58,8 @@ export const ADMIN_CLIENT_QUERY = gql`
       smtpProfileId
       standaloneB2cEnabled
       standaloneB2bEnabled
+      isConfigured
+      status
       shopifyStoreDomain
       shopifyApiVersion
       bigcommerceStoreHash
