@@ -168,7 +168,7 @@ export function useProductList(): UseProductListReturn {
         return rows.map((row) => {
           const lowest = lowestBySku.get(row.sku);
           return lowest
-            ? { ...row, price: `From ${formatMoneyValue(lowest)}` }
+            ? { ...row, price: `From ${formatMoneyValue(lowest)}`, priceValue: lowest }
             : row;
         });
       } catch (e) {

@@ -1,7 +1,7 @@
 "use client";
 
-import { use } from "react";
 import { SuperadminClientDetailsView } from "@/features/superadmin/SuperadminClientDetailsView";
+import { use } from "react";
 
 export default function SuperadminClientDetailsPage({
   params

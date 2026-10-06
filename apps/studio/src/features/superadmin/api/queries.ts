@@ -48,6 +48,7 @@ export const ADMIN_CLIENT_QUERY = gql`
       clientId
       platform
       ticketingProvider
+      productsProvider
       projectKey
       displayName
       ctApiUrl

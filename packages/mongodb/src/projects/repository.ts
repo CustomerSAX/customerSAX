@@ -8,7 +8,7 @@
 import { ObjectId } from "mongodb";
 import { getProjectsCollection } from "../admin/db.js";
 import { createCollectionAccessor } from "../collection-accessor.js";
-import { encrypt, decrypt } from "../encrypt.js";
+import { decrypt, encrypt } from "../encrypt.js";
 import type { CommercePlatform, CsaProject, ProjectCredentials } from "./types.js";
 
 /** Shared id-keyed helpers over the `csa_projects` collection. */
@@ -64,7 +64,7 @@ export function projectSecretMasked(doc: CsaProject): string {
 }
 
 export function projectView(doc: CsaProject) {
-  const { _id, credentials, ticketing: _ticketing, platform, ctApiUrl: _a, ctAuthUrl: _b, ctClientId: _c, ctClientSecretEncrypted: _d, scopes: _e, ...rest } = doc;
+  const { _id, credentials, ticketing: _ticketing, products: _products, platform, ctApiUrl: _a, ctAuthUrl: _b, ctClientId: _c, ctClientSecretEncrypted: _d, scopes: _e, ...rest } = doc;
   void credentials;
   const ct = ctCredsView(doc);
   const isConfigured = Boolean(
@@ -80,6 +80,7 @@ export function projectView(doc: CsaProject) {
     ticketingProvider: doc.ticketing?.provider ?? "internal",
     isConfigured,
     status,
+    productsProvider: doc.products?.provider ?? null,
     ctApiUrl: ct.ctApiUrl,
     ctAuthUrl: ct.ctAuthUrl,
     ctClientId: ct.ctClientId,
