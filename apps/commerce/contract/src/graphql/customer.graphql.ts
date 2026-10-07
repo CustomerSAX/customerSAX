@@ -37,6 +37,7 @@ export const customerTypeDefs = gql`
     customersByEmails(emails: [String!]!): [Customer!]!
     b2bCustomers(limit: Int = 20, offset: Int = 0, searchField: String, searchText: String, sortKey: String, sortOrder: String): CustomerPage!
     customerAddresses(id: ID!): Json!
+    customerContactTargets(id: ID!): Json
     customerShoppingLists(id: ID!, wishlist: Boolean = false, limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): Json!
     customerPromotions(id: ID!): Json!
   }
@@ -46,6 +47,7 @@ export const customerTypeDefs = gql`
     createEmployee(draft: Json!, companyId: ID!, role: String!): Customer
     updateCustomer(id: ID!, draft: Json!): Customer
     updateCustomerProfile(id: ID!, draft: Json!): Customer
+    updateCustomerContactNumber(id: ID!, addressId: ID!, expectedVersion: Int!, phone: String!): Json
     addCustomerAddress(id: ID!, address: Json!, addressType: String): Json!
     updateCustomerAddress(id: ID!, addressId: ID!, address: Json!): Json!
     removeCustomerAddress(id: ID!, addressId: ID!): Json!

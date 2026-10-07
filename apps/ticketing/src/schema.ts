@@ -121,6 +121,7 @@ export const typeDefs = gql`
   extend type Mutation {
     createTicket(draft: TicketDraftInput!): Ticket!
     updateTicket(id: ID!, patch: TicketUpdateInput!): Ticket
+    closeTicketIfUnchanged(id: ID!, expectedLastModifiedAt: String!, solution: String!): Ticket
     addTicketWorklog(id: ID!, comment: WorklogCommentInput!, projectKey: String): Ticket
   }
 `;
@@ -143,6 +144,11 @@ export const resolvers = {
     attachments: async (ticket: Ticket, _args: unknown, context: unknown) => (await detail(ticket, context))?.attachments || [],
   },
   Mutation: {
+    closeTicketIfUnchanged: async (_parent: unknown, args: { id: string; expectedLastModifiedAt: string; solution: string }, context: unknown) => {
+      const provider = await selectedProvider(context);
+      if (!provider.closeIfUnchanged) throw new Error("Conditional closure is available only for native tickets");
+      return provider.closeIfUnchanged(args.id, args.expectedLastModifiedAt, args.solution);
+    },
     createTicket: async (_parent: unknown, args: { draft: TicketDraft }, context: unknown) =>
       (await selectedProvider(context)).createTicket(args.draft),
     updateTicket: async (_parent: unknown, args: { id: string; patch: TicketUpdate & { projectKey?: string | null } }, context: unknown) =>

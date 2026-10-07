@@ -22,10 +22,9 @@
  *
  * No field is fabricated: SLA countdowns and sentiment analysis aren't
  * returned by the connected ticketing backend, so they render an honest
- * "—" (InfoRow's built-in empty state) rather than an invented value. AI
- * Assist is presented as a normal capability card (sparkles icon, never a
- * robot) with an honest empty state since no AI backend is wired to this
- * page yet.
+ * "—" (InfoRow's built-in empty state) rather than an invented value.
+ * Native tickets include a persistent AI proposal and approval panel.
+ * Commerce changes execute only after server-validated approval.
  */
 
 import { useState, useMemo, useEffect } from "react";
@@ -42,7 +41,7 @@ import {
   TableBody,
   TableRow,
   TableHead,
-  TableCell,
+  TableCell
 } from "@csa/ui";
 import {
   DetailPage,
@@ -66,10 +65,11 @@ import {
   MoreActionsMenu,
   CardEmpty,
   type EntityTab,
-  type StatusTone,
+  type StatusTone
 } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../hooks/use-tickets";
 import { ProviderFields } from "./ProviderFields";
+import { TicketAIReview } from "./TicketAIReview";
 import { ticketIdFromRoute } from "../api/ticket-id";
 import { useAssignees } from "../hooks/use-assignees";
 import { formatDate, formatDateTime } from "@/lib/format-date";
@@ -84,7 +84,7 @@ const PRIORITY_OPTIONS = [
   { value: "Low", label: "Low" },
   { value: "Medium", label: "Medium" },
   { value: "High", label: "High" },
-  { value: "Urgent", label: "Urgent" },
+  { value: "Urgent", label: "Urgent" }
 ];
 
 /** Status → tone mapping shared by the header pill, summary and audit table. */
@@ -117,7 +117,9 @@ function priorityTone(priority: TicketPriority): StatusTone {
 }
 
 /** Priority → tone mapping for SummaryCard (its tone enum has a "default"). */
-function summaryPriorityTone(priority: TicketPriority): "default" | "primary" | "success" | "warning" | "error" {
+function summaryPriorityTone(
+  priority: TicketPriority
+): "default" | "primary" | "success" | "warning" | "error" {
   switch (priority) {
     case "Urgent":
       return "error";
@@ -138,7 +140,8 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const backLabel = customerIdParam ? "Back to customer" : "Back to Tickets";
 
   const ticketId = ticketIdFromRoute(id);
-  const { getTicketById, updateTicket, addWorklog, loading, error } = useTicketStore(ticketId);
+  const { getTicketById, updateTicket, addWorklog, loading, error, refetch } =
+    useTicketStore(ticketId);
   const { user: currentUser } = useCurrentUser();
 
   const ticket = getTicketById(ticketId);
@@ -147,7 +150,8 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
 
   // Editable Form State
   const [assignedTo, setAssignedTo] = useState(ticket?.assignedTo || "Queue");
-  const { options: assigneeOptions, isLoading: assigneesLoading } = useAssignees(assignedTo);
+  const { options: assigneeOptions, isLoading: assigneesLoading } =
+    useAssignees(assignedTo);
   const [status, setStatus] = useState<TicketStatus>(ticket?.status || "Open");
   const [priority, setPriority] = useState<TicketPriority>(ticket?.priority || "High");
   const [solution, setSolution] = useState(ticket?.solution || "");
@@ -157,7 +161,9 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   };
   const [worklogInput, setWorklogInput] = useState("");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
-  const [expandedWorklogIds, setExpandedWorklogIds] = useState<Record<string, boolean>>({});
+  const [expandedWorklogIds, setExpandedWorklogIds] = useState<Record<string, boolean>>(
+    {}
+  );
 
   useEffect(() => {
     if (!ticket) return;
@@ -183,7 +189,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
       assignedTo,
       status,
       priority,
-      solution,
+      solution
     });
     setSaveSuccessMsg("Ticket status and assignment updated successfully.");
     setTimeout(() => setSaveSuccessMsg(""), 3000);
@@ -200,14 +206,18 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const handleAddWorklog = async () => {
     if (!worklogInput.trim()) return;
     if (!ticket) return;
-    await addWorklog(ticket.id, worklogInput.trim(), currentUser?.name || currentUser?.email || "Unknown agent");
+    await addWorklog(
+      ticket.id,
+      worklogInput.trim(),
+      currentUser?.name || currentUser?.email || "Unknown agent"
+    );
     setWorklogInput("");
   };
 
   const toggleExpand = (key: string) => {
     setExpandedWorklogIds((prev) => ({
       ...prev,
-      [key]: !prev[key],
+      [key]: !prev[key]
     }));
   };
 
@@ -258,7 +268,11 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
         <BackLink href={backHref}>{backLabel}</BackLink>
         <EntityHeader title="Ticket" />
         <SectionCard>
-          <CardEmpty icon="alert-triangle" title="Unable to load ticket" hint={error.message} />
+          <CardEmpty
+            icon="alert-triangle"
+            title="Unable to load ticket"
+            hint={error.message}
+          />
         </SectionCard>
       </DetailPage>
     );
@@ -270,7 +284,11 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
         <BackLink href={backHref}>{backLabel}</BackLink>
         <EntityHeader title="Ticket not found" />
         <SectionCard>
-          <CardEmpty icon="inbox" title="Ticket not found" hint={`No ticket exists with ID ${id}.`} />
+          <CardEmpty
+            icon="inbox"
+            title="Ticket not found"
+            hint={`No ticket exists with ID ${id}.`}
+          />
         </SectionCard>
       </DetailPage>
     );
@@ -281,8 +299,18 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
     { id: "customer", label: common("tabs.customer"), icon: "user" },
     { id: "order", label: common("tabs.order"), icon: "shopping-bag" },
     { id: "ai", label: common("tabs.aiAssist"), icon: "sparkles" },
-    { id: "notes", label: common("tabs.internalNotes"), icon: "file-text", count: ticket.comments.length },
-    { id: "history", label: common("tabs.history"), icon: "clock", count: ticket.history.length },
+    {
+      id: "notes",
+      label: common("tabs.internalNotes"),
+      icon: "file-text",
+      count: ticket.comments.length
+    },
+    {
+      id: "history",
+      label: common("tabs.history"),
+      icon: "clock",
+      count: ticket.history.length
+    }
   ];
 
   return (
@@ -301,26 +329,23 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                   id: "assign-me",
                   label: "Assign to Me",
                   icon: "user-check",
-                  onClick: handleQuickAssignToMe,
+                  onClick: handleQuickAssignToMe
                 },
                 {
                   id: "escalate",
                   label: "Escalate",
                   icon: "alert-triangle",
                   danger: true,
-                  onClick: handleQuickEscalate,
+                  onClick: handleQuickEscalate
                 },
                 {
                   id: "resolve",
                   label: "Resolve",
                   icon: "check-circle",
-                  onClick: handleQuickResolve,
-                },
+                  onClick: handleQuickResolve
+                }
               ]}
             />
-            <PrimaryButton icon="check" onClick={() => handleSaveChanges()}>
-              Update Status
-            </PrimaryButton>
           </>
         }
       />
@@ -328,11 +353,24 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
       <EntityTabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
       <SummaryGrid>
-        <SummaryCard icon="flag" label="Priority" value={ticket.priority} tone={summaryPriorityTone(ticket.priority)} />
-        <SummaryCard icon="folder" label="Category" value={TICKET_CATEGORIES[ticket.category] || ticket.category} />
+        <SummaryCard
+          icon="flag"
+          label="Priority"
+          value={ticket.priority}
+          tone={summaryPriorityTone(ticket.priority)}
+        />
+        <SummaryCard
+          icon="folder"
+          label="Category"
+          value={TICKET_CATEGORIES[ticket.category] || ticket.category}
+        />
         <SummaryCard icon="user-check" label="Assigned To" value={ticket.assignedTo} />
         <SummaryCard icon="tag" label="Channel" value={ticket.contactType} />
-        <SummaryCard icon="file-text" label="Internal Notes" value={ticket.comments.length} />
+        <SummaryCard
+          icon="file-text"
+          label="Internal Notes"
+          value={ticket.comments.length}
+        />
         <SummaryCard
           icon="calendar"
           label="Last Updated"
@@ -342,6 +380,21 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
 
       <ContentGrid>
         <MainColumn span={8}>
+          {!ticket.id.startsWith("zendesk:") && !ticket.id.startsWith("freshdesk:") && (
+            <TicketAIReview
+              key={JSON.stringify([
+                currentUser?.activeClientId,
+                currentUser?.activeProjectKey,
+                ticket.id,
+                ticket.lastModifiedAt,
+                ticket.subject,
+                ticket.message,
+                ticket.customerId
+              ])}
+              ticket={ticket}
+              onTicketChanged={refetch}
+            />
+          )}
           {activeTab === "conversation" && (
             <>
               <SectionCard title="Conversation" icon="message-square">
@@ -349,12 +402,16 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                   {/* Customer's original message */}
                   <div className="flex flex-col gap-1.5 rounded-m-lg border border-m-border bg-m-surface-2 p-3.5">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-[12.5px] font-semibold text-m-text">{ticket.email || "Customer"}</span>
+                      <span className="text-[12.5px] font-semibold text-m-text">
+                        {ticket.email || "Customer"}
+                      </span>
                       <span className="text-[11px] text-m-text-muted">
                         {fmtDate(ticket.createdAt)}
                       </span>
                     </div>
-                    <p className="text-[13px] leading-relaxed text-m-text">{ticket.message || "—"}</p>
+                    <p className="text-[13px] leading-relaxed text-m-text">
+                      {ticket.message || "—"}
+                    </p>
                   </div>
 
                   {/* Agent resolution note, if one has been recorded */}
@@ -370,7 +427,9 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                           </span>
                         )}
                       </div>
-                      <p className="text-[13px] leading-relaxed text-m-text">{ticket.solution}</p>
+                      <p className="text-[13px] leading-relaxed text-m-text">
+                        {ticket.solution}
+                      </p>
                     </div>
                   )}
 
@@ -423,7 +482,9 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
               icon="user"
               action={
                 ticket.customerId ? (
-                  <CardAction href={`/customers/${ticket.customerId}`}>View full profile →</CardAction>
+                  <CardAction href={`/customers/${ticket.customerId}`}>
+                    View full profile →
+                  </CardAction>
                 ) : undefined
               }
             >
@@ -451,7 +512,9 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
               icon="shopping-bag"
               action={
                 ticket.orderNumber ? (
-                  <CardAction href={`/orders/${ticket.orderNumber}`}>View order →</CardAction>
+                  <CardAction href={`/orders/${ticket.orderNumber}`}>
+                    View order →
+                  </CardAction>
                 ) : undefined
               }
             >
@@ -469,15 +532,16 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
             </SectionCard>
           )}
 
-          {activeTab === "ai" && (
-            <SectionCard title="AI Assist" icon="sparkles">
-              <CardEmpty
-                icon="sparkles"
-                title="AI Assist isn't connected to this ticket"
-                hint="Suggested replies, summaries, and sentiment analysis will appear here once wired to a backend AI service."
-              />
-            </SectionCard>
-          )}
+          {activeTab === "ai" &&
+            (ticket.id.startsWith("zendesk:") || ticket.id.startsWith("freshdesk:")) && (
+              <SectionCard title="AI Assist" icon="sparkles">
+                <CardEmpty
+                  icon="sparkles"
+                  title="AI Assist isn't connected to this ticket"
+                  hint="Suggested replies, summaries, and sentiment analysis will appear here once wired to a backend AI service."
+                />
+              </SectionCard>
+            )}
 
           {activeTab === "notes" && (
             <SectionCard title="Internal Notes" icon="file-text">
@@ -493,7 +557,10 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                     const isExpanded = Boolean(expandedWorklogIds[w.id]);
                     const needsToggle = w.comment.length > 200;
                     return (
-                      <div key={w.id} className="flex flex-col gap-1.5 p-3 rounded-m-md border border-m-border bg-m-surface">
+                      <div
+                        key={w.id}
+                        className="flex flex-col gap-1.5 p-3 rounded-m-md border border-m-border bg-m-surface"
+                      >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="text-[12px] font-semibold text-m-text">
@@ -505,7 +572,9 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                           </span>
                         </div>
                         <div className="text-[13px] leading-relaxed text-m-text-subtle">
-                          {needsToggle && !isExpanded ? `${w.comment.slice(0, 200)}...` : w.comment}
+                          {needsToggle && !isExpanded
+                            ? `${w.comment.slice(0, 200)}...`
+                            : w.comment}
                         </div>
                         {needsToggle && (
                           <button
@@ -541,7 +610,11 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                 <CardEmpty
                   icon="clock"
                   title="No audit history entries found"
-                  hint={auditSearchText ? "No entries match your search." : "This ticket has no recorded workflow history yet."}
+                  hint={
+                    auditSearchText
+                      ? "No entries match your search."
+                      : "This ticket has no recorded workflow history yet."
+                  }
                 />
               ) : (
                 <Table>
@@ -567,7 +640,8 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                           {fmtDate(h.operationDate)}
                         </TableCell>
                         <TableCell className="text-[12px] font-semibold">
-                          {(TICKET_CATEGORIES as Record<string, string>)[h.reason] || h.reason}
+                          {(TICKET_CATEGORIES as Record<string, string>)[h.reason] ||
+                            h.reason}
                         </TableCell>
                         <TableCell className="max-w-xs truncate text-[12px] text-m-text">
                           {h.solution || "--"}
@@ -576,10 +650,16 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                           <StatusPill tone={statusTone(h.status)}>{h.status}</StatusPill>
                         </TableCell>
                         <TableCell>
-                          <StatusPill tone={priorityTone(h.priority)}>{h.priority}</StatusPill>
+                          <StatusPill tone={priorityTone(h.priority)}>
+                            {h.priority}
+                          </StatusPill>
                         </TableCell>
-                        <TableCell className="text-[12px] text-m-text-muted">{h.assignedTo}</TableCell>
-                        <TableCell className="font-mono text-[12px]">{h.timeSpent || "--"}</TableCell>
+                        <TableCell className="text-[12px] text-m-text-muted">
+                          {h.assignedTo}
+                        </TableCell>
+                        <TableCell className="font-mono text-[12px]">
+                          {h.timeSpent || "--"}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -590,18 +670,28 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
         </MainColumn>
 
         <SideColumn span={4}>
-          {ticket.id.startsWith("zendesk:") && <ProviderFields id={ticket.id} provider="Zendesk" />}
-          {ticket.id.startsWith("freshdesk:") && <ProviderFields id={ticket.id} provider="Freshdesk" />}
+          {ticket.id.startsWith("zendesk:") && (
+            <ProviderFields id={ticket.id} provider="Zendesk" />
+          )}
+          {ticket.id.startsWith("freshdesk:") && (
+            <ProviderFields id={ticket.id} provider="Freshdesk" />
+          )}
           <SectionCard
             title="Ticket Workflow"
             icon="settings"
             action={
               saveSuccessMsg ? (
-                <span className="text-[11px] font-semibold text-m-success">{saveSuccessMsg}</span>
+                <span className="text-[11px] font-semibold text-m-success">
+                  {saveSuccessMsg}
+                </span>
               ) : undefined
             }
           >
-            <form id="ticket-workflow-form" onSubmit={handleSaveChanges} className="flex flex-col gap-4">
+            <form
+              id="ticket-workflow-form"
+              onSubmit={handleSaveChanges}
+              className="flex flex-col gap-4"
+            >
               <FormField>
                 <Label>Assign To Agent</Label>
                 <Select
@@ -670,7 +760,9 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
             title="Customer"
             icon="user"
             action={
-              ticket.customerId ? <CardAction href={`/customers/${ticket.customerId}`}>View →</CardAction> : undefined
+              ticket.customerId ? (
+                <CardAction href={`/customers/${ticket.customerId}`}>View →</CardAction>
+              ) : undefined
             }
           >
             <InfoList>
@@ -694,14 +786,31 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                 <InfoRow label="Order Number" value={ticket.orderNumber} mono />
               </InfoList>
             ) : (
-              <CardEmpty icon="shopping-bag" title="No order linked" hint="Not associated with a commerce order." />
+              <CardEmpty
+                icon="shopping-bag"
+                title="No order linked"
+                hint="Not associated with a commerce order."
+              />
             )}
           </SectionCard>
 
           <QuickActions>
-            <QuickAction icon="user-check" label="Assign to Me" onClick={handleQuickAssignToMe} />
-            <QuickAction icon="alert-triangle" label="Escalate" tone="danger" onClick={handleQuickEscalate} />
-            <QuickAction icon="check-circle" label="Resolve" onClick={handleQuickResolve} />
+            <QuickAction
+              icon="user-check"
+              label="Assign to Me"
+              onClick={handleQuickAssignToMe}
+            />
+            <QuickAction
+              icon="alert-triangle"
+              label="Escalate"
+              tone="danger"
+              onClick={handleQuickEscalate}
+            />
+            <QuickAction
+              icon="check-circle"
+              label="Resolve"
+              onClick={handleQuickResolve}
+            />
           </QuickActions>
         </SideColumn>
       </ContentGrid>
