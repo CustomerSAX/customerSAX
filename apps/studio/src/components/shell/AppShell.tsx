@@ -15,6 +15,7 @@ import {
 } from "@csa/i18n";
 import {
   Avatar,
+  Button,
   Dropdown,
   Icon,
   Sidebar,
@@ -23,6 +24,7 @@ import {
   TopBar,
   useDialogAccessibility
 } from "@csa/ui";
+import { CreateProjectModal } from "@/features/projects/CreateProjectModal";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -488,7 +490,12 @@ const navigationModuleById: Record<string, string | string[] | undefined> = {
   knowledgebase: "knowledgebase",
   "csa-assistant": "assistant",
   "audit-log": "audit",
-  "admin-settings": ["users", "roles", "email"]
+  "admin-settings": undefined,
+  "admin-projects": undefined,
+  "admin-connectors": undefined,
+  "admin-organization": undefined,
+  "admin-users": "users",
+  "admin-roles": "roles"
 };
 
 const commandPermissionById: Record<
@@ -584,6 +591,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   });
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [entityResults, setEntityResults] = useState<GlobalSearchResult[]>([]);
@@ -684,7 +692,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               ? [
                 {
                   id: "admin-settings",
-                  href: "/admin/users",
+                  href: "/admin-settings/organization",
                   label: "Admin Settings",
                   icon: "settings"
                 } as SidebarItem
@@ -1110,6 +1118,17 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
     }
   }
+  if (
+    appPathname.startsWith("/admin-settings") ||
+    appPathname.startsWith("/admin/settings") ||
+    appPathname === "/admin/organization" ||
+    appPathname === "/admin/projects" ||
+    appPathname === "/admin/connectors" ||
+    appPathname === "/admin/users" ||
+    appPathname === "/admin/roles"
+  ) {
+    activeItemId = "admin-settings";
+  }
 
   const handleSelectItem = (item: SidebarItem) => {
     if (isNavigationOpen) navigationToggleRef.current?.focus();
@@ -1225,7 +1244,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Icon name={isNavigationOpen ? "x" : "menu"} size="sm" />
           <span className="sr-only">{isNavigationOpen ? t("collapseSidebar") : t("expandSidebar")}</span>
         </button>
-              {currentUser.projects.length > 0 && (
+              {currentUser.projects.length > 0 ? (
                 <select
                   aria-label={t("project")}
                   value={
@@ -1233,7 +1252,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                       ? `${currentUser.activeClientId ?? ""}:${currentUser.activeProjectKey}`
                       : ""
                   }
-                  onChange={(event) => void handleProjectChange(event.target.value)}
+                  onChange={(event) => {
+                    if (event.target.value === "__CREATE_NEW__") {
+                      setIsCreateProjectOpen(true);
+                    } else {
+                      void handleProjectChange(event.target.value);
+                    }
+                  }}
                   style={{
                     height: 34,
                     minWidth: 0,
@@ -1257,7 +1282,34 @@ export function AppShell({ children }: { children: ReactNode }) {
                       {projectOptionLabel(project)}
                     </option>
                   ))}
+                  {(currentUser.role === "admin" || currentUser.role === "superadmin") && (
+                    <option value="__CREATE_NEW__">+ New Project...</option>
+                  )}
                 </select>
+              ) : (
+                (currentUser.role === "admin" || currentUser.role === "superadmin") && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateProjectOpen(true)}
+                    style={{
+                      height: 34,
+                      borderRadius: "var(--radius-full)",
+                      border: "1px solid var(--topbar-overlay)",
+                      background: "rgba(255,255,255,0.25)",
+                      padding: "0 14px",
+                      fontSize: "var(--text-xs)",
+                      fontWeight: "var(--weight-semibold)",
+                      color: "var(--topbar-text)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      cursor: "pointer"
+                    }}
+                  >
+                    <Icon name="plus" size="xs" />
+                    <span>Create Project</span>
+                  </button>
+                )
               )}
             </div>
           }
@@ -1398,7 +1450,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         id: "settings",
                         label: t("organizationSettings"),
                         icon: "settings",
-                        onClick: () => router.push(localizePathname("/admin/users", currentLocale))
+                        onClick: () => router.push(localizePathname("/admin-settings/organization", currentLocale))
                       }
                     ]
                     : []),
@@ -1657,12 +1709,46 @@ export function AppShell({ children }: { children: ReactNode }) {
             background: "var(--color-bg)"
           }}
         >
-          {children}
+          {currentUser.role === "admin" &&
+          currentUser.projects.length === 0 &&
+          !appPathname.startsWith("/admin/") &&
+          !appPathname.startsWith("/admin-settings") ? (
+            <div className="flex flex-1 flex-col items-center justify-center p-8 text-center my-auto">
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-m-primary/10 text-m-primary mb-6 shadow-sm">
+                <Icon name="folder-plus" size="xl" />
+              </div>
+              <h2 className="text-2xl font-bold text-m-text">No projects found</h2>
+              <p className="mt-2 max-w-md text-sm text-m-text-muted">
+                Create your first project to continue. Connect your commerce platform, configure connectors, and start operating your store.
+              </p>
+              <div className="mt-6">
+                <Button
+                  variant="primary"
+                  onClick={() => setIsCreateProjectOpen(true)}
+                  className="flex items-center gap-2 px-6 py-2.5 text-base"
+                >
+                  <Icon name="plus" size="sm" />
+                  <span>Create Project</span>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            children
+          )}
         </main>
         {(appPathname === "/tickets" || appPathname.startsWith("/tickets/")) && (
           <TicketAIHelper />
         )}
       </div>
+
+      <CreateProjectModal
+        isOpen={isCreateProjectOpen}
+        onClose={() => setIsCreateProjectOpen(false)}
+        onSuccess={() => {
+          setIsCreateProjectOpen(false);
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

@@ -81,11 +81,18 @@ export function toPublicUser(user: AuthUser, activeProjectKey?: string, activeCl
       effectiveClientId = anyProjectWithClient.clientId;
     } else if ((user as any).clientId) {
       effectiveClientId = (user as any).clientId;
+    } else if (user.tenantId && user.tenantId !== "csa") {
+      effectiveClientId = user.tenantId;
     }
   }
 
   const activeMembership = projects.find((project) => project.projectKey === effectiveProjectKey && (!effectiveClientId || project.clientId === effectiveClientId));
-  const effectiveRole: AuthRole = user.role === "superadmin" ? "superadmin" : activeMembership?.role === "admin" ? "admin" : "agent";
+  const effectiveRole: AuthRole =
+    user.role === "superadmin"
+      ? "superadmin"
+      : activeMembership?.role === "admin" || user.role === "admin"
+        ? "admin"
+        : "agent";
 
   return {
     email: user.email,
@@ -95,7 +102,7 @@ export function toPublicUser(user: AuthUser, activeProjectKey?: string, activeCl
     activeProjectKey: effectiveProjectKey,
     activeClientId: effectiveClientId,
     projects,
-    requiresProjectSelection: user.role !== "superadmin" && projects.length !== 1 && !effectiveProjectKey,
+    requiresProjectSelection: user.role !== "superadmin" && projects.length > 1 && !effectiveProjectKey,
     role: effectiveRole,
     tenantId: user.tenantId
   };

@@ -89,18 +89,25 @@ const clientScopedAdminFields = new Set([
   // Reads scoped to the caller's own client
   "adminClient", "adminProject", "adminProjectsByClient", "adminUsersByClient",
   "adminRoles", "adminAiSettings", "adminSmtpProfilesByClient",
+  "adminProjectTicketing",
+  // Client-scoped project & commerce management (Org Admin ownership)
+  "adminCreateProject", "adminUpdateProject", "adminDeleteProject",
+  "adminTestProjectCredentials", "adminTestProjectConnection",
+  "adminSaveProjectTicketing", "adminTestProjectTicketing",
   // Client-scoped user/role management
   "adminAssignClientUser", "adminCreateClientUser", "adminUpdateClientUser",
   "adminRemoveUserFromClient", "adminRemoveUserFromProject", "adminUpdateClientContact",
   "adminCreateRole", "adminUpdateRole", "adminDeleteRole",
   // Client-scoped AI + SMTP configuration
   "adminUpdateAiSettings", "adminCreateSmtpProfile", "adminUpdateSmtpProfile",
-  "adminDeleteSmtpProfile", "adminSetProjectSmtp", "adminTestSmtpProfile"
+  "adminDeleteSmtpProfile", "adminSetProjectSmtp", "adminTestSmtpProfile",
+  // Client-scoped Organization updates
+  "adminUpdateClient"
 ]);
 
 function authorize(field: string, args: Record<string, unknown>, context: AdminContext) {
   if (context.userRole === "superadmin") return;
-  if (context.userRole !== "admin" || !context.clientId || !context.projectKey || !context.userEmail) {
+  if (context.userRole !== "admin" || !context.clientId || !context.userEmail) {
     throw new Error("Administrator access is required");
   }
 
@@ -109,8 +116,13 @@ function authorize(field: string, args: Record<string, unknown>, context: AdminC
   // superadmin-only fields AND any unclassified/new field) requires superadmin.
   if (!clientScopedAdminFields.has(field)) throw new Error("Superadmin access is required");
 
-  const requestedClientId = typeof args.clientId === "string" ? args.clientId : typeof args.id === "string" && field === "adminClient" ? args.id : undefined;
-  if (!requestedClientId || requestedClientId !== context.clientId) {
+  let requestedClientId: string | undefined = typeof args.clientId === "string" ? args.clientId : undefined;
+  if (!requestedClientId) {
+    if (typeof args.id === "string" && (field === "adminClient" || field === "adminUpdateClient")) {
+      requestedClientId = args.id;
+    }
+  }
+  if (requestedClientId && requestedClientId !== context.clientId) {
     throw new Error("Cannot access another organisation");
   }
 }

@@ -9,9 +9,11 @@ interface Step5TeamAccessProps {
   state: OnboardingState;
   onChange: (patch: Partial<OnboardingState>) => void;
   onNext?: () => void;
+  mode?: "create" | "edit";
 }
 
-export function Step5TeamAccess({ state, onChange }: Step5TeamAccessProps) {
+export function Step5TeamAccess({ state, onChange, mode: wizardMode = "create" }: Step5TeamAccessProps) {
+  const isEdit = wizardMode === "edit";
   const availableProjects = state.projects.filter((p) => Boolean(p.projectKey?.trim()));
 
   const draft = state.draftUser || {};
@@ -302,11 +304,11 @@ export function Step5TeamAccess({ state, onChange }: Step5TeamAccessProps) {
               <div className="flex items-center gap-2">
                 <Icon name="users" size="xs" className="text-m-primary" />
                 <span className="text-xs font-bold text-m-text">
-                  Queued Members ({state.teamMembers.length})
+                  {isEdit ? `Team Members (${state.teamMembers.length})` : `Queued Members (${state.teamMembers.length})`}
                 </span>
               </div>
               <span className="text-[11px] text-m-text-muted">
-                Will be provisioned upon launch
+                {isEdit ? "Configured organization members" : "Will be provisioned upon launch"}
               </span>
             </div>
 
@@ -314,7 +316,7 @@ export function Step5TeamAccess({ state, onChange }: Step5TeamAccessProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs">User / Email</TableHead>
-                  <TableHead className="text-xs">Mode</TableHead>
+                  <TableHead className="text-xs">Status / Mode</TableHead>
                   <TableHead className="text-xs">Role</TableHead>
                   <TableHead className="text-xs">Assigned Projects</TableHead>
                   <TableHead className="text-xs text-right">Action</TableHead>
@@ -336,13 +338,19 @@ export function Step5TeamAccess({ state, onChange }: Step5TeamAccessProps) {
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">
-                      <Badge
-                        variant={member.mode === "create" ? "primary" : "neutral"}
-                        size="sm"
-                        className="uppercase text-[10px]"
-                      >
-                        {member.mode}
-                      </Badge>
+                      {member.isExisting ? (
+                        <Badge variant="success" size="sm" className="uppercase text-[10px]">
+                          Existing
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant={member.mode === "create" ? "primary" : "neutral"}
+                          size="sm"
+                          className="uppercase text-[10px]"
+                        >
+                          {member.mode}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs">
                       <span className="capitalize text-m-text font-medium">

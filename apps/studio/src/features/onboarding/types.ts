@@ -15,6 +15,8 @@ export interface ProjectDraft {
   ctAuthUrl?: string;
   ctClientId?: string;
   ctClientSecret?: string;
+  ctClientSecretMasked?: string;
+  isExisting?: boolean;
   scopes?: string;
   // shopify
   shopifyStoreDomain?: string;
@@ -92,6 +94,7 @@ export interface TeamMemberDraft {
   password?: string;
   role: "admin" | "member" | "customer_service_agent";
   projectKeys: string[];
+  isExisting?: boolean;
 }
 
 export interface OnboardingState {
@@ -123,6 +126,15 @@ export interface OnboardingState {
 }
 
 export type StepId = 1 | 2 | 3 | 4 | 5 | 6;
+
+export type OnboardingMode = "create" | "edit";
+
+export interface OnboardingWizardProps {
+  organizationId?: string;
+  mode?: OnboardingMode;
+  initialStep?: StepId;
+  onExit?: () => void;
+}
 
 export interface StepMetadata {
   id: StepId;

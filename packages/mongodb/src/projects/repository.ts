@@ -8,7 +8,7 @@
 import { ObjectId } from "mongodb";
 import { getProjectsCollection } from "../admin/db.js";
 import { createCollectionAccessor } from "../collection-accessor.js";
-import { encrypt, decrypt } from "../encrypt.js";
+import { decrypt, encrypt } from "../encrypt.js";
 import type { CommercePlatform, CsaProject, ProjectCredentials } from "./types.js";
 
 /** Shared id-keyed helpers over the `csa_projects` collection. */
@@ -55,10 +55,11 @@ function maskSecret(secret: string): string {
 
 export function projectSecretMasked(doc: CsaProject): string {
   const ct = ctCredsView(doc);
+  if (!ct.ctClientSecretEncrypted) return "";
   try {
     return maskSecret(decrypt(ct.ctClientSecretEncrypted));
   } catch {
-    return "••••••••";
+    return "";
   }
 }
 
@@ -66,11 +67,19 @@ export function projectView(doc: CsaProject) {
   const { _id, credentials, ticketing: _ticketing, products: _products, platform, ctApiUrl: _a, ctAuthUrl: _b, ctClientId: _c, ctClientSecretEncrypted: _d, scopes: _e, ...rest } = doc;
   void credentials;
   const ct = ctCredsView(doc);
+  const isConfigured = Boolean(
+    (doc.platform === "shopify" && doc.credentials?.shopify?.adminAccessTokenEncrypted) ||
+    (doc.platform === "bigcommerce" && doc.credentials?.bigcommerce?.accessTokenEncrypted) ||
+    ((doc.platform === "commercetools" || !doc.platform) && ct.ctClientSecretEncrypted && ct.ctApiUrl && ct.ctClientId)
+  );
+  const status = doc.status || (isConfigured ? "active" : "setup_required");
   return {
     id: _id.toHexString(),
     ...rest,
     platform: projectPlatform(doc),
     ticketingProvider: doc.ticketing?.provider ?? "internal",
+    isConfigured,
+    status,
     productsProvider: doc.products?.provider ?? null,
     ctApiUrl: ct.ctApiUrl,
     ctAuthUrl: ct.ctAuthUrl,
@@ -184,33 +193,35 @@ export async function createProject(data: {
 
   if (platform === "shopify") {
     const storeDomain = (data.shopifyStoreDomain ?? "").trim();
-    const apiVersion = (data.shopifyApiVersion ?? "").trim();
+    const apiVersion = (data.shopifyApiVersion ?? "").trim() || "2024-01";
     const token = data.shopifyAdminAccessToken ?? "";
-    if (!storeDomain || !apiVersion || !token.trim()) {
-      throw new Error("Shopify projects require a store domain, API version, and admin access token.");
-    }
-    credentials = { shopify: { storeDomain, adminAccessTokenEncrypted: encrypt(token), apiVersion } };
+    const adminAccessTokenEncrypted = token.trim() ? encrypt(token) : "";
+    credentials = { shopify: { storeDomain, adminAccessTokenEncrypted, apiVersion } };
   } else if (platform === "bigcommerce") {
     const storeHash = (data.bigcommerceStoreHash ?? "").trim();
     const clientId = (data.bigcommerceClientId ?? "").trim();
     const token = data.bigcommerceAccessToken ?? "";
-    if (!storeHash || !clientId || !token.trim()) {
-      throw new Error("BigCommerce projects require a store hash, client ID, and access token.");
-    }
-    credentials = { bigcommerce: { storeHash, clientId, accessTokenEncrypted: encrypt(token) } };
+    const accessTokenEncrypted = token.trim() ? encrypt(token) : "";
+    credentials = { bigcommerce: { storeHash, clientId, accessTokenEncrypted } };
   } else {
     ctApiUrl = sanitizeCtApiOriginForProjectPaths((data.ctApiUrl ?? "").trim());
     ctAuthUrl = (data.ctAuthUrl ?? "").trim().replace(/\/$/, "");
     ctClientId = (data.ctClientId ?? "").trim();
-    if (!ctApiUrl || !ctAuthUrl || !ctClientId || !data.ctClientSecret) {
-      throw new Error("CommerceTools projects require an API URL, Auth URL, client id, and client secret.");
+    if (data.ctClientSecret && ctApiUrl && ctAuthUrl && ctClientId) {
+      ctClientSecretEncrypted = encrypt(data.ctClientSecret);
     }
-    ctClientSecretEncrypted = encrypt(data.ctClientSecret);
     scopes = data.scopes?.trim() || undefined;
     credentials = {
       commercetools: { apiUrl: ctApiUrl, authUrl: ctAuthUrl, clientId: ctClientId, clientSecretEncrypted: ctClientSecretEncrypted, scopes },
     };
   }
+
+  const isConfigured = Boolean(
+    (platform === "shopify" && credentials?.shopify?.adminAccessTokenEncrypted) ||
+    (platform === "bigcommerce" && credentials?.bigcommerce?.accessTokenEncrypted) ||
+    (platform === "commercetools" && ctClientSecretEncrypted && ctApiUrl && ctClientId)
+  );
+  const status = isConfigured ? "active" : "setup_required";
 
   const doc: CsaProject = {
     _id: new ObjectId(),
@@ -219,6 +230,8 @@ export async function createProject(data: {
     credentials,
     projectKey: data.projectKey.trim(),
     displayName: data.displayName.trim(),
+    isConfigured,
+    status,
     ctApiUrl,
     ctAuthUrl,
     ctClientId,
@@ -312,6 +325,10 @@ export async function updateProject(
   }
   if (updates.standaloneB2cEnabled !== undefined) set.standaloneB2cEnabled = updates.standaloneB2cEnabled;
   if (updates.standaloneB2bEnabled !== undefined) set.standaloneB2bEnabled = updates.standaloneB2bEnabled;
+  if (updates.ctClientSecret || updates.shopifyAdminAccessToken || updates.bigcommerceAccessToken) {
+    set.isConfigured = true;
+    set.status = "active";
+  }
 
   const updateDoc: Record<string, unknown> = { $set: set };
   if (Object.keys(unset).length) updateDoc.$unset = unset;

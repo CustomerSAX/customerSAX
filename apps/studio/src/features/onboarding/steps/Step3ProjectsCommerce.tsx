@@ -1,6 +1,6 @@
 "use client";
 
-import { ADMIN_TEST_PROJECT_CREDENTIALS } from "@/features/superadmin/api/queries";
+import { ADMIN_TEST_PROJECT_CONNECTION, ADMIN_TEST_PROJECT_CREDENTIALS } from "@/features/superadmin/api/queries";
 import { useMutation } from "@apollo/client";
 import { Badge, Button, Card, Icon, Input, Select } from "@csa/ui";
 import { useState } from "react";
@@ -13,6 +13,7 @@ interface Step3ProjectsCommerceProps {
   state: OnboardingState;
   onChange: (patch: Partial<OnboardingState>) => void;
   onNext: () => void;
+  mode?: "create" | "edit";
 }
 
 const CT_REGIONS = [
@@ -23,8 +24,10 @@ const CT_REGIONS = [
   { label: "Custom Endpoints", api: "custom", auth: "custom" }
 ];
 
-export function Step3ProjectsCommerce({ state, onChange }: Step3ProjectsCommerceProps) {
+export function Step3ProjectsCommerce({ state, onChange, mode = "create" }: Step3ProjectsCommerceProps) {
+  const isEdit = mode === "edit";
   const [testCredentials] = useMutation(ADMIN_TEST_PROJECT_CREDENTIALS);
+  const [testConnectionById] = useMutation(ADMIN_TEST_PROJECT_CONNECTION);
   const [activeProjectIndex, setActiveProjectIndex] = useState(0);
   const [testingId, setTestingId] = useState<string | null>(null);
 
@@ -60,36 +63,58 @@ export function Step3ProjectsCommerce({ state, onChange }: Step3ProjectsCommerce
     const rawScope = proj.scopes?.trim();
     const cleanScope = rawScope && rawScope !== "manage_project:" ? rawScope : undefined;
     try {
-      const { data } = await testCredentials({
-        variables: {
-          input: {
-            platform: proj.platform,
-            projectKey: proj.projectKey.trim(),
-            ctAuthUrl: proj.ctAuthUrl,
-            ctClientId: proj.ctClientId,
-            ctClientSecret: proj.ctClientSecret,
-            scopes: cleanScope,
-            shopifyStoreDomain: proj.shopifyStoreDomain,
-            shopifyAdminAccessToken: proj.shopifyAdminAccessToken,
-            shopifyApiVersion: proj.shopifyApiVersion || "2024-01",
-            bigcommerceStoreHash: proj.bigcommerceStoreHash,
-            bigcommerceClientId: proj.bigcommerceClientId,
-            bigcommerceAccessToken: proj.bigcommerceAccessToken
+      if (
+        proj.isExisting &&
+        !proj.ctClientSecret?.trim() &&
+        !proj.shopifyAdminAccessToken?.trim() &&
+        !proj.bigcommerceAccessToken?.trim()
+      ) {
+        const { data } = await testConnectionById({
+          variables: { id: proj.id }
+        });
+        const res = data?.adminTestProjectConnection;
+        const updated = projects.map((p) =>
+          p.id === proj.id
+            ? {
+                ...p,
+                testedOk: Boolean(res?.ok),
+                testMessage: res?.message || (res?.ok ? "Connection verified successfully!" : "Connection failed.")
+              }
+            : p
+        );
+        onChange({ projects: updated });
+      } else {
+        const { data } = await testCredentials({
+          variables: {
+            input: {
+              platform: proj.platform,
+              projectKey: proj.projectKey.trim(),
+              ctAuthUrl: proj.ctAuthUrl,
+              ctClientId: proj.ctClientId,
+              ctClientSecret: proj.ctClientSecret,
+              scopes: cleanScope,
+              shopifyStoreDomain: proj.shopifyStoreDomain,
+              shopifyAdminAccessToken: proj.shopifyAdminAccessToken,
+              shopifyApiVersion: proj.shopifyApiVersion || "2024-01",
+              bigcommerceStoreHash: proj.bigcommerceStoreHash,
+              bigcommerceClientId: proj.bigcommerceClientId,
+              bigcommerceAccessToken: proj.bigcommerceAccessToken
+            }
           }
-        }
-      });
+        });
 
-      const res = data?.adminTestProjectCredentials;
-      const updated = projects.map((p) =>
-        p.id === proj.id
-          ? {
-            ...p,
-            testedOk: Boolean(res?.ok),
-            testMessage: res?.message || (res?.ok ? "Connection verified successfully!" : "Connection failed.")
-          }
-          : p
-      );
-      onChange({ projects: updated });
+        const res = data?.adminTestProjectCredentials;
+        const updated = projects.map((p) =>
+          p.id === proj.id
+            ? {
+                ...p,
+                testedOk: Boolean(res?.ok),
+                testMessage: res?.message || (res?.ok ? "Connection verified successfully!" : "Connection failed.")
+              }
+            : p
+        );
+        onChange({ projects: updated });
+      }
     } catch (e) {
       const updated = projects.map((p) =>
         p.id === proj.id
@@ -111,7 +136,11 @@ export function Step3ProjectsCommerce({ state, onChange }: Step3ProjectsCommerce
       stepNumber={3}
       totalSteps={6}
       title="Projects & Commerce Engine"
-      description="Connect your commerce catalog and order systems. At least one project is required to satisfy tenant operations and provide project scope for users."
+      description={
+        isEdit
+          ? "Manage and update your commerce catalog and order connections. Existing credentials are preserved securely."
+          : "Connect your commerce catalog and order systems. At least one project is required to satisfy tenant operations and provide project scope for users."
+      }
       required
       tip="Organizations can host multiple projects (e.g. US Retail B2C, EU Wholesale B2B). Each project binds to a specific commerce platform."
     >
@@ -130,6 +159,13 @@ export function Step3ProjectsCommerce({ state, onChange }: Step3ProjectsCommerce
                   }`}
               >
                 <span>{proj.displayName || `Project ${idx + 1}`}</span>
+                {proj.isExisting && (
+                  <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded font-bold ${
+                    idx === activeProjectIndex ? "bg-white/20 text-white" : "bg-m-primary-50 text-m-primary"
+                  }`}>
+                    Active
+                  </span>
+                )}
                 {proj.testedOk && (
                   <Icon name="check-circle-2" size="xs" className="text-m-success" />
                 )}
@@ -305,13 +341,15 @@ export function Step3ProjectsCommerce({ state, onChange }: Step3ProjectsCommerce
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-m-text">Client Secret *</label>
+                    <label className="text-xs font-medium text-m-text">
+                      Client Secret {currentProject.isExisting ? <span className="text-[11px] font-normal text-m-text-muted">(Configured)</span> : "*"}
+                    </label>
                     <Input
                       type="password"
                       value={currentProject.ctClientSecret || ""}
                       onChange={(e) => updateCurrentProject({ ctClientSecret: e.target.value })}
-                      placeholder="••••••••••••••••"
-                      required
+                      placeholder={currentProject.isExisting ? "•••••••••••• (Leave blank to keep existing)" : "••••••••••••••••"}
+                      required={!currentProject.isExisting}
                     />
                   </div>
                 </div>
@@ -344,13 +382,15 @@ export function Step3ProjectsCommerce({ state, onChange }: Step3ProjectsCommerce
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-m-text">Admin Access Token *</label>
+                  <label className="text-xs font-medium text-m-text">
+                    Admin Access Token {currentProject.isExisting ? <span className="text-[11px] font-normal text-m-text-muted">(Configured)</span> : "*"}
+                  </label>
                   <Input
                     type="password"
                     value={currentProject.shopifyAdminAccessToken || ""}
                     onChange={(e) => updateCurrentProject({ shopifyAdminAccessToken: e.target.value })}
-                    placeholder="shpat_••••••••"
-                    required
+                    placeholder={currentProject.isExisting ? "•••••••••••• (Leave blank to keep existing)" : "shpat_••••••••"}
+                    required={!currentProject.isExisting}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -389,13 +429,15 @@ export function Step3ProjectsCommerce({ state, onChange }: Step3ProjectsCommerce
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-m-text">Access Token *</label>
+                  <label className="text-xs font-medium text-m-text">
+                    Access Token {currentProject.isExisting ? <span className="text-[11px] font-normal text-m-text-muted">(Configured)</span> : "*"}
+                  </label>
                   <Input
                     type="password"
                     value={currentProject.bigcommerceAccessToken || ""}
                     onChange={(e) => updateCurrentProject({ bigcommerceAccessToken: e.target.value })}
-                    placeholder="••••••••"
-                    required
+                    placeholder={currentProject.isExisting ? "•••••••••••• (Leave blank to keep existing)" : "••••••••"}
+                    required={!currentProject.isExisting}
                   />
                 </div>
               </div>
