@@ -178,6 +178,27 @@ export async function updateTicket(id: string, patch: TicketUpdate & { projectKe
   return result ? mapTicket(result) : null;
 }
 
+/** Save the approved resolution and close atomically, only if the ticket is unchanged. */
+export async function closeIfUnchanged(id: string, expectedLastModifiedAt: string, projectKey: string, scope: NativeTicketScope | undefined, solution: string) {
+  if (typeof solution !== "string" || !solution.trim() || solution.trim().length > 5000) throw new Error("Resolution notes are required and must be at most 5,000 characters");
+  const expected = new Date(expectedLastModifiedAt);
+  if (!Number.isFinite(expected.getTime())) throw new Error("A valid ticket revision is required");
+  const modifiedAt = new Date();
+  if (usesMemoryStore()) {
+    const doc = memoryTickets.find((ticket) => matchesIdentity(ticket, id, projectKey) && matchesOwner(ticket, scope));
+    if (!doc || new Date(doc.lastModifiedAt).getTime() !== expected.getTime()) return null;
+    Object.assign(doc, { status: "Closed", solution: solution.trim(), lastModifiedAt: modifiedAt });
+    return mapTicket(doc);
+  }
+  const collection = await getTicketsCollection();
+  const result = await collection.findOneAndUpdate(
+    { $and: [ticketIdentityFilter(id, projectKey, scope), { lastModifiedAt: expected }] },
+    { $set: { status: "Closed", solution: solution.trim(), lastModifiedAt: modifiedAt } },
+    { returnDocument: "after" }
+  );
+  return result ? mapTicket(result) : null;
+}
+
 function buildFilter(args: TicketListArgs): Filter<Document> {
   const filter: Filter<Document> = { projectKey: resolveProjectKey(args.projectKey) };
 

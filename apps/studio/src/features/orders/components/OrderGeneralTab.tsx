@@ -16,8 +16,6 @@ import {
   TableCell,
 } from "@csa/ui";
 import {
-  SummaryGrid,
-  SummaryCard,
   ContentGrid,
   MainColumn,
   SideColumn,
@@ -25,26 +23,13 @@ import {
   CardAction,
   InfoList,
   InfoRow,
-  StatusPill,
-  type StatusTone,
   Timeline,
   QuickActions,
   QuickAction,
   CardEmpty,
 } from "@csa/ui";
-import { formatTime } from "@/lib/format-date";
 import type { OrderState, ShipmentState, PaymentState, OrderLineItem } from "../types/order-types";
 import type { OrderGeneralTabProps } from "./order-tab-types";
-
-function statusTone(status?: string | null): StatusTone {
-  if (!status || status === "--") return "neutral";
-  const s = status.toLowerCase();
-  if (["paid", "complete", "shipped", "success", "approved", "refunded"].includes(s)) return "success";
-  if (["pending", "ready", "initial", "open", "balancedue"].includes(s)) return "warning";
-  if (["cancelled", "failed", "returned", "overdue", "declined", "voided"].includes(s)) return "error";
-  if (["confirmed", "processing", "delayed", "backorder", "partial"].includes(s)) return "info";
-  return "neutral";
-}
 
 function ProductThumbnail({ src }: { src?: string }) {
   return (
@@ -82,7 +67,7 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
   setShowCommentForm: (v: boolean) => void;
 }) {
   const {
-    order, fmtDate, orderState, setOrderState, shipmentState, setShipmentState,
+    order, orderState, setOrderState, shipmentState, setShipmentState,
     paymentState, setPaymentState, stateSaveMsg, handleSaveStates,
     altEmail, setAltEmail, paymentReminderFeedback,
     loyaltyPointsInput, setLoyaltyPointsInput, loyaltySavedDollars,
@@ -98,29 +83,6 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
 
   return (
     <>
-          <SummaryGrid>
-            <SummaryCard
-              icon="calendar"
-              label="Order Date"
-              value={order.createdAt ? fmtDate(order.createdAt, "date") : "--"}
-              sub={order.createdAt ? formatTime(order.createdAt) : undefined}
-            />
-            <SummaryCard icon="hash" label="Order Number" value={order.orderNumber} />
-            <SummaryCard icon="shopping-bag" label="Sales Channel" value={order.store} />
-            <SummaryCard icon="user" label="Customer" value={order.customerName} sub={order.customerEmail} />
-            <SummaryCard
-              icon="dollar-sign"
-              label="Total Amount"
-              value={`$${order.grandTotal.toFixed(2)}`}
-              tone="primary"
-            />
-            <SummaryCard
-              icon="credit-card"
-              label="Payment Status"
-              value={<StatusPill tone={statusTone(order.paymentState)}>{order.paymentState}</StatusPill>}
-            />
-          </SummaryGrid>
-
           <ContentGrid>
             <MainColumn>
               {!isB2b && (
