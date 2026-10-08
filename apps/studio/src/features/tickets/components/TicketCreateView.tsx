@@ -27,6 +27,7 @@ import {
 } from "@csa/ui";
 import { useTicketStore } from "../hooks/use-tickets";
 import { useAssignees } from "../hooks/use-assignees";
+import { OrderInquirySuggestions, orderInquiryDraft } from "./OrderInquirySuggestions";
 import { useCustomerStore } from "../../customers/hooks/use-customers";
 import { CUSTOMER_ORDERS_QUERY } from "../../orders/api/queries";
 import type { Customer } from "../../customers/types/customer-types";
@@ -109,6 +110,8 @@ export function TicketCreateView() {
   const [assignedTo, setAssignedTo] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [selectedInquiry, setSelectedInquiry] = useState<string | null>(null);
+  const lastInquiryDraft = useRef<{ subject: string; message: string } | null>(null);
 
   const [worklogText, setWorklogText] = useState("");
   const [worklogs, setWorklogs] = useState<WorklogComment[]>([]);
@@ -260,7 +263,7 @@ export function TicketCreateView() {
       attachments,
       comments: worklogs,
     });
-    const returnRoute = customerIdContext ? `/customers/${customerIdContext}?tab=tickets` : `/tickets/${created.id}`;
+    const returnRoute = `/tickets/${created.id}`;
     router.push(returnRoute);
     } catch (error) {
       setIsSubmitting(false);
@@ -417,6 +420,13 @@ export function TicketCreateView() {
                   value={orderNumber}
                   onChange={(e) => {
                     setOrderNumber(e.target.value);
+                    if (category === "order_inquiry" && selectedInquiry && lastInquiryDraft.current) {
+                      const previous = lastInquiryDraft.current;
+                      const next = orderInquiryDraft(selectedInquiry, e.target.value);
+                      setSubject((current) => current === previous.subject ? next.subject : current);
+                      setMessage((current) => current === previous.message ? next.message : current);
+                      lastInquiryDraft.current = next;
+                    }
                     clearError("orderNumber");
                   }}
                   options={[{ value: "", label: "-- Select Customer Order --" }, ...eligibleOrders]}
@@ -444,6 +454,22 @@ export function TicketCreateView() {
                 />
               </FormField>
             </div>
+
+            {category === "order_inquiry" && (
+              <OrderInquirySuggestions
+                selected={selectedInquiry}
+                disabled={isSubmitting}
+                onSelect={(suggestion) => {
+                  const draft = orderInquiryDraft(suggestion, orderNumber);
+                  setSelectedInquiry(suggestion);
+                  lastInquiryDraft.current = draft;
+                  setSubject(draft.subject);
+                  setMessage(draft.message);
+                  clearError("subject");
+                  clearError("message");
+                }}
+              />
+            )}
 
             <FormField error={errors.subject}>
               <Label required>Subject</Label>

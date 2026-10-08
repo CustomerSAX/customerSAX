@@ -19,6 +19,7 @@ export function ticketingProvider(projectKey: string): TicketingProvider {
 
 function nativeProvider(projectKey: string, scope?: native.NativeTicketScope): TicketingProvider {
   return {
+    closeIfUnchanged: (id, expectedLastModifiedAt, solution) => native.closeIfUnchanged(id, expectedLastModifiedAt, projectKey, scope, solution),
     getTicket: (id) => native.getTicket(id, projectKey, scope),
     listTickets: (args) => native.listTickets({ ...args, projectKey }, scope),
     createTicket: (draft) => native.createTicket({ ...draft, projectKey }, scope),

@@ -21,6 +21,7 @@ import { cart } from "./cart/index.js";
 import { company } from "./company/index.js";
 import { customer } from "./customer/index.js";
 import { healthcheckResolvers } from "./healthcheck/healthcheck.resolvers.js";
+import { orderReviewSnapshot, updateReviewedOrder } from "./order/order-review.js";
 import { order } from "./order/index.js";
 import { product } from "./product/index.js";
 import { quote } from "./quote/index.js";
@@ -56,8 +57,13 @@ export const resolvers = {
     updateCartAddresses: cartResolvers.updateCartAddresses,
     updateCustomer: customerResolvers.updateCustomer,
     updateCustomerAddress: customerResolvers.updateCustomerAddress,
+    updateCustomerContactNumber: customerResolvers.updateCustomerContactNumber,
     updateCustomerProfile: customerResolvers.updateCustomerProfile,
     updateOrder: orderResolvers.updateOrder,
+    updateReviewedOrder: (
+      _parent: unknown,
+      args: Parameters<typeof updateReviewedOrder>[0]
+    ) => updateReviewedOrder(args),
     updateQuoteRequestState: quoteResolvers.updateQuoteRequestState
   },
   Query: {
@@ -77,6 +83,7 @@ export const resolvers = {
     companyOrders: companyResolvers.companyOrders,
     customer: customerResolvers.customer,
     customerAddresses: customerResolvers.customerAddresses,
+    customerContactTargets: customerResolvers.customerContactTargets,
     customerPage: customerResolvers.customerPage,
     customerPromotions: customerResolvers.customerPromotions,
     customerShoppingLists: customerResolvers.customerShoppingLists,
@@ -84,6 +91,8 @@ export const resolvers = {
     customersByEmails: customerResolvers.customersByEmails,
     discountCodes: cartResolvers.discountCodes,
     order: orderResolvers.order,
+    orderReviewSnapshot: (_parent: unknown, args: { reference: string }) =>
+      orderReviewSnapshot(args.reference),
     orderCount: orderResolvers.orderCount,
     orderPage: orderResolvers.orderPage,
     orderPayments: orderResolvers.orderPayments,

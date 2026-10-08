@@ -9,6 +9,7 @@ interface Step1OrganizationProps {
   state: OnboardingState;
   onChange: (patch: Partial<OnboardingState>) => void;
   onNext: () => void;
+  mode?: "create" | "edit";
 }
 
 function slugify(name: string): string {
@@ -19,18 +20,20 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function Step1Organization({ state, onChange }: Step1OrganizationProps) {
+export function Step1Organization({ state, onChange, mode = "create" }: Step1OrganizationProps) {
+  const isEdit = mode === "edit";
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(Boolean(state.slug));
 
   const handleNameChange = (name: string) => {
     const patch: Partial<OnboardingState> = { name };
-    if (!isSlugManuallyEdited) {
+    if (!isSlugManuallyEdited && !isEdit) {
       patch.slug = slugify(name);
     }
     onChange(patch);
   };
 
   const handleSlugChange = (slugValue: string) => {
+    if (isEdit) return;
     setIsSlugManuallyEdited(true);
     onChange({ slug: slugify(slugValue) });
   };
@@ -41,10 +44,18 @@ export function Step1Organization({ state, onChange }: Step1OrganizationProps) {
     <OnboardingStepShell
       stepNumber={1}
       totalSteps={6}
-      title="Organization Foundation"
-      description="Create your tenant organization account. This establishes the security boundary, branding, and multi-tenant container for your projects and users."
+      title={isEdit ? "Organization Foundation" : "Organization Foundation"}
+      description={
+        isEdit
+          ? "Manage tenant identity, legal display name, and primary administrative contact."
+          : "Create your tenant organization account. This establishes the security boundary, branding, and multi-tenant container for your projects and users."
+      }
       required
-      tip="The slug is used for dedicated tenant URLs and API attribution. It will be permanent once the organization is launched."
+      tip={
+        isEdit
+          ? "The slug is the permanent unique tenant identifier and cannot be changed."
+          : "The slug is used for dedicated tenant URLs and API attribution. It will be permanent once the organization is launched."
+      }
     >
       <div className="grid grid-cols-1 gap-6 max-w-2xl">
         {/* Organization Name */}
@@ -82,7 +93,8 @@ export function Step1Organization({ state, onChange }: Step1OrganizationProps) {
               value={state.slug}
               onChange={(e) => handleSlugChange(e.target.value)}
               placeholder="acme-global"
-              className="h-11 font-mono text-xs pl-8"
+              disabled={isEdit}
+              className={`h-11 font-mono text-xs pl-8 ${isEdit ? "bg-m-surface-subtle text-m-text-muted cursor-not-allowed border-dashed" : ""}`}
               required
             />
             <Icon
@@ -92,7 +104,9 @@ export function Step1Organization({ state, onChange }: Step1OrganizationProps) {
             />
           </div>
           <span className="text-[11px] text-m-text-muted">
-            Lowercase alphanumeric characters and hyphens only. Auto-generated from organization name.
+            {isEdit
+              ? "Slug is permanent and cannot be modified."
+              : "Lowercase alphanumeric characters and hyphens only. Auto-generated from organization name."}
           </span>
         </div>
 

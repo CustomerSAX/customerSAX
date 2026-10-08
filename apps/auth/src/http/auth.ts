@@ -94,7 +94,7 @@ export async function loginWithPassword(email: string, password: string) {
       : undefined) ||
     projects.find((p) => p.clientId);
   const activeProjectKey = defaultProject?.projectKey;
-  const activeClientId = defaultProject?.clientId;
+  const activeClientId = defaultProject?.clientId || (user as any).clientId || (user.tenantId !== "csa" ? user.tenantId : undefined);
 
   await createSession({
     createdAt: now,
@@ -139,7 +139,7 @@ export async function loginWithSso(email: string) {
       : undefined) ||
     projects.find((p) => p.clientId);
   const activeProjectKey = defaultProject?.projectKey;
-  const activeClientId = defaultProject?.clientId;
+  const activeClientId = defaultProject?.clientId || (user as any).clientId || (user.tenantId !== "csa" ? user.tenantId : undefined);
 
   await createSession({
     createdAt: now,

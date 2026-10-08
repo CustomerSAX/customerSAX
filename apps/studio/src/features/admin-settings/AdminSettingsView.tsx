@@ -5,14 +5,21 @@ import { useCurrentUser } from "@/lib/use-current-user";
 import type { MutationFunction } from "@apollo/client";
 import { gql, useApolloClient, useMutation, useQuery } from "@apollo/client";
 import { Button, Checkbox, Icon, Input, Select, Table, TextArea } from "@csa/ui";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { localizePathname } from "@/i18n/routing";
+import type { AppLocale } from "@csa/i18n";
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { AdminUserRow } from "./user-management";
 import { checkUserConflict, getAvailableExistingUsers } from "./user-management";
-import { KnowledgeBaseAdmin } from "./KnowledgeBaseAdmin";
+import { OrganizationSettingsView } from "@/features/organization/OrganizationSettingsView";
+import { ProjectsListView } from "@/features/projects/ProjectsListView";
+import { StudioConnectorsView } from "@/features/connectors/StudioConnectorsView";
 
-type Section = "users" | "roles" | "email" | "ai" | "knowledge-base";
+export type AdminSettingsTab = "organization" | "projects" | "connectors" | "users" | "roles";
+export type LegacySection = "email" | "ai" | "knowledge-base";
+export type Section = AdminSettingsTab | LegacySection;
 type Permission = {
   module: string;
   view: boolean;
@@ -305,26 +312,51 @@ const blankPermissions = () =>
     update: false,
     delete: false
   }));
-export function AdminSettingsView({ section }: { section: Section }) {
+const ADMIN_TABS: Array<{ id: AdminSettingsTab; label: string; icon: string }> = [
+  { id: "organization", label: "Organization", icon: "building-2" },
+  { id: "projects", label: "Projects", icon: "folder" },
+  { id: "connectors", label: "Connectors", icon: "link" },
+  { id: "users", label: "Users", icon: "users" },
+  { id: "roles", label: "Roles", icon: "shield" }
+];
+
+export function AdminSettingsView({ section = "organization" }: { section?: Section }) {
   const t = useTranslations("AdminSettings");
-  const sections: Array<{ id: Section; label: string }> = (["users", "roles", "email", "ai", "knowledge-base"] as const).map((id) => ({ id, label: t(`sections.${id}`) }));
-  const [activeSection, setActiveSection] = useState<Section>(section);
+  const router = useRouter();
+  const currentLocale = useLocale() as AppLocale;
+
+  const normalizeSection = (sec?: Section): AdminSettingsTab => {
+    if (sec === "email" || sec === "ai" || sec === "knowledge-base") {
+      return "connectors";
+    }
+    if (sec === "projects" || sec === "connectors" || sec === "users" || sec === "roles") {
+      return sec;
+    }
+    return "organization";
+  };
+
+  const [activeSection, setActiveSection] = useState<AdminSettingsTab>(normalizeSection(section));
   const { user, loading: userLoading } = useCurrentUser();
-  const clientId = user?.activeClientId ?? "";
+  const clientId = user?.activeClientId || user?.organization?.id || "";
   const projectKey = user?.activeProjectKey ?? "";
   const allowed = user?.role === "admin" || user?.role === "superadmin";
   const { data, loading, error, refetch } = useQuery<WorkspaceAdminData>(
     WORKSPACE_ADMIN,
     {
-      variables: { clientId, projectKey },
-      skip: !clientId || !projectKey || !allowed,
+      variables: { clientId, projectKey: projectKey || "default" },
+      skip: !clientId || !allowed,
       fetchPolicy: "cache-and-network"
     }
   );
 
   useEffect(() => {
-    setActiveSection(section);
+    setActiveSection(normalizeSection(section));
   }, [section]);
+
+  const handleTabChange = (tabId: AdminSettingsTab) => {
+    setActiveSection(tabId);
+    router.push(localizePathname(`/admin-settings/${tabId}`, currentLocale));
+  };
 
   if (userLoading)
     return (
@@ -332,16 +364,10 @@ export function AdminSettingsView({ section }: { section: Section }) {
         <State text={t("checkingAccess")} />
       </AppShell>
     );
-  if (!allowed)
+  if (!allowed || !clientId)
     return (
       <AppShell>
         <State text={t("accessRequired")} />
-      </AppShell>
-    );
-  if (!clientId || !projectKey)
-    return (
-      <AppShell>
-        <State text={t("selectProject")} />
       </AppShell>
     );
 
@@ -353,58 +379,85 @@ export function AdminSettingsView({ section }: { section: Section }) {
             {t("eyebrow")}
           </p>
           <h1 className="text-2xl font-bold text-m-text">
-            {data?.adminClient?.name ?? t("organisation")}
+            Admin Settings
           </h1>
-          <p className="mt-1 text-sm text-m-text-muted">{t("subtitle")}</p>
+          <p className="mt-1 text-sm text-m-text-muted">
+            Manage your organization profile, commerce projects, connectors, users, and roles.
+          </p>
         </div>
-        <nav
-          className="flex flex-wrap gap-2 rounded-xl border border-m-border bg-m-surface p-2"
-          aria-label={t("sectionsLabel")}
-        >
-          {sections.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              aria-current={activeSection === id ? "page" : undefined}
-              onClick={() => setActiveSection(id)}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeSection === id ? "bg-m-primary text-white" : "text-m-text-muted hover:bg-m-surface-bg"}`}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-        {loading ? (
-          <State text={t("loading")} />
-        ) : error ? (
-          <State text={error.message} />
-        ) : !data ? (
-          <State text={t("unavailable")} />
-        ) : activeSection === "users" ? (
-          <Users
-            data={data}
-            clientId={clientId}
-            projectKey={projectKey}
-            actor={user?.email ?? ""}
-            refetch={refetch}
-          />
-        ) : activeSection === "roles" ? (
-          <Roles
-            roles={data.adminRoles}
-            clientId={clientId}
-            projectKey={projectKey}
-            refetch={refetch}
-          />
-        ) : activeSection === "email" ? (
-          <EmailSettings data={data} clientId={clientId} refetch={refetch} />
-        ) : activeSection === "ai" ? (
-          <AiSettings
-            settings={data.adminAiSettings}
-            clientId={clientId}
-            refetch={refetch}
-          />
-        ) : (
-          <KnowledgeBaseAdmin clientId={clientId} />
-        )}
+
+        {/* Tab Navigation */}
+        <div className="border-b border-m-border">
+          <nav className="flex space-x-6 sm:space-x-8 -mb-px overflow-x-auto" aria-label="Admin Settings Tabs">
+            {ADMIN_TABS.map((tab) => {
+              const isActive = activeSection === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  aria-current={isActive ? "page" : undefined}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
+                    isActive
+                      ? "border-m-primary text-m-primary font-semibold"
+                      : "border-transparent text-m-text-muted hover:text-m-text hover:border-m-border"
+                  }`}
+                >
+                  <Icon name={tab.icon} size="sm" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        <div className="pt-1">
+          {activeSection === "organization" && <OrganizationSettingsView embedded />}
+          {activeSection === "projects" && <ProjectsListView embedded />}
+          {activeSection === "connectors" && <StudioConnectorsView embedded />}
+          {activeSection === "users" && (
+            loading ? (
+              <State text={t("loading")} />
+            ) : error ? (
+              <State text={error.message} />
+            ) : !data ? (
+              <State text={t("unavailable")} />
+            ) : (
+              <Users
+                data={data}
+                clientId={clientId}
+                projectKey={projectKey}
+                actor={user?.email ?? ""}
+                refetch={refetch}
+              />
+            )
+          )}
+          {activeSection === "roles" && (
+            loading ? (
+              <State text={t("loading")} />
+            ) : error ? (
+              <State text={error.message} />
+            ) : !data ? (
+              <State text={t("unavailable")} />
+            ) : !projectKey ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-m-border bg-m-surface p-12 text-center">
+                <Icon name="shield" size="lg" className="text-m-text-muted mb-3" />
+                <h3 className="text-base font-bold text-m-text">Project Required for Roles</h3>
+                <p className="mt-1 text-sm text-m-text-muted max-w-sm">
+                  Role configurations are scoped to specific projects. Please create or select a project first.
+                </p>
+              </div>
+            ) : (
+              <Roles
+                roles={data.adminRoles}
+                clientId={clientId}
+                projectKey={projectKey}
+                refetch={refetch}
+              />
+            )
+          )}
+        </div>
       </div>
     </AppShell>
   );
@@ -485,28 +538,33 @@ function Users({
           </thead>
           <tbody>
             {users.map((u) => {
-              const membership = u.clientProjects.find(
+              const membership = u.clientProjects?.find(
                 (p) => p.projectKey === projectKey
               );
-              if (!membership) return null;
+              if (projectKey && !membership) return null;
+              const currentRole = membership?.role || (u as any).role || "admin";
               return (
                 <tr key={u.id} className="border-b border-m-border">
                   <td className="p-3 font-medium">{u.email}</td>
                   <td>{[u.firstName, u.lastName].filter(Boolean).join(" ") || "--"}</td>
-                  <td>{membership.role}</td>
+                  <td>{currentRole}</td>
                   <td>
-                    <select
-                      aria-label={`${t("changeRole")} ${u.email}`}
-                      value={membership.role}
-                      onChange={(e) => void changeRole(u, e.target.value)}
-                      className="rounded border border-m-border bg-m-surface px-2 py-1"
-                    >
-                      {roles.map((r) => (
-                        <option key={r.key} value={r.key}>
-                          {r.label}
-                        </option>
-                      ))}
-                    </select>
+                    {projectKey ? (
+                      <select
+                        aria-label={`${t("changeRole")} ${u.email}`}
+                        value={currentRole}
+                        onChange={(e) => void changeRole(u, e.target.value)}
+                        className="rounded border border-m-border bg-m-surface px-2 py-1"
+                      >
+                        {roles.map((r) => (
+                          <option key={r.key} value={r.key}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-xs text-m-text-muted">Organization Level</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -1729,7 +1787,7 @@ function EditRoleModal({
   );
 }
 
-function EmailSettings({
+export function EmailSettings({
   data,
   clientId,
   refetch
@@ -1907,7 +1965,7 @@ function EmailSettings({
   );
 }
 
-function AiSettings({
+export function AiSettings({
   settings,
   clientId,
   refetch

@@ -4,6 +4,7 @@ import { mapCustomer } from "./customer.mapper.js";
 import type { CtCustomer } from "../../../commercetools/types.js";
 import { compactWhere, escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
 import type { CustomerSearchArgs } from "./customer.types.js";
+import { customerContactTargets, updateCustomerContactNumber } from "./customer-contact.js";
 
 const customerFields = `#graphql
   id
@@ -20,6 +21,8 @@ const customerFields = `#graphql
 `;
 
 export const resolvers = {
+  customerContactTargets: (_parent: unknown, args: { id: string }) => customerContactTargets(args.id),
+  updateCustomerContactNumber: (_parent: unknown, args: { id: string; addressId: string; expectedVersion: number; phone: string }) => updateCustomerContactNumber(args),
   customer: (_parent: unknown, args: { email?: string; id?: string }) =>
     args.email ? getCustomerByEmail(args.email) : args.id ? getCustomerById(args.id) : null,
   customers: async (_parent: unknown, args: PagingArgs) => {

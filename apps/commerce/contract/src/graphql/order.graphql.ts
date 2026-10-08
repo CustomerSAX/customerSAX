@@ -61,6 +61,7 @@ export const orderTypeDefs = gql`
   }
 
   extend type Query {
+    orderReviewSnapshot(reference: String!): Json
     order(id: ID, orderNumber: String): Order
     orders(limit: Int = 20, offset: Int = 0): [Order!]!
     orderPage(limit: Int = 20, offset: Int = 0, customerId: ID, customerEmail: String, orderRef: String, sortKey: String, sortOrder: String): OrderPage!
@@ -72,6 +73,7 @@ export const orderTypeDefs = gql`
   }
 
   extend type Mutation {
+    updateReviewedOrder(id: ID!, customerId: ID!, expectedVersion: Int!, action: Json!): Json!
     updateOrder(id: ID!, actions: Json!): Json!
     replicateOrder(id: ID!): Json!
   }

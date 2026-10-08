@@ -11,6 +11,7 @@ import type {
 export type ProviderField = { id: string; label: string; type: string; value: string | null };
 
 export interface TicketingProvider {
+  closeIfUnchanged?(id: string, expectedLastModifiedAt: string, solution: string): Promise<Ticket | null>;
   getFields?(id: string): Promise<ProviderField[]>;
   getTicket(id: string): Promise<Ticket | null>;
   listTickets(args: TicketListArgs): Promise<TicketPage>;

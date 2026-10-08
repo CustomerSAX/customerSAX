@@ -1,7 +1,12 @@
 "use client";
 
-import { OnboardingWizard } from "@/features/onboarding/OnboardingWizard";
+import { Suspense } from "react";
+import { SuperadminOnboardingWizard } from "@/features/superadmin/SuperadminOnboardingWizard";
 
 export default function SuperadminOnboardingPage() {
-  return <OnboardingWizard />;
+  return (
+    <Suspense fallback={null}>
+      <SuperadminOnboardingWizard />
+    </Suspense>
+  );
 }
