@@ -690,6 +690,9 @@ importers:
       '@csa/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@csa/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@csa/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -753,6 +756,18 @@ importers:
         version: 5.9.3
 
   packages/config:
+    devDependencies:
+      '@csa/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@types/node':
+        specifier: ^20.14.11
+        version: 20.19.43
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
+  packages/email:
     devDependencies:
       '@csa/config-typescript':
         specifier: workspace:*

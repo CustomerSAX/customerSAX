@@ -15,6 +15,7 @@ export const TICKET_WORKFLOW: Record<TicketStatus, TicketStatus[]> = {
 };
 
 type ServerTicket = Partial<{
+  aiStatus: string;
   id: string;
   ticketNumber: string;
   customerEmail: string;
@@ -91,6 +92,7 @@ export function useTicketStore(detailId?: string) {
 
 function mapTicket(ticket: ServerTicket): Ticket {
   return {
+    aiStatus: ticket.aiStatus ?? "unavailable",
     id: String(ticket.id), ticketNumber: String(ticket.ticketNumber), email: ticket.customerEmail ?? "",
     customerId: ticket.customerId ?? undefined, contactType: normalizeContact(ticket.contactType ?? ticket.source),
     category: (ticket.category ?? "general_inquiry") as TicketCategoryKey, orderNumber: ticket.orderNumber ?? undefined,
