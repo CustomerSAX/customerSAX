@@ -48,3 +48,11 @@ describe("salesforce mappers", () => {
     expect(mapTask({ Id: "00T4", TaskSubtype: "LinkedIn" }).type).toBe("OTHER");
   });
 });
+
+describe("salesforce activity completion", () => {
+  it("reports completion only when Salesforce tracks it", () => {
+    expect(mapTask({ Id: "00T1", IsClosed: false }).completed).toBe(false);
+    expect(mapTask({ Id: "00T2", IsClosed: true }).completed).toBe(true);
+    expect(mapTask({ Id: "00T3" }).completed).toBeNull();
+  });
+});

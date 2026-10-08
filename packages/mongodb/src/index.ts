@@ -88,4 +88,8 @@ export * from "./projects/crm.js";
 
 export * from "./projects/salesforce.js";
 
+export * from "./projects/hubspot.js";
+
+export * from "./projects/zoho.js";
+
 export * from "./projects/products.js";

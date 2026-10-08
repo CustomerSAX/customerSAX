@@ -13,6 +13,13 @@ const READ = gql`
       salesforceInstanceUrl
       salesforceClientId
       salesforceSecretSet
+      hubspotPortalId
+      hubspotTokenSet
+      zohoRegion
+      zohoClientId
+      zohoSecretSet
+      zohoConnected
+      zohoOrgId
     }
   }
 `;
@@ -23,9 +30,30 @@ const SAVE = gql`
       salesforceInstanceUrl
       salesforceClientId
       salesforceSecretSet
+      hubspotPortalId
+      hubspotTokenSet
+      zohoRegion
+      zohoClientId
+      zohoSecretSet
+      zohoConnected
+      zohoOrgId
     }
   }
 `;
+// Zoho data centers (must match ZOHO_REGIONS in @csa/mongodb).
+const ZOHO_REGION_OPTIONS = [
+  { value: "us", label: "United States (zoho.com)" },
+  { value: "eu", label: "Europe (zoho.eu)" },
+  { value: "in", label: "India (zoho.in)" },
+  { value: "au", label: "Australia (zoho.com.au)" },
+  { value: "jp", label: "Japan (zoho.jp)" },
+  { value: "cn", label: "China (zoho.com.cn)" },
+  { value: "ca", label: "Canada (zohocloud.ca)" },
+  { value: "sa", label: "Saudi Arabia (zoho.sa)" }
+];
+const ZOHO_SCOPES =
+  "ZohoCRM.modules.contacts.ALL,ZohoCRM.modules.accounts.READ,ZohoCRM.modules.calls.ALL,ZohoCRM.modules.tasks.ALL,ZohoCRM.modules.events.READ,ZohoCRM.modules.notes.READ,ZohoCRM.org.READ,ZohoSearch.securesearch.READ";
+
 const TEST = gql`
   mutation TestProjectCrm($clientId: ID!, $id: ID!, $input: AdminProjectCrmInput!) {
     adminTestProjectCrm(clientId: $clientId, id: $id, input: $input) {
@@ -56,6 +84,11 @@ export function CrmSettings({
   const [instanceUrl, setInstanceUrl] = useState("");
   const [consumerKey, setConsumerKey] = useState("");
   const [consumerSecret, setConsumerSecret] = useState("");
+  const [hubspotToken, setHubspotToken] = useState("");
+  const [zohoRegion, setZohoRegion] = useState("us");
+  const [zohoClientId, setZohoClientId] = useState("");
+  const [zohoSecret, setZohoSecret] = useState("");
+  const [zohoGrantCode, setZohoGrantCode] = useState("");
   const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(null);
   useEffect(() => {
     const settings = data?.adminProjectCrm;
@@ -64,6 +97,11 @@ export function CrmSettings({
       setInstanceUrl(settings.salesforceInstanceUrl);
       setConsumerKey(settings.salesforceClientId);
       setConsumerSecret("");
+      setHubspotToken("");
+      setZohoRegion(settings.zohoRegion || "us");
+      setZohoClientId(settings.zohoClientId);
+      setZohoSecret("");
+      setZohoGrantCode("");
     }
   }, [data]);
   const busy = saving.loading || testing.loading;
@@ -71,7 +109,12 @@ export function CrmSettings({
     provider,
     salesforceInstanceUrl: instanceUrl,
     salesforceClientId: consumerKey,
-    salesforceClientSecret: consumerSecret || undefined
+    salesforceClientSecret: consumerSecret || undefined,
+    hubspotAccessToken: hubspotToken || undefined,
+    zohoRegion,
+    zohoClientId,
+    zohoClientSecret: zohoSecret || undefined,
+    zohoGrantCode: zohoGrantCode || undefined
   };
   async function run(action: "save" | "test") {
     setNotice(null);
@@ -79,6 +122,9 @@ export function CrmSettings({
       if (action === "save") {
         await save({ variables: { clientId, id: project.id, input } });
         setConsumerSecret("");
+        setHubspotToken("");
+        setZohoSecret("");
+        setZohoGrantCode("");
         await refetch();
         onSaved();
         setNotice({
@@ -133,7 +179,9 @@ export function CrmSettings({
               disabled={busy}
               options={[
                 { value: "none", label: "No CRM" },
-                { value: "salesforce", label: "Salesforce" }
+                { value: "salesforce", label: "Salesforce" },
+                { value: "hubspot", label: "HubSpot" },
+                { value: "zoho", label: "Zoho CRM" }
               ]}
             />
           </label>
@@ -186,14 +234,119 @@ export function CrmSettings({
               </label>
               <p className="text-sm text-m-text-muted">
                 Find these in Setup → External Client App Manager → your app → Settings → OAuth
-                Settings. Record access follows the app&apos;s Run As user. Each Salesforce org is
-                reserved for one project, including while No CRM is selected.
+                Settings. Record access follows the app&apos;s Run As user. Each Salesforce org can be
+                connected to one project at a time.
+              </p>
+            </>
+          )}
+          {provider === "hubspot" && (
+            <>
+              <p className="text-sm text-m-text-muted">
+                Use a HubSpot service key (Development → Keys → Service keys) or a legacy private app
+                access token. Agents use this connection automatically; no HubSpot login is required.
+              </p>
+              <label className={LABEL_CLASS}>
+                Service key / access token
+                {data?.adminProjectCrm.hubspotTokenSet ? " — leave blank to keep saved key" : ""}
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={hubspotToken}
+                  placeholder="pat-na1-…"
+                  disabled={busy}
+                  onChange={(e) => {
+                    setHubspotToken(e.target.value);
+                    setNotice(null);
+                  }}
+                />
+              </label>
+              {data?.adminProjectCrm.hubspotPortalId ? (
+                <p className="text-sm text-m-text-muted">Connected HubSpot account: {data.adminProjectCrm.hubspotPortalId}</p>
+              ) : null}
+              <p className="text-sm text-m-text-muted">
+                Required scopes: crm.objects.contacts.read, crm.objects.contacts.write,
+                crm.objects.companies.read, crm.objects.owners.read and sales-email-read (add oauth if
+                offered, for record links). Each HubSpot account can be connected to one project at a time.
+              </p>
+            </>
+          )}
+          {provider === "zoho" && (
+            <>
+              <p className="text-sm text-m-text-muted">
+                Use a Zoho Self Client (api-console.zoho.com, or the console for your region → Add Client → Self
+                Client). Agents use this connection automatically; no Zoho login is required.
+              </p>
+              <label className={LABEL_CLASS}>
+                Region
+                <Select
+                  value={zohoRegion}
+                  onChange={(e) => {
+                    setZohoRegion(e.target.value);
+                    setNotice(null);
+                  }}
+                  disabled={busy}
+                  options={ZOHO_REGION_OPTIONS}
+                />
+              </label>
+              <label className={LABEL_CLASS}>
+                Client ID
+                <Input
+                  required
+                  value={zohoClientId}
+                  autoComplete="off"
+                  disabled={busy}
+                  onChange={(e) => {
+                    setZohoClientId(e.target.value);
+                    setNotice(null);
+                  }}
+                />
+              </label>
+              <label className={LABEL_CLASS}>
+                Client secret
+                {data?.adminProjectCrm.zohoSecretSet ? " — leave blank to keep saved secret" : ""}
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={zohoSecret}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setZohoSecret(e.target.value);
+                    setNotice(null);
+                  }}
+                />
+              </label>
+              <label className={LABEL_CLASS}>
+                Grant code
+                {data?.adminProjectCrm.zohoConnected ? " — only needed to reconnect" : ""}
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={zohoGrantCode}
+                  placeholder="1000.…"
+                  disabled={busy}
+                  onChange={(e) => {
+                    setZohoGrantCode(e.target.value);
+                    setNotice(null);
+                  }}
+                />
+              </label>
+              {data?.adminProjectCrm.zohoConnected ? (
+                <p className="text-sm text-m-text-muted">
+                  Connected{data.adminProjectCrm.zohoOrgId ? ` to Zoho org ${data.adminProjectCrm.zohoOrgId}` : ""}.
+                </p>
+              ) : null}
+              <p className="text-sm text-m-text-muted">
+                In the Self Client, open Generate Code, paste these scopes, choose 10 minutes and copy the code:{" "}
+                <span className="break-all font-mono text-xs">{ZOHO_SCOPES}</span>. A grant code works once, for
+                a few minutes: Save exchanges it and checks the connection, then Test Connection works any time.
+                Each Zoho org can be connected to one project at a time.
               </p>
             </>
           )}
           <p className="text-sm text-m-text-muted">
             CSA reads and writes records in the connected CRM directly; switching providers does
-            not migrate any CRM data.
+            not migrate any CRM data. Choosing No CRM or another provider removes the saved
+            credentials and frees the account for other projects.
           </p>
           {notice && (
             <p role="status" className={notice.ok ? "text-m-success" : "text-m-error"}>

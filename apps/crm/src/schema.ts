@@ -1,7 +1,7 @@
 import { gql } from "graphql-tag";
 import { GraphQLError } from "graphql";
 import { resolveCrm } from "./providers/index.js";
-import type { CrmActivityDraft, CrmContactSearchArgs, CrmContactUpdate } from "./crm/types.js";
+import type { CrmActivityDraft, CrmActivityUpdate, CrmContactSearchArgs, CrmContactUpdate } from "./crm/types.js";
 
 type CrmContext = { clientId?: string; projectKey?: string; userRole?: string };
 
@@ -80,6 +80,8 @@ export const typeDefs = gql`
     subject: String
     description: String
     status: String
+    "true/false when the CRM tracks completion; null when it does not"
+    completed: Boolean
     activityDate: String
     contactId: ID
     accountId: ID
@@ -95,7 +97,8 @@ export const typeDefs = gql`
   }
 
   input CrmContactUpdateInput { firstName: String, lastName: String, email: String, phone: String, mobilePhone: String, title: String }
-  input CrmActivityInput { contactId: ID!, type: CrmActivityType!, subject: String!, description: String, status: String, activityDate: String }
+  input CrmActivityUpdateInput { completed: Boolean, activityDate: String }
+  input CrmActivityInput { contactId: ID!, type: CrmActivityType!, subject: String!, description: String, status: String, completed: Boolean, durationMinutes: Int, activityDate: String }
 
   extend type Query {
     crmProvider: String!
@@ -103,12 +106,14 @@ export const typeDefs = gql`
     crmContactByEmail(email: String!): CrmContact
     searchCrmContacts(text: String!, limit: Int = 20, offset: Int = 0): CrmContactPage!
     crmAccount(id: ID!): CrmAccount
+    crmAccountContacts(accountId: ID!, limit: Int = 20): [CrmContact!]!
     crmContactActivities(contactId: ID!, limit: Int = 20): [CrmActivity!]!
   }
 
   extend type Mutation {
     updateCrmContact(id: ID!, input: CrmContactUpdateInput!): CrmContact
     logCrmActivity(input: CrmActivityInput!): CrmActivity!
+    updateCrmActivity(id: ID!, input: CrmActivityUpdateInput!): CrmActivity
   }
 `;
 
@@ -121,6 +126,10 @@ export const resolvers = {
     logCrmActivity: async (_parent: unknown, args: { input: CrmActivityDraft }, context: unknown) => {
       assertCanWrite(context);
       return (await selectedProvider(context)).logActivity(args.input);
+    },
+    updateCrmActivity: async (_parent: unknown, args: { id: string; input: CrmActivityUpdate }, context: unknown) => {
+      assertCanWrite(context);
+      return (await selectedProvider(context)).updateActivity(args.id.trim(), args.input);
     }
   },
   Query: {
@@ -133,6 +142,8 @@ export const resolvers = {
       (await selectedProvider(context)).searchContacts(args),
     crmAccount: async (_parent: unknown, args: { id: string }, context: unknown) =>
       (await selectedProvider(context)).getAccount(args.id.trim()),
+    crmAccountContacts: async (_parent: unknown, args: { accountId: string; limit?: number }, context: unknown) =>
+      (await selectedProvider(context)).listAccountContacts(args.accountId.trim(), args.limit),
     crmContactActivities: async (_parent: unknown, args: { contactId: string; limit?: number }, context: unknown) =>
       (await selectedProvider(context)).listContactActivities(args.contactId.trim(), args.limit)
   }

@@ -1,9 +1,7 @@
-import { GraphQLError } from "graphql";
 import { SALESFORCE_API_VERSION } from "@csa/mongodb";
+import { error } from "../crm/errors.js";
 
-export function error(message: string, code = "BAD_USER_INPUT"): never {
-  throw new GraphQLError(message, { extensions: { code } });
-}
+export { error };
 
 const ALLOWED_PATH = /^(query\?|search\?|sobjects\/(Contact|Task)(\/[a-zA-Z0-9]{15,18})?$)/;
 

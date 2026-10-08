@@ -77,6 +77,17 @@ export function salesforceProvider(client: SalesforceProjectClient): CrmProvider
       return records[0] ? mapAccount(records[0], instanceUrl) : null;
     },
 
+    async listAccountContacts(accountId, limit) {
+      if (!isSalesforceId(accountId)) return [];
+      const [records, instanceUrl] = await Promise.all([
+        query<SfContact>(
+          `SELECT ${CONTACT_FIELDS} FROM Contact WHERE AccountId = ${soqlString(accountId)} ORDER BY LastModifiedDate DESC LIMIT ${clamp(limit, 20, 100)}`
+        ),
+        client.instanceUrl()
+      ]);
+      return records.map((record) => mapContact(record, instanceUrl));
+    },
+
     async listContactActivities(contactId, limit) {
       if (!isSalesforceId(contactId)) return [];
       const pageLimit = clamp(limit, 20, 100);
@@ -109,14 +120,35 @@ export function salesforceProvider(client: SalesforceProjectClient): CrmProvider
         WhoId: draft.contactId,
         Subject: draft.subject,
         Description: draft.description ?? null,
-        Status: draft.status?.trim() || "Completed",
+        Status: draft.status?.trim() || (draft.completed === false ? "Not Started" : "Completed"),
         ActivityDate: activityDate,
-        TaskSubtype: subtype
+        TaskSubtype: subtype,
+        ...(draft.type === "CALL" && draft.durationMinutes && draft.durationMinutes > 0
+          ? { CallDurationInSeconds: Math.round(draft.durationMinutes * 60) }
+          : {})
       });
       if (!created?.id) error("Salesforce did not return an ID for the new activity", "PROVIDER_ERROR");
       const [task] = await query<SfTask>(`SELECT ${TASK_FIELDS} FROM Task WHERE Id = ${soqlString(created.id)} LIMIT 1`);
       if (!task) error(`Salesforce created activity ${created.id} but it could not be read back`, "PROVIDER_ERROR");
       return mapTask(task);
+    },
+
+    async updateActivity(id, patch) {
+      if (!isSalesforceId(id)) return null;
+      const fields: Record<string, string> = {};
+      if (typeof patch.completed === "boolean") fields.Status = patch.completed ? "Completed" : "Not Started";
+      const date = patch.activityDate?.trim();
+      if (date) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) error("activityDate must be YYYY-MM-DD");
+        fields.ActivityDate = date;
+      }
+      if (!Object.keys(fields).length) error("Nothing to update — pass completed or activityDate");
+      const taskById = `SELECT ${TASK_FIELDS} FROM Task WHERE Id = ${soqlString(id)} LIMIT 1`;
+      // Only tasks can be completed or rescheduled; an id that is not a Task is reported as not found.
+      if (!(await query<SfTask>(taskById))[0]) return null;
+      await client.api(`sobjects/Task/${id}`, "PATCH", fields);
+      const [task] = await query<SfTask>(taskById);
+      return task ? mapTask(task) : null;
     }
   };
 }

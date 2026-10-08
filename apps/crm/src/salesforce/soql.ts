@@ -61,6 +61,7 @@ export const TASK_FIELDS = [
   "Subject",
   "Description",
   "Status",
+  "IsClosed",
   "ActivityDate",
   "TaskSubtype",
   "WhoId",

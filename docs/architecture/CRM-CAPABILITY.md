@@ -15,13 +15,13 @@ and activity through one provider-neutral API. CSA does not hold CRM data; it re
 | Concern | Ticketing | CRM |
 |---|---|---|
 | Saved per project | `csa_projects.ticketing` sub-document | `csa_projects.crm` sub-document |
-| Providers | `internal` (default), `zendesk`, `freshdesk` | `none` (default), `salesforce` |
-| Settings logic (`@csa/mongodb`) | `projects/ticketing.ts`, `projects/freshdesk.ts` | `projects/crm.ts`, `projects/salesforce.ts` |
+| Providers | `internal` (default), `zendesk`, `freshdesk` | `none` (default), `salesforce`, `hubspot`, `zoho` |
+| Settings logic (`@csa/mongodb`) | `projects/ticketing.ts`, `projects/freshdesk.ts` | `projects/crm.ts`, `projects/salesforce.ts`, `projects/hubspot.ts`, `projects/zoho.ts` |
 | Validate / encrypt / save | `prepareTicketing`, `saveProjectTicketing` | `prepareCrm`, `saveProjectCrm` |
 | Connection test | `testProjectTicketing` (read-only calls) | `testProjectCrm` (read-only Contact/Account/Task queries) |
 | Per-request resolution | `resolveProjectTicketing` → `resolveTicketing()` | `resolveProjectCrm` → `resolveCrm()` |
-| One account per project | unique index on `ticketing.subdomain` / `freshdeskDomain` | unique index on `crm.salesforceInstanceUrl` |
-| Service | `apps/ticketing` (:4350): `providers/`, `zendesk/`, `freshdesk/` | `apps/crm` (:4390): `providers/`, `salesforce/` |
+| One account per project | unique index on `ticketing.subdomain` / `freshdeskDomain` | unique index on `crm.salesforceInstanceUrl` / `hubspotPortalId` / `zohoOrgId` (released on disconnect) |
+| Service | `apps/ticketing` (:4350): `providers/`, `zendesk/`, `freshdesk/` | `apps/crm` (:4390): `providers/`, `salesforce/`, `hubspot/`, `zoho/` |
 | Port | `TicketingProvider` | `CrmProvider` |
 | OAuth token cache | `zendesk/project-client.ts` | `salesforce/project-client.ts` |
 | Admin API (superadmin-only) | `adminProjectTicketing`, `adminSaveProjectTicketing`, `adminTestProjectTicketing` | `adminProjectCrm`, `adminSaveProjectCrm`, `adminTestProjectCrm` |
@@ -79,6 +79,28 @@ subgraph's `Customer` in the federated schema. A CRM contact and a commerce cust
 - **Safety:** all input escaped for SOQL/SOSL, IDs validated (15/18 alphanumerics) before use, API paths
   allow-listed, vendor error bodies never echoed (only the Salesforce error code).
 - **Not yet:** logging meetings, opportunities, cases, custom fields.
+
+## 6b. HubSpot provider
+
+- **Auth:** a HubSpot **service key** (Development → Keys → Service keys; new accounts no longer offer private
+  apps) or a legacy private-app token, sent as `Authorization: Bearer`. Stored encrypted; never shown again.
+- **Account ID:** looked up on save via the token-info endpoint, then account-info (`oauth` scope). If HubSpot
+  reports neither, the CRM still works but "Open in HubSpot" links stay empty — never guessed.
+- **Mapping:** contacts ↔ `CrmContact` (primary company association), companies ↔ `CrmAccount`, calls / emails /
+  meetings / tasks / notes ↔ `CrmActivity` (task completion from `hs_task_status`; HTML bodies shown as text).
+- **Rate limits:** activity history uses one contact read with associations plus one batch read per activity type,
+  not the search API (5 requests/second).
+- **Test Connection:** read-only probes per scope; a failure names the exact missing scope.
+
+## 6c. Zoho CRM provider
+
+- **Auth:** Self Client (client ID + secret). A one-time **grant code** is exchanged on Save for a refresh token
+  (stored encrypted); one-hour access tokens are cached and re-issued from it. Tokens are region-specific (US, EU,
+  IN, AU, JP, CN, CA, SA). The grant code itself is never stored, so Test Connection only works after a Save.
+- **Mapping:** Contacts ↔ `CrmContact` (Account_Name lookup), Accounts ↔ `CrmAccount`, the contact's Calls /
+  Tasks / Events / Notes related lists ↔ `CrmActivity`. Record links use the org `domain_name` read on save.
+- **Writes:** calls are logged as Outbound / Completed and need a **duration** (CSA asks rather than inventing one);
+  tasks can be open or done. Emails and meetings cannot be logged yet.
 
 ## 7. AI Assist
 

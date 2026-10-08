@@ -1,7 +1,7 @@
 # CSA CRM Service
 
 One Apollo subgraph (port 4390) with interchangeable CRM providers, configured per project in
-Superadmin — the same model as `apps/ticketing`. Salesforce is the first provider; a project with no
+Superadmin — the same model as `apps/ticketing`. Providers: Salesforce, HubSpot and Zoho CRM; a project with no
 CRM selected returns an honest "No CRM is connected" instead of any data.
 
 Agents reach the CRM through the BFF and the CSA Assistant's CRM tools (`find_crm_contact`,
@@ -30,9 +30,29 @@ schema. Requests carrying an authenticated client and active project use the sav
 unconfigured projects default to **No CRM** and do not inherit local env credentials. Settings or
 database errors never fall back to another org.
 
-Each Salesforce org (My Domain) is reserved for one project across clients, enforced by a unique
-database index. The reservation remains when selecting No CRM; changing the org or deleting the
-project releases it. All records the Run As user can see are visible to that project.
+Each CRM account (Salesforce org / HubSpot account) can be connected to one project at a time
+across clients, enforced by a unique database index. Unlike ticketing, a project keeps only the
+credentials of the CRM it currently uses: choosing No CRM or another provider deletes the saved
+credentials and releases the account. All records the connected user/key can see are visible to
+that project.
+
+## HubSpot setup
+
+In HubSpot: **Development → Keys → Service keys → Create service key** (new accounts no longer offer
+private apps; a legacy private app token also works). Scopes: `crm.objects.contacts.read`,
+`crm.objects.contacts.write`, `crm.objects.companies.read`, `crm.objects.owners.read`, `sales-email-read`,
+and `oauth` if offered (lets CSA read the account ID for "Open in HubSpot" links). In Superadmin choose
+HubSpot, paste the key, Test Connection, Save. Each HubSpot account can be connected to one project at a time; choosing No CRM releases it.
+
+## Zoho setup
+
+In the Zoho API console for your region (api-console.zoho.com / .in / .eu …) → **Add Client → Self Client**.
+Copy the client ID and secret. Then **Generate Code** with these scopes and a 10-minute duration:
+`ZohoCRM.modules.contacts.ALL, ZohoCRM.modules.accounts.READ, ZohoCRM.modules.calls.ALL,
+ZohoCRM.modules.tasks.ALL, ZohoCRM.modules.events.READ, ZohoCRM.modules.notes.READ, ZohoCRM.org.READ,
+ZohoSearch.securesearch.READ`. In Superadmin choose Zoho CRM, pick the region, paste client ID, secret and
+grant code, and **Save** — a grant code works once, so Save exchanges it for a refresh token (stored encrypted)
+and checks access; Test Connection works afterwards. Zoho needs a duration (minutes) when logging a call.
 
 ## Layout
 
@@ -41,9 +61,13 @@ project releases it. All records the Run As user can see are visible to that pro
 | `src/schema.ts` | GraphQL schema + thin resolvers (`crmProvider`, contacts, accounts, activities) |
 | `src/providers/` | `CrmProvider` port and `resolveCrm()` (per-project provider selection) |
 | `src/salesforce/` | Salesforce provider: OAuth token cache, REST client, SOQL/SOSL, mappers |
+| `src/zoho/` | Zoho provider: token cache, Contacts/Accounts and Calls/Tasks/Events/Notes related lists (v8) |
+| `src/hubspot/` | HubSpot provider: contacts/companies/engagements via CRM v3 with a service key |
 | `src/crm/types.ts` | Provider-neutral CRM record types |
 | `packages/mongodb/src/projects/crm.ts` | Saved settings: validate, encrypt, save, test, resolve |
 | `packages/mongodb/src/projects/salesforce.ts` | My Domain validation, credentials, token issue |
+| `packages/mongodb/src/projects/zoho.ts` | Zoho regions, grant-code exchange, token refresh, request client |
+| `packages/mongodb/src/projects/hubspot.ts` | HubSpot token, account ID lookup, request client |
 
 Adding a CRM: a provider folder implementing `CrmProvider`, a branch in `resolveCrm()`, its fields in
 `ProjectCrm`/`prepareCrm`/`testProjectCrm`, and an option in `CrmSettings.tsx`.

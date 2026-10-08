@@ -15,7 +15,7 @@ import {
   testSmtpProfile,
   usersRepo,
 } from "@csa/mongodb";
-import type { ClientSsoConfigStored, CsaUser, TicketingInput, ProductsInput } from "@csa/mongodb";
+import type { ClientSsoConfigStored, CrmInput, CsaUser, TicketingInput, ProductsInput } from "@csa/mongodb";
 import { del as cacheDel, ctProjectConfig } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
@@ -143,6 +143,7 @@ export const typeDefs = gql`
     clientId: String!
     platform: String!
     ticketingProvider: String!
+    crmProvider: String!
     productsProvider: String
     projectKey: String!
     displayName: String!
@@ -326,8 +327,8 @@ export const typeDefs = gql`
   input AdminProjectProductsInput { provider: String!, appId: String, indexName: String, searchApiKey: String }
   input AdminProjectTicketingInput { provider: String!, subdomain: String, clientId: String, clientSecret: String, freshdeskDomain: String, freshdeskApiKey: String }
   type AdminTicketingTest { success: Boolean!, message: String! }
-  type AdminProjectCrm { provider: String!, salesforceInstanceUrl: String!, salesforceClientId: String!, salesforceSecretSet: Boolean! }
-  input AdminProjectCrmInput { provider: String!, salesforceInstanceUrl: String, salesforceClientId: String, salesforceClientSecret: String }
+  type AdminProjectCrm { provider: String!, salesforceInstanceUrl: String!, salesforceClientId: String!, salesforceSecretSet: Boolean!, hubspotPortalId: String!, hubspotTokenSet: Boolean!, zohoRegion: String!, zohoClientId: String!, zohoSecretSet: Boolean!, zohoConnected: Boolean!, zohoOrgId: String! }
+  input AdminProjectCrmInput { provider: String!, salesforceInstanceUrl: String, salesforceClientId: String, salesforceClientSecret: String, hubspotAccessToken: String, zohoRegion: String, zohoClientId: String, zohoClientSecret: String, zohoGrantCode: String }
   type AdminCrmTest { success: Boolean!, message: String! }
   extend type Query {
     projectProductsConfiguration: ProjectProductsConfiguration

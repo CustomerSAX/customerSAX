@@ -49,6 +49,7 @@ export type SfTask = {
   Subject?: string | null;
   Description?: string | null;
   Status?: string | null;
+  IsClosed?: boolean | null;
   ActivityDate?: string | null;
   TaskSubtype?: string | null;
   WhoId?: string | null;
@@ -57,7 +58,7 @@ export type SfTask = {
   CreatedDate?: string | null;
 };
 
-export type SfEvent = Omit<SfTask, "Status" | "TaskSubtype">;
+export type SfEvent = Omit<SfTask, "Status" | "TaskSubtype" | "IsClosed">;
 
 const PROVIDER = "salesforce";
 
@@ -153,6 +154,7 @@ export function mapTask(record: SfTask): CrmActivity {
     subject: record.Subject ?? null,
     description: record.Description ?? null,
     status: record.Status ?? null,
+    completed: typeof record.IsClosed === "boolean" ? record.IsClosed : null,
     activityDate: record.ActivityDate ?? null,
     contactId: record.WhoId ?? null,
     accountId: record.AccountId ?? null,
@@ -169,6 +171,7 @@ export function mapEvent(record: SfEvent): CrmActivity {
     subject: record.Subject ?? null,
     description: record.Description ?? null,
     status: null,
+    completed: null,
     activityDate: record.ActivityDate ?? null,
     contactId: record.WhoId ?? null,
     accountId: record.AccountId ?? null,

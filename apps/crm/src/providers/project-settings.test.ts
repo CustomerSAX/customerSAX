@@ -2,7 +2,12 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { resolveProjectCrm } from "@csa/mongodb";
 import { resolveCrm } from "./index.js";
 import { salesforceProvider } from "../salesforce/provider.js";
-vi.mock("@csa/mongodb", async original => ({ ...(await original<typeof import("@csa/mongodb")>()), resolveProjectCrm: vi.fn() }));
+vi.mock("@csa/mongodb", async original => ({
+  ...(await original<typeof import("@csa/mongodb")>()),
+  resolveProjectCrm: vi.fn(),
+  projectHubspotCredentials: vi.fn(() => ({ accessToken: "pat-na1-test", portalId: "42" })),
+  projectZohoCredentials: vi.fn(() => ({ region: "in", clientId: "id", clientSecret: "s", refreshToken: "r", orgDomain: null }))
+}));
 vi.mock("../salesforce/project-client.js", () => ({
   projectSalesforceClient: (clientId: string, projectKey: string, settings: { salesforceInstanceUrl: string }) => ({ instanceUrl: settings.salesforceInstanceUrl, clientId, projectKey }),
   salesforceClient: () => ({ env: true })
@@ -30,4 +35,13 @@ it("rejects missing client context in production", async () => {
   vi.stubEnv("NODE_ENV", "production");
   await expect(resolveCrm("project")).rejects.toThrow("authenticated client");
   expect(resolveProjectCrm).not.toHaveBeenCalled();
+});
+it("builds the HubSpot provider from saved project credentials", async () => {
+  vi.mocked(resolveProjectCrm).mockResolvedValue({ provider: "hubspot", hubspotTokenEncrypted: "enc", hubspotPortalId: "42" });
+  expect((await resolveCrm("project-h", "client-a")).name).toBe("hubspot");
+  expect(salesforceProvider).not.toHaveBeenCalled();
+});
+it("builds the Zoho provider from saved project credentials", async () => {
+  vi.mocked(resolveProjectCrm).mockResolvedValue({ provider: "zoho", zohoRegion: "in", zohoClientId: "id", zohoSecretEncrypted: "e", zohoRefreshTokenEncrypted: "r" });
+  expect((await resolveCrm("project-z", "client-a")).name).toBe("zoho");
 });

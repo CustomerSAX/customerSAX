@@ -719,8 +719,8 @@ function ProjectsTab({
                             <span title={p.productsProvider ? "Products connector" : "Products uses Native by default until project settings are saved"} aria-label={`Products: ${p.productsProvider === "algolia" ? "Algolia" : "Native"}`} className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${p.productsProvider === "algolia" ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
                               {p.productsProvider === "algolia" ? "Algolia" : "Products Native"}
                             </span>
-                            <span title="CRM connector" aria-label={`CRM: ${p.crmProvider === "salesforce" ? "Salesforce" : "None"}`} className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${p.crmProvider === "salesforce" ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
-                              {p.crmProvider === "salesforce" ? "Salesforce" : "No CRM"}
+                            <span title="CRM connector" aria-label={`CRM: ${p.crmProvider === "salesforce" ? "Salesforce" : p.crmProvider === "hubspot" ? "HubSpot" : p.crmProvider === "zoho" ? "Zoho" : "None"}`} className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${p.crmProvider === "salesforce" || p.crmProvider === "hubspot" || p.crmProvider === "zoho" ? "border-m-primary-200 bg-m-primary-50 text-m-primary" : "border-m-border bg-m-surface-subtle text-m-text-muted"}`}>
+                              {p.crmProvider === "salesforce" ? "Salesforce" : p.crmProvider === "hubspot" ? "HubSpot" : p.crmProvider === "zoho" ? "Zoho" : "No CRM"}
                             </span>
                           </div>
                         </TableCell>

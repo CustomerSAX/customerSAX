@@ -52,6 +52,8 @@ export type CrmActivity = {
   subject: string | null;
   description: string | null;
   status: string | null;
+  /** true/false when the CRM tracks completion (e.g. Salesforce Task.IsClosed); null when it does not. */
+  completed: boolean | null;
   activityDate: string | null;
   contactId: string | null;
   accountId: string | null;
@@ -78,11 +80,22 @@ export type CrmContactUpdate = {
   title?: string | null;
 };
 
+/** Change an existing task: mark it done / reopen it, or move its due date. */
+export type CrmActivityUpdate = {
+  completed?: boolean | null;
+  /** New due date, YYYY-MM-DD. */
+  activityDate?: string | null;
+};
+
 export type CrmActivityDraft = {
   contactId: string;
   type: CrmActivityType;
   subject: string;
   description?: string | null;
   status?: string | null;
+  /** For tasks: false creates an open follow-up, true/omitted records it as done. Each CRM maps this to its own status. */
+  completed?: boolean | null;
+  /** For calls: how long it lasted. Required by Zoho for logged calls; never invented when absent. */
+  durationMinutes?: number | null;
   activityDate?: string | null;
 };
