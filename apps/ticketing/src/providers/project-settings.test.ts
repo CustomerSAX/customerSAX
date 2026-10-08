@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { resolveProjectTicketing } from "@csa/mongodb";
+import { resolvers } from "../schema.js";
 import { resolveTicketing } from "./index.js";
 import { zendeskProvider } from "../zendesk/provider.js";
 vi.mock("@csa/mongodb", async original => ({ ...(await original<typeof import("@csa/mongodb")>()), resolveProjectTicketing: vi.fn(), nativeTicketLegacyAccess: vi.fn(async () => false), projectFreshdeskCredentials: vi.fn(() => ({ domain: "fresh.freshdesk.com", apiKey: "test-key" })) }));
@@ -33,4 +34,14 @@ it("selects Freshdesk for the active project without using Zendesk", async () =>
   vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "freshdesk", freshdeskDomain: "fresh.freshdesk.com", freshdeskApiKeyEncrypted: "encrypted" });
   expect((await resolveTicketing("project", "client")).name).toBe("freshdesk");
   expect(zendeskProvider).not.toHaveBeenCalled();
+});
+
+
+it("rejects notification access without agent identity or after a project switch", async () => {
+  const args = { clientId: "client-a", projectKey: "project-a" };
+  await expect(resolvers.Query.ticketNotifications(null, args, { ...args })).rejects.toThrow("authenticated agent");
+  await expect(resolvers.Query.ticketNotifications(null, args, {
+    clientId: "client-a", projectKey: "project-b", userEmail: "agent@example.com", userRole: "agent"
+  })).rejects.toThrow("Active project changed");
+  expect(resolveProjectTicketing).not.toHaveBeenCalled();
 });

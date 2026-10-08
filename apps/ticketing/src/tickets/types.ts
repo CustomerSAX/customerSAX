@@ -1,7 +1,17 @@
 export type TicketStatus = "open" | "in-progress" | "waiting" | "resolved" | "closed";
 export type TicketPriority = "low" | "normal" | "high" | "urgent";
 
+export type InformationRequest = {
+  status: "sending" | "accepted" | "rejected" | "unknown";
+  recipient: string;
+  subject: string;
+  text: string;
+  createdAt: string;
+  messageId?: string;
+};
+
 export type Ticket = {
+  informationRequest?: InformationRequest | null;
   assignee?: string | null;
   category?: string | null;
   createdAt?: string | null;
