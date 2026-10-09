@@ -5,6 +5,7 @@ import { apolloClient } from "@/graphql/client";
 import { TicketAIHelper } from "@/features/tickets/components/TicketAIHelper";
 import { localizeHref, localizePathname, stripLocalePrefix } from "@/i18n/routing";
 import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
+import { useQueryClient } from "@tanstack/react-query";
 import { gql, useQuery } from "@apollo/client";
 import {
   DEFAULT_LOCALE,
@@ -577,6 +578,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const locale = useLocale();
   const currentLocale = isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
   const t = useTranslations("AppShell");
+  const queryClient = useQueryClient();
   const { user } = useCurrentUser();
   const currentUser = user ?? fallbackUser;
   const canUseRolePermissions =
@@ -588,7 +590,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       projectKey: currentUser.activeProjectKey ?? ""
     },
     skip: !canUseRolePermissions,
-    fetchPolicy: "cache-and-network"
+    fetchPolicy: "cache-first"
   });
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -1042,6 +1044,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    await apolloClient.clearStore().catch(() => undefined);
+    queryClient.clear();
     router.replace(localizePathname("/login", currentLocale));
     router.refresh();
   };
@@ -1059,7 +1063,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
     if (!response.ok) return;
 
-    await apolloClient.clearStore();
+    await apolloClient.clearStore().catch(() => undefined);
+    queryClient.clear();
     window.location.assign(pathname || "/dashboard");
   };
 

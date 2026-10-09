@@ -2,7 +2,7 @@
 
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { useState, useCallback, useMemo } from "react";
-import { CUSTOMERS_PAGE_QUERY } from "../api/queries";
+import { CUSTOMERS_PAGE_QUERY, CUSTOMER_QUERY } from "../api/queries";
 import type {
   Customer,
   CustomerGroup,
@@ -43,7 +43,7 @@ type NewCustomer = Omit<Customer, "id" | "createdAt"> & { password: string };
 
 export function useCustomerStore() {
   const { data, error, loading, refetch } = useQuery<CustomersPageData>(CUSTOMERS_PAGE_QUERY, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "cache-first",
     variables: {
       limit: 100,
       offset: 0,
@@ -167,3 +167,57 @@ export function useCustomerStore() {
     updateCustomerProfile,
   };
 }
+
+type CustomerDetailData = { customer: CustomerPageResult | null };
+
+export function useCustomerDetail(id: string) {
+  const { data, loading, error, refetch } = useQuery<CustomerDetailData>(CUSTOMER_QUERY, {
+    variables: { id },
+    skip: !id,
+    fetchPolicy: "cache-first",
+  });
+  const [updateCustomerProfileMutation] = useMutation(UPDATE_CUSTOMER_PROFILE_MUTATION);
+
+  const rawCustomer = data?.customer;
+  const customer = useMemo<Customer | null>(() => {
+    if (!rawCustomer) return null;
+    return {
+      ...rawCustomer,
+      email: rawCustomer.email ?? "",
+      createdAt: rawCustomer.createdAt ?? "",
+      lastModifiedAt: rawCustomer.lastModifiedAt ?? undefined,
+    };
+  }, [rawCustomer]);
+
+  const updateCustomerProfile = useCallback(
+    async (idOrUpdates: string | Partial<Customer>, maybeUpdates?: Partial<Customer>) => {
+      const updates = typeof idOrUpdates === "string" ? (maybeUpdates ?? {}) : idOrUpdates;
+      const targetId = typeof idOrUpdates === "string" ? idOrUpdates : id;
+      const result = await updateCustomerProfileMutation({
+        variables: {
+          id: targetId,
+          draft: {
+            ...(updates.firstName !== undefined ? { firstName: updates.firstName } : {}),
+            ...(updates.lastName !== undefined ? { lastName: updates.lastName } : {}),
+            ...(updates.email !== undefined ? { email: updates.email } : {}),
+            ...(updates.phone !== undefined ? { phone: updates.phone } : {}),
+            ...(updates.companyName !== undefined ? { companyName: updates.companyName } : {}),
+            ...(updates.customerGroup?.id ? { customerGroup: { id: updates.customerGroup.id } } : {}),
+          },
+        },
+        refetchQueries: [
+          { query: CUSTOMER_QUERY, variables: { id: targetId } },
+          { query: CUSTOMERS_PAGE_QUERY, variables: { limit: 100, offset: 0, sortKey: "createdAt", sortOrder: "desc" } },
+        ],
+      });
+      if (!result.data?.updateCustomerProfile) {
+        throw new Error("The commerce service did not return the updated customer.");
+      }
+      await refetch();
+    },
+    [id, refetch, updateCustomerProfileMutation]
+  );
+
+  return { customer, loading, error, refetch, updateCustomerProfile };
+}
+

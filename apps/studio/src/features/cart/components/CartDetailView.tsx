@@ -32,7 +32,7 @@ import {
   InfoRow
 } from "@csa/ui";
 import { formatDateTime } from "@/lib/format-date";
-import { useCartStore } from "../hooks/use-carts";
+import { useCartDetail } from "../hooks/use-carts";
 import type { CartLineItem } from "../types/cart-types";
 
 interface CartDetailViewProps {
@@ -104,15 +104,13 @@ export function CartDetailView({ id }: CartDetailViewProps) {
   const customerIdParam = searchParams.get("customerId");
 
   const {
+    cart,
     loading,
     error,
-    getCartById,
     updateLineItemQuantity,
     addLineItemToCart,
     applyDiscountCode
-  } = useCartStore();
-
-  const cart = getCartById(id);
+  } = useCartDetail(id);
 
   // Staged quantity input state
   const [stagedQuantities, setStagedQuantities] = useState<Record<string, number>>(() => {

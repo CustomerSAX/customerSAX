@@ -15,7 +15,7 @@ import {
   FormField,
   Label,
 } from "@csa/ui";
-import { useCartStore } from "../hooks/use-carts";
+import { useCartDetail } from "../hooks/use-carts";
 
 interface CartPlaceOrderViewProps {
   id: string;
@@ -27,13 +27,11 @@ export function CartPlaceOrderView({ id }: CartPlaceOrderViewProps) {
   const customerIdParam = searchParams.get("customerId");
 
   const {
+    cart,
     loading,
     error,
-    getCartById,
     placeOrderFromCart,
-  } = useCartStore();
-
-  const cart = getCartById(id);
+  } = useCartDetail(id);
 
   const [altEmail, setAltEmail] = useState(cart?.customerEmail || "");
   const reminderFeedback = "";

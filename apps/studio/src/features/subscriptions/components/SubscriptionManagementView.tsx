@@ -334,7 +334,7 @@ export function SubscriptionManagementView({
   const currentLocale = isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
   const { data: currencyData, loading: currenciesLoading } = useQuery<{
     availableCurrencies: string[];
-  }>(AVAILABLE_CURRENCIES_QUERY, { fetchPolicy: "cache-and-network" });
+  }>(AVAILABLE_CURRENCIES_QUERY, { fetchPolicy: "cache-first" });
   const {
     subscriptions,
     createSubscription,
@@ -375,14 +375,14 @@ export function SubscriptionManagementView({
   }>(PRODUCT_PRICES_QUERY, {
     variables: { sku: form.sku.trim() },
     skip: form.sku.trim().length < 2 || !form.currencyCode,
-    fetchPolicy: "cache-and-network"
+    fetchPolicy: "cache-first"
   });
   const { data: addressesData, loading: addressesLoading, refetch: refetchAddresses } = useQuery<{
     customerAddresses: CustomerAddressesResult;
   }>(CUSTOMER_ADDRESSES_QUERY, {
     variables: { id: form.customerId },
     skip: !form.customerId,
-    fetchPolicy: "cache-and-network"
+    fetchPolicy: "cache-first"
   });
   const [addCustomerAddress] = useMutation(ADD_CUSTOMER_ADDRESS);
 

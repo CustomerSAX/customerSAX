@@ -42,8 +42,8 @@ type ServerTicket = Partial<{
 type NewTicket = Omit<Ticket, "id" | "ticketNumber" | "createdAt" | "comments" | "history"> & { comments?: WorklogComment[] };
 
 export function useTicketStore(detailId?: string) {
-  const list = useQuery(TICKETS_QUERY, { skip: detailId !== undefined, fetchPolicy: "cache-and-network", variables: { limit: 100, offset: 0 } });
-  const detail = useQuery(TICKET_QUERY, { skip: detailId === undefined, fetchPolicy: "cache-and-network", variables: { id: detailId } });
+  const list = useQuery(TICKETS_QUERY, { skip: detailId !== undefined, fetchPolicy: "cache-first", variables: { limit: 100, offset: 0 } });
+  const detail = useQuery(TICKET_QUERY, { skip: detailId === undefined, fetchPolicy: "cache-first", variables: { id: detailId } });
   const { data, loading, error, refetch } = detailId === undefined ? list : detail;
   const [createMutation] = useMutation(CREATE_TICKET);
   const [updateMutation] = useMutation(UPDATE_TICKET);
@@ -52,13 +52,16 @@ export function useTicketStore(detailId?: string) {
   const getTicketById = useCallback((id: string) => tickets.find((ticket) => ticket.id === id || ticket.ticketNumber === id), [tickets]);
 
   const addTicket = useCallback(async (input: NewTicket) => {
-    const result = await createMutation({ variables: { draft: {
-      customerEmail: input.email, customerId: input.customerId, contactType: input.contactType,
-      category: input.category, orderNumber: input.orderNumber, priority: input.priority,
-      status: input.status, assignee: input.assignedTo, createdBy: input.createdBy,
-      subject: input.subject, message: input.message, solution: input.solution,
-      timeSpentOnTicket: input.timeSpentOnTicket, attachments: input.attachments, comments: input.comments ?? [], source: input.contactType,
-    } } });
+    const result = await createMutation({
+      variables: { draft: {
+        customerEmail: input.email, customerId: input.customerId, contactType: input.contactType,
+        category: input.category, orderNumber: input.orderNumber, priority: input.priority,
+        status: input.status, assignee: input.assignedTo, createdBy: input.createdBy,
+        subject: input.subject, message: input.message, solution: input.solution,
+        timeSpentOnTicket: input.timeSpentOnTicket, attachments: input.attachments, comments: input.comments ?? [], source: input.contactType,
+      } },
+      refetchQueries: [{ query: TICKETS_QUERY, variables: { limit: 100, offset: 0 } }],
+    });
     await refetch();
     return mapTicket(result.data.createTicket);
   }, [createMutation, refetch]);
@@ -78,12 +81,24 @@ export function useTicketStore(detailId?: string) {
     if (updates.solution !== undefined) patch.solution = updates.solution;
     if (updates.timeSpentOnTicket !== undefined) patch.timeSpentOnTicket = updates.timeSpentOnTicket;
     if (updates.attachments !== undefined) patch.attachments = updates.attachments;
-    await updateMutation({ variables: { id, patch } });
+    await updateMutation({
+      variables: { id, patch },
+      refetchQueries: [
+        { query: TICKETS_QUERY, variables: { limit: 100, offset: 0 } },
+        { query: TICKET_QUERY, variables: { id } },
+      ],
+    });
     await refetch();
   }, [refetch, updateMutation]);
 
   const addWorklog = useCallback(async (ticketId: string, commentText: string, author = "Support Agent") => {
-    await worklogMutation({ variables: { id: ticketId, comment: { id: `wl-${Date.now()}`, comment: commentText, createdAt: new Date().toISOString(), status: "Completed", author } } });
+    await worklogMutation({
+      variables: { id: ticketId, comment: { id: `wl-${Date.now()}`, comment: commentText, createdAt: new Date().toISOString(), status: "Completed", author } },
+      refetchQueries: [
+        { query: TICKETS_QUERY, variables: { limit: 100, offset: 0 } },
+        { query: TICKET_QUERY, variables: { id: ticketId } },
+      ],
+    });
     await refetch();
   }, [refetch, worklogMutation]);
 

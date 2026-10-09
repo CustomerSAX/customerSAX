@@ -172,3 +172,66 @@ export const ORDERS_PAGE_QUERY = gql`
     }
   }
 `;
+
+export const ORDER_QUERY = gql`
+  query OrderDetail($id: ID!) {
+    order(id: $id) {
+      id
+      orderNumber
+      customerId
+      customerEmail
+      state
+      orderState
+      shipmentState
+      paymentState
+      createdAt
+      lastModifiedAt
+      totalPrice {
+        centAmount
+        currencyCode
+        fractionDigits
+      }
+      lineItems {
+        id
+        productId
+        sku
+        name
+        quantity
+        totalPrice {
+          centAmount
+          currencyCode
+          fractionDigits
+        }
+      }
+      shippingAddress {
+        streetName
+        streetNumber
+        city
+        state
+        postalCode
+        country
+      }
+      billingAddress {
+        streetName
+        streetNumber
+        city
+        state
+        postalCode
+        country
+      }
+      returnInfo {
+        returnTrackingId
+        returnDate
+        items {
+          id
+          type
+          quantity
+          lineItemId
+          shipmentState
+          paymentState
+          comment
+        }
+      }
+    }
+  }
+`;
