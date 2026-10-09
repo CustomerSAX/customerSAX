@@ -481,6 +481,21 @@ importers:
 
   apps/repmotion-studio:
     dependencies:
+      '@apollo/client':
+        specifier: ^3.11.8
+        version: 3.14.1(@types/react@19.2.18)(graphql@16.14.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@csa/headers':
+        specifier: workspace:*
+        version: link:../../packages/headers
+      '@csa/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@fontsource-variable/inter':
+        specifier: ^5.3.0
+        version: 5.3.0
+      graphql:
+        specifier: ^16.9.0
+        version: 16.14.2
       next:
         specifier: 16.3.1
         version: 16.3.1(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -490,40 +505,34 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
-      "@csa/ui":
-        specifier: workspace:*
-        version: link:../../packages/ui
-      "@fontsource-variable/inter":
-        specifier: ^5.3.0
-        version: 5.3.0
     devDependencies:
-      "@types/node":
+      '@types/node':
         specifier: ^20.14.11
         version: 20.19.43
-      "@types/react":
+      '@types/react':
         specifier: ^19.2.18
         version: 19.2.18
-      "@types/react-dom":
+      '@types/react-dom':
         specifier: ^19.2.4
         version: 19.2.4(@types/react@19.2.18)
+      autoprefixer:
+        specifier: ^10.4.20
+        version: 10.5.4(postcss@8.5.25)
       eslint:
         specifier: ^9
         version: 9.39.5(jiti@1.21.7)
       eslint-config-next:
         specifier: 16.3.1
         version: 16.3.1(eslint@9.39.5(jiti@1.21.7))(typescript@5.9.3)
-      typescript:
-        specifier: ^5.5.4
-        version: 5.9.3
-      tailwindcss:
-        specifier: ^3.4.10
-        version: 3.4.19(tsx@4.23.5)(yaml@2.9.0)
-      autoprefixer:
-        specifier: ^10.4.20
-        version: 10.5.4(postcss@8.5.25)
       postcss:
         specifier: ^8.4.41
         version: 8.5.25
+      tailwindcss:
+        specifier: ^3.4.10
+        version: 3.4.19(tsx@4.23.5)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
 
   apps/studio:
     dependencies:
@@ -665,10 +674,10 @@ importers:
         version: 10.5.4(postcss@8.5.25)
       eslint:
         specifier: ^9
-        version: 9.39.5(jiti@1.21.7)
+        version: 9.39.5(jiti@2.7.0)
       eslint-config-next:
         specifier: 16.3.1
-        version: 16.3.1(eslint@9.39.5(jiti@1.21.7))(typescript@5.9.3)
+        version: 16.3.1(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
       postcss:
         specifier: ^8.4.41
         version: 8.5.25
