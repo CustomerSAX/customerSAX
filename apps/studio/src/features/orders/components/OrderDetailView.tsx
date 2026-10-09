@@ -19,7 +19,7 @@ import {
   SummaryGrid,
   SummaryCard,
 } from "@csa/ui";
-import { useOrderStore } from "../hooks/use-orders";
+import { useOrderStore, useOrderDetail } from "../hooks/use-orders";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import type {
   Order,
@@ -160,10 +160,9 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   const customerIdParam = searchParams.get("customerId");
   const isB2b = stripLocalePrefix(pathname || "/").startsWith("/b2b");
 
+  const { order: singleOrder, loading: singleLoading, error: singleError } = useOrderDetail(id);
   const {
     orders,
-    loading,
-    error,
     getOrderById,
     updateOrderStates,
     updateLineItemQuantity,
@@ -182,7 +181,9 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   } = useOrderStore();
 
   const fallbackOrder = useMemo(() => createEmptyOrder(id), [id]);
-  const order = getOrderById(id) || orders[0] || fallbackOrder;
+  const order = singleOrder || getOrderById(id) || orders.find((o) => o.id === id) || fallbackOrder;
+  const loading = singleLoading && !order;
+  const error = singleError;
 
   const fmtDate = useCallback((v?: string | null, style: "date" | "full" = "full") => {
     return style === "date" ? formatDate(v) : formatDateTime(v);

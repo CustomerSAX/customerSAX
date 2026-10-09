@@ -24,6 +24,40 @@ export function authServiceUrl() {
   return process.env.AUTH_SERVICE_URL?.trim() || "http://127.0.0.1:4360";
 }
 
+type CachedSession = {
+  session: Record<string, any>;
+  cachedAt: number;
+};
+
+const sessionCache = new Map<string, CachedSession>();
+const SESSION_CACHE_TTL_MS = 30_000; // 30 seconds safe TTL
+
+export async function getValidatedSession(token: string): Promise<Record<string, any> | null> {
+  const cached = sessionCache.get(token);
+  if (cached && Date.now() - cached.cachedAt < SESSION_CACHE_TTL_MS) {
+    return { ...cached.session };
+  }
+
+  const response = await fetch(`${authServiceUrl()}/sessions/current`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    sessionCache.delete(token);
+    return null;
+  }
+
+  const session = (await response.json().catch(() => ({}))) as Record<string, any>;
+  sessionCache.set(token, { session, cachedAt: Date.now() });
+  return { ...session };
+}
+
+export function invalidateSessionCache(token?: string) {
+  if (token) sessionCache.delete(token);
+  else sessionCache.clear();
+}
+
 export function setSessionCookie(response: NextResponse, token: string, expiresAt: string) {
   response.cookies.set(sessionCookieName, token, {
     expires: new Date(expiresAt),
@@ -34,7 +68,9 @@ export function setSessionCookie(response: NextResponse, token: string, expiresA
   });
 }
 
-export function clearSessionCookie(response: NextResponse) {
+export function clearSessionCookie(response: NextResponse, token?: string) {
+  if (token) invalidateSessionCache(token);
+  else invalidateSessionCache();
   response.cookies.set(sessionCookieName, "", {
     httpOnly: true,
     sameSite: "lax",

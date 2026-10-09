@@ -14,7 +14,7 @@ import {
   Label,
   PageHeader,
 } from "@csa/ui";
-import { useCartStore } from "../hooks/use-carts";
+import { useCartDetail } from "../hooks/use-carts";
 
 interface CartCreateQuoteRequestViewProps {
   id: string;
@@ -29,8 +29,7 @@ export function CartCreateQuoteRequestView({ id }: CartCreateQuoteRequestViewPro
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
 
-  const { loading, error, getCartById } = useCartStore();
-  const cart = getCartById(id);
+  const { cart, loading, error } = useCartDetail(id);
 
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);

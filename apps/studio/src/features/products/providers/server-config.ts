@@ -1,25 +1,20 @@
 import "server-only";
 import { applyCsaHeaders } from "@csa/headers";
-import { authServiceUrl, currentSessionToken } from "../../../app/api/auth/shared";
+import { currentSessionToken, getValidatedSession } from "../../../app/api/auth/shared";
 import { productsProvider } from "./config";
 
 /** Resolve only from the authenticated session, never from URL-supplied project IDs. */
 export async function currentProductsConfiguration() {
   const token = await currentSessionToken();
   if (!token) throw new Error("Sign in to browse products");
-  const response = await fetch(`${authServiceUrl()}/sessions/current`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: "no-store"
-  });
-  if (!response.ok) throw new Error("Sign in to browse products");
-  const { user } = (await response.json()) as {
-    user?: {
-      activeClientId?: string;
-      activeProjectKey?: string;
-      email?: string;
-      role?: string;
-    };
-  };
+  const session = await getValidatedSession(token);
+  const user = session?.user as {
+    activeClientId?: string;
+    activeProjectKey?: string;
+    email?: string;
+    role?: string;
+  } | undefined;
+  if (!user) throw new Error("Sign in to browse products");
   if (!user?.activeClientId || !user.activeProjectKey)
     throw new Error("Select a project to browse products");
   const result = await fetch(

@@ -89,12 +89,12 @@ export function EmployeeDetailView({ id }: { id: string }) {
 
   const employee = getEmployeeById(id);
   const { data: cartsData } = useQuery<EmployeeCartsData>(CUSTOMER_CARTS_QUERY, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "cache-first",
     skip: !employee?.id,
     variables: { customerId: employee?.id, limit: 20 },
   });
   const { data: ordersData } = useQuery<EmployeeOrdersData>(CUSTOMER_ORDERS_QUERY, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "cache-first",
     skip: !employee?.id,
     variables: { customerId: employee?.id, limit: 20, offset: 0 },
   });

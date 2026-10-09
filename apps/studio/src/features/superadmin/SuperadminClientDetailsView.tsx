@@ -33,7 +33,7 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
 
   const { data, loading, error, refetch } = useQuery(ADMIN_CLIENT_QUERY, {
     variables: { id: organizationId },
-    fetchPolicy: "network-only"
+    fetchPolicy: "cache-first"
   });
 
   const [setClientStatus] = useMutation(ADMIN_SET_CLIENT_STATUS);

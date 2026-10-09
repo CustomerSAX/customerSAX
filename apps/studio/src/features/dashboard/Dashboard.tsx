@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { Badge } from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
@@ -42,33 +43,19 @@ type HealthState =
   { phase: "loading" } | { phase: "ok"; services: ServiceHealth[] } | { phase: "error" };
 
 function useServiceHealth(): HealthState {
-  const [state, setState] = useState<HealthState>({ phase: "loading" });
+  const { data, isLoading, isError } = useQuery<{ ok?: boolean; services?: ServiceHealth[] } | null>({
+    queryKey: ["serviceHealth"],
+    queryFn: async () => {
+      const res = await fetch("/api/health");
+      if (!res.ok) throw new Error("Health check failed");
+      return (await res.json().catch(() => null)) as { ok?: boolean; services?: ServiceHealth[] } | null;
+    },
+    staleTime: 30 * 1000, // 30 seconds
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/health", { cache: "no-store" });
-        const data = (await res.json().catch(() => null)) as {
-          ok?: boolean;
-          services?: ServiceHealth[];
-        } | null;
-        if (cancelled) return;
-        if (!res.ok || !data?.ok || !Array.isArray(data.services)) {
-          setState({ phase: "error" });
-          return;
-        }
-        setState({ phase: "ok", services: data.services });
-      } catch {
-        if (!cancelled) setState({ phase: "error" });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return state;
+  if (isLoading) return { phase: "loading" };
+  if (isError || !data?.ok || !Array.isArray(data?.services)) return { phase: "error" };
+  return { phase: "ok", services: data.services };
 }
 
 export function Dashboard() {

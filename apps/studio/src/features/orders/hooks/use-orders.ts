@@ -2,7 +2,7 @@
 
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { ORDERS_PAGE_QUERY } from "../api/queries";
+import { ORDERS_PAGE_QUERY, ORDER_QUERY } from "../api/queries";
 import { CUSTOMERS_PAGE_QUERY } from "../../customers/api/queries";
 import type {
   Order,
@@ -218,7 +218,7 @@ function normalizeOrder(order: CommerceOrder, customerNames: Map<string, string>
 
 export function useOrderStore() {
   const { data, error, loading, refetch } = useQuery<OrdersPageData>(ORDERS_PAGE_QUERY, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "cache-first",
     variables: {
       limit: 100,
       offset: 0,
@@ -228,8 +228,8 @@ export function useOrderStore() {
   });
   const [orders, setOrders] = useState<Order[]>([]);
   const { data: customersData } = useQuery<OrderCustomersPageData>(CUSTOMERS_PAGE_QUERY, {
-    fetchPolicy: "cache-and-network",
-    variables: { limit: 500, offset: 0, sortKey: "createdAt", sortOrder: "desc" },
+    fetchPolicy: "cache-first",
+    variables: { limit: 100, offset: 0, sortKey: "createdAt", sortOrder: "desc" },
   });
   const [updateOrderMutation] = useMutation(UPDATE_ORDER_MUTATION);
 
@@ -485,3 +485,38 @@ export function useOrderStore() {
     updateCustomFields,
   };
 }
+
+type OrderDetailData = {
+  order: CommerceOrder | null;
+};
+
+export function useOrderDetail(id: string) {
+  const { data, loading, error, refetch } = useQuery<OrderDetailData>(ORDER_QUERY, {
+    variables: { id },
+    skip: !id,
+    fetchPolicy: "cache-first",
+  });
+  const [updateOrderMutation] = useMutation(UPDATE_ORDER_MUTATION);
+
+  const order = useMemo<Order | null>(() => {
+    if (!data?.order) return null;
+    return normalizeOrder(data.order, new Map());
+  }, [data?.order]);
+
+  const runOrderUpdate = useCallback(
+    async (orderId: string, actions: Record<string, unknown>[]) => {
+      await updateOrderMutation({
+        variables: { id: orderId, actions },
+        refetchQueries: [
+          { query: ORDER_QUERY, variables: { id: orderId } },
+          { query: ORDERS_PAGE_QUERY, variables: { limit: 100, offset: 0, sortKey: "createdAt", sortOrder: "desc" } },
+        ],
+      });
+      await refetch();
+    },
+    [refetch, updateOrderMutation]
+  );
+
+  return { order, loading, error, refetch, runOrderUpdate };
+}
+

@@ -49,7 +49,8 @@ import {
   MoreActionsMenu,
   CardEmpty,
 } from "@csa/ui";
-import { useCustomerStore } from "../hooks/use-customers";
+import { useCustomerStore, useCustomerDetail } from "../hooks/use-customers";
+import { useQuery as useTanStackQuery } from "@tanstack/react-query";
 import { SubscriptionManagementView } from "../../subscriptions/components/SubscriptionManagementView";
 import type {
   CustomerAddress,
@@ -302,8 +303,11 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "overview";
 
-  const { customers, groups, getCustomerById, updateCustomerProfile, loading, error } = useCustomerStore();
-  const customer = getCustomerById(id) || customers.find((c) => c.id === id) || customers[0];
+  const { customer: singleCustomer, loading: singleLoading, error: singleError, updateCustomerProfile } = useCustomerDetail(id);
+  const { customers, groups, getCustomerById } = useCustomerStore();
+  const customer = singleCustomer || getCustomerById(id) || customers.find((c) => c.id === id);
+  const loading = singleLoading && !customer;
+  const error = singleError;
 
   // ── Real orders from BFF (filtered by this customer's ID and email) ───────
   type GqlMoney = { centAmount: number; currencyCode: string; fractionDigits: number };
@@ -363,37 +367,27 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   });
 
   // ── Real tickets from ticketing service (by customerEmail) ────────────────
-  const [realTickets, setRealTickets] = useState<CustomerTicket[]>([]);
-  const [ticketsLoading, setTicketsLoading] = useState(false);
-
-  const fetchCustomerTickets = useCallback(async (email: string) => {
-    setTicketsLoading(true);
-    try {
-      const res = await fetch(`/api/tickets?customerEmail=${encodeURIComponent(email)}&limit=100`);
-      if (!res.ok) return;
-      const json = await res.json() as {
+  const { data: realTickets = [], isLoading: ticketsLoading } = useTanStackQuery<CustomerTicket[]>({
+    queryKey: ["customerTickets", customer?.email],
+    queryFn: async () => {
+      if (!customer?.email) return [];
+      const res = await fetch(`/api/tickets?customerEmail=${encodeURIComponent(customer.email)}&limit=100`);
+      if (!res.ok) return [];
+      const json = (await res.json()) as {
         results: Array<{ id: string; ticketNumber: string; subject: string; status: string; priority: string; createdAt?: string }>;
       };
-      setRealTickets(
-        (json.results ?? []).map((t) => ({
-          id: t.id,
-          ticketNumber: t.ticketNumber,
-          subject: t.subject,
-          status: (t.status as CustomerTicket["status"]) ?? "Open",
-          priority: (t.priority as CustomerTicket["priority"]) ?? "Medium",
-          createdAt: formatDateTime(t.createdAt),
-        }))
-      );
-    } catch {
-      /* silently ignore — tickets tab will show empty */
-    } finally {
-      setTicketsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (customer?.email) void fetchCustomerTickets(customer.email);
-  }, [customer?.email, fetchCustomerTickets]);
+      return (json.results ?? []).map((t) => ({
+        id: t.id,
+        ticketNumber: t.ticketNumber,
+        subject: t.subject,
+        status: (t.status as CustomerTicket["status"]) ?? "Open",
+        priority: (t.priority as CustomerTicket["priority"]) ?? "Medium",
+        createdAt: formatDateTime(t.createdAt),
+      }));
+    },
+    enabled: Boolean(customer?.email),
+    staleTime: 60 * 1000,
+  });
 
   // Map BFF orders to the CustomerOrder shape used in tabs / metrics
   function formatMoney(m?: GqlMoney | null): string {
