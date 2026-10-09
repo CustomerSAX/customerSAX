@@ -498,10 +498,11 @@ export function useOrderDetail(id: string) {
   });
   const [updateOrderMutation] = useMutation(UPDATE_ORDER_MUTATION);
 
+  const rawOrder = data?.order;
   const order = useMemo<Order | null>(() => {
-    if (!data?.order) return null;
-    return normalizeOrder(data.order, new Map());
-  }, [data?.order]);
+    if (!rawOrder) return null;
+    return normalizeOrder(rawOrder, new Map());
+  }, [rawOrder]);
 
   const runOrderUpdate = useCallback(
     async (orderId: string, actions: Record<string, unknown>[]) => {

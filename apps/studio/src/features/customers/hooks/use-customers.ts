@@ -178,15 +178,16 @@ export function useCustomerDetail(id: string) {
   });
   const [updateCustomerProfileMutation] = useMutation(UPDATE_CUSTOMER_PROFILE_MUTATION);
 
+  const rawCustomer = data?.customer;
   const customer = useMemo<Customer | null>(() => {
-    if (!data?.customer) return null;
+    if (!rawCustomer) return null;
     return {
-      ...data.customer,
-      email: data.customer.email ?? "",
-      createdAt: data.customer.createdAt ?? "",
-      lastModifiedAt: data.customer.lastModifiedAt ?? undefined,
+      ...rawCustomer,
+      email: rawCustomer.email ?? "",
+      createdAt: rawCustomer.createdAt ?? "",
+      lastModifiedAt: rawCustomer.lastModifiedAt ?? undefined,
     };
-  }, [data?.customer]);
+  }, [rawCustomer]);
 
   const updateCustomerProfile = useCallback(
     async (idOrUpdates: string | Partial<Customer>, maybeUpdates?: Partial<Customer>) => {
