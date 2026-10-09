@@ -13,6 +13,8 @@ import {
 import type { Ticket } from "../types/ticket-types";
 
 type Review = {
+  informationRequest?: { status: string; recipient: string; subject: string; text: string; createdAt: string } | null;
+  informationRequestError?: string;
   revision: string;
   status:
     | "analyzing"
@@ -79,10 +81,12 @@ const labels: Record<Review["status"], string> = {
 
 export function TicketAIReview({
   ticket,
-  onTicketChanged
+  onTicketChanged,
+  initialOperation = "analyze"
 }: {
   ticket: Ticket;
   onTicketChanged: () => Promise<unknown>;
+  initialOperation?: "load" | "analyze";
 }) {
   const [review, setReview] = useState<Review | null>(null);
   const [busy, setBusy] = useState(false);
@@ -92,6 +96,7 @@ export function TicketAIReview({
   const resolutionNotes =
     editedResolution ??
     [ticket.solution, review?.resolutionDraft].filter(Boolean).join("\n\n");
+  const refreshedEmail = useRef("");
   const inFlight = useRef(false);
   const mounted = useRef(true);
 
@@ -110,7 +115,10 @@ export function TicketAIReview({
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Unable to load the proposal.");
         if (mounted.current) setReview(data.review);
-        if (data.review?.status === "closed" && ticket.status !== "Closed") {
+        const emailId = data.review?.informationRequest?.createdAt;
+        const emailChanged = data.review?.informationRequest?.status === "accepted" && emailId !== refreshedEmail.current;
+        if ((data.review?.status === "closed" && ticket.status !== "Closed") || emailChanged || operation !== "load") {
+          if (emailChanged) refreshedEmail.current = emailId;
           await onTicketChanged();
         }
       } catch (cause) {
@@ -130,13 +138,13 @@ export function TicketAIReview({
     mounted.current = true;
     // Defer the initial request so Strict Mode's discarded mount cannot start work.
     const timer = window.setTimeout(() => {
-      void request("analyze");
+      void request(initialOperation);
     }, 0);
     return () => {
       window.clearTimeout(timer);
       mounted.current = false;
     };
-  }, [request]);
+  }, [request, initialOperation]);
 
   useEffect(() => {
     if (
@@ -190,7 +198,7 @@ export function TicketAIReview({
           className="flex items-center gap-2 rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700"
         >
           {running && <Loader2 size={13} className="animate-spin" aria-hidden="true" />}
-          {review ? labels[review.status] : busy ? "Analyzing ticket" : "Not analyzed"}
+          {review ? labels[review.status] : busy ? (initialOperation === "load" ? "Loading review" : "Analyzing ticket") : "Not analyzed"}
         </span>
       </header>
       <div className="space-y-5 p-5">
@@ -398,6 +406,20 @@ export function TicketAIReview({
             </div>
           )}
 
+        {review?.informationRequest && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-m-text">
+            <p className="font-semibold">{review.informationRequest.status === "accepted"
+              ? "Information request accepted for delivery — waiting for customer"
+              : review.informationRequest.status === "rejected"
+                ? "Information email rejected — agent follow-up needed"
+                : "Email outcome unconfirmed — check provider activity before resending"}</p>
+            <p className="mt-2">To: {review.informationRequest.recipient}</p>
+            <p>{review.informationRequest.subject}</p>
+            <p className="mt-2 whitespace-pre-wrap">{review.informationRequest.text}</p>
+          </div>
+        )}
+        {review?.informationRequestError && <p role="alert" className="text-sm text-red-600">{review.informationRequestError}</p>}
+
         <div className="flex items-start gap-2 text-xs leading-relaxed text-m-text-muted">
           <ShieldCheck
             size={17}
@@ -407,7 +429,7 @@ export function TicketAIReview({
           <p>
             Changes run only after approval of an unchanged proposal. Review applicable
             business policy before approving. Approval and results are saved with this
-            ticket. Customer response drafts are not sent automatically.
+            ticket. When automatic email is enabled, requests for missing customer details are sent and recorded here. Other response drafts are not sent automatically.
           </p>
         </div>
 

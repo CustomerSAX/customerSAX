@@ -1,5 +1,6 @@
 "use client";
 
+import { NotificationBell } from "@/features/notifications/NotificationBell";
 import { apolloClient } from "@/graphql/client";
 import { TicketAIHelper } from "@/features/tickets/components/TicketAIHelper";
 import { localizeHref, localizePathname, stripLocalePrefix } from "@/i18n/routing";
@@ -1402,6 +1403,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                   ))}
                 </select>
               </label>
+
+              {user?.activeClientId && user.activeProjectKey && !user.requiresProjectSelection && (
+                <NotificationBell key={`${user.email}:${user.activeClientId}:${user.activeProjectKey}`} locale={currentLocale} clientId={user.activeClientId} projectKey={user.activeProjectKey} />
+              )}
 
               <Dropdown
                 trigger={

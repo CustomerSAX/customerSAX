@@ -31,6 +31,7 @@ Enterprise-grade customer service operations platform built on GCP — AI-powere
 | App | Path | Port | Description |
 |-----|------|------|-------------|
 | **Studio** | `apps/studio` | 3000 | Next.js dashboard — tickets, orders, customers, AI assistant |
+| **Repmotion Studio** | `apps/repmotion-studio` | 3002 | Shared-design-system sales workspace demo; run with `pnpm dev:repmotion-studio` |
 | **Marketing** | `apps/marketing` | 3100 | Next.js 16 marketing/landing site |
 | **Docs** | `apps/docs-site` | 3200 | Fumadocs-powered API & architecture docs |
 

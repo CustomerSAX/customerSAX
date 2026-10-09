@@ -6,6 +6,7 @@ export function mapTicket(doc: Document): Ticket {
   const ticketNumber = String(doc.ticketNumber ?? id);
 
   return {
+    informationRequest: doc.informationRequest ?? null,
     // Handle both 'assignee' (current field name) and 'assignedTo' (legacy
     // field name used by older MongoDB documents created before the schema
     // was standardised — do not remove the fallback until all docs are migrated).
