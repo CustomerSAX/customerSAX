@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "@fontsource-variable/inter";
 import "./globals.css";
-import { DemoProvider } from "../features/repmotion/demo-state";
+import { AppProviders } from "./providers";
 import { Workspace } from "../features/repmotion/workspace";
 
 export const metadata: Metadata = {
@@ -13,11 +13,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body>
-        <DemoProvider>
+    <html lang="en" className="light" data-theme="light">
+      <body className="font-sans">
+        <AppProviders>
           <Workspace>{children}</Workspace>
-        </DemoProvider>
+        </AppProviders>
       </body>
     </html>
   );
