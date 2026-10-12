@@ -456,6 +456,28 @@ resource "google_cloud_run_v2_service" "ticketing" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_cloud_run_v2_service" "crm" {
+  name     = "${local.name_prefix}-crm"
+  location = var.region
+
+  template {
+    containers {
+      image = var.crm_image
+
+      env {
+        name  = "CRM_PORT"
+        value = "8080"
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [template, client, client_version]
+  }
+
+  depends_on = [google_project_service.required]
+}
+
 resource "google_cloud_run_v2_service" "subscriptions" {
   name     = "${local.name_prefix}-subscriptions"
   location = var.region

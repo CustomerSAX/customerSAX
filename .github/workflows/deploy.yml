@@ -63,6 +63,7 @@ jobs:
             "${PREFIX}-ticketing"
             "${PREFIX}-subscriptions"
             "${PREFIX}-admin"
+            "${PREFIX}-crm"
             "${PREFIX}-commerce-shopify"
             "${PREFIX}-commerce-bigcommerce"
             "${PREFIX}-commerce-sfcc"
@@ -271,6 +272,10 @@ jobs:
             "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-ticketing" \
             "${PREFIX}-ticketing"
 
+          import_cloud_run_if_exists 'google_cloud_run_v2_service.crm' \
+            "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-crm" \
+            "${PREFIX}-crm"
+
           import_cloud_run_if_exists 'google_cloud_run_v2_service.subscriptions' \
             "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/services/${PREFIX}-subscriptions" \
             "${PREFIX}-subscriptions"
@@ -464,7 +469,7 @@ jobs:
           echo "🎉 customerSAX Deployment Complete"
           echo ""
           echo "── GCP Cloud Run ────────────────────────"
-          for SVC in bff auth ai-assist commerce-commercetools ticketing admin; do
+          for SVC in bff auth ai-assist commerce-commercetools ticketing admin crm; do
             RUN_SVC="csa-dev-${SVC}"
             URL=$(gcloud run services describe "${RUN_SVC}" \
               --region="${{ env.REGION }}" --project="${{ env.PROJECT_ID }}" \

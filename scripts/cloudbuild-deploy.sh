@@ -55,6 +55,7 @@ deploy_service() {
     ticketing)               MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
     subscriptions)           MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
     admin)                   MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
+    crm)                     MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
     *)                       MIN=0; MAX=5;  MEM=512Mi; CPU=1; PORT=8080; RUN_TIMEOUT=300s ;;
   esac
 
@@ -66,7 +67,9 @@ deploy_service() {
       SECRETS="AI_GATEWAY_API_KEY=${NAME_PREFIX}-ai-gateway-api-key:latest,MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     commerce-commercetools)
       SECRETS="COMMERCETOOLS_CLIENT_ID=${NAME_PREFIX}-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=${NAME_PREFIX}-commercetools-client-secret:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
-    admin)
+    admin|crm)
+      # crm reads each project's CRM settings from the admin DB and decrypts
+      # their stored credentials, exactly like admin.
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
     ticketing|subscriptions|auth)
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
@@ -82,6 +85,10 @@ deploy_service() {
       SVC_ENV="${SVC_ENV},MONGO_ADMIN_DB=csa-admin,MONGO_ADMIN_COLLECTION=clients,MONGO_PROJECTS_COLLECTION=csa_projects,MONGO_USERS_COLLECTION=csa_users" ;;
     ai-assist)
       SVC_ENV="${SVC_ENV},DEFAULT_LLM_PROVIDER=openai,AI_COMMERCE_PLATFORM=commercetools" ;;
+    crm)
+      # The CRM is chosen per project in Superadmin; CRM_PROVIDER=none disables
+      # the single-account env fallback that exists only for local development.
+      SVC_ENV="${SVC_ENV},MONGO_ADMIN_DB=csa-admin,MONGO_PROJECTS_COLLECTION=csa_projects,CRM_PROVIDER=none" ;;
     commerce-commercetools)
       SVC_ENV="${SVC_ENV},COMMERCETOOLS_AUTH_URL=https://auth.us-central1.gcp.commercetools.com"
       SVC_ENV="${SVC_ENV},COMMERCETOOLS_API_URL=https://api.us-central1.gcp.commercetools.com" ;;
@@ -97,6 +104,7 @@ deploy_service() {
       TICK_URL=$(get_url "ticketing")
       SUBSCRIPTIONS_URL=$(get_url "subscriptions")
       ADMIN_URL=$(get_url "admin")
+      CRM_URL=$(get_url "crm")
       FED_SERVICES="{}"
       if [ -n "${CT_URL}" ]; then
         FED_SERVICES=$(echo "${FED_SERVICES}" | \
@@ -113,6 +121,10 @@ deploy_service() {
       if [ -n "${ADMIN_URL}" ]; then
         FED_SERVICES=$(echo "${FED_SERVICES}" | \
           python3 -c "import sys,json; d=json.load(sys.stdin); d['admin']='${ADMIN_URL}/graphql'; print(json.dumps(d))")
+      fi
+      if [ -n "${CRM_URL}" ]; then
+        FED_SERVICES=$(echo "${FED_SERVICES}" | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); d['crm']='${CRM_URL}/graphql'; print(json.dumps(d))")
       fi
       echo "🔗 FEDERATED_SERVICES: ${FED_SERVICES}"
       SVC_ENV="^|^NODE_ENV=production|SERVICE_NAME=${SVC}|ENVIRONMENT=${ENVIRONMENT}|FEDERATED_SERVICES=${FED_SERVICES}" ;;

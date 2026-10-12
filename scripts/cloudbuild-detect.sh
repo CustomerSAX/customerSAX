@@ -16,6 +16,7 @@
 #   ticketing               → csa-dev-ticketing       (private)
 #   subscriptions           → csa-dev-subscriptions   (private)
 #   admin                   → csa-dev-admin           (private)
+#   crm                     → csa-dev-crm             (private)
 #
 # Frontend (Vercel — excluded from Cloud Build): studio, marketing, docs-site
 # ============================================================
@@ -60,6 +61,7 @@ ALL_SVCS=(
   "ticketing"
   "subscriptions"
   "admin"
+  "crm"
   "bff"
 )
 
