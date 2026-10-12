@@ -3,8 +3,15 @@
 import { useEffect, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Button, Input, Select } from "@csa/ui";
-import { CARD_CLASS, LABEL_CLASS } from "./styles";
-import type { ProjectRow } from "./types";
+
+const LABEL_CLASS = "mb-1 block text-xs font-semibold text-m-text";
+const PROVIDER_NAME: Record<string, string> = { salesforce: "Salesforce", hubspot: "HubSpot", zoho: "Zoho CRM" };
+
+/** The project fields the CRM form needs. */
+export interface CrmSettingsProject {
+  id: string;
+  displayName: string;
+}
 
 const READ = gql`
   query ProjectCrm($clientId: ID!, $id: ID!) {
@@ -67,12 +74,15 @@ export function CrmSettings({
   clientId,
   project,
   onClose,
-  onSaved
+  onSaved,
+  initialProvider
 }: {
   clientId: string;
-  project: ProjectRow;
+  project: CrmSettingsProject;
   onClose: () => void;
   onSaved: () => void;
+  /** Provider picked from a connector card; the form opens on it (nothing changes until Save). */
+  initialProvider?: string;
 }) {
   const { data, loading, error, refetch } = useQuery(READ, {
     variables: { clientId, id: project.id },
@@ -93,7 +103,7 @@ export function CrmSettings({
   useEffect(() => {
     const settings = data?.adminProjectCrm;
     if (settings) {
-      setProvider(settings.provider);
+      setProvider(initialProvider || settings.provider);
       setInstanceUrl(settings.salesforceInstanceUrl);
       setConsumerKey(settings.salesforceClientId);
       setConsumerSecret("");
@@ -103,8 +113,9 @@ export function CrmSettings({
       setZohoSecret("");
       setZohoGrantCode("");
     }
-  }, [data]);
+  }, [data, initialProvider]);
   const busy = saving.loading || testing.loading;
+  const savedProvider: string | undefined = data?.adminProjectCrm?.provider;
   const input = {
     provider,
     salesforceInstanceUrl: instanceUrl,
@@ -149,13 +160,19 @@ export function CrmSettings({
     }
   }
   return (
-    <section className={`${CARD_CLASS} p-6`} aria-label={`CRM for ${project.displayName}`}>
+    <section className="p-6" aria-label={`CRM for ${project.displayName}`}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-m-text">CRM — {project.displayName}</h3>
         <Button variant="ghost" onClick={onClose} disabled={busy}>
           Close
         </Button>
       </div>
+      {savedProvider && savedProvider !== "none" && savedProvider !== provider && (
+        <p className="mb-4 rounded-m-md border border-m-warning/40 bg-m-warning/10 px-3 py-2 text-xs text-m-text">
+          This project is currently connected to <strong>{PROVIDER_NAME[savedProvider] ?? savedProvider}</strong>. Saving will
+          switch it to {provider === "none" ? "no CRM" : PROVIDER_NAME[provider] ?? provider} and release the current account.
+        </p>
+      )}
       {loading ? (
         <p>Loading CRM settings…</p>
       ) : error ? (
