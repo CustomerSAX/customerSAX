@@ -2,7 +2,7 @@ import { gql } from "@apollo/client";
 
 export const TICKET_FIELDS = gql`
   fragment TicketFields on Ticket {
-    id ticketNumber customerEmail customerId contactType category orderNumber priority status assignee
+    id ticketNumber aiStatus customerEmail customerId contactType category orderNumber priority status assignee
     createdBy subject message solution timeSpentOnTicket createdAt lastModifiedAt resolutionDate source
     comments { id comment createdAt status author }
     attachments { name url size }

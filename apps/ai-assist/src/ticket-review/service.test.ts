@@ -88,7 +88,9 @@ function fixture() {
     order.version = 5;
     return { id: order.id, version: 5 };
   });
+  const requestInformation = vi.fn(async () => ({ status: "accepted", recipient: ticket.customerEmail, subject: "More details", text: "Please provide the new phone number.", createdAt: "2026-10-08" }));
   const service = createReviewService({
+    requestInformation,
     store,
     order: async () => structuredClone(order),
     analyzeOrder: async () => structuredClone(findings),
@@ -101,6 +103,7 @@ function fixture() {
     execute
   });
   return {
+    requestInformation,
     order,
     findings,
     executeOrder,
@@ -642,5 +645,38 @@ describe("order inquiry approval", () => {
       )?.status
     ).toBe("close_stale");
     expect(f.closeTicket).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("automatic missing-information email", () => {
+  it("requests missing phone details without executing any account change", async () => {
+    const f = fixture();
+    f.ticket.message = "Please update my phone number";
+    Object.assign(f.analysis, { intent: "needs_information", phone: null, evidence: null, customerQuestions: ["new_phone_number"] });
+    const review = await f.service.prepare(scope, f.ticket.id);
+    expect(f.requestInformation).toHaveBeenCalledWith(f.ticket, ["new_phone_number"]);
+    expect(review.informationRequest?.status).toBe("accepted");
+    expect(f.execute).not.toHaveBeenCalled();
+    await f.service.prepare(scope, f.ticket.id);
+    expect(f.requestInformation).toHaveBeenCalledTimes(1);
+  });
+  it("does not email complete requests, internal blockers, or closed tickets", async () => {
+    const f = fixture();
+    await f.service.prepare(scope, f.ticket.id);
+    expect(f.requestInformation).not.toHaveBeenCalled();
+    f.ticket.status = "closed";
+    Object.assign(f.analysis, { intent: "needs_information", customerQuestions: ["new_phone_number"] });
+    await f.service.prepare(scope, f.ticket.id, true);
+    expect(f.requestInformation).not.toHaveBeenCalled();
+  });
+  it("retains the proposal and reports an uncertain email failure", async () => {
+    const f = fixture();
+    Object.assign(f.analysis, { intent: "needs_information", customerQuestions: ["clarify_request"] });
+    f.requestInformation.mockRejectedValue(new Error("unavailable"));
+    const review = await f.service.prepare(scope, f.ticket.id);
+    expect(review.status).toBe("blocked");
+    expect(review.informationRequestError).toContain("could not be confirmed");
+    expect(f.execute).not.toHaveBeenCalled();
   });
 });

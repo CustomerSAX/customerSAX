@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -22,6 +22,7 @@ import {
   EmptyState,
   useDataTable,
 } from "@csa/ui";
+import { TicketAIQuickReview } from "./TicketAIQuickReview";
 import { SectionCard } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES } from "../hooks/use-tickets";
 import type { Ticket, TicketStatus, TicketPriority } from "../types/ticket-types";
@@ -35,6 +36,10 @@ export function TicketListView() {
   const common = useTranslations("Common");
   const paginationLabels = useTablePaginationLabels();
   const { tickets, loading, error, refetch } = useTicketStore();
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (!document.hidden) void refetch().catch(() => {}); }, 15000);
+    return () => window.clearInterval(timer);
+  }, [refetch]);
 
   const searchFieldOptions = [
     { value: "ticketNumber", label: t("ticketNumber") },
@@ -263,7 +268,7 @@ export function TicketListView() {
           {/* Keep identifiers and dates readable; only the table region scrolls. */}
           <Table
             caption={t("sectionTitle")}
-            className="min-w-[1200px] whitespace-nowrap [overflow-wrap:normal]"
+            className="min-w-[1400px] whitespace-nowrap [overflow-wrap:normal]"
           >
             <TableHeader>
               <TableRow>
@@ -283,6 +288,7 @@ export function TicketListView() {
                 <TableHead sortable onSort={() => handleSort("status")} sortDirection={sortColumn === "status" ? sortDirection : false}>
                   {common("status")}
                 </TableHead>
+                <TableHead>AI Status</TableHead>
                 <TableHead sortable onSort={() => handleSort("priority")} sortDirection={sortColumn === "priority" ? sortDirection : false}>
                   {t("priorityLabel")}
                 </TableHead>
@@ -308,6 +314,7 @@ export function TicketListView() {
                   </TableCell>
                   <TableCell>{t.has(`contactType.${ticket.contactType}`) ? t(`contactType.${ticket.contactType}`) : ticket.contactType}</TableCell>
                   <TableCell>{renderStatusBadge(ticket.status)}</TableCell>
+                  <TableCell><TicketAIQuickReview ticket={ticket} onTicketChanged={refetch} /></TableCell>
                   <TableCell>{renderPriorityBadge(ticket.priority)}</TableCell>
                   <TableCell className="text-xs font-medium">
                     {t.has(`categoryValues.${ticket.category}`)

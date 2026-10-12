@@ -2,6 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { prepareOrderAction } from "./order-action.js";
 import { groundedPhone } from "./phone.js";
 import type {
+  CustomerQuestion,
+  InformationRequest,
   Analysis,
   ContactCustomer,
   Review,
@@ -22,6 +24,7 @@ export class ReviewError extends Error {
   }
 }
 type Dependencies = {
+  requestInformation?(ticket: ReviewTicket, questions: CustomerQuestion[]): Promise<InformationRequest | null>;
   store: ReviewStore;
   ticket(id: string): Promise<ReviewTicket>;
   closeTicket(
@@ -69,7 +72,7 @@ function orderOwnershipIssue(
   return undefined;
 }
 const now = () => new Date().toISOString();
-const reviewId = (scope: Scope, ticketId: string) =>
+export const reviewId = (scope: Scope, ticketId: string) =>
   digest([scope.clientId, scope.projectKey, ticketId]);
 
 export function createReviewService(deps: Dependencies) {
@@ -153,6 +156,17 @@ export function createReviewService(deps: Dependencies) {
     );
   }
 
+  async function requestMissingDetails(review: Review, ticket: ReviewTicket, scope: Scope, questions: CustomerQuestion[]): Promise<Review> {
+    if (!deps.requestInformation || !questions.length || ["closed", "resolved"].includes(ticket.status.toLowerCase())) return review;
+    try {
+      const informationRequest = await deps.requestInformation(ticket, questions);
+      if (!informationRequest) return review;
+      return (await change(review, scope, { informationRequest, informationRequestError: undefined }, "customer_information_email")) ?? review;
+    } catch {
+      return (await change(review, scope, { informationRequestError: "The information-request email could not be confirmed. Check the ticket email record and provider activity before retrying." }, "customer_information_email_unconfirmed")) ?? review;
+    }
+  }
+
   async function prepare(
     scope: Scope,
     ticketId: string,
@@ -182,6 +196,7 @@ export function createReviewService(deps: Dependencies) {
       clientId: scope.clientId,
       projectKey: scope.projectKey,
       ticketId,
+      informationRequest: ticket.informationRequest ?? previous?.informationRequest,
       fingerprint: hash,
       revision: randomUUID(),
       status: "analyzing",
@@ -195,6 +210,7 @@ export function createReviewService(deps: Dependencies) {
     if (previous) {
       const patch: Partial<Review> = {
         ...started,
+        informationRequestError: undefined,
         approvedBy: undefined,
         approvedAt: undefined,
         result: undefined,
@@ -260,7 +276,7 @@ export function createReviewService(deps: Dependencies) {
         if (!order) throw new Error("Order unavailable");
         const findings = await deps.analyzeOrder(ticket, order);
         const proposed = prepareOrderAction(ticket, order, findings);
-        return (await change(
+        const prepared = (await change(
           started,
           scope,
           {
@@ -286,6 +302,7 @@ export function createReviewService(deps: Dependencies) {
           },
           "order_proposal_prepared"
         ))!;
+        return requestMissingDetails(prepared, ticket, scope, findings.customerQuestions ?? []);
       }
       const analysis = await deps.analyze(ticket);
       const patch: Partial<Review> = {
@@ -341,7 +358,9 @@ export function createReviewService(deps: Dependencies) {
           }
         }
       }
-      return (await change(started, scope, patch, "proposal_prepared"))!;
+      const prepared = (await change(started, scope, patch, "proposal_prepared"))!;
+      return requestMissingDetails(prepared, ticket, scope,
+        analysis.intent === "needs_information" ? analysis.customerQuestions ?? [] : []);
     } catch {
       return (await change(
         started,

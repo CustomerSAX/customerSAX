@@ -1,4 +1,5 @@
 import type {
+  InformationRequest,
   Ticket,
   TicketDraft,
   TicketListArgs,
@@ -11,6 +12,7 @@ import type {
 export type ProviderField = { id: string; label: string; type: string; value: string | null };
 
 export interface TicketingProvider {
+  requestInformation?(id: string, expectedLastModifiedAt: string, questions: string[]): Promise<InformationRequest | null>;
   closeIfUnchanged?(id: string, expectedLastModifiedAt: string, solution: string): Promise<Ticket | null>;
   getFields?(id: string): Promise<ProviderField[]>;
   getTicket(id: string): Promise<Ticket | null>;

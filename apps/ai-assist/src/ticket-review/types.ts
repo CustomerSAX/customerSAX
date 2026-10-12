@@ -1,5 +1,8 @@
+export type CustomerQuestion = "new_phone_number" | "clarify_request" | "missing_items" | "shipping_address";
+export type InformationRequest = { status: string; recipient: string; subject: string; text: string; createdAt: string; messageId?: string };
 export type Scope = { clientId: string; projectKey: string; userEmail: string };
 export type ReviewTicket = {
+  informationRequest?: InformationRequest | null;
   id: string;
   subject: string;
   message: string;
@@ -20,6 +23,7 @@ export type ReviewOrder = {
   [key: string]: unknown;
 };
 export type OrderFindings = {
+  customerQuestions?: CustomerQuestion[];
   summary: string;
   actions: string[];
   responseDraft: string;
@@ -39,6 +43,7 @@ export type ContactCustomer = {
   targets: ContactTarget[];
 };
 export type Analysis = {
+  customerQuestions?: CustomerQuestion[];
   summary: string;
   intent: "update_contact_number" | "unsupported" | "needs_information";
   phone: string | null;
@@ -70,6 +75,8 @@ export type ReviewStatus =
   | "failed"
   | "uncertain";
 export type Review = {
+  informationRequest?: InformationRequest | null;
+  informationRequestError?: string;
   _id: string;
   clientId: string;
   projectKey: string;

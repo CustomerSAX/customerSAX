@@ -3,7 +3,7 @@ import { createLogger } from "@csa/logger";
 import { getTicketsCollection } from "../db/mongodb.js";
 import { mapTicket } from "./mapper.js";
 import { generateTicketNumber, nextTicketNumber } from "./ticket-number.js";
-import type { Ticket, TicketDraft, TicketListArgs, TicketPage, TicketUpdate, WorklogComment } from "./types.js";
+import type { InformationRequest, Ticket, TicketDraft, TicketListArgs, TicketPage, TicketUpdate, WorklogComment } from "./types.js";
 
 const log = createLogger("ticketing").child({ module: "tickets/repository" });
 
@@ -345,4 +345,48 @@ function sortMemoryTickets(tickets: Document[], args: TicketListArgs) {
     const b = right[key] instanceof Date ? right[key].getTime() : String(right[key] ?? "");
     return a < b ? -direction : a > b ? direction : 0;
   });
+}
+
+/** Claim once per ticket before contacting the provider; survives restarts with MongoDB. */
+export async function claimInformationRequest(ticket: Ticket, request: InformationRequest, scope?: NativeTicketScope): Promise<boolean> {
+  if (!ticket.lastModifiedAt) return false;
+  if (usesMemoryStore()) {
+    const doc = memoryTickets.find(item => matchesIdentity(item, ticket.id, ticket.projectKey) && matchesOwner(item, scope));
+    if (!doc || doc.informationRequest || mapTicket(doc).lastModifiedAt !== ticket.lastModifiedAt) return false;
+    doc.informationRequest = request;
+    return true;
+  }
+  const result = await (await getTicketsCollection()).updateOne(
+    { $and: [ticketIdentityFilter(ticket.id, ticket.projectKey, scope), {
+      informationRequest: { $exists: false }, lastModifiedAt: new Date(ticket.lastModifiedAt)
+    }] },
+    { $set: { informationRequest: request } }
+  );
+  return result.modifiedCount === 1;
+}
+
+export async function finishInformationRequest(ticket: Ticket, request: InformationRequest, scope?: NativeTicketScope): Promise<void> {
+  // Persist the outcome even if an agent edited the ticket while sending.
+  // Change workflow status only if the original ticket revision is still current.
+  const comment = { id: `email-${request.createdAt}`, author: "CustomerSAX email", createdAt: new Date().toISOString(),
+    status: "Completed", comment: `Customer information request: ${request.status}\nTo: ${request.recipient}\nSubject: ${request.subject}\n\n${request.text}` };
+  if (usesMemoryStore()) {
+    const doc = memoryTickets.find(item => matchesIdentity(item, ticket.id, ticket.projectKey) && matchesOwner(item, scope));
+    if (!doc || doc.informationRequest?.status !== "sending") return;
+    if (request.status === "accepted" && doc.status === ticket.status && mapTicket(doc).lastModifiedAt === ticket.lastModifiedAt) doc.status = "Pending";
+    doc.informationRequest = request;
+    doc.comments = [...(doc.comments ?? []), comment];
+    doc.lastModifiedAt = new Date();
+    return;
+  }
+  const collection = await getTicketsCollection();
+  const identity = ticketIdentityFilter(ticket.id, ticket.projectKey, scope);
+  if (request.status === "accepted") await collection.updateOne(
+    { $and: [identity, { lastModifiedAt: new Date(ticket.lastModifiedAt!), status: ticket.status, "informationRequest.status": "sending" }] },
+    { $set: { status: "Pending" } }
+  );
+  await collection.updateOne(
+    { $and: [identity, { "informationRequest.status": "sending" }] },
+    { $set: { informationRequest: request, lastModifiedAt: new Date() }, $push: { comments: comment } } as Document
+  );
 }

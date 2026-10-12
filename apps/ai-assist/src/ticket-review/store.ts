@@ -60,3 +60,8 @@ export const reviewStore: ReviewStore = {
     );
   }
 };
+
+/** One scoped read for the ticket list; never runs analysis or sends email. */
+export async function getReviewsByIds(ids: string[], clientId: string, projectKey: string): Promise<Review[]> {
+  return (await collection()).find({ _id: { $in: ids }, clientId, projectKey }).toArray();
+}

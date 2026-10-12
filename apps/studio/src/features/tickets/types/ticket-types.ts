@@ -38,6 +38,7 @@ export interface TicketHistoryEntry {
 }
 
 export interface Ticket {
+  aiStatus?: string;
   id: string;
   ticketNumber: string;
   email: string;
