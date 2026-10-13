@@ -30,6 +30,7 @@ export interface ProjectRow {
   clientId: string;
   platform: Platform;
   ticketingProvider?: "internal" | "zendesk" | "freshdesk";
+  crmProvider?: "none" | "salesforce" | "hubspot" | "zoho";
   productsProvider?: "commercetools" | "algolia" | null;
   projectKey: string;
   displayName: string;

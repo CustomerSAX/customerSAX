@@ -76,7 +76,13 @@ export function useCsaChat(sessionContext: SessionContext) {
     [JSON.stringify(sessionContext)]
   );
 
-  const chat = useChat({ transport });
+  // Without a throttle, useChat re-renders once per stream chunk. A burst of
+  // chunks (e.g. a large tool result followed by fast text deltas, as CRM
+  // contact details produce) nests enough synchronous re-renders to hit React's
+  // "Maximum update depth exceeded", which aborts the stream and surfaces as a
+  // "Connection error". Batching updates to one render per 50ms prevents that
+  // with no visible lag.
+  const chat = useChat({ transport, experimental_throttle: 50 });
 
   const isLoading = chat.status === "submitted" || chat.status === "streaming";
 

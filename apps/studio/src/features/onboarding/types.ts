@@ -119,6 +119,8 @@ export interface OnboardingState {
   aiSettings: AiSettingsDraft;
   smtpProfile: SmtpProfileDraft;
   ssoConfig: SsoConfigDraft;
+  /** CRM provider of the active project; configured per project from the Connectors page. */
+  crm?: { provider: string };
 
   // Step 7: Team
   teamMembers: TeamMemberDraft[];

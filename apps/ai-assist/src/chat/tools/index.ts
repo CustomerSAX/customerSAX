@@ -11,6 +11,7 @@ import type { ToolSet } from "ai";
 import { buildCommerceTools } from "./commerce.js";
 import { buildUiTools } from "./ui-tools.js";
 import { buildTicketTools } from "./tickets.js";
+import { buildCrmTools } from "./crm.js";
 
 /**
  * Builds the per-request tool set.
@@ -29,6 +30,7 @@ export function buildChatTools(): ToolSet {
   return {
     ...buildCommerceTools(),
     ...buildUiTools(approvalGate),
-    ...(buildTicketTools(approvalGate) as ToolSet)
+    ...(buildTicketTools(approvalGate) as ToolSet),
+    ...(buildCrmTools(approvalGate) as ToolSet)
   };
 }

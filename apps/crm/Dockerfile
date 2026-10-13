@@ -1,0 +1,39 @@
+FROM node:20-slim AS build
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml pnpm-workspace.yaml
+COPY apps/crm/package.json apps/crm/package.json
+COPY packages/config/package.json packages/config/package.json
+COPY packages/headers/package.json packages/headers/package.json
+COPY packages/logger/package.json packages/logger/package.json
+COPY packages/mongodb/package.json packages/mongodb/package.json
+COPY packages/service-bootstrap/package.json packages/service-bootstrap/package.json
+COPY configs/typescript/package.json configs/typescript/package.json
+RUN pnpm install --frozen-lockfile
+COPY configs/typescript configs/typescript
+COPY packages/config packages/config
+COPY packages/headers packages/headers
+COPY packages/logger packages/logger
+COPY packages/mongodb packages/mongodb
+COPY packages/service-bootstrap packages/service-bootstrap
+COPY apps/crm apps/crm
+RUN pnpm --filter @csa/crm... --if-present build
+
+FROM node:20-slim
+WORKDIR /app
+ENV NODE_ENV=production
+RUN corepack enable
+COPY --from=build /app/package.json /app/package.json
+COPY --from=build /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
+COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/packages/config /app/packages/config
+COPY --from=build /app/packages/headers /app/packages/headers
+COPY --from=build /app/packages/logger /app/packages/logger
+COPY --from=build /app/packages/mongodb /app/packages/mongodb
+COPY --from=build /app/packages/service-bootstrap /app/packages/service-bootstrap
+COPY --from=build /app/apps/crm/node_modules /app/apps/crm/node_modules
+COPY --from=build /app/apps/crm/package.json /app/apps/crm/package.json
+COPY --from=build /app/apps/crm/src /app/apps/crm/src
+COPY --from=build /app/apps/crm/dist /app/apps/crm/dist
+CMD ["node", "apps/crm/dist/index.js"]

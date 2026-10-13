@@ -4,7 +4,7 @@
 # Step 4 of Cloud Build pipeline — ported from JourneyAX / Metafy AI.
 #
 # Collects all Cloud Run service URLs and injects them into:
-#   (a) bff          — routes all external traffic (needs all URLs)
+#   (a) bff          — routes all external traffic (needs all URLs, incl. crm)
 #   (b) ai-assist    — needs commerce service URL
 #   (c) ticketing    — needs auth URL (for token validation)
 #   (d) subscriptions — needs auth URL
@@ -29,6 +29,7 @@ ALL_SVCS=(
   "ticketing"
   "subscriptions"
   "admin"
+  "crm"
 )
 
 echo "🔍 Fetching all Cloud Run service URLs..."
@@ -59,6 +60,7 @@ COMMERCE_CT_URL=$(get_url "COMMERCE_COMMERCETOOLS_URL")
 TICKETING_URL=$(get_url "TICKETING_URL")
 SUBSCRIPTIONS_URL=$(get_url "SUBSCRIPTIONS_URL")
 ADMIN_URL=$(get_url "ADMIN_URL")
+CRM_URL=$(get_url "CRM_URL")
 
 # ── (a) bff — inject all downstream service URLs ──────────────────────────────
 # Use ^~^ prefix so gcloud uses ~ as delimiter (URLs contain commas/colons)
@@ -76,6 +78,8 @@ FED_SERVICES="{}"
   python3 -c "import sys,json; d=json.load(sys.stdin); d['subscriptions']='${SUBSCRIPTIONS_URL}/graphql'; print(json.dumps(d))")
 [ -n "${ADMIN_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
   python3 -c "import sys,json; d=json.load(sys.stdin); d['admin']='${ADMIN_URL}/graphql'; print(json.dumps(d))")
+[ -n "${CRM_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
+  python3 -c "import sys,json; d=json.load(sys.stdin); d['crm']='${CRM_URL}/graphql'; print(json.dumps(d))")
 
 BFF_ENV="${BFF_ENV}~FEDERATED_SERVICES=${FED_SERVICES}"
 
