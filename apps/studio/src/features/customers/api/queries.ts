@@ -27,3 +27,26 @@ export const CUSTOMERS_PAGE_QUERY = gql`
     }
   }
 `;
+
+export const CUSTOMER_QUERY = gql`
+  query CustomerDetail($id: ID!) {
+    customer(id: $id) {
+      id
+      key
+      version
+      customerNumber
+      externalId
+      firstName
+      lastName
+      companyName
+      email
+      createdAt
+      lastModifiedAt
+      customerGroup {
+        id
+        key
+        name
+      }
+    }
+  }
+`;

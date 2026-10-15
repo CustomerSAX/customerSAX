@@ -27,7 +27,7 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
   const { data, loading, error, refetch } = useQuery(ADMIN_CLIENT_QUERY, {
     variables: { id: clientId },
     skip: !clientId || !isOrgAdmin,
-    fetchPolicy: "cache-and-network"
+    fetchPolicy: "cache-first"
   });
 
   const client = data?.adminClient;

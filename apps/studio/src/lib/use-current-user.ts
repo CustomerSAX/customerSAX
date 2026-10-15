@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 
 export type CurrentUser = {
   email: string;
@@ -33,39 +32,40 @@ export type CurrentUser = {
  * must treat that as "identity not yet known" and either wait or show that
  * honestly, never substitute a fabricated identity for it.
  */
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+export const CURRENT_USER_QUERY_KEY = ["currentUser"] as const;
+
 export function useCurrentUser() {
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const response = await fetch("/api/auth/me", { cache: "no-store" });
-        if (!response.ok) return;
-        const payload = await response.json().catch(() => null);
-        if (!cancelled && payload?.user?.email) {
-          setUser({
-            ...payload.user,
-            projects: payload.user.projects ?? [],
-            requiresProjectSelection: Boolean(payload.user.requiresProjectSelection)
-          } as CurrentUser);
-        }
-
-
-      } finally {
-        if (!cancelled) setLoading(false);
+  const { data: user = null, isLoading: loading } = useQuery<CurrentUser | null>({
+    queryKey: CURRENT_USER_QUERY_KEY,
+    queryFn: async () => {
+      const response = await fetch("/api/auth/me");
+      if (!response.ok) return null;
+      const payload = await response.json().catch(() => null);
+      if (payload?.user?.email) {
+        return {
+          ...payload.user,
+          projects: payload.user.projects ?? [],
+          requiresProjectSelection: Boolean(payload.user.requiresProjectSelection)
+        } as CurrentUser;
       }
+      return null;
+    },
+    staleTime: 5 * 60 * 1000, // Fresh for 5 minutes
+    gcTime: 15 * 60 * 1000,
+  });
+
+  return {
+    user,
+    loading,
+    reload: () => {
+      queryClient.invalidateQueries({ queryKey: CURRENT_USER_QUERY_KEY });
+      window.location.reload();
     }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { user, loading, reload: () => window.location.reload() };
+  };
 }
 
 /** Human-readable label for a role, shared by AppShell's topbar and the CSA Assistant's session context. */

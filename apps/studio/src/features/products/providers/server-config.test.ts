@@ -1,14 +1,21 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ token: vi.fn(), resolve: vi.fn(), fetch: vi.fn() }));
 vi.mock("server-only", () => ({}));
-vi.mock("../../../app/api/auth/shared", () => ({
-  currentSessionToken: mocks.token,
-  authServiceUrl: () => "http://auth.test"
-}));
+vi.mock("../../../app/api/auth/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../app/api/auth/shared")>();
+  return {
+    ...actual,
+    currentSessionToken: mocks.token,
+    authServiceUrl: () => "http://auth.test"
+  };
+});
 import { currentProductsConfiguration } from "./server-config";
+import { invalidateSessionCache } from "../../../app/api/auth/shared";
 beforeEach(() => {
   vi.clearAllMocks();
+  invalidateSessionCache();
   vi.stubGlobal("fetch", mocks.fetch);
+  vi.stubEnv("AUTH_SERVICE_URL", "http://auth.test");
   vi.stubEnv("PRODUCTS_PROVIDER", "commercetools");
   mocks.token.mockResolvedValue("session-token");
   vi.stubEnv("BFF_URL", "http://bff.test/graphql");

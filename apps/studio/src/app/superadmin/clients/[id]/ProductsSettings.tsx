@@ -58,7 +58,7 @@ export function ProductsSettings({
 }) {
   const { data, loading, error, refetch } = useQuery(READ, {
     variables: { clientId, id: project.id },
-    fetchPolicy: "network-only"
+    fetchPolicy: "cache-first"
   });
   const [save, saving] = useMutation(SAVE);
   const [test, testing] = useMutation(TEST);

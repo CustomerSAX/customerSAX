@@ -16,7 +16,7 @@ import {
   FormField,
   Label
 } from "@csa/ui";
-import { useCartStore } from "../hooks/use-carts";
+import { useCartDetail } from "../hooks/use-carts";
 import type { CartAddress } from "../types/cart-types";
 
 interface CartAddressDetailsViewProps {
@@ -106,15 +106,13 @@ export function CartAddressDetailsView({
   const isQuoteFlow = mode === "quote";
 
   const {
+    cart,
     loading,
     error,
-    getCartById,
     updateBillingAddress,
     updateShippingMethod,
     updateCart
-  } = useCartStore();
-
-  const cart = getCartById(id);
+  } = useCartDetail(id);
 
   const [shippingChoice, setShippingChoice] = useState("__new__");
   const [billingChoice, setBillingChoice] = useState("__new__");
