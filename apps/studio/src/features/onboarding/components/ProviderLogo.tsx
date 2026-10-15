@@ -274,6 +274,16 @@ export function SalesforceLogo({ className = "h-5 w-5" }: LogoProps) {
  * Official HubSpot logo
  * Source: Simple Icons (official brand assets)
  */
+/** Plain "Z" monogram in Zoho red — not the official Zoho artwork. */
+export function ZohoLogo({ className = "h-5 w-5" }: LogoProps) {
+  return (
+    <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} aria-label="Zoho CRM">
+      <rect x="1" y="1" width="22" height="22" rx="5" fill="#E42527" />
+      <path d="M7 7.5h10v2.2l-6.8 6.6H17v2.2H7v-2.2l6.8-6.6H7z" fill="#fff" />
+    </svg>
+  );
+}
+
 export function HubSpotLogo({ className = "h-5 w-5" }: LogoProps) {
   return (
     <svg
@@ -315,6 +325,8 @@ export function getProviderLogo(providerId: string, className?: string): ReactNo
       return <SalesforceLogo className={className} />;
     case "hubspot":
       return <HubSpotLogo className={className} />;
+    case "zoho":
+      return <ZohoLogo className={className} />;
     case "openai":
       return <OpenAiLogo className={className} />;
     case "anthropic":

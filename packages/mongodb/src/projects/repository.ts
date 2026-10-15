@@ -64,7 +64,7 @@ export function projectSecretMasked(doc: CsaProject): string {
 }
 
 export function projectView(doc: CsaProject) {
-  const { _id, credentials, ticketing: _ticketing, products: _products, platform, ctApiUrl: _a, ctAuthUrl: _b, ctClientId: _c, ctClientSecretEncrypted: _d, scopes: _e, ...rest } = doc;
+  const { _id, credentials, ticketing: _ticketing, crm: _crm, products: _products, platform, ctApiUrl: _a, ctAuthUrl: _b, ctClientId: _c, ctClientSecretEncrypted: _d, scopes: _e, ...rest } = doc;
   void credentials;
   const ct = ctCredsView(doc);
   const isConfigured = Boolean(
@@ -78,6 +78,7 @@ export function projectView(doc: CsaProject) {
     ...rest,
     platform: projectPlatform(doc),
     ticketingProvider: doc.ticketing?.provider ?? "internal",
+    crmProvider: doc.crm?.provider ?? "none",
     isConfigured,
     status,
     productsProvider: doc.products?.provider ?? null,

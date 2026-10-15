@@ -20,6 +20,7 @@ import {
 import { ConnectorConfigModal } from "@/features/onboarding/components/ConnectorConfigModal";
 import { getProviderLogo } from "@/features/onboarding/components/ProviderLogo";
 import type { OnboardingState } from "@/features/onboarding/types";
+import { CrmConnectorModal } from "@/features/crm/CrmConnectorModal";
 
 export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) {
   const { user } = useCurrentUser();
@@ -45,6 +46,8 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
   const [selectedConnector, setSelectedConnector] = useState<ConnectorConfig | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+  // CRM is configured per project with its own form (credentials, test, account reservation).
+  const [crmConnectorId, setCrmConnectorId] = useState<string | null>(null);
 
   // Mutations
   const [saveTicketing] = useMutation(ADMIN_SAVE_PROJECT_TICKETING);
@@ -104,6 +107,7 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
       ticketing: {
         provider: (activeProject?.ticketingProvider || "internal") as any
       },
+      crm: { provider: activeProject?.crmProvider || "none" },
       aiSettings: {
         enabled: Boolean(ai?.enabled),
         provider: (ai?.provider === "anthropic" ? "anthropic" : "openai") as any,
@@ -137,6 +141,10 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
   };
 
   const handleOpenConnector = (connector: ConnectorConfig) => {
+    if (connector.category === "crm") {
+      setCrmConnectorId(connector.id);
+      return;
+    }
     setSelectedConnector(connector);
     setIsModalOpen(true);
   };
@@ -434,14 +442,33 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
       </div>
     );
 
+  const projectRows = data?.adminProjectsByClient || [];
   const modal = (
-    <ConnectorConfigModal
-      isOpen={isModalOpen}
-      onClose={() => setIsModalOpen(false)}
-      connector={selectedConnector}
-      state={state}
-      onSave={handleSaveConnector}
-    />
+    <>
+      <ConnectorConfigModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        connector={selectedConnector}
+        state={state}
+        onSave={handleSaveConnector}
+      />
+      {crmConnectorId && clientId && (
+        <CrmConnectorModal
+          isOpen
+          onClose={() => setCrmConnectorId(null)}
+          clientId={clientId}
+          projects={projectRows.map((p: any) => ({
+            id: p.id,
+            projectKey: p.projectKey,
+            displayName: p.displayName || p.projectKey,
+            crmProvider: p.crmProvider
+          }))}
+          initialProjectId={(projectRows.find((p: any) => p.projectKey === user?.activeProjectKey) || projectRows[0])?.id}
+          initialProvider={crmConnectorId}
+          onSaved={() => void refetch()}
+        />
+      )}
+    </>
   );
 
   if (embedded) {

@@ -19,6 +19,8 @@
     ],
     "allowJs": true,
     "paths": {
+      "@/*": ["./src/*"],
+      "@csa/ui": ["../../packages/ui/src/index.ts"],
       "@csa/ui/*": ["../../packages/ui/src/*"]
     }
   },

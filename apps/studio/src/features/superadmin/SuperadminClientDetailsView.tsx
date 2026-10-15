@@ -498,6 +498,47 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
               </div>
             </Card>
 
+            {/* CRM Connectors (chosen per project) */}
+            <Card className="p-5 border-m-border bg-m-surface shadow-m-card space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-m-md bg-m-neutral-100 text-m-text">
+                    <Icon name="users" size="sm" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-m-text">CRM</h3>
+                    <p className="text-[11px] text-m-text-muted">Customer relationship platform, per project</p>
+                  </div>
+                </div>
+                <Badge
+                  variant={projects.some((p: any) => p.crmProvider && p.crmProvider !== "none") ? "primary" : "neutral"}
+                  appearance="subtle"
+                  size="sm"
+                >
+                  {projects.some((p: any) => p.crmProvider && p.crmProvider !== "none") ? "Connected" : "No CRM"}
+                </Badge>
+              </div>
+
+              <div className="rounded-m-lg border border-m-border bg-m-neutral-50 p-3 text-xs space-y-1.5">
+                {projects.length === 0 ? (
+                  <span className="text-m-text-muted">No projects yet.</span>
+                ) : (
+                  projects.map((p: any) => (
+                    <div key={p.id} className="flex justify-between gap-3">
+                      <span className="truncate text-m-text-muted">{p.displayName || p.projectKey}:</span>
+                      <span className="font-semibold text-m-text">
+                        {{ salesforce: "Salesforce", hubspot: "HubSpot", zoho: "Zoho CRM" }[p.crmProvider as string] ?? "None"}
+                      </span>
+                    </div>
+                  ))
+                )}
+                <div className="flex justify-between">
+                  <span className="text-m-text-muted">Credentials:</span>
+                  <span className="text-m-text">Customer Managed (Studio Connectors)</span>
+                </div>
+              </div>
+            </Card>
+
             {/* Search Integration */}
             <Card className="p-5 border-m-border bg-m-surface shadow-m-card space-y-3">
               <div className="flex items-center justify-between">

@@ -21,7 +21,7 @@ import {
   TableRow,
   TableHead,
   TableCell
-} from "@csa/ui/components/data-display/Table";
+} from "@csa/ui";
 import { useDemo } from "./demo-state";
 import { sources, targets } from "./data";
 

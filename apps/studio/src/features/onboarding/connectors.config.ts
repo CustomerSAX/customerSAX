@@ -317,30 +317,38 @@ export const CONNECTOR_CATEGORIES: ConnectorCategoryConfig[] = [
       description:
         "Synchronizes customer profiles, orders, and addresses directly from your connected commerce platform.",
       icon: "database",
-      isActive: () => true
+      isActive: (state) => !state.crm?.provider || state.crm.provider === "none"
     },
     connectors: [
       {
         id: "salesforce",
         name: "Salesforce CRM",
         category: "crm",
-        badge: "Coming Soon",
-        badgeTone: "neutral",
         description:
-          "Synchronize B2B customer accounts, contacts, opportunities, and custom CRM objects.",
-        isAvailable: false,
-        comingSoonNote: "Connector on near-term roadmap"
+          "Contacts, accounts, owners, tasks and calls — read live and logged back from the console and AI assistant.",
+        isAvailable: true,
+        isConfigured: (state) => state.crm?.provider === "salesforce",
+        getConfigSummary: (state) => (state.crm?.provider === "salesforce" ? "Connected" : null)
       },
       {
         id: "hubspot",
         name: "HubSpot",
         category: "crm",
-        badge: "Coming Soon",
-        badgeTone: "neutral",
         description:
-          "Connect contact timelines, marketing properties, and customer engagement history.",
-        isAvailable: false,
-        comingSoonNote: "Connector on near-term roadmap"
+          "Contact timelines, companies, owners, tasks and calls via a HubSpot service key.",
+        isAvailable: true,
+        isConfigured: (state) => state.crm?.provider === "hubspot",
+        getConfigSummary: (state) => (state.crm?.provider === "hubspot" ? "Connected" : null)
+      },
+      {
+        id: "zoho",
+        name: "Zoho CRM",
+        category: "crm",
+        description:
+          "Contacts, accounts, owners, tasks and calls from any Zoho data center via a Self Client.",
+        isAvailable: true,
+        isConfigured: (state) => state.crm?.provider === "zoho",
+        getConfigSummary: (state) => (state.crm?.provider === "zoho" ? "Connected" : null)
       }
     ]
   }

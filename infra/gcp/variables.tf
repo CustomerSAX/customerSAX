@@ -44,6 +44,12 @@ variable "admin_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "crm_image" {
+  description = "Container image for the CRM Cloud Run service."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
 variable "ticketing_image" {
   description = "Container image for the Ticketing Cloud Run service."
   type        = string

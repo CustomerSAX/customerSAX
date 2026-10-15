@@ -52,6 +52,7 @@ import {
 import { useCustomerStore, useCustomerDetail } from "../hooks/use-customers";
 import { useQuery as useTanStackQuery } from "@tanstack/react-query";
 import { SubscriptionManagementView } from "../../subscriptions/components/SubscriptionManagementView";
+import { CustomerCrmTab } from "./CustomerCrmTab";
 import type {
   CustomerAddress,
   CustomerCart,
@@ -297,6 +298,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     { id: "payments", label: common("tabs.payments"), icon: "credit-card" },
     { id: "tickets", label: common("tabs.tickets"), icon: "life-buoy" },
     { id: "conversations", label: common("tabs.conversations"), icon: "message-square" },
+    { id: "crm", label: "CRM", icon: "user-check" },
     { id: "notes", label: common("tabs.notes"), icon: "file-text" },
   ];
   const router = useRouter();
@@ -1675,6 +1677,9 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           </SideColumn>
         </ContentGrid>
       )}
+
+      {/* ── CRM (live from the project's connected CRM, matched by email) ── */}
+      {activeTab === "crm" && <CustomerCrmTab customerEmail={customer?.email} />}
 
       {/* ── Notes ────────────────────────────────────────────────────────── */}
       {activeTab === "notes" && (
