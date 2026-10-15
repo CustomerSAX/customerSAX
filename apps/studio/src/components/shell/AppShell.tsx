@@ -2,7 +2,7 @@
 
 import { NotificationBell } from "@/features/notifications/NotificationBell";
 import { apolloClient } from "@/graphql/client";
-import { TicketAIHelper } from "@/features/tickets/components/TicketAIHelper";
+import { CustomerCxAiLite } from "@/features/csa-assistant";
 import { localizeHref, localizePathname, stripLocalePrefix } from "@/i18n/routing";
 import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
 import { gql, useQuery } from "@apollo/client";
@@ -1741,9 +1741,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             children
           )}
         </main>
-        {(appPathname === "/tickets" || appPathname.startsWith("/tickets/")) && (
-          <TicketAIHelper />
-        )}
+        <CustomerCxAiLite />
       </div>
 
       <CreateProjectModal

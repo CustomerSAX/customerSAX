@@ -28,6 +28,7 @@ import {
 import { SectionCard } from "@csa/ui";
 import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
 import { useOrderStore } from "../hooks/use-orders";
+import { useRegisterPageContext } from "@/features/csa-assistant";
 import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
 import { formatDateTime } from "@/lib/format-date";
 import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
@@ -275,6 +276,37 @@ export function OrderListView() {
     pageSize: 20,
   });
   const isLoading = loading || isRefreshing;
+
+  const visibleOrderRecords = useMemo(
+    () =>
+      paginatedOrders.map((o) => ({
+        id: o.id,
+        identifier: o.orderNumber,
+        label: `Order ${o.orderNumber}`,
+        subtitle: o.customerName,
+        status: o.orderState,
+        total: o.grandTotal ? String(o.grandTotal) : undefined,
+      })),
+    [paginatedOrders]
+  );
+
+  useRegisterPageContext(
+    "OrderListView",
+    {
+      pageType: "order_list",
+      entityType: "order",
+      type: "order",
+      id: "",
+      visibleRecords: visibleOrderRecords,
+      activeFilters: {
+        search: searchText || undefined,
+        page: currentPage,
+        limit: 20,
+        totalCount: totalItems,
+      },
+    },
+    [visibleOrderRecords, searchText, currentPage, totalItems]
+  );
 
   const renderOrderStateBadge = (state: OrderState) => {
     switch (state) {

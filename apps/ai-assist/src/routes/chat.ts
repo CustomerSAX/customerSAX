@@ -177,7 +177,7 @@ chatRouter.post("/chat", async (request, response, next) => {
         sessionId,
         userEmail,
         projectKey,
-        sessionCtx.pageContext as { type: string; id: string } | null | undefined
+        sessionCtx.pageContext
       );
       sessionId = session.sessionId; // use what the store returned (same UUID)
     } catch (err) {

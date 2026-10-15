@@ -23,6 +23,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRegisterPageContext } from "@/features/csa-assistant";
 import {
   Button,
   Icon,
@@ -182,6 +183,29 @@ export function ProductDetailView({ id }: ProductDetailViewProps) {
   ];
   const router = useRouter();
   const { product, loading, error } = useProductDetail(id);
+
+  useRegisterPageContext(
+    "ProductDetailView",
+    product
+      ? {
+          entityType: "product",
+          entityId: product.id || id,
+          type: "product",
+          id: product.id || id,
+          pageType: "product_details",
+          recordSummary: {
+            productId: product.id || id,
+            name: product.productName,
+            key: product.key,
+            sku: product.variants?.[0]?.sku,
+            variantsCount: product.variants?.length || 0,
+            price: product.variants?.[0]?.unitPrice,
+            stock: product.variants?.[0]?.quantity,
+          },
+        }
+      : null,
+    [product?.id, product?.productName, product?.key, product?.variants]
+  );
   const [activeTab, setActiveTab] = useState<string>("general");
 
   const handleBack = () => router.push("/products");

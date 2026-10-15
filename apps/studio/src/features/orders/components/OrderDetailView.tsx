@@ -20,6 +20,7 @@ import {
   SummaryCard,
 } from "@csa/ui";
 import { useOrderStore } from "../hooks/use-orders";
+import { useRegisterPageContext } from "@/features/csa-assistant";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import type {
   Order,
@@ -183,6 +184,39 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
 
   const fallbackOrder = useMemo(() => createEmptyOrder(id), [id]);
   const order = getOrderById(id) || orders[0] || fallbackOrder;
+
+  useRegisterPageContext(
+    "OrderDetailView",
+    order
+      ? {
+          entityType: "order",
+          entityId: order.id || id,
+          type: "order",
+          id: order.id || id,
+          pageType: "order_details",
+          recordSummary: {
+            orderNumber: order.orderNumber || id,
+            orderId: order.id || id,
+            orderState: order.orderState,
+            paymentState: order.paymentState,
+            shipmentState: order.shipmentState,
+            customerName: order.customerName,
+            customerEmail: order.customerEmail,
+            customerId: order.customerId,
+            grandTotal: order.grandTotal,
+            itemCount: order.lineItems?.length || 0,
+          },
+          parentRelationship: order.customerId
+            ? {
+                type: "customer",
+                id: order.customerId,
+                label: order.customerName,
+              }
+            : undefined,
+        }
+      : null,
+    [order.id, order.orderNumber, order.orderState, order.paymentState, order.customerName, order.customerId, order.grandTotal, order.lineItems?.length]
+  );
 
   const fmtDate = useCallback((v?: string | null, style: "date" | "full" = "full") => {
     return style === "date" ? formatDate(v) : formatDateTime(v);

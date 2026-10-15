@@ -50,6 +50,7 @@ import {
   CardEmpty,
 } from "@csa/ui";
 import { useCustomerStore } from "../hooks/use-customers";
+import { useRegisterPageContext } from "@/features/csa-assistant";
 import { SubscriptionManagementView } from "../../subscriptions/components/SubscriptionManagementView";
 import { CustomerCrmTab } from "./CustomerCrmTab";
 import type {
@@ -306,6 +307,27 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
   const { customers, groups, getCustomerById, updateCustomerProfile, loading, error } = useCustomerStore();
   const customer = getCustomerById(id) || customers.find((c) => c.id === id) || customers[0];
+
+  useRegisterPageContext(
+    "CustomerDetailView",
+    customer
+      ? {
+          entityType: "customer",
+          entityId: customer.id || id,
+          type: "customer",
+          id: customer.id || id,
+          pageType: "customer_details",
+          recordSummary: {
+            customerId: customer.id || id,
+            name: `${customer.firstName || ""} ${customer.lastName || ""}`.trim() || customer.companyName,
+            email: customer.email,
+            customerNumber: customer.customerNumber,
+            companyName: customer.companyName,
+          },
+        }
+      : null,
+    [customer?.id, customer?.firstName, customer?.lastName, customer?.email, customer?.customerNumber]
+  );
 
   // ── Real orders from BFF (filtered by this customer's ID and email) ───────
   type GqlMoney = { centAmount: number; currencyCode: string; fractionDigits: number };

@@ -5,6 +5,7 @@ import { MeridianProvider, UIProvider, resolveUIConfig } from "@csa/ui";
 import type { ReactNode } from "react";
 import { apolloClient } from "../graphql/client";
 import { useCurrentUser } from "../lib/use-current-user";
+import { PageContextProvider } from "../features/csa-assistant";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const { user } = useCurrentUser();
@@ -17,10 +18,11 @@ export function AppProviders({ children }: { children: ReactNode }) {
   });
 
   return (
-
     <MeridianProvider defaultTheme="light">
       <UIProvider config={uiConfig}>
-        <ApolloProvider client={apolloClient}>{children}</ApolloProvider>
+        <ApolloProvider client={apolloClient}>
+          <PageContextProvider>{children}</PageContextProvider>
+        </ApolloProvider>
       </UIProvider>
     </MeridianProvider>
   );
