@@ -7,6 +7,48 @@ import { AsyncLocalStorage } from "async_hooks";
  * output format contract, and safety boundary is defined here.
  */
 
+export interface VisibleRecordContextItem {
+  id: string;
+  label?: string;
+  identifier?: string;
+  subtitle?: string;
+  status?: string;
+  total?: string;
+  email?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+export interface ActiveFiltersContext {
+  search?: string;
+  filters?: Record<string, unknown>;
+  page?: number;
+  limit?: number;
+  totalCount?: number;
+}
+
+export interface StructuredPageContext {
+  route?: string;
+  pageType?: string;
+  type?: string;
+  id?: string;
+  entityType?: string;
+  entityId?: string;
+  entityTitle?: string;
+  recordSummary?: Record<string, unknown>;
+  selectedRecord?: Record<string, unknown>;
+  selectedRows?: string[];
+  visibleRecords?: VisibleRecordContextItem[];
+  activeFilters?: ActiveFiltersContext;
+  parentRelationship?: {
+    type: string;
+    id: string;
+    label?: string;
+  };
+  timestamp?: number;
+  [key: string]: unknown;
+}
+
 export interface SystemPromptContext {
   userEmail: string;
   userRole: string;
@@ -20,7 +62,7 @@ export interface SystemPromptContext {
   clientId?: string;
   commercePlatform?: string;
   businessType?: string;
-  pageContext?: { type: string; id: string } | null;
+  pageContext?: StructuredPageContext | { type: string; id: string } | null;
   proactiveHint?: string | null;
   /** Formatted working-memory block from the previous turn. Empty string if none. */
   workingMemoryBlock?: string | null;
@@ -176,52 +218,129 @@ function buildPageContextBlock(ctx: SystemPromptContext): string {
     return `**Current view:** Dashboard / list page — no specific record is focused.`;
   }
 
-  const { type, id } = ctx.pageContext;
+  const pc = ctx.pageContext as StructuredPageContext;
+  const type = pc.entityType || pc.type;
+  const id = pc.entityId || pc.id;
+  const route = pc.route;
+  const pageType = pc.pageType;
+  const summary = pc.recordSummary;
+  const visible = pc.visibleRecords;
+  const filters = pc.activeFilters;
+  const selected = pc.selectedRecord;
 
-  switch (type) {
-    case 'customer':
-      return (
-        `**Current view:** The agent is viewing a **customer** record.\n` +
-        `- Customer ID: \`${id}\`\n` +
-        `- **On first response:** immediately call \`${CT.READ_CUSTOMER}\` with this ID to get the profile, ` +
-        `then in the same step call \`${TICKETS.SEARCH}\` with \`customerId: "${id}"\` in parallel.`
-      );
-    case 'order':
-      return (
-        `**Current view:** The agent is viewing an **order** record.\n` +
-        `- Order ID: \`${id}\`\n` +
-        `- **On first response:** immediately call \`${CT.READ_ORDER}\` with this ID AND ` +
-        `call \`${TICKETS.SEARCH}\` with \`query: "${id}"\` in parallel to surface any linked tickets.`
-      );
-    case 'ticket':
-      return (
-        `**Current view:** The agent is viewing a **support ticket** (ID: \`${id}\`).\n` +
-        `\n` +
-        `**On the VERY FIRST response — run this data chain before saying anything:**\n` +
-        `  a. Call \`${TICKETS.GET}\` with id \`"${id}"\` to get the full ticket.\n` +
-        `     Field semantics: \`description\` = the customer's written message. \`subject\` = short title only. \`orderNumber\` = explicit linked order.\n` +
-        `     IMPORTANT LINKED ORDER RULE: If the ticket returned by \`get_ticket\` contains a non-empty \`orderNumber\` field (e.g. "ORD-RC-945959"), that order IS the explicit linked order for this ticket. You MUST treat this \`orderNumber\` as the primary subject order of the ticket. NEVER claim or state that the customer's order is unknown, unspecified, or ambiguous when \`orderNumber\` is present on the ticket header, even if the customer's written message text does not write out the order number.\n` +
-        `  b. Immediately call \`case_briefing_card\` to render a structured AI Case Briefing Card in the UI.\n` +
-        `     Pass: customerName, ticketNumber, issueCategory, caseSummary, rootCause, sentiment, confidenceScore, relatedOrderNumber (\`orderNumber\` from ticket), recommendedResolution, and 1-3 suggestedActions.\n` +
-        `  c. Take \`email\` from the ticket and call \`${CT.READ_CUSTOMER}\` with \`email: "<email>"\`.\n` +
-        `\n` +
-        `**How to reply (colleague, not a report — the card already shows the details):**\n` +
-        `  The \`case_briefing_card\` you just rendered already displays issue category, root cause, ` +
-        `recommended resolution, and next steps — do NOT restate any of those fields in your text reply, ` +
-        `in prose OR as a bulleted list. Your text reply is ONLY a concise 1-2 sentence colleague greeting ` +
-        `(e.g. "Looks like a billing question from Shivam — want me to pull up the order?"), never a summary ` +
-        `of the ticket. If the rep's message ALSO asked for "a quick case briefing" or similar, the card IS ` +
-        `that briefing — still keep your text reply to 1-2 sentences.`
-      );
-    case 'cart':
-      return (
-        `**Current view:** The agent is viewing a **cart**.\n` +
-        `- Cart ID: \`${id}\`\n` +
-        `- **On first response:** immediately call \`${CT.READ_CART}\` with this ID.`
-      );
-    default:
-      return `**Current view:** The agent is viewing a **${type}** record (ID: \`${id}\`).`;
+  const sections: string[] = [];
+
+  // Context Header
+  sections.push(`### Automatic Page Context (Customer CX AI)`);
+  if (route) sections.push(`- **Current route:** \`${route}\``);
+  if (pageType) sections.push(`- **Page type:** \`${pageType}\``);
+
+  // Detail view context
+  if (type && id) {
+    switch (type) {
+      case 'customer': {
+        const namePart = summary?.name ? ` (${summary.name})` : '';
+        const emailPart = summary?.email ? ` [${summary.email}]` : '';
+        sections.push(
+          `**Current view:** The agent is viewing a **customer** record${namePart}${emailPart}.\n` +
+          `- Customer ID: \`${id}\`${summary ? `\n- Summary: ${JSON.stringify(summary)}` : ''}\n` +
+          `- **Context Resolution:** If the user asks about "their orders", "their tickets", or "this customer", resolve immediately to this customer (ID: \`${id}\`).\n` +
+          `- Call \`${CT.READ_CUSTOMER}\` with this ID to get full profile and call \`${TICKETS.SEARCH}\` with \`customerId: "${id}"\` where appropriate.`
+        );
+        break;
+      }
+      case 'order': {
+        const orderNum = summary?.orderNumber ? ` (${summary.orderNumber})` : '';
+        sections.push(
+          `**Current view:** The agent is viewing an **order** record${orderNum}.\n` +
+          `- Order ID: \`${id}\`${summary ? `\n- Summary: ${JSON.stringify(summary)}` : ''}\n` +
+          `- **Context Resolution:** If the user asks "What's the status of this order?", "Create a ticket for this issue", or asks about this order/shipment/customer, automatically use this order (ID: \`${id}\`, Order Number: \`${summary?.orderNumber ?? id}\`).\n` +
+          `- Call \`${CT.READ_ORDER}\` with this ID AND \`${TICKETS.SEARCH}\` with \`query: "${summary?.orderNumber ?? id}"\` where relevant.`
+        );
+        break;
+      }
+      case 'ticket': {
+        sections.push(
+          `**Current view:** The agent is viewing a **support ticket** (ID: \`${id}\`).\n` +
+          `\n` +
+          `**On the VERY FIRST response — run this data chain before saying anything:**\n` +
+          `  a. Call \`${TICKETS.GET}\` with id \`"${id}"\` to get the full ticket.\n` +
+          `     Field semantics: \`description\` = the customer's written message. \`subject\` = short title only. \`orderNumber\` = explicit linked order.\n` +
+          `     IMPORTANT LINKED ORDER RULE: If the ticket returned by \`get_ticket\` contains a non-empty \`orderNumber\` field (e.g. "ORD-RC-945959"), that order IS the explicit linked order for this ticket. You MUST treat this \`orderNumber\` as the primary subject order of the ticket. NEVER claim or state that the customer's order is unknown, unspecified, or ambiguous when \`orderNumber\` is present on the ticket header, even if the customer's written message text does not write out the order number.\n` +
+          `  b. Immediately call \`case_briefing_card\` to render a structured AI Case Briefing Card in the UI.\n` +
+          `     Pass: customerName, ticketNumber, issueCategory, caseSummary, rootCause, sentiment, confidenceScore, relatedOrderNumber (\`orderNumber\` from ticket), recommendedResolution, and 1-3 suggestedActions.\n` +
+          `  c. Take \`email\` from the ticket and call \`${CT.READ_CUSTOMER}\` with \`email: "<email>"\`.\n` +
+          `\n` +
+          `**How to reply (colleague, not a report — the card already shows the details):**\n` +
+          `  The \`case_briefing_card\` you just rendered already displays issue category, root cause, ` +
+          `recommended resolution, and next steps — do NOT restate any of those fields in your text reply, ` +
+          `in prose OR as a bulleted list. Your text reply is ONLY a concise 1-2 sentence colleague greeting ` +
+          `(e.g. "Looks like a billing question from Shivam — want me to pull up the order?"), never a summary ` +
+          `of the ticket. If the rep's message ALSO asked for "a quick case briefing" or similar, the card IS ` +
+          `that briefing — still keep your text reply to 1-2 sentences.`
+        );
+        break;
+      }
+      case 'cart': {
+        sections.push(
+          `**Current view:** The agent is viewing a **cart**.\n` +
+          `- Cart ID: \`${id}\`\n` +
+          `- **On first response:** immediately call \`${CT.READ_CART}\` with this ID.`
+        );
+        break;
+      }
+      case 'product': {
+        sections.push(
+          `**Current view:** The agent is viewing a **product** record.\n` +
+          `- Product ID / SKU: \`${id}\`${summary ? `\n- Summary: ${JSON.stringify(summary)}` : ''}\n` +
+          `- Use \`${CT.SEARCH_PRODUCTS}\` or list tools to retrieve details if needed.`
+        );
+        break;
+      }
+      default:
+        sections.push(`**Current view:** The agent is viewing a **${type}** record (ID: \`${id}\`).`);
+    }
   }
+
+  // Selected row/record context
+  if (selected) {
+    sections.push(`- **Selected record on page:** ${JSON.stringify(selected)}`);
+  }
+
+  // List view & filters context
+  if (filters?.search) {
+    sections.push(`- **Active search query:** "${filters.search}"`);
+  }
+
+  if (visible && visible.length > 0) {
+    const listSnippet = visible.slice(0, 15).map((v) => {
+      const parts = [
+        v.name ? `Name: ${v.name}` : (v.label ? `Label: ${v.label}` : ''),
+        v.identifier ? `Ref: ${v.identifier}` : '',
+        v.id ? `ID: ${v.id}` : '',
+        v.email ? `Email: ${v.email}` : '',
+        v.status ? `Status: ${v.status}` : '',
+        v.total ? `Total: ${v.total}` : ''
+      ].filter(Boolean).join(' | ');
+      return `  - ${parts}`;
+    }).join('\n');
+
+    sections.push(
+      `**Visible records on current page (${visible.length} records):**\n` +
+      `${listSnippet}`
+    );
+  }
+
+  // Context resolution rules
+  sections.push(
+    `\n**Context Resolution Priority:**\n` +
+    `1. **Explicitly referenced record:** If the rep mentions a specific order number, ticket, or name in their prompt (e.g. "What about order RC-999?"), resolve that entity first instead of assuming the current page record.\n` +
+    `2. **Current detail-page record:** If viewing a detail page and the rep asks a contextual question (e.g. "What's the status of this order?", "Create a ticket for this issue", "Show their latest orders"), automatically bind to the focused record above without asking the rep for the ID.\n` +
+    `3. **Visible list records:** If the rep asks about a person or entity on a list page (e.g. "What's the latest progress on Rahul's order?"): check the visible records list above. If there is ONE unambiguous match (e.g. one Rahul), use that record's ID to fetch fresh information with \`${CT.READ_CUSTOMER}\`, \`${CT.READ_ORDER}\`, or \`${TICKETS.SEARCH}\`. If multiple records match (e.g. two Rahuls), ask a concise targeted clarification specifying which one. If not found in visible records, use authorized search tools (\`${CT.READ_CUSTOMER}\`).\n` +
+    `4. **Freshness & Integrity:** Treat page context as helpful evidence. Fetch fresh data via backend tools for live status, progress, or sensitive operations. Never invent IDs or details.`
+  );
+
+  return sections.join('\n\n');
 }
 
 // ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ import {
 import { TicketAIQuickReview } from "./TicketAIQuickReview";
 import { SectionCard } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES } from "../hooks/use-tickets";
+import { useRegisterPageContext } from "@/features/csa-assistant";
 import type { Ticket, TicketStatus, TicketPriority } from "../types/ticket-types";
 import { formatDateTime } from "@/lib/format-date";
 import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
@@ -125,6 +126,37 @@ export function TicketListView() {
     initialSortDirection: "desc",
     pageSize: 10,
   });
+
+  const visibleTicketRecords = useMemo(
+    () =>
+      paginatedTickets.map((tk) => ({
+        id: tk.id,
+        identifier: tk.ticketNumber,
+        label: `Ticket #${tk.ticketNumber}`,
+        subtitle: tk.subject,
+        status: tk.status,
+        email: tk.email,
+      })),
+    [paginatedTickets]
+  );
+
+  useRegisterPageContext(
+    "TicketListView",
+    {
+      pageType: "ticket_list",
+      entityType: "ticket",
+      type: "ticket",
+      id: "",
+      visibleRecords: visibleTicketRecords,
+      activeFilters: {
+        search: searchText || undefined,
+        page: currentPage,
+        limit: 10,
+        totalCount: totalItems,
+      },
+    },
+    [visibleTicketRecords, searchText, currentPage, totalItems]
+  );
 
   const renderStatusBadge = (status: TicketStatus) => {
     switch (status) {

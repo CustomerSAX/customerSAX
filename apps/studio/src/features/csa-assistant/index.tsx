@@ -321,3 +321,11 @@ export function CsaAssistant() {
     </>
   );
 }
+
+export { CustomerCxAiLite } from "./components/CustomerCxAiLite";
+export {
+  PageContextProvider,
+  usePageContext,
+  useRegisterPageContext,
+} from "./context/page-context";
+

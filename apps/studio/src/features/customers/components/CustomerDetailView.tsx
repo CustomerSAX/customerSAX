@@ -1,70 +1,69 @@
 "use client";
 
-import { DEFAULT_LOCALE } from "@csa/i18n";
-import { Fragment, useEffect, useState, useMemo, useCallback } from "react";
-import { gql, useMutation, useQuery } from "@apollo/client";
-import { CUSTOMER_ORDERS_QUERY, CUSTOMER_CARTS_QUERY, CUSTOMER_ADDRESSES_QUERY } from "../../orders/api/queries";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
-import {
-  Button,
-  Avatar,
-  Icon,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-  Input,
-  Select,
-  SearchBar,
-  Modal,
-  FormField,
-  Label,
-} from "@csa/ui";
-import { formatDate, formatDateTime } from "@/lib/format-date";
 import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
+import { useRegisterPageContext } from "@/features/csa-assistant";
+import { formatDate, formatDateTime } from "@/lib/format-date";
+import { gql, useMutation, useQuery } from "@apollo/client";
+import { DEFAULT_LOCALE } from "@csa/i18n";
 import {
-  DetailPage,
+  Avatar,
   BackLink,
+  Button,
+  CardAction,
+  CardEmpty,
+  ContentGrid,
+  DetailPage,
   EntityHeader,
   EntityTabs,
-  type EntityTab,
-  SummaryGrid,
-  SummaryCard,
-  ContentGrid,
-  MainColumn,
-  SideColumn,
-  SectionCard,
-  CardAction,
+  FormField,
+  Icon,
   InfoList,
   InfoRow,
-  StatusPill,
-  type StatusTone,
-  QuickActions,
-  QuickAction,
-  PrimaryButton,
+  Input,
+  Label,
+  MainColumn,
+  Modal,
   MoreActionsMenu,
-  CardEmpty,
+  PrimaryButton,
+  QuickAction,
+  QuickActions,
+  SearchBar,
+  SectionCard,
+  Select,
+  SideColumn,
+  StatusPill,
+  SummaryCard,
+  SummaryGrid,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  type EntityTab,
+  type StatusTone,
 } from "@csa/ui";
-import { useCustomerStore, useCustomerDetail } from "../hooks/use-customers";
 import { useQuery as useTanStackQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { CUSTOMER_ADDRESSES_QUERY, CUSTOMER_CARTS_QUERY, CUSTOMER_ORDERS_QUERY } from "../../orders/api/queries";
 import { SubscriptionManagementView } from "../../subscriptions/components/SubscriptionManagementView";
-import { CustomerCrmTab } from "./CustomerCrmTab";
+import { useCustomerDetail, useCustomerStore } from "../hooks/use-customers";
 import type {
   CustomerAddress,
   CustomerCart,
-  CustomerOrder,
-  CustomerReturn,
-  CustomerQuote,
-  CustomerPayment,
-  CustomerTicket,
   CustomerMessage,
+  CustomerOrder,
+  CustomerPayment,
   CustomerPromotion,
+  CustomerQuote,
+  CustomerReturn,
+  CustomerTicket,
   PromotionUsage,
 } from "../types/customer-types";
+import { CustomerCrmTab } from "./CustomerCrmTab";
 
 interface CustomerDetailViewProps {
   id: string;
@@ -311,6 +310,27 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const loading = singleLoading && !customer;
   const error = singleError;
 
+  useRegisterPageContext(
+    "CustomerDetailView",
+    customer
+      ? {
+        entityType: "customer",
+        entityId: customer.id || id,
+        type: "customer",
+        id: customer.id || id,
+        pageType: "customer_details",
+        recordSummary: {
+          customerId: customer.id || id,
+          name: `${customer.firstName || ""} ${customer.lastName || ""}`.trim() || customer.companyName,
+          email: customer.email,
+          customerNumber: customer.customerNumber,
+          companyName: customer.companyName,
+        },
+      }
+      : null,
+    [customer?.id, customer?.firstName, customer?.lastName, customer?.email, customer?.customerNumber]
+  );
+
   // ── Real orders from BFF (filtered by this customer's ID and email) ───────
   type GqlMoney = { centAmount: number; currencyCode: string; fractionDigits: number };
   type GqlReturnItem = { id: string; type?: string | null; quantity: number; lineItemId?: string | null; shipmentState: string; paymentState: string; comment?: string | null };
@@ -529,7 +549,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   // Sync real addresses from CT whenever the query resolves
   useEffect(() => {
     if (realAddresses.length > 0) setAddresses(realAddresses);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addressesGqlData]);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddrId, setEditingAddrId] = useState<string | null>(null);
@@ -694,16 +714,20 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
   const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    const address = { streetName: addrStreetName, streetNumber: addrStreetNumber, city: addrCity,
-      state: addrState, postalCode: addrPostalCode, country: addrCountry, email: addrEmail, phone: addrPhone };
+    const address = {
+      streetName: addrStreetName, streetNumber: addrStreetNumber, city: addrCity,
+      state: addrState, postalCode: addrPostalCode, country: addrCountry, email: addrEmail, phone: addrPhone
+    };
     try {
       let addressId = editingAddrId;
       if (editingAddrId) {
         await updateCustomerAddressMutation({ variables: { id, addressId: editingAddrId, address } });
       } else {
-        const result = await addCustomerAddressMutation({ variables: {
-          id, address, addressType: addrIsShipping ? "shipping" : addrIsBilling ? "billing" : undefined,
-        } });
+        const result = await addCustomerAddressMutation({
+          variables: {
+            id, address, addressType: addrIsShipping ? "shipping" : addrIsBilling ? "billing" : undefined,
+          }
+        });
         const returned = result.data?.addCustomerAddress as { addresses?: Array<{ id?: string }> } | undefined;
         addressId = returned?.addresses?.at(-1)?.id ?? null;
       }
@@ -945,15 +969,15 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const defaultBillingAddress = addresses.find((a) => a.isDefaultBilling) || addresses[0];
   const defaultSubscriptionAddress = defaultShippingAddress
     ? [
-        defaultShippingAddress.streetNumber,
-        defaultShippingAddress.streetName,
-        defaultShippingAddress.city,
-        defaultShippingAddress.state,
-        defaultShippingAddress.postalCode,
-        defaultShippingAddress.country,
-      ]
-        .filter(Boolean)
-        .join(", ")
+      defaultShippingAddress.streetNumber,
+      defaultShippingAddress.streetName,
+      defaultShippingAddress.city,
+      defaultShippingAddress.state,
+      defaultShippingAddress.postalCode,
+      defaultShippingAddress.country,
+    ]
+      .filter(Boolean)
+      .join(", ")
     : "";
 
   const customerFullName = customer?.firstName
@@ -1022,11 +1046,10 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
       {(loading || error) && (
         <div
-          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${
-            error
+          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${error
               ? "border-m-error-border bg-m-error-light text-m-error"
               : "border-m-border bg-m-surface-2 text-m-text-muted"
-          }`}
+            }`}
         >
           {error
             ? "Unable to load this customer from the BFF. Showing available local customer state."
@@ -1625,9 +1648,8 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   messages.map((m) => (
                     <div
                       key={m.id}
-                      className={`space-y-1.5 rounded-m-lg border p-3.5 text-xs ${
-                        m.sender === "customer" ? "border-m-border bg-m-surface-2" : "border-m-primary-200 bg-m-primary-50"
-                      }`}
+                      className={`space-y-1.5 rounded-m-lg border p-3.5 text-xs ${m.sender === "customer" ? "border-m-border bg-m-surface-2" : "border-m-primary-200 bg-m-primary-50"
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -1721,13 +1743,12 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
                 {couponFeedback && (
                   <p
-                    className={`text-xs font-semibold ${
-                      couponFeedback.type === "success"
+                    className={`text-xs font-semibold ${couponFeedback.type === "success"
                         ? "text-m-success"
                         : couponFeedback.type === "error"
-                        ? "text-m-error"
-                        : "text-m-primary"
-                    }`}
+                          ? "text-m-error"
+                          : "text-m-primary"
+                      }`}
                   >
                     {couponFeedback.msg}
                   </p>
