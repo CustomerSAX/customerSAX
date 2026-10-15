@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authServiceUrl, currentSessionToken, ensureDefaultProjectSelection, enrichUserWithOrganizationTheme } from "../shared";
+import { currentSessionToken, ensureDefaultProjectSelection, enrichUserWithOrganizationTheme, getValidatedSession } from "../shared";
 
 export async function GET() {
   const token = await currentSessionToken();
@@ -8,18 +8,16 @@ export async function GET() {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
-  const response = await fetch(`${authServiceUrl()}/sessions/current`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: "no-store"
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (response.ok && payload.user) {
-    payload.user = await ensureDefaultProjectSelection(token, payload.user);
-    payload.user = await enrichUserWithOrganizationTheme(payload.user);
+  const session = await getValidatedSession(token);
+  if (!session?.user) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
-  return NextResponse.json(payload, { status: response.status });
+  const payload: Record<string, any> = { ...session };
+  payload.user = await ensureDefaultProjectSelection(token, payload.user);
+  payload.user = await enrichUserWithOrganizationTheme(payload.user);
+
+  return NextResponse.json(payload, { status: 200 });
 }
 
 

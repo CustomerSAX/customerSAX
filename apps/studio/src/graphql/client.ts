@@ -9,7 +9,40 @@ import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
 const graphqlUrl = "/api/graphql";
 
 export const apolloClient = new ApolloClient({
-  cache: new InMemoryCache(),
+  cache: new InMemoryCache({
+    typePolicies: {
+      Customer: {
+        keyFields: ["id"],
+      },
+      Order: {
+        keyFields: ["id"],
+      },
+      Ticket: {
+        keyFields: ["id"],
+      },
+      Subscription: {
+        keyFields: ["id"],
+      },
+      Company: {
+        keyFields: ["id"],
+      },
+      Quote: {
+        keyFields: ["id"],
+      },
+      Cart: {
+        keyFields: ["id"],
+      },
+    },
+  }),
+  defaultOptions: {
+    watchQuery: {
+      fetchPolicy: "cache-first",
+      nextFetchPolicy: "cache-first",
+    },
+    query: {
+      fetchPolicy: "cache-first",
+    },
+  },
   link: new HttpLink({
     uri: graphqlUrl,
     credentials: "same-origin"

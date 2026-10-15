@@ -422,7 +422,7 @@ export function QuoteDetailView({ id }: { id: string }) {
   const [negotiationNote, setNegotiationNote] = useState("");
   const { data, loading, error, refetch } = useQuery<QuoteDetailData>(QUOTE_DETAIL_QUERY, {
     variables: { id },
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "cache-first",
   });
 
   const quote = data?.quote ?? null;

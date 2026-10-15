@@ -345,7 +345,7 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
     {
       variables: { clientId, projectKey: projectKey || "default" },
       skip: !clientId || !allowed,
-      fetchPolicy: "cache-and-network"
+      fetchPolicy: "cache-first"
     }
   );
 

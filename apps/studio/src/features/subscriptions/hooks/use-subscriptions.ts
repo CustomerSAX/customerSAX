@@ -21,7 +21,7 @@ type SubscriptionQueryData = { subscriptions: CustomerSubscription[] };
 export function useSubscriptions(customerId?: string) {
   const { data, loading, error, refetch } = useQuery<SubscriptionQueryData>(SUBSCRIPTIONS_QUERY, {
     variables: { customerId: customerId ?? null },
-    fetchPolicy: "cache-and-network"
+    fetchPolicy: "cache-first"
   });
   const [createMutation] = useMutation(CREATE_SUBSCRIPTION);
   const [updateMutation] = useMutation(UPDATE_SUBSCRIPTION);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { applyCsaHeaders } from "@csa/headers";
-import { authServiceUrl, currentSessionToken, ensureDefaultProjectSelection } from "../auth/shared";
+import { currentSessionToken, ensureDefaultProjectSelection, getValidatedSession } from "../auth/shared";
 
 const bffUrl =
   process.env.BFF_URL?.trim() ||
@@ -11,11 +11,8 @@ export async function POST(request: Request) {
   try {
     const token = await currentSessionToken();
     if (!token) return NextResponse.json({ errors: [{ message: "unauthenticated" }] }, { status: 401 });
-    const sessionResponse = await fetch(`${authServiceUrl()}/sessions/current`, {
-      headers: { authorization: `Bearer ${token}` }, cache: "no-store"
-    });
-    const session = await sessionResponse.json().catch(() => ({}));
-    if (!sessionResponse.ok) return NextResponse.json({ errors: [{ message: "unauthenticated" }] }, { status: 401 });
+    const session = await getValidatedSession(token);
+    if (!session?.user) return NextResponse.json({ errors: [{ message: "unauthenticated" }] }, { status: 401 });
     session.user = await ensureDefaultProjectSelection(token, session.user);
     if (session.user?.requiresProjectSelection && (session.user.projects?.length ?? 0) > 0) {
       return NextResponse.json({ errors: [{ message: "project selection required" }] }, { status: 409 });

@@ -112,7 +112,7 @@ export function ReportExportPanel() {
     loading: ticketsLoading,
     refetch: refetchTickets,
   } = useQuery<TicketsReportData>(TICKETS_QUERY, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "cache-first",
     variables: { limit: 500, offset: 0 },
   });
 

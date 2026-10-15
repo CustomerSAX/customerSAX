@@ -156,7 +156,7 @@ const mapCompany = (company: CompanyResult): Company => ({
 
 export function useCompanies() {
   const { data, error, loading: queryLoading } = useQuery<CompaniesData>(COMPANIES_QUERY, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "cache-first",
     variables: {
       limit: 100,
       offset: 0,
@@ -377,7 +377,7 @@ export function useCompanies() {
 
 export function useCompanyCommerceActivity(companyKey?: string) {
   const { data, loading, error } = useQuery<CompanyActivityData>(COMPANY_ACTIVITY_QUERY, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "cache-first",
     skip: !companyKey,
     variables: {
       companyKey,
