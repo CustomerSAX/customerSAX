@@ -13,8 +13,8 @@ import {
   useState,
   useEffect,
   useCallback,
-  useRef,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocale } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { productPageFromParam, productPageHref } from "../utils/product-pagination";
@@ -49,6 +49,62 @@ const MIN_SEARCH_LEN = 4;
 const SEARCH_DEBOUNCE_MS = 350;
 
 // ---------------------------------------------------------------------------
+// SKU Price Cache & In-Flight Request Deduplication
+// ---------------------------------------------------------------------------
+
+const skuPriceCache = new Map<string, { result: StandalonePriceResult | null; expiresAt: number }>();
+const skuPriceInFlight = new Map<string, Promise<StandalonePriceResult | null>>();
+
+async function fetchSkuPrice(sku: string): Promise<StandalonePriceResult | null> {
+  const now = Date.now();
+  const cached = skuPriceCache.get(sku);
+  if (cached && cached.expiresAt > now) {
+    return cached.result;
+  }
+
+  const existingPromise = skuPriceInFlight.get(sku);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const res = await fetch("/api/products/prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ sku }),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        results?: StandalonePriceResult[];
+      };
+      const results = data?.results ?? [];
+      const usd = results.filter(
+        (r) =>
+          r?.value?.currencyCode === "USD" ||
+          !r?.value?.currencyCode
+      );
+      const sorted = (usd.length > 0 ? usd : results).sort(
+        (a, b) =>
+          (a?.value?.centAmount ?? Infinity) -
+          (b?.value?.centAmount ?? Infinity)
+      );
+      const best = sorted[0] ? { sku, value: sorted[0].value } : null;
+      skuPriceCache.set(sku, { result: best, expiresAt: Date.now() + 10 * 60_000 });
+      return best;
+    } catch {
+      return null;
+    } finally {
+      skuPriceInFlight.delete(sku);
+    }
+  })();
+
+  skuPriceInFlight.set(sku, fetchPromise);
+  return fetchPromise;
+}
+
+// ---------------------------------------------------------------------------
 // useProductList
 // ---------------------------------------------------------------------------
 
@@ -80,13 +136,6 @@ export interface UseProductListReturn {
 export function useProductList(): UseProductListReturn {
   const locale = useLocale();
   const [filters, setFilters] = useState<CatalogFilters>({});
-  const [facets, setFacets] = useState<CatalogFacets | null>(null);
-  const [products, setProducts] = useState<ProductListRow[]>([]);
-  const [totalItems, setTotalItems] = useState(0);
-  // Start loading so skeleton shows on first paint (no flash of empty state).
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const [search, setSearch] = useState<ProductSearch>({
     text: "",
     option: "allFields",
@@ -99,8 +148,6 @@ export function useProductList(): UseProductListReturn {
   const [sort, setSort] = useState<ProductSort | null>(null);
   const searchParams = useSearchParams();
   const page = productPageFromParam(searchParams.get("page"));
-  // Next's native history integration updates useSearchParams and supports
-  // back/forward navigation without reloading the page or resetting the view.
   const setPage = useCallback((nextPage: number) => {
     const href = productPageHref(window.location.href, nextPage);
     const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -109,54 +156,21 @@ export function useProductList(): UseProductListReturn {
   const [perPage] = useState(20);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  // Monotonic sequence counter — prevents stale fetch results from overwriting
-  // the latest ones (race condition guard matching legacy searchSeq pattern).
-  const searchSeq = useRef(0);
-
   // -------------------------------------------------------------------------
   // Price resolution (standalone prices from BFF)
   // -------------------------------------------------------------------------
 
   const resolvePrices = useCallback(
     async (rows: ProductListRow[]): Promise<ProductListRow[]> => {
-      const skus = rows
+      const rawSkus = rows
         .map((r) => r.sku)
         .filter((sku) => sku && sku !== "--");
-      if (skus.length === 0) return rows;
+      const uniqueSkus = Array.from(new Set(rawSkus));
+      if (uniqueSkus.length === 0) return rows;
 
       try {
-        // Resolve prices for all SKUs in parallel (BFF standalonePrices is per-SKU,
-        // so we batch them client-side).
         const priceResults = await Promise.all(
-          skus.map(async (sku): Promise<StandalonePriceResult | null> => {
-            try {
-              const res = await fetch("/api/products/prices", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "same-origin",
-                body: JSON.stringify({ sku }),
-              });
-              if (!res.ok) return null;
-              const data = (await res.json()) as {
-                results?: StandalonePriceResult[];
-              };
-              // Return lowest price for this SKU
-              const results = data?.results ?? [];
-              const usd = results.filter(
-                (r) =>
-                  r?.value?.currencyCode === "USD" ||
-                  !r?.value?.currencyCode
-              );
-              const sorted = (usd.length > 0 ? usd : results).sort(
-                (a, b) =>
-                  (a?.value?.centAmount ?? Infinity) -
-                  (b?.value?.centAmount ?? Infinity)
-              );
-              return sorted[0] ? { sku, value: sorted[0].value } : null;
-            } catch {
-              return null;
-            }
-          })
+          uniqueSkus.map((sku) => fetchSkuPrice(sku))
         );
 
         const flatResults = priceResults.filter(
@@ -180,79 +194,86 @@ export function useProductList(): UseProductListReturn {
   );
 
   // -------------------------------------------------------------------------
-  // Main fetch
+  // TanStack Query for Product Search
   // -------------------------------------------------------------------------
 
-  const doSearch = useCallback(
-    async (searchQuery: ProductSearch, sortState: ProductSort | null, currentPage: number) => {
-      const seq = ++searchSeq.current;
-      const trimmed = searchQuery.text.trim();
-      setLoading(true);
-      setError(null);
+  const queryKey = [
+    "products",
+    locale,
+    appliedSearch.text,
+    appliedSearch.option,
+    sort?.key,
+    sort?.order,
+    page,
+    perPage,
+    filters,
+  ];
 
-      try {
-        const offset = (currentPage - 1) * perPage;
-        const requestBody = trimmed
-          ? {
-              field: searchQuery.option,
-              text: trimmed,
-              limit: perPage,
-              offset,
-            }
-          : {
-              browse: true,
-              limit: perPage,
-              offset,
-              sortKey: sortState ? browseSortField(sortState.key) : undefined,
-              sortOrder: sortState?.order,
-            };
+  const {
+    data: queryResult,
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const trimmed = appliedSearch.text.trim();
+      const offset = (page - 1) * perPage;
+      const requestBody = trimmed
+        ? {
+            field: appliedSearch.option,
+            text: trimmed,
+            limit: perPage,
+            offset,
+          }
+        : {
+            browse: true,
+            limit: perPage,
+            offset,
+            sortKey: sort ? browseSortField(sort.key) : undefined,
+            sortOrder: sort?.order,
+          };
 
-        const res = await fetch("/api/product-search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ ...requestBody, includeFacets: true, filters }),
-        });
+      const res = await fetch("/api/product-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ ...requestBody, includeFacets: true, filters }),
+      });
 
-        if (!res.ok) {
-          throw new Error(`Product search failed: HTTP ${res.status}`);
-        }
-
-        const json = (await res.json()) as ProductSearchResponse & { error?: string };
-        if (json.error) throw new Error(json.error);
-        const rawResults: CtRawProduct[] = (json.results ?? []) as CtRawProduct[];
-        const rows = rawResults.map((product) => mapRawToListRow(product, locale));
-        const total = json.total ?? 0;
-
-        const withPrices = rawResults.every((product) => product.resolvedPrice !== undefined) ? rows : await resolvePrices(rows);
-
-        // Drop stale results
-        if (seq !== searchSeq.current) return;
-
-        setFacets(json.facets ?? null);
-        setProducts(withPrices);
-        setTotalItems(total);
-        setExpanded(new Set());
-      } catch (e) {
-        if (seq === searchSeq.current) {
-          console.error("Product search error:", e);
-          setError(
-            e instanceof Error ? e.message : "Failed to load products."
-          );
-        }
-      } finally {
-        if (seq === searchSeq.current) setLoading(false);
+      if (!res.ok) {
+        throw new Error(`Product search failed: HTTP ${res.status}`);
       }
+
+      const json = (await res.json()) as ProductSearchResponse & { error?: string };
+      if (json.error) throw new Error(json.error);
+      const rawResults: CtRawProduct[] = (json.results ?? []) as CtRawProduct[];
+      const rows = rawResults.map((product) => mapRawToListRow(product, locale));
+      const total = json.total ?? 0;
+
+      const withPrices = rawResults.every((product) => product.resolvedPrice !== undefined)
+        ? rows
+        : await resolvePrices(rows);
+
+      return {
+        products: withPrices,
+        totalItems: total,
+        facets: json.facets ?? null,
+      };
     },
-    [locale, perPage, resolvePrices, filters]
-  );
+    staleTime: 2 * 60_000,
+  });
+
+  const products = queryResult?.products ?? [];
+  const totalItems = queryResult?.totalItems ?? 0;
+  const facets = queryResult?.facets ?? null;
+  const error = queryError ? (queryError instanceof Error ? queryError.message : "Failed to load products.") : null;
 
   // -------------------------------------------------------------------------
   // Auto-search debounce effect (mirrors legacy)
   // -------------------------------------------------------------------------
 
   useEffect(() => {
-    // Skip when nothing has actually changed (avoids double-fire in StrictMode).
     if (
       search.text === appliedSearch.text &&
       search.option === appliedSearch.option
@@ -266,17 +287,7 @@ export function useProductList(): UseProductListReturn {
       setPage(1);
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-
   }, [search.text, search.option, appliedSearch.text, appliedSearch.option, setPage]);
-
-  // -------------------------------------------------------------------------
-  // Run fetch whenever applied search, page, or sort changes
-  // -------------------------------------------------------------------------
-
-  useEffect(() => {
-    void doSearch(appliedSearch, sort, page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSearch.text, appliedSearch.option, page, sort?.key, sort?.order, filters]);
 
   // -------------------------------------------------------------------------
   // Handlers
@@ -335,7 +346,7 @@ export function useProductList(): UseProductListReturn {
     expanded,
     setSearch,
     onSearch,
-    onRetry: () => { void doSearch(appliedSearch, sort, page); },
+    onRetry: () => { void refetch(); },
     onReset,
     onSort,
     onSortChange: (nextSort: ProductSort) => { setSort(nextSort); setPage(1); },
@@ -356,52 +367,27 @@ export interface UseProductDetailReturn {
 }
 
 export function useProductDetail(id: string): UseProductDetailReturn {
-  const [product, setProduct] = useState<ProductDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!id) {
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    fetch(`/api/products/${encodeURIComponent(id)}`, {
-      credentials: "same-origin",
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Product not found (HTTP ${res.status})`);
-        }
-        return res.json() as Promise<CtRawProduct | null>;
-      })
-      .then((raw) => {
-        if (cancelled) return;
-        if (!raw) {
-          setProduct(null);
-        } else {
-          setProduct(mapRawToDetail(raw));
-        }
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        console.error("Product detail fetch error:", e);
-        setError(
-          e instanceof Error ? e.message : "Failed to load product."
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+  const {
+    data: product = null,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery<ProductDetail | null>({
+    queryKey: ["productDetail", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+        credentials: "same-origin",
       });
+      if (!res.ok) {
+        throw new Error(`Product not found (HTTP ${res.status})`);
+      }
+      const raw = (await res.json()) as CtRawProduct | null;
+      return raw ? mapRawToDetail(raw) : null;
+    },
+    enabled: !!id,
+    staleTime: 5 * 60_000,
+  });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  const error = queryError ? (queryError instanceof Error ? queryError.message : "Failed to load product.") : null;
 
   return { product, loading, error };
 }

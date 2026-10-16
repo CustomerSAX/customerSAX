@@ -53,7 +53,7 @@ export function OnboardingWizard({
   } = useQuery(ADMIN_CLIENT_QUERY, {
     variables: { id: organizationId! },
     skip: !isEdit || !organizationId,
-    fetchPolicy: "network-only"
+    fetchPolicy: "cache-first"
   });
 
   const primaryProjectId = clientData?.adminProjectsByClient?.[0]?.id;

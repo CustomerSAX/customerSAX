@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useCurrentUser } from "@/lib/use-current-user";
 import type {
   KnowledgeBaseArticle,
@@ -82,11 +82,14 @@ export const TROUBLESHOOTING_ARTICLES: KnowledgeBaseArticle[] = [
   }
 ];
 
+const EMPTY_KB_DATA: KnowledgeBaseData = {
+  faq: [],
+  troubleshoot: [],
+  status: { lastUpdatedAt: null, faqCount: 0, troubleshootCount: 0 }
+};
+
 export function useKnowledgeBase() {
   const { user, loading: userLoading } = useCurrentUser();
-  const [data, setData] = useState<KnowledgeBaseData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const organizationId =
     user?.activeClientId ||
@@ -97,52 +100,17 @@ export function useKnowledgeBase() {
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
-  const loadData = useCallback(async () => {
-    if (!organizationId) {
-      setData({
-        faq: [],
-        troubleshoot: [],
-        status: { lastUpdatedAt: null, faqCount: 0, troubleshootCount: 0 }
-      });
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch(`/api/organizations/${organizationId}/knowledge-base`, {
-        cache: "no-store"
-      });
-
-      if (!res.ok) {
-        setData({
-          faq: [],
-          troubleshoot: [],
-          status: { lastUpdatedAt: null, faqCount: 0, troubleshootCount: 0 }
-        });
-        return;
-      }
-
-      const json = await res.json();
-      setData(json);
-    } catch (err: any) {
-      console.warn("[useKnowledgeBase] fetch warning:", err);
-      setData({
-        faq: [],
-        troubleshoot: [],
-        status: { lastUpdatedAt: null, faqCount: 0, troubleshootCount: 0 }
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [organizationId]);
-
-  useEffect(() => {
-    if (!userLoading) {
-      void loadData();
-    }
-  }, [userLoading, loadData]);
+  const { data = EMPTY_KB_DATA, isLoading, error: queryError, refetch } = useQuery<KnowledgeBaseData>({
+    queryKey: ["knowledgeBase", organizationId],
+    queryFn: async () => {
+      if (!organizationId) return EMPTY_KB_DATA;
+      const res = await fetch(`/api/organizations/${organizationId}/knowledge-base`);
+      if (!res.ok) return EMPTY_KB_DATA;
+      return (await res.json()) as KnowledgeBaseData;
+    },
+    enabled: Boolean(organizationId),
+    staleTime: 10 * 60 * 1000, // 10 minutes cache
+  });
 
   const isEmpty =
     !data ||
@@ -150,9 +118,9 @@ export function useKnowledgeBase() {
 
   return {
     data,
-    loading: loading || userLoading,
-    error,
-    refetch: loadData,
+    loading: isLoading || userLoading,
+    error: queryError ? (queryError instanceof Error ? queryError.message : String(queryError)) : null,
+    refetch,
     organizationId,
     isAdmin,
     isEmpty

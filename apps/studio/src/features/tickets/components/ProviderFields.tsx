@@ -12,7 +12,7 @@ export function ProviderFields({ id, provider }: { id: string; provider: string 
       type: string;
       value: string | null;
     }>;
-  }>(TICKET_PROVIDER_FIELDS, { variables: { id }, fetchPolicy: "network-only" });
+  }>(TICKET_PROVIDER_FIELDS, { variables: { id }, fetchPolicy: "cache-first" });
   return (
     <SectionCard
       title={`${provider} Fields`}

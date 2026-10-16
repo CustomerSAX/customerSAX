@@ -116,7 +116,7 @@ function mapQuote(quote: QuoteResult): Quote {
 
 export function useQuotes() {
   const { data, loading, refetch } = useQuery<QuotesData>(QUOTES_QUERY, {
-    fetchPolicy: "cache-and-network",
+    fetchPolicy: "cache-first",
     variables: {
       limit: 100,
       offset: 0,

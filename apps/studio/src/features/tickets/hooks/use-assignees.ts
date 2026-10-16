@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 export interface AssigneeOption {
   value: string;
@@ -17,42 +18,26 @@ const SELECT_AGENT_OPTION: AssigneeOption = {
 };
 
 export function useAssignees(currentAssignee?: string | null) {
-  const [agents, setAgents] = useState<AssigneeOption[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetch("/api/agent-registry/users", {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Agent registry returned ${response.status}`);
-        return response.json() as Promise<AgentRegistryResponse>;
-      })
-      .then((data) => {
-        const unique = new Map<string, AssigneeOption>();
-        for (const user of data.users ?? []) {
-          const email = user.email?.trim();
-          if (!email) continue;
-          const name = user.name?.trim();
-          unique.set(email.toLowerCase(), {
-            value: email,
-            label: name && name.toLowerCase() !== email.toLowerCase() ? `${name} (${email})` : email,
-          });
-        }
-        setAgents([...unique.values()].sort((a, b) => a.label.localeCompare(b.label)));
-      })
-      .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          console.error("Failed to load ticket assignees", error);
-        }
-      })
-      .finally(() => setIsLoading(false));
-
-    return () => controller.abort();
-  }, []);
+  const { data: agents = [], isLoading } = useQuery<AssigneeOption[]>({
+    queryKey: ["agentRegistryUsers"],
+    queryFn: async () => {
+      const response = await fetch("/api/agent-registry/users");
+      if (!response.ok) throw new Error(`Agent registry returned ${response.status}`);
+      const data = (await response.json()) as AgentRegistryResponse;
+      const unique = new Map<string, AssigneeOption>();
+      for (const user of data.users ?? []) {
+        const email = user.email?.trim();
+        if (!email) continue;
+        const name = user.name?.trim();
+        unique.set(email.toLowerCase(), {
+          value: email,
+          label: name && name.toLowerCase() !== email.toLowerCase() ? `${name} (${email})` : email,
+        });
+      }
+      return [...unique.values()].sort((a, b) => a.label.localeCompare(b.label));
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes team list cache
+  });
 
   const options = useMemo(() => {
     const result = [SELECT_AGENT_OPTION, ...agents];

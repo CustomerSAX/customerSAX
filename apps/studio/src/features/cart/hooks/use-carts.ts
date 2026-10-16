@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Cart, CartState, CartLineItem, CartAddress } from "../types/cart-types";
 
 type ApiMoney = {
@@ -103,14 +104,16 @@ function mapApiCart(cart: ApiCart): Cart {
 }
 
 export function useCartStore() {
-  const [carts, setCarts] = useState<Cart[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const reloadCarts = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const {
+    data: carts = [],
+    isLoading: loading,
+    error: queryError,
+    refetch
+  } = useQuery<Cart[]>({
+    queryKey: ["carts"],
+    queryFn: async () => {
       const response = await fetch("/api/carts?limit=100");
       const payload = (await response.json().catch(() => ({}))) as ApiCartListResponse & {
         error?: string;
@@ -120,15 +123,20 @@ export function useCartStore() {
         throw new Error(payload.error || `Failed to load carts (${response.status})`);
       }
 
-      setCarts((payload.results ?? []).map(mapApiCart));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load carts.";
-      setError(message);
-      setCarts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      const mapped = (payload.results ?? []).map(mapApiCart);
+      mapped.forEach((c) => {
+        queryClient.setQueryData(["cart", c.id], c);
+      });
+      return mapped;
+    },
+    staleTime: 60_000,
+  });
+
+  const error = queryError ? (queryError instanceof Error ? queryError.message : "Failed to load carts.") : null;
+
+  const reloadCarts = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   const updateCart = useCallback(
     async (cartId: string, actions: Array<Record<string, unknown>>) => {
@@ -141,20 +149,22 @@ export function useCartStore() {
         error?: string;
       };
       if (!response.ok) throw new Error(payload.error || "Unable to update cart.");
-      setCarts((prev) =>
-        prev.map((cart) => (cart.id === cartId ? mapApiCart(payload) : cart))
+      const updated = mapApiCart(payload);
+      queryClient.setQueryData(["cart", cartId], updated);
+      queryClient.setQueryData<Cart[]>(["carts"], (prev) =>
+        prev ? prev.map((c) => (c.id === cartId ? updated : c)) : [updated]
       );
+      void queryClient.invalidateQueries({ queryKey: ["carts"] });
+      return updated;
     },
-    []
+    [queryClient]
   );
 
-  useEffect(() => {
-    void reloadCarts();
-  }, [reloadCarts]);
-
   const getCartById = useCallback(
-    (id: string) => carts.find((c) => c.id === id || c.cartNumber === id),
-    [carts]
+    (id: string) =>
+      carts.find((c) => c.id === id || c.cartNumber === id) ??
+      queryClient.getQueryData<Cart>(["cart", id]),
+    [carts, queryClient]
   );
 
   const updateLineItemQuantity = useCallback(
@@ -223,10 +233,12 @@ export function useCartStore() {
       };
       if (!response.ok || !payload.id)
         throw new Error(payload.error || "Unable to place order.");
-      await reloadCarts();
+      await queryClient.invalidateQueries({ queryKey: ["carts"] });
+      await queryClient.invalidateQueries({ queryKey: ["cart", cartId] });
+      await queryClient.invalidateQueries({ queryKey: ["orders"] });
       return payload.id;
     },
-    [reloadCarts]
+    [queryClient]
   );
 
   return {
@@ -236,6 +248,61 @@ export function useCartStore() {
     reloadCarts,
     updateCart,
     getCartById,
+    updateLineItemQuantity,
+    addLineItemToCart,
+    applyDiscountCode,
+    updateShippingMethod,
+    updateShippingAddress,
+    updateBillingAddress,
+    placeOrderFromCart
+  };
+}
+
+export function useCartDetail(id: string) {
+  const {
+    data: cart,
+    isLoading: loading,
+    error: queryError,
+    refetch
+  } = useQuery<Cart>({
+    queryKey: ["cart", id],
+    queryFn: async () => {
+      const response = await fetch(`/api/carts/${encodeURIComponent(id)}`);
+      const payload = (await response.json().catch(() => ({}))) as ApiCart & {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || `Failed to load cart (${response.status})`);
+      }
+      return mapApiCart(payload);
+    },
+    enabled: !!id,
+    staleTime: 60_000,
+  });
+
+  const error = queryError ? (queryError instanceof Error ? queryError.message : "Failed to load cart.") : null;
+
+  const {
+    updateCart,
+    updateLineItemQuantity,
+    addLineItemToCart,
+    applyDiscountCode,
+    updateShippingMethod,
+    updateShippingAddress,
+    updateBillingAddress,
+    placeOrderFromCart
+  } = useCartStore();
+
+  const reloadCart = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
+  return {
+    cart,
+    loading,
+    error,
+    reloadCart,
+    updateCart,
     updateLineItemQuantity,
     addLineItemToCart,
     applyDiscountCode,
