@@ -21,7 +21,14 @@ it("isolates request contexts and reports service failure honestly", async () =>
 });
 it("does not query unsupported providers or missing identity", async () => {
   const request = vi.fn(); vi.stubGlobal("fetch", request);
-  expect(await loadAIStatus(ticket("zendesk:account:1"), context())).toBe("not_supported");
+  expect(await loadAIStatus(ticket("freshdesk:account:1"), context())).toBe("not_supported");
   expect(await loadAIStatus(ticket("1"), {})).toBe("unavailable");
   expect(request).not.toHaveBeenCalled();
+});
+
+it("loads AI review status for Zendesk tickets", async () => {
+  const request = vi.fn().mockResolvedValue(Response.json({ statuses: [{ id: "zendesk:account:1", status: "not_analyzed" }] }));
+  vi.stubGlobal("fetch", request);
+  expect(await loadAIStatus(ticket("zendesk:account:1"), context())).toBe("not_analyzed");
+  expect(request).toHaveBeenCalledTimes(1);
 });

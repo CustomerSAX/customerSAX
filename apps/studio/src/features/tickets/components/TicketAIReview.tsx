@@ -13,7 +13,13 @@ import {
 import type { Ticket } from "../types/ticket-types";
 
 type Review = {
-  informationRequest?: { status: string; recipient: string; subject: string; text: string; createdAt: string } | null;
+  informationRequest?: {
+    status: string;
+    recipient: string;
+    subject: string;
+    text: string;
+    createdAt: string;
+  } | null;
   informationRequestError?: string;
   revision: string;
   status:
@@ -88,6 +94,8 @@ export function TicketAIReview({
   onTicketChanged: () => Promise<unknown>;
   initialOperation?: "load" | "analyze";
 }) {
+  const zendesk = ticket.id.startsWith("zendesk:");
+  const completionVerb = zendesk ? "resolve" : "close";
   const [review, setReview] = useState<Review | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -116,8 +124,15 @@ export function TicketAIReview({
         if (!response.ok) throw new Error(data.error || "Unable to load the proposal.");
         if (mounted.current) setReview(data.review);
         const emailId = data.review?.informationRequest?.createdAt;
-        const emailChanged = data.review?.informationRequest?.status === "accepted" && emailId !== refreshedEmail.current;
-        if ((data.review?.status === "closed" && ticket.status !== "Closed") || emailChanged || operation !== "load") {
+        const emailChanged =
+          data.review?.informationRequest?.status === "accepted" &&
+          emailId !== refreshedEmail.current;
+        if (
+          (data.review?.status === "closed" &&
+            !["Closed", "Resolved"].includes(ticket.status)) ||
+          emailChanged ||
+          operation !== "load"
+        ) {
           if (emailChanged) refreshedEmail.current = emailId;
           await onTicketChanged();
         }
@@ -198,7 +213,15 @@ export function TicketAIReview({
           className="flex items-center gap-2 rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700"
         >
           {running && <Loader2 size={13} className="animate-spin" aria-hidden="true" />}
-          {review ? labels[review.status] : busy ? (initialOperation === "load" ? "Loading review" : "Analyzing ticket") : "Not analyzed"}
+          {review
+            ? zendesk && review.status === "closed"
+              ? "Ticket resolved"
+              : labels[review.status]
+            : busy
+              ? initialOperation === "load"
+                ? "Loading review"
+                : "Analyzing ticket"
+              : "Not analyzed"}
         </span>
       </header>
       <div className="space-y-5 p-5">
@@ -408,17 +431,23 @@ export function TicketAIReview({
 
         {review?.informationRequest && (
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-m-text">
-            <p className="font-semibold">{review.informationRequest.status === "accepted"
-              ? "Information request accepted for delivery — waiting for customer"
-              : review.informationRequest.status === "rejected"
-                ? "Information email rejected — agent follow-up needed"
-                : "Email outcome unconfirmed — check provider activity before resending"}</p>
+            <p className="font-semibold">
+              {review.informationRequest.status === "accepted"
+                ? "Information request accepted for delivery — waiting for customer"
+                : review.informationRequest.status === "rejected"
+                  ? "Information email rejected — agent follow-up needed"
+                  : "Email outcome unconfirmed — check provider activity before resending"}
+            </p>
             <p className="mt-2">To: {review.informationRequest.recipient}</p>
             <p>{review.informationRequest.subject}</p>
             <p className="mt-2 whitespace-pre-wrap">{review.informationRequest.text}</p>
           </div>
         )}
-        {review?.informationRequestError && <p role="alert" className="text-sm text-red-600">{review.informationRequestError}</p>}
+        {review?.informationRequestError && (
+          <p role="alert" className="text-sm text-red-600">
+            {review.informationRequestError}
+          </p>
+        )}
 
         <div className="flex items-start gap-2 text-xs leading-relaxed text-m-text-muted">
           <ShieldCheck
@@ -427,9 +456,11 @@ export function TicketAIReview({
             aria-hidden="true"
           />
           <p>
-            Explicit phone update requests naming one matching customer address are applied automatically.
-            Other proposals require approval. Review applicable business policy before approving. Actions and results are saved with this
-            ticket. When automatic email is enabled, requests for missing customer details are sent and recorded here. Other response drafts are not sent automatically.
+            Explicit phone update requests naming one matching customer address are
+            applied automatically. Other proposals require approval. Review applicable
+            business policy before approving. Actions and results are saved with this
+            ticket. When automatic email is enabled, requests for missing customer details
+            are sent and recorded here. Other response drafts are not sent automatically.
           </p>
         </div>
 
@@ -443,12 +474,18 @@ export function TicketAIReview({
         )}
         {review?.status === "succeeded" && ticket.status !== "Closed" && (
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-            <h3 className="text-sm font-semibold text-blue-950">Close this ticket?</h3>
+            <h3 className="text-sm font-semibold text-blue-950">
+              {zendesk ? "Resolve this ticket?" : "Close this ticket?"}
+            </h3>
             <p className="mt-1 text-xs leading-relaxed text-blue-900">
               {review.findingsApproved
                 ? "The findings are approved. Complete any outstanding actions and customer follow-up before closing."
                 : "The requested change is complete."}{" "}
-              Approving below changes this ticket’s status from {ticket.status} to Closed.
+              Approving below changes this ticket’s status from {ticket.status} to{" "}
+              {zendesk
+                ? "Resolved (solved in Zendesk) and adds a private resolution note. Zendesk manages final closure"
+                : "Closed"}
+              .
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <label className="mb-2 block w-full text-sm font-semibold text-blue-950">
@@ -484,7 +521,7 @@ export function TicketAIReview({
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 focus-visible:outline-blue-600 disabled:opacity-40"
               >
                 <Check size={15} aria-hidden="true" />
-                Approve & close ticket
+                Approve & {completionVerb} ticket
               </button>
               <button
                 type="button"
