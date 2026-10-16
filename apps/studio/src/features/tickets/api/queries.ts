@@ -24,5 +24,10 @@ export const ADD_WORKLOG = gql`${TICKET_FIELDS} mutation AddTicketWorklog($id: I
 
 export const TICKET_QUERY = gql`${TICKET_FIELDS} query TicketDetail($id: ID!) { ticket(id: $id) { ...TicketFields } }`;
 export const TICKET_PROVIDER_FIELDS = gql`
-  query TicketProviderFields($id: ID!) { ticketProviderFields(id: $id) { id label type value } }
+  query TicketProviderFields($id: ID!) { ticketProviderFields(id: $id) { id label type value editable rawValue options { label value } } }
+`;
+export const UPDATE_TICKET_PROVIDER_FIELDS = gql`
+  mutation UpdateTicketProviderFields($id: ID!, $expectedLastModifiedAt: String!, $fields: [TicketProviderFieldUpdate!]!) {
+    updateTicketProviderFields(id: $id, expectedLastModifiedAt: $expectedLastModifiedAt, fields: $fields) { id label type value editable rawValue options { label value } }
+  }
 `;

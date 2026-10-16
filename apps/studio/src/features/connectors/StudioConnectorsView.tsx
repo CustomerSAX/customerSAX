@@ -132,22 +132,22 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
     try {
       if (patch.ticketing && clientId) {
         const projects = data?.adminProjectsByClient || [];
-        for (const proj of projects) {
-          await saveTicketing({
-            variables: {
-              clientId,
-              id: proj.id,
-              input: {
-                provider: patch.ticketing.provider,
-                subdomain: patch.ticketing.subdomain,
-                clientId: patch.ticketing.clientId,
-                clientSecret: patch.ticketing.clientSecret,
-                freshdeskDomain: patch.ticketing.freshdeskDomain,
-                freshdeskApiKey: patch.ticketing.freshdeskApiKey
-              }
+        const proj = projects.find((project: { projectKey: string }) => project.projectKey === user?.activeProjectKey);
+        if (!proj) throw new Error("Select a project before saving ticketing credentials.");
+        await saveTicketing({
+          variables: {
+            clientId,
+            id: proj.id,
+            input: {
+              provider: patch.ticketing.provider,
+              subdomain: patch.ticketing.subdomain,
+              clientId: patch.ticketing.clientId,
+              clientSecret: patch.ticketing.clientSecret,
+              freshdeskDomain: patch.ticketing.freshdeskDomain,
+              freshdeskApiKey: patch.ticketing.freshdeskApiKey
             }
-          });
-        }
+          }
+        });
       }
 
       if (patch.aiSettings && clientId) {
@@ -204,9 +204,8 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
       await refetch();
       setSaveSuccessMsg("Connector configuration updated successfully.");
       setTimeout(() => setSaveSuccessMsg(null), 4000);
-    } catch (err: any) {
-      console.error("Failed to save connector configuration:", err);
-      setSaveError("Could not save connector configuration. Please try again.");
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "Could not save connector configuration. Please try again.");
     }
   };
 

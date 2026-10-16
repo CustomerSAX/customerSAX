@@ -12,7 +12,7 @@ const statuses: Record<string, { label: string; color: string; description: stri
   check_outcome: { label: "Check action outcome", color: "bg-red-50 text-red-700", description: "The action outcome is uncertain. Verify it before retrying." },
   analysis_failed: { label: "Analysis failed", color: "bg-red-50 text-red-700", description: "AI analysis failed; open the ticket to retry." },
   email_needs_attention: { label: "Email needs attention", color: "bg-amber-50 text-amber-800", description: "The information-request email was rejected or its outcome is unconfirmed." },
-  not_supported: { label: "Not supported", color: "bg-slate-100 text-slate-600", description: "AI reviews currently support native tickets." },
+  not_supported: { label: "Not supported", color: "bg-slate-100 text-slate-600", description: "AI reviews currently support native and Zendesk tickets." },
   loading: { label: "Loading…", color: "bg-slate-100 text-slate-500", description: "Loading the saved AI status." },
   unavailable: { label: "Unavailable", color: "bg-slate-100 text-slate-600", description: "The saved AI status could not be loaded. Check AI Assist and refresh." }
 };

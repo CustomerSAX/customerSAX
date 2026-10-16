@@ -34,6 +34,7 @@ type Dependencies = {
   ): Promise<ReviewTicket | null>;
   draftResolution(action: NonNullable<Review["action"]>): Promise<string>;
   customer(id: string): Promise<ContactCustomer>;
+  customerByEmail?(email: string): Promise<ContactCustomer | null>;
   analyze(ticket: ReviewTicket): Promise<Analysis>;
   executeOrder?(
     order: ReviewOrder,
@@ -89,6 +90,12 @@ export const reviewId = (scope: Scope, ticketId: string) =>
   digest([scope.clientId, scope.projectKey, ticketId]);
 
 export function createReviewService(deps: Dependencies) {
+  async function ticketCustomer(ticket: ReviewTicket) {
+    if (ticket.customerId) return deps.customer(ticket.customerId);
+    if (ticket.id.startsWith("zendesk:") && ticket.customerEmail?.trim() && deps.customerByEmail)
+      return deps.customerByEmail(ticket.customerEmail.trim());
+    return null;
+  }
   async function change(
     review: Review,
     scope: Scope,
@@ -187,9 +194,9 @@ export function createReviewService(deps: Dependencies) {
     addressId?: string
   ): Promise<Review> {
     const ticket = await deps.ticket(ticketId);
-    if (ticket.id.startsWith("zendesk:") || ticket.id.startsWith("freshdesk:"))
+    if (ticket.id.startsWith("freshdesk:"))
       throw new ReviewError(
-        "AI ticket actions currently support native tickets only.",
+        "AI ticket actions currently support native and Zendesk tickets.",
         400
       );
     const previous = await load(scope, ticketId);
@@ -330,14 +337,16 @@ export function createReviewService(deps: Dependencies) {
         if (!phone) {
           patch.explanation =
             "The requested new number could not be verified in the ticket. Add an explicit new contact number to the ticket before continuing.";
-        } else if (!ticket.customerId) {
-          patch.explanation =
-            "Link the correct customer to this ticket before preparing a contact-number change.";
         } else {
-          const customer = await deps.customer(ticket.customerId);
-          if (
-            customer.id !== ticket.customerId ||
-            customer.email.toLowerCase() !== ticket.customerEmail.toLowerCase()
+          const customer = await ticketCustomer(ticket);
+          if (!customer) {
+            patch.explanation = ticket.id.startsWith("zendesk:")
+              ? "Could not find one exact commercetools customer match for the Zendesk requester's email in this project. Check the requester email and customer account, then analyze again."
+              : "Link the correct customer to this ticket before preparing a contact-number change.";
+          } else if (
+            (ticket.customerId && customer.id !== ticket.customerId) ||
+            !normalizedEmail(customer.email) ||
+            normalizedEmail(customer.email) !== normalizedEmail(ticket.customerEmail)
           ) {
             patch.explanation =
               "The linked customer does not match the ticket email. Correct the customer link before continuing.";
@@ -508,11 +517,15 @@ export function createReviewService(deps: Dependencies) {
 
     const ticket = await deps.ticket(ticketId);
     const customer = await deps.customer(review.action.customerId);
+    const emailMatch = !ticket.customerId && ticket.id.startsWith("zendesk:")
+      ? await ticketCustomer(ticket) : customer;
     const target = customer.targets.find((item) => item.id === review.action!.addressId);
     if (
       ticket.status.toLowerCase() === "closed" ||
       fingerprint(ticket) !== review.fingerprint ||
       customer.id !== review.action.customerId ||
+      emailMatch?.id !== review.action.customerId ||
+      normalizedEmail(ticket.customerEmail) !== normalizedEmail(customer.email) ||
       customer.email !== review.action.customerEmail ||
       customer.version !== review.action.expectedVersion ||
       target?.phone !== review.action.previousPhone
@@ -678,7 +691,7 @@ export function createReviewService(deps: Dependencies) {
           },
           "closure_stale"
         );
-      if (closed.status.toLowerCase() !== "closed")
+      if (closed.status.toLowerCase() !== "closed" && !(ticketId.startsWith("zendesk:") && closed.status.toLowerCase() === "resolved"))
         throw new Error("Closure was not confirmed");
       return await change(
         closing,
@@ -686,7 +699,7 @@ export function createReviewService(deps: Dependencies) {
         {
           status: "closed",
           explanation:
-            "The ticket has been closed with your approval and resolution notes."
+            ticketId.startsWith("zendesk:") ? "The Zendesk ticket has been resolved with your approval and a private resolution note. Zendesk manages final closure." : "The ticket has been closed with your approval and resolution notes."
         },
         "ticket_closed"
       );

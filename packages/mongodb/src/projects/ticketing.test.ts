@@ -29,6 +29,26 @@ const input = {
   clientId: "oauth",
   clientSecret: "private-secret"
 };
+it.each([
+  "royalcyber-21430",
+  " RoyalCyber-21430 ",
+  "royalcyber-21430.zendesk.com",
+  "https://royalcyber-21430.zendesk.com/agent/home/tickets",
+  "https://royalcyber-21430.zendesk.com/"
+])("accepts the reported Zendesk account: %s", subdomain => {
+  expect(prepareTicketing({ ...input, subdomain }).subdomain).toBe("royalcyber-21430");
+});
+it.each([
+  "https://royalcyber-21430.zendesk.com.evil.test/agent/home/tickets",
+  "https://evil.test/royalcyber-21430.zendesk.com",
+  "https://user@royalcyber-21430.zendesk.com/",
+  "royalcyber-21430.zendesk.com:443/",
+  "-royalcyber-21430",
+  "royalcyber-21430-",
+  ""
+])("rejects invalid Zendesk destinations: %s", subdomain => {
+  expect(() => prepareTicketing({ ...input, subdomain })).toThrow("valid Zendesk subdomain");
+});
 it("encrypts secrets, omits them from views, and retains them on blank updates", () => {
   const saved = prepareTicketing(input);
   expect(saved.subdomain).toBe("acme");
