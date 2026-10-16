@@ -14,6 +14,7 @@ import { invalidateSessionCache } from "../../../app/api/auth/shared";
 beforeEach(() => {
   vi.clearAllMocks();
   invalidateSessionCache();
+  vi.stubEnv("CONNECTION_HUB_ENABLED", "false");
   vi.stubGlobal("fetch", mocks.fetch);
   vi.stubEnv("AUTH_SERVICE_URL", "http://auth.test");
   vi.stubEnv("PRODUCTS_PROVIDER", "commercetools");
@@ -111,4 +112,43 @@ it("does not treat GraphQL errors or missing data as an unconfigured project", a
       json: async () => ({ errors: [{ message: "Unavailable" }] })
     });
   await expect(currentProductsConfiguration()).rejects.toThrow("Unable to load");
+});
+
+it("selects connection-hub using the session project and its saved Algolia settings", async () => {
+  vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
+  vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
+  vi.stubEnv("CONNECTION_HUB_API_KEY", "server-only-connector-key");
+  vi.stubEnv("CONNECTION_HUB_CLIENT_ID", "client");
+  mocks.resolve.mockResolvedValue({
+    provider: "algolia",
+    appId: "APP",
+    indexName: "products",
+    searchApiKey: "search-only"
+  });
+  const settings = await currentProductsConfiguration();
+  expect(settings.connectionHubEnabled).toBe(true);
+  expect(settings.searchConfig).toBeUndefined();
+  expect(JSON.stringify(settings)).not.toContain("server-only-connector-key");
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
+});
+
+it("does not override a selected project's Native provider", async () => {
+  vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
+  vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
+  vi.stubEnv("CONNECTION_HUB_API_KEY", "server-only-connector-key");
+  vi.stubEnv("CONNECTION_HUB_CLIENT_ID", "client");
+  mocks.resolve.mockResolvedValue({ provider: "commercetools" });
+  const settings = await currentProductsConfiguration();
+  expect(settings.connectionHubEnabled).toBe(false);
+  expect(settings.provider).toBe("commercetools");
+});
+
+it("preserves the saved provider for another client", async () => {
+  vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
+  vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
+  vi.stubEnv("CONNECTION_HUB_API_KEY", "server-only-connector-key");
+  vi.stubEnv("CONNECTION_HUB_CLIENT_ID", "another-client");
+  const settings = await currentProductsConfiguration();
+  expect(settings.connectionHubEnabled).toBe(false);
+  expect(settings.provider).toBe("commercetools");
 });
