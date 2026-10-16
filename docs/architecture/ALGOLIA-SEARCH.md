@@ -166,3 +166,20 @@ To add an alternative provider in the future (such as a backend search service o
    }
    ```
    The CSA search UI will interact through the unified contract without requiring UI rewrites.
+
+## Server-side connection-hub transport
+
+The Products page can use connection-hub for the authenticated selected project within the configured CustomerSax client. Studio verifies the session and active project before calling the connector service. The browser calls `POST /api/connection-hub/products`; the server calls connection-hub's `search-products` action for a query and `browse-records` for an empty query. API keys and Algolia credentials remain server-side.
+
+Add these to `apps/studio/.env.local` (never use `NEXT_PUBLIC_`):
+
+```dotenv
+CONNECTION_HUB_ENABLED=true
+CONNECTION_HUB_URL=http://127.0.0.1:3100
+CONNECTION_HUB_API_KEY=<same API_KEY as connection-hub>
+CONNECTION_HUB_CLIENT_ID=<authenticated activeClientId>
+```
+
+Use `activeClientId` from the authenticated `/api/auth/me` response for the client ID. The project key is read automatically from the authenticated session updated by the project dropdown; do not set `CONNECTION_HUB_PROJECT_KEY`. The selected project's saved Products configuration must use Algolia with the application ID and index configured in connection-hub. Studio passes those settings as an expected binding; connection-hub rejects a mismatch before executing an action. Restart Studio after changing environment variables. Keep connection-hub running in `EXECUTION_MODE=live` with the intended Algolia index and credentials. Studio rejects simulated provider results. Open Products and search as you type, with the search button, or Enter. With no query it browses up to 20 records; searches show up to 20 matches and the provider's total. Browse does not claim an exact catalog total. Facets, replica sorting and further pages are not implemented by this connector transport. Projects using Native commerce and clients outside the configured client continue using their existing provider. Switching the dropdown reloads the page using the new session project; the browser cannot override the project in a search request.
+
+Errors render in the catalog with retry. Missing sessions, mismatched projects, invalid inputs, upstream failures and malformed results fail closed. The client restriction and saved project configuration protect the current single-catalog connection-hub service; expand connection-hub's connection/binding model before enabling additional tenants.

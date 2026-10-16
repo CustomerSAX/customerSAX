@@ -112,7 +112,7 @@ pnpm dev:all
 |---------|-------------|
 | `pnpm dev` | Start all packages with `dev` script |
 | `pnpm dev:all` | All backends + Studio + Marketing + Docs |
-| `pnpm dev:studio` | Studio + BFF + Auth + Commerce + Ticketing + Admin (core stack) |
+| `pnpm dev:studio` | Studio + BFF + Auth + Commerce + Ticketing + Subscriptions + Admin + AI Assist |
 | `pnpm dev:marketing` | Marketing site only |
 | `pnpm dev:docs` | Docs site only |
 

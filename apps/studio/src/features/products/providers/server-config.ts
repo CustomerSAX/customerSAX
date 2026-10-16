@@ -2,6 +2,7 @@ import "server-only";
 import { applyCsaHeaders } from "@csa/headers";
 import { currentSessionToken, getValidatedSession } from "../../../app/api/auth/shared";
 import { productsProvider } from "./config";
+import { connectionHub } from "../../../lib/connection-hub";
 
 /** Resolve only from the authenticated session, never from URL-supplied project IDs. */
 export async function currentProductsConfiguration() {
@@ -60,10 +61,25 @@ export async function currentProductsConfiguration() {
     (!settings.appId || !settings.indexName || !settings.searchApiKey)
   )
     throw new Error("Project Algolia configuration is incomplete");
+  if (
+    connectionHub.forProject({
+      clientId: user.activeClientId,
+      projectKey: user.activeProjectKey,
+      settings: settings ?? null
+    })
+  ) {
+    return {
+      key: `${user.activeClientId}:${user.activeProjectKey}:connection-hub`,
+      provider: productsProvider("algolia"),
+      searchConfig: undefined,
+      connectionHubEnabled: true
+    };
+  }
   const provider = productsProvider(settings?.provider);
   return {
     key: `${user.activeClientId}:${user.activeProjectKey}:${provider}`,
     provider,
+    connectionHubEnabled: false,
     searchConfig:
       settings?.provider === "algolia"
         ? {
