@@ -3,11 +3,11 @@ import { setupDnsFallback } from "@csa/mongodb";
 import type { Review, ReviewStore } from "./types.js";
 
 let connection: Promise<MongoClient> | undefined;
-async function collection() {
+async function database() {
   const uri = process.env.MONGO_URI?.trim() || process.env.MONGODB_URI?.trim();
   if (!uri)
     throw new Error(
-      "Ticket approvals require MongoDB. Configure MONGO_URI for AI Assist."
+      "AI review approvals require MongoDB. Configure MONGO_URI for AI Assist."
     );
   if (!connection) {
     setupDnsFallback();
@@ -19,12 +19,17 @@ async function collection() {
       });
   }
   const client = await connection;
-  return client
-    .db(
-      process.env.MONGO_DB_NAME?.trim() || process.env.MONGO_TICKETS_DB?.trim() || "csa"
-    )
-    .collection<Review>("csa_ticket_ai_reviews", { writeConcern: { w: "majority" } });
+  return client.db(
+    process.env.MONGO_DB_NAME?.trim() || process.env.MONGO_TICKETS_DB?.trim() || "csa"
+  );
 }
+
+/** Shared AI review database connection (ticket and quote reviews). */
+export async function reviewCollection<T extends { _id: string }>(name: string) {
+  return (await database()).collection<T>(name, { writeConcern: { w: "majority" } });
+}
+
+const collection = () => reviewCollection<Review>("csa_ticket_ai_reviews");
 
 // No memory fallback: the approval and execution claim must survive restarts.
 export const reviewStore: ReviewStore = {
