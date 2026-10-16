@@ -25,6 +25,7 @@ import { orderReviewSnapshot, updateReviewedOrder } from "./order/order-review.j
 import { order } from "./order/index.js";
 import { product } from "./product/index.js";
 import { quote } from "./quote/index.js";
+import { quoteReviewSnapshot, updateReviewedQuoteRequest } from "./quote/quote-review.js";
 import { jsonScalar } from "./shared/json-scalar.js";
 
 const agentResolvers = agent.resolvers;
@@ -64,6 +65,10 @@ export const resolvers = {
       _parent: unknown,
       args: Parameters<typeof updateReviewedOrder>[0]
     ) => updateReviewedOrder(args),
+    updateReviewedQuoteRequest: (
+      _parent: unknown,
+      args: Parameters<typeof updateReviewedQuoteRequest>[0]
+    ) => updateReviewedQuoteRequest(args),
     updateQuoteRequestState: quoteResolvers.updateQuoteRequestState
   },
   Query: {
@@ -106,6 +111,8 @@ export const resolvers = {
     productSearch: productResolvers.productSearch,
     products: productResolvers.products,
     quote: quoteResolvers.quote,
+    quoteReviewSnapshot: (_parent: unknown, args: { id: string }) =>
+      quoteReviewSnapshot(args.id),
     quotes: quoteResolvers.quotes,
     quickSearchProducts: productResolvers.quickSearchProducts,
     searchCarts: cartResolvers.searchCarts,

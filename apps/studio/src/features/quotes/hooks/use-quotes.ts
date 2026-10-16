@@ -102,6 +102,7 @@ function mapQuote(quote: QuoteResult): Quote {
     currencyCode: quote.totalPrice?.currencyCode || "USD",
     itemCount: quote.lineItemCount ?? 0,
     status: toQuoteStatus(quote.status),
+    ctStatus: quote.status ?? "",
     lineItems: [],
     subtotal: total,
     discountPct: 0,
@@ -114,7 +115,7 @@ function mapQuote(quote: QuoteResult): Quote {
 }
 
 export function useQuotes() {
-  const { data, loading } = useQuery<QuotesData>(QUOTES_QUERY, {
+  const { data, loading, refetch } = useQuery<QuotesData>(QUOTES_QUERY, {
     fetchPolicy: "cache-and-network",
     variables: {
       limit: 100,
@@ -193,6 +194,7 @@ export function useQuotes() {
     allQuotes: quotes,
     totalItems: filteredQuotes.length,
     loading,
+    refetch,
     filter,
     sort,
     page,
