@@ -433,6 +433,42 @@ describe("persistent ticket proposal approval", () => {
     expect(f.execute).not.toHaveBeenCalled();
   });
 
+  it("applies a uniquely named address once and waits for permission to close", async () => {
+    const f = fixture();
+    f.customer.targets.push({ id: "address-2", label: "Newmarket, US", phone: "2222222222" });
+    f.ticket.message = "Please update my contact details for NEWMARKET address to 14692466072";
+    f.analysis.evidence = f.ticket.message;
+    const completed = await f.service.prepare(scope, f.ticket.id);
+    expect(completed.status).toBe("succeeded");
+    expect(completed.result?.phone).toBe("14692466072");
+    expect(f.execute).toHaveBeenCalledWith(expect.objectContaining({ addressId: "address-2" }));
+    expect(completed.approvedBy).toBeUndefined();
+    expect(completed.audit.some(event => event.event === "explicit_address_request_applied")).toBe(true);
+    expect(f.closeTicket).not.toHaveBeenCalled();
+    await f.service.prepare(scope, f.ticket.id, true);
+    expect(f.execute).toHaveBeenCalledTimes(1);
+    const closed = await f.service.decideClosure(scope, f.ticket.id, completed.revision, "approve_close", "Updated Newmarket phone number.");
+    expect(closed?.status).toBe("closed");
+    expect(f.closeTicket).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["duplicate", "substring", "both", "closed", "uncertain"])("handles named addresses without unsafe execution: %s", async condition => {
+    const f = fixture();
+    f.customer.targets.push({ id: "address-2", label: "Newmarket, US", phone: "2222222222" });
+    f.ticket.message = "Update my Newmarket address phone to 14692466072";
+    if (condition === "duplicate") f.customer.targets[0].label = "Newmarket, US";
+    if (condition === "substring") f.ticket.message = "Update my Newmarketville address phone to 14692466072";
+    if (condition === "both") f.ticket.message = "Update Main Street and Newmarket to 14692466072";
+    if (condition === "closed") f.ticket.status = "Closed";
+    if (condition === "uncertain") f.execute.mockRejectedValue(new Error("Timeout"));
+    f.analysis.evidence = f.ticket.message;
+    const result = await f.service.prepare(scope, f.ticket.id);
+    expect(result.status).toBe(condition === "uncertain" ? "uncertain" : "blocked");
+    await f.service.prepare(scope, f.ticket.id, true);
+    expect(f.execute).toHaveBeenCalledTimes(condition === "uncertain" ? 1 : 0);
+    expect(f.closeTicket).not.toHaveBeenCalled();
+  });
+
   it("does not retry an uncertain write, even after reanalysis", async () => {
     const f = fixture();
     f.execute.mockRejectedValue(new Error("Timeout after dispatch"));

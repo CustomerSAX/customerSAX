@@ -186,10 +186,10 @@ export function TicketAIReview({
           </span>
           <div>
             <h2 id="ticket-ai-review-title" className="text-sm font-semibold text-m-text">
-              AI summary & approval
+              AI summary & actions
             </h2>
             <p className="mt-0.5 text-xs text-m-text-muted">
-              Review the exact change before it happens
+              Review requested changes and confirm ticket closure
             </p>
           </div>
         </div>
@@ -427,8 +427,8 @@ export function TicketAIReview({
             aria-hidden="true"
           />
           <p>
-            Changes run only after approval of an unchanged proposal. Review applicable
-            business policy before approving. Approval and results are saved with this
+            Explicit phone update requests naming one matching customer address are applied automatically.
+            Other proposals require approval. Review applicable business policy before approving. Actions and results are saved with this
             ticket. When automatic email is enabled, requests for missing customer details are sent and recorded here. Other response drafts are not sent automatically.
           </p>
         </div>
@@ -447,7 +447,7 @@ export function TicketAIReview({
             <p className="mt-1 text-xs leading-relaxed text-blue-900">
               {review.findingsApproved
                 ? "The findings are approved. Complete any outstanding actions and customer follow-up before closing."
-                : "The approved change is complete."}{" "}
+                : "The requested change is complete."}{" "}
               Approving below changes this ticket’s status from {ticket.status} to Closed.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -463,7 +463,7 @@ export function TicketAIReview({
                   className="mt-2 w-full resize-y rounded-xl border border-blue-200 bg-white p-3 text-sm font-normal leading-relaxed text-m-text outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-70"
                 />
                 <span className="mt-1 block text-xs font-normal text-m-text-muted">
-                  Prefilled from the approved review. Review or edit before approving.
+                  Prefilled from the completed review. Review or edit before approving.
                   Your final notes will be saved when the ticket closes.
                 </span>
               </label>

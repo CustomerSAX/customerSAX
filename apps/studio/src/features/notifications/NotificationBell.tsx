@@ -62,13 +62,13 @@ export function NotificationBell({ locale, clientId, projectKey }: { locale: App
   const count = feed?.unreadCount ?? 0;
   return (
     <>
-      <button type="button" aria-label={error ? "Notifications unavailable" : `Notifications${count ? `, ${count} unread` : ""}`} aria-haspopup="dialog" aria-expanded={open}
+      <button type="button" aria-label={`Notifications${count ? `, ${count} unread` : ""}${error ? ", refresh unavailable" : ""}`} aria-haspopup="dialog" aria-expanded={open}
         onClick={() => { setOpen(true); void refresh(); }}
         className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full hover:bg-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700"
         style={{ color: "var(--topbar-text)" }}>
         <Bell size={22} aria-hidden />
         {count > 0 && <span className="absolute -right-0.5 -top-0.5 flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold leading-5 text-white" aria-hidden>{count > 99 ? "99+" : count}</span>}
-        {error && <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-red-600" aria-hidden />}
+        {error && count === 0 && <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-red-600" aria-hidden />}
       </button>
       {open && createPortal(<div className="fixed inset-0 z-[100] bg-slate-950/25" onClick={close}>
         <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="notifications-title" tabIndex={-1} onClick={event => event.stopPropagation()}
