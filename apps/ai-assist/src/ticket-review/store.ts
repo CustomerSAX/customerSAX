@@ -70,3 +70,19 @@ export const reviewStore: ReviewStore = {
 export async function getReviewsByIds(ids: string[], clientId: string, projectKey: string): Promise<Review[]> {
   return (await collection()).find({ _id: { $in: ids }, clientId, projectKey }).toArray();
 }
+
+/**
+ * Read-only dashboard counts for one client project over the last `days`:
+ * tickets the AI review flow closed, and reviews that examined a linked order.
+ * Always scoped to the caller's own client + project.
+ */
+export async function reviewStats(scope: { clientId: string; projectKey: string }, days = 30) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const base = { clientId: scope.clientId, projectKey: scope.projectKey, updatedAt: { $gte: since } };
+  const col = await collection();
+  const [aiResolved, ordersReviewed] = await Promise.all([
+    col.countDocuments({ ...base, status: "closed" }),
+    col.countDocuments({ ...base, orderProposal: { $exists: true } })
+  ]);
+  return { aiResolved, ordersReviewed, days, since };
+}

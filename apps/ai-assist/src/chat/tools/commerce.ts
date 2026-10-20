@@ -11,7 +11,7 @@ import { z } from "zod";
 import { createLogger } from "@csa/logger";
 import { withIdempotency } from "@csa/mongodb";
 import { bffQuery, formatMoney } from "../../commerce/graphql-client.js";
-import { contextStorage } from "../system-prompt.js";
+import { contextStorage, getSystemPromptContext } from "../system-prompt.js";
 import { instrumentTools } from "./instrument.js";
 
 const log = createLogger("ai-assist").child({ module: "tools/commerce" });
@@ -50,7 +50,6 @@ const CUSTOMER_FIELDS = `
   customerGroup { id key name }
   version createdAt lastModifiedAt
 `;
-const PRODUCT_FIELDS = `id key sku name description slug imageUrl price { ${MONEY_FRAGMENT} }`;
 
 /**
  * Enriches an order record with full customer profile details (name, email, etc.)
@@ -201,6 +200,51 @@ export const findB2bCustomerTool = tool({
 
 // ─── get_order ────────────────────────────────────────────────────────────────
 
+/**
+ * Looks up one order by internal id or human order number. An order number
+ * that `order(orderNumber)` misses is retried through `orderPage(orderRef)`,
+ * which also matches migrated/alternate references. Returns null when the
+ * order genuinely doesn't exist; throws on a backend failure.
+ *
+ * Shared by `get_order` and the voice agent so both resolve orders identically.
+ */
+export async function lookupOrder(ref: { orderId?: string; orderNumber?: string }): Promise<Record<string, unknown> | null> {
+  const data = await bffQuery<{ order: Record<string, unknown> | null }>(
+    `query GetOrder($id: ID, $orderNumber: String) {
+      order(id: $id, orderNumber: $orderNumber) { ${ORDER_FIELDS} }
+    }`,
+    { id: ref.orderId, orderNumber: ref.orderNumber }
+  );
+  if (data.order) return data.order;
+  if (!ref.orderNumber) return null;
+
+  const fallbackData = await bffQuery<{ orderPage: { results: Record<string, unknown>[] } }>(
+    `query FallbackGetOrder($orderRef: String) {
+      orderPage(orderRef: $orderRef, limit: 1) {
+        results { ${ORDER_FIELDS} }
+      }
+    }`,
+    { orderRef: ref.orderNumber }
+  );
+  return fallbackData.orderPage?.results?.[0] ?? null;
+}
+
+/**
+ * Lists a customer's most recent orders (newest first) by email. Email, not
+ * customerId, because guest and migrated orders carry `customerId: null`.
+ */
+export async function listOrdersByEmail(customerEmail: string, limit: number): Promise<Record<string, unknown>[]> {
+  const data = await bffQuery<{ orderPage: { results: Record<string, unknown>[] } }>(
+    `query CustomerOrdersByEmail($customerEmail: String, $limit: Int) {
+      orderPage(customerEmail: $customerEmail, limit: $limit, sortKey: "createdAt", sortOrder: "desc") {
+        results { ${ORDER_FIELDS} }
+      }
+    }`,
+    { customerEmail, limit }
+  );
+  return data.orderPage?.results ?? [];
+}
+
 export const getOrderTool = tool({
   description:
     "Retrieve a specific order by ID or order number, or list recent orders for a customer by their ID or email.",
@@ -214,28 +258,7 @@ export const getOrderTool = tool({
   execute: async ({ orderId, orderNumber, customerId, customerEmail, limit }) => {
     try {
       if (orderId || orderNumber) {
-        let orderRecord: Record<string, unknown> | null = null;
-
-        const data = await bffQuery<{ order: Record<string, unknown> | null }>(
-          `query GetOrder($id: ID, $orderNumber: String) {
-            order(id: $id, orderNumber: $orderNumber) { ${ORDER_FIELDS} }
-          }`,
-          { id: orderId, orderNumber }
-        );
-
-        orderRecord = data.order ?? null;
-
-        if (!orderRecord && orderNumber) {
-          const fallbackData = await bffQuery<{ orderPage: { results: Record<string, unknown>[] } }>(
-            `query FallbackGetOrder($orderRef: String) {
-              orderPage(orderRef: $orderRef, limit: 1) {
-                results { ${ORDER_FIELDS} }
-              }
-            }`,
-            { orderRef: orderNumber }
-          );
-          orderRecord = fallbackData.orderPage?.results?.[0] ?? null;
-        }
+        const orderRecord = await lookupOrder({ orderId, orderNumber });
 
         if (orderRecord) {
           const enriched = await enrichOrderWithCustomer(orderRecord);
@@ -392,49 +415,153 @@ export const b2bCartsTool = tool({
   }
 });
 
-// ─── search_products ──────────────────────────────────────────────────────────
+// ─── Catalog products (search_products / list_products) ──────────────────────
+//
+// Both tools return the same card-ready shape, and the studio renders product
+// cards straight from that output — so cards appear every time, with values
+// that came from commercetools, instead of depending on the model remembering
+// to call product_card once per product.
+
+type LocalizedValue = { locale: string; value: string };
+type RawCatalogProduct = {
+  id: string;
+  masterData?: {
+    current?: {
+      nameAllLocales?: LocalizedValue[];
+      descriptionAllLocales?: LocalizedValue[];
+      categories?: Array<{ nameAllLocales?: LocalizedValue[] }>;
+      masterVariant?: {
+        id?: number;
+        sku?: string | null;
+        images?: Array<{ url: string }>;
+        prices?: Array<{ value: { centAmount: number; currencyCode: string; fractionDigits?: number } }>;
+        availability?: { noChannel?: { isOnStock?: boolean; availableQuantity?: number | null } | null } | null;
+      };
+    };
+  };
+};
+
+export type CatalogProduct = {
+  productId: string;
+  sku: string | null;
+  variantId: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  image: string | null;
+  /** Formatted price in the requested currency; null when the product has no price in it. */
+  price: string | null;
+  /** "Out of stock" / "12 in stock"; null when commercetools has no inventory record (unknown, not "in stock"). */
+  stock: string | null;
+};
+
+function localized(values: LocalizedValue[] | undefined): string | null {
+  if (!values?.length) return null;
+  return (values.find((v) => v.locale === "en-US") ?? values.find((v) => v.locale.startsWith("en")) ?? values[0]).value;
+}
+
+function toCatalogProduct(raw: RawCatalogProduct, currency: string): CatalogProduct {
+  const current = raw.masterData?.current;
+  const variant = current?.masterVariant;
+  const price = variant?.prices?.find((p) => p.value.currencyCode === currency);
+  const inventory = variant?.availability?.noChannel;
+  const quantity = inventory?.availableQuantity;
+  const description = localized(current?.descriptionAllLocales);
+  return {
+    productId: raw.id,
+    sku: variant?.sku ?? null,
+    variantId: String(variant?.id ?? 1),
+    name: localized(current?.nameAllLocales) ?? variant?.sku ?? raw.id,
+    description: description && description.length > 240 ? `${description.slice(0, 237)}…` : description,
+    category: localized(current?.categories?.[0]?.nameAllLocales),
+    image: variant?.images?.[0]?.url ?? null,
+    price: price ? formatMoney(price.value) : null,
+    stock: !inventory
+      ? null
+      : inventory.isOnStock === false || quantity === 0
+        ? "Out of stock"
+        : typeof quantity === "number"
+          ? `${quantity} in stock`
+          : "In stock"
+  };
+}
+
+async function catalogSearch(args: { text?: string; currency: string; limit: number; offset: number }) {
+  const currency = args.currency.trim().toUpperCase();
+  const data = await bffQuery<{ productSearch: { results: RawCatalogProduct[]; total: number } }>(
+    `query CatalogSearch($text: String, $browse: Boolean, $currency: String, $limit: Int, $offset: Int) {
+      productSearch(text: $text, browse: $browse, currency: $currency, limit: $limit, offset: $offset)
+    }`,
+    { text: args.text, browse: !args.text, currency, limit: args.limit, offset: args.offset }
+  );
+  const products = (data.productSearch?.results ?? []).map((p) => toCatalogProduct(p, currency));
+  return {
+    total: data.productSearch?.total ?? products.length,
+    count: products.length,
+    offset: args.offset,
+    currency,
+    products,
+    display:
+      products.length > 0
+        ? "These products are ALREADY shown to the rep as product cards (name, price, stock, Add to cart, Details). " +
+          "Reply with ONE sentence only, e.g. 'Here are 10 of 37 matching products.' — say 'products', not the search term, because matches " +
+          "include products whose description mentions it. Do NOT list, number or describe the products, and do NOT call product_card for them."
+        : "No products matched."
+  };
+}
+
+/**
+ * The catalog text search is a substring match, so "beds" misses "Opal King
+ * Bed" while "bed" finds both. Reduce plain English plurals to the singular —
+ * a strictly broader search. SKUs/codes (anything with a digit) are untouched.
+ */
+function singularSearchText(query: string): string {
+  return query
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      if (/\d/.test(word) || word.length <= 3) return word;
+      if (/(ss|x|ch|sh)es$/i.test(word)) return word.slice(0, -2);
+      if (/[^s]s$/i.test(word)) return word.slice(0, -1);
+      return word;
+    })
+    .join(" ");
+}
+
+const CURRENCY_INPUT = z
+  .string()
+  .min(3)
+  .max(3)
+  .describe("Project currency code for prices (from list_regions or this conversation, e.g. USD)");
 
 export const searchProductsTool = tool({
-  description: "Search the product catalog by name, SKU, or keyword.",
+  description:
+    "Search the product catalog by name, SKU or keyword. The studio shows every returned product as a card with Add to cart / Details buttons.",
   inputSchema: z.object({
     query: z.string().describe("Search term (product name, SKU, keyword)"),
-    limit: z.number().optional().default(8)
+    currency: CURRENCY_INPUT,
+    limit: z.number().int().min(1).max(20).optional().default(10)
   }),
-  execute: async ({ query, limit }) => {
+  execute: async ({ query, currency, limit }) => {
     try {
-      const data = await bffQuery<{ quickSearchProducts: unknown[] }>(
-        `query QuickSearch($q: String!, $limit: Int) {
-          quickSearchProducts(q: $q, limit: $limit) { ${PRODUCT_FIELDS} }
-        }`,
-        { q: query, limit }
-      );
-      return data.quickSearchProducts ?? [];
+      return await catalogSearch({ text: singularSearchText(query), currency, limit, offset: 0 });
     } catch (err) {
       return { error: String(err) };
     }
   }
 });
 
-// ─── list_products ────────────────────────────────────────────────────────────
-
 export const listProductsTool = tool({
-  description: "Browse the product catalog with optional pagination.",
+  description:
+    "Browse the product catalog with pagination. The studio shows every returned product as a card with Add to cart / Details buttons.",
   inputSchema: z.object({
-    limit: z.number().optional().default(10),
-    offset: z.number().optional().default(0)
+    currency: CURRENCY_INPUT,
+    limit: z.number().int().min(1).max(20).optional().default(10),
+    offset: z.number().int().min(0).optional().default(0)
   }),
-  execute: async ({ limit, offset }) => {
+  execute: async ({ currency, limit, offset }) => {
     try {
-      const data = await bffQuery<{ productPage: { results: unknown[]; total: number } }>(
-        `query ProductPage($limit: Int, $offset: Int) {
-          productPage(limit: $limit, offset: $offset) {
-            results { ${PRODUCT_FIELDS} }
-            total
-          }
-        }`,
-        { limit, offset }
-      );
-      return data.productPage;
+      return await catalogSearch({ currency, limit, offset });
     } catch (err) {
       return { error: String(err) };
     }
@@ -839,7 +966,7 @@ export const startReturnTool = tool({
 
 // ─── check_return_eligibility ─────────────────────────────────────────────────
 
-type CtOrderForReturn = {
+export type CtOrderForReturn = {
   id: string;
   orderNumber?: string | null;
   state: string;
@@ -876,6 +1003,89 @@ function formatOrderForReturn(order: CtOrderForReturn) {
   };
 }
 
+export type ReturnEligibility = {
+  eligible: boolean;
+  reason?: string;
+  daysSince?: number;
+  returnWindowDays?: number;
+  daysRemaining?: number;
+  orderState?: string;
+  shipmentState?: string | null;
+  paymentState?: string | null;
+};
+
+const RETURN_WINDOW_DAYS = 30;
+
+/**
+ * The single return-eligibility rule, gated on the order's real current
+ * state/shipmentState/paymentState and age (see .claude/rules/commercetools.md).
+ * Pure — the caller fetches the order. Shared by `check_return_eligibility` and
+ * the voice agent so both always give the same answer.
+ */
+export function evaluateReturnEligibility(order: CtOrderForReturn): ReturnEligibility {
+  const orderDate = new Date(order.createdAt);
+  const daysSince = Math.floor((Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
+  const returnWindowDays = RETURN_WINDOW_DAYS;
+  const paymentState = order.paymentState ?? null;
+  const shipmentState = order.shipmentState ?? null;
+
+  const nonReturnableStates = ["Cancelled", "ReturnReceived"];
+  if (nonReturnableStates.includes(order.state)) {
+    return {
+      eligible: false,
+      reason: `Order is in state "${order.state}" — not eligible for return`
+    };
+  }
+
+  // Nothing has shipped yet — there is no physical item for the customer
+  // to send back. This is the real, dynamic commercetools shipmentState,
+  // not an assumption based on order.state alone.
+  if (!shipmentState || !SHIPPED_STATES.has(shipmentState)) {
+    return {
+      eligible: false,
+      reason: shipmentState
+        ? `Order shipment status is "${shipmentState}" — nothing has shipped yet, so there's nothing to return.`
+        : "Order has no shipment status on record — nothing has shipped yet, so there's nothing to return.",
+      shipmentState,
+      paymentState
+    };
+  }
+
+  // Payment must have actually cleared. An order that's unpaid, still
+  // owes a balance, or failed payment can't be refunded via a return.
+  if (paymentState !== "Paid") {
+    return {
+      eligible: false,
+      reason: paymentState
+        ? `Order payment status is "${paymentState}" — a return requires the order to be fully paid first.`
+        : "Order has no payment status on record — a return requires the order to be fully paid first.",
+      shipmentState,
+      paymentState
+    };
+  }
+
+  if (daysSince > returnWindowDays) {
+    return {
+      eligible: false,
+      reason: `Order is ${daysSince} days old. Return window is ${returnWindowDays} days.`,
+      daysSince,
+      returnWindowDays,
+      shipmentState,
+      paymentState
+    };
+  }
+
+  return {
+    eligible: true,
+    daysSince,
+    returnWindowDays,
+    daysRemaining: returnWindowDays - daysSince,
+    orderState: order.state,
+    shipmentState,
+    paymentState
+  };
+}
+
 export const checkReturnEligibilityTool = tool({
   description:
     "Check whether an order is eligible for return based on its real order/payment/shipment state and age " +
@@ -899,73 +1109,7 @@ export const checkReturnEligibilityTool = tool({
       const order = data.order;
       if (!order) return { eligible: false, reason: "Order not found" };
 
-      const orderDate = new Date(order.createdAt);
-      const daysSince = Math.floor((Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
-      const returnWindowDays = 30;
-      const formattedOrder = formatOrderForReturn(order);
-      const paymentState = order.paymentState ?? null;
-      const shipmentState = order.shipmentState ?? null;
-
-      const nonReturnableStates = ["Cancelled", "ReturnReceived"];
-      if (nonReturnableStates.includes(order.state)) {
-        return {
-          eligible: false,
-          reason: `Order is in state "${order.state}" — not eligible for return`,
-          order: formattedOrder
-        };
-      }
-
-      // Nothing has shipped yet — there is no physical item for the customer
-      // to send back. This is the real, dynamic commercetools shipmentState,
-      // not an assumption based on order.state alone.
-      if (!shipmentState || !SHIPPED_STATES.has(shipmentState)) {
-        return {
-          eligible: false,
-          reason: shipmentState
-            ? `Order shipment status is "${shipmentState}" — nothing has shipped yet, so there's nothing to return.`
-            : "Order has no shipment status on record — nothing has shipped yet, so there's nothing to return.",
-          shipmentState,
-          paymentState,
-          order: formattedOrder
-        };
-      }
-
-      // Payment must have actually cleared. An order that's unpaid, still
-      // owes a balance, or failed payment can't be refunded via a return.
-      if (paymentState !== "Paid") {
-        return {
-          eligible: false,
-          reason: paymentState
-            ? `Order payment status is "${paymentState}" — a return requires the order to be fully paid first.`
-            : "Order has no payment status on record — a return requires the order to be fully paid first.",
-          shipmentState,
-          paymentState,
-          order: formattedOrder
-        };
-      }
-
-      if (daysSince > returnWindowDays) {
-        return {
-          eligible: false,
-          reason: `Order is ${daysSince} days old. Return window is ${returnWindowDays} days.`,
-          daysSince,
-          returnWindowDays,
-          shipmentState,
-          paymentState,
-          order: formattedOrder
-        };
-      }
-
-      return {
-        eligible: true,
-        daysSince,
-        returnWindowDays,
-        daysRemaining: returnWindowDays - daysSince,
-        orderState: order.state,
-        shipmentState,
-        paymentState,
-        order: formattedOrder
-      };
+      return { ...evaluateReturnEligibility(order), order: formatOrderForReturn(order) };
     } catch (err) {
       return { error: String(err) };
     }
@@ -1065,7 +1209,87 @@ export const listRegionsTool = tool({
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-export function buildCommerceTools() {
+// ─── Server-side write guard ─────────────────────────────────────────────────
+//
+// The commerce write tools used to rely on the model following the prompt and
+// on the studio UI. These checks run in code, on every call:
+//  - permission: the rep's role (from trusted headers) must allow the write;
+//  - approval (commitment writes only): the rep's CURRENT message must be an
+//    approval (`SystemPromptContext.approval`, derived from the message itself
+//    in routes/chat.ts), and no approval card may have been shown earlier in
+//    this same turn (the approval gate). A `return.confirm` authorises
+//    start_return for the order it names, nothing else.
+// Draft cart operations need permission but no approval, as the prompt says.
+
+type WritePermission = "canCreateCarts" | "canUpdateCarts" | "canCreateOrders" | "canUpdateOrders";
+type WriteRule = { permission: WritePermission; approval: "none" | "approval_card" | "approval_card_or_return_confirm" };
+
+const WRITE_RULES: Record<string, WriteRule> = {
+  create_cart: { permission: "canCreateCarts", approval: "none" },
+  add_to_cart: { permission: "canUpdateCarts", approval: "none" },
+  remove_from_cart: { permission: "canUpdateCarts", approval: "none" },
+  update_cart_address: { permission: "canUpdateCarts", approval: "none" },
+  update_cart_shipping_method: { permission: "canUpdateCarts", approval: "none" },
+  place_order: { permission: "canCreateOrders", approval: "approval_card" },
+  cancel_order: { permission: "canUpdateOrders", approval: "approval_card" },
+  start_return: { permission: "canUpdateOrders", approval: "approval_card_or_return_confirm" },
+  update_order: { permission: "canUpdateOrders", approval: "approval_card" }
+};
+
+const COMMERCE_WRITE_DENIED =
+  "PERMISSION DENIED: your role can't make this change. Please reach out to the admin to perform write or update actions.";
+
+const COMMERCE_APPROVAL_GATE_ERROR =
+  "APPROVAL_GATE_BLOCKED: An action_approval confirmation card was shown earlier in this turn. " +
+  "You must NOT call a commerce write tool until the agent explicitly clicks Approve in the UI. " +
+  "Stop your response now and wait for the next user message.";
+
+function approvalRequiredError(toolName: string) {
+  return (
+    `APPROVAL_REQUIRED: ${toolName} changes a real order and needs the rep's approval first, and the rep's current message is not an approval. ` +
+    "Present an action_approval card describing exactly what will change, then stop. Run it only after the rep's next message is an [approved-action]."
+  );
+}
+
+function guardWrite<T extends { execute?: (...args: never[]) => unknown }>(
+  name: string,
+  rule: WriteRule,
+  original: T,
+  approvalGate?: { pending: boolean }
+): T {
+  const execute = original.execute as ((...args: unknown[]) => unknown) | undefined;
+  if (!execute) return original;
+  return {
+    ...original,
+    execute: async (...args: unknown[]) => {
+      const ctx = getSystemPromptContext();
+      if (!ctx[rule.permission]) {
+        log.info(`write:${name}`, { ok: false, blocked: "permission" });
+        return { error: COMMERCE_WRITE_DENIED };
+      }
+      if (rule.approval !== "none") {
+        if (approvalGate?.pending) return { error: COMMERCE_APPROVAL_GATE_ERROR };
+        const approval = ctx.approval;
+        const input = (args[0] ?? {}) as { orderId?: unknown };
+        const approved =
+          approval?.kind === "approval_card" ||
+          (rule.approval === "approval_card_or_return_confirm" &&
+            approval?.kind === "return_confirm" &&
+            approval.orderId === input.orderId);
+        if (!approved) {
+          log.info(`write:${name}`, { ok: false, blocked: "approval" });
+          return { error: approvalRequiredError(name) };
+        }
+      }
+      return execute(...args);
+    }
+  } as T;
+}
+
+export function buildCommerceTools(approvalGate?: { pending: boolean }) {
+  const guarded = <T extends { execute?: (...args: never[]) => unknown }>(name: string, original: T) =>
+    guardWrite(name, WRITE_RULES[name], original, approvalGate);
+
   return instrumentTools({
     find_customer: findCustomerTool,
     find_b2b_customer: findB2bCustomerTool,
@@ -1075,17 +1299,17 @@ export function buildCommerceTools() {
     b2b_carts: b2bCartsTool,
     search_products: searchProductsTool,
     list_products: listProductsTool,
-    create_cart: createCartTool,
-    add_to_cart: addToCartTool,
-    remove_from_cart: removeFromCartTool,
-    update_cart_address: updateCartAddressTool,
+    create_cart: guarded("create_cart", createCartTool),
+    add_to_cart: guarded("add_to_cart", addToCartTool),
+    remove_from_cart: guarded("remove_from_cart", removeFromCartTool),
+    update_cart_address: guarded("update_cart_address", updateCartAddressTool),
     list_shipping_methods: listShippingMethodsTool,
-    update_cart_shipping_method: updateCartShippingMethodTool,
-    place_order: placeOrderTool,
-    cancel_order: cancelOrderTool,
-    start_return: startReturnTool,
+    update_cart_shipping_method: guarded("update_cart_shipping_method", updateCartShippingMethodTool),
+    place_order: guarded("place_order", placeOrderTool),
+    cancel_order: guarded("cancel_order", cancelOrderTool),
+    start_return: guarded("start_return", startReturnTool),
     check_return_eligibility: checkReturnEligibilityTool,
-    update_order: updateOrderTool,
+    update_order: guarded("update_order", updateOrderTool),
     list_regions: listRegionsTool
   }, log);
 }

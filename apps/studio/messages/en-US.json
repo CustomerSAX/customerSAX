@@ -108,6 +108,8 @@
     "ordersReviewed": "Orders Reviewed",
     "aiAssistResolved": "AI Assist Resolved",
     "notAvailable": "Not available",
+    "ordersReviewedSub": "AI order reviews · last {days} days",
+    "aiResolvedSub": "Tickets closed via AI review · last {days} days",
     "ticketingUnavailable": "Ticketing unavailable",
     "loading": "Loading…",
     "activeWorkQueue": "Active Work Queue",

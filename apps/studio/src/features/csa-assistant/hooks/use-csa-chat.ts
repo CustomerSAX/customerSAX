@@ -154,6 +154,7 @@ export function useCsaChat(sessionContext: SessionContext) {
 
     // Adapted / local state
     input,
+    setInput,
     handleInputChange,
     handleSubmit,
     isLoading,

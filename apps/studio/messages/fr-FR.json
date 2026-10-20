@@ -108,6 +108,8 @@
     "ordersReviewed": "Commandes examinées",
     "aiAssistResolved": "Résolutions par l’IA",
     "notAvailable": "Non disponible",
+    "ordersReviewedSub": "Revues de commandes par l’IA · {days} derniers jours",
+    "aiResolvedSub": "Tickets clôturés via la revue IA · {days} derniers jours",
     "ticketingUnavailable": "Service de tickets indisponible",
     "loading": "Chargement…",
     "activeWorkQueue": "File de travail active",

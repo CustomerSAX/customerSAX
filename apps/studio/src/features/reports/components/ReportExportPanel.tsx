@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@apollo/client";
+import { useApolloClient, useQuery } from "@apollo/client";
 import {
   Button,
   Card,
@@ -17,12 +17,12 @@ import {
   Toast,
 } from "@csa/ui";
 import { TICKETS_QUERY } from "@/features/tickets/api/queries";
+import { ORDERS_PAGE_QUERY } from "@/features/orders/api/queries";
+import { CUSTOMERS_PAGE_QUERY } from "@/features/customers/api/queries";
 import { REPORT_TYPES, useReportPermissions } from "../hooks/use-reports";
 import { useReportToasts } from "../hooks/use-report-toasts";
 import { exportRowsToExcel, formatDdMmYyyy } from "../utils/export-report";
 import type { ReportExportRow, ReportTypeKey } from "../types/report-types";
-
-const EXPORT_SIMULATION_DELAY_MS = 400;
 
 type TicketReportRow = {
   assignee?: string | null;
@@ -90,21 +90,121 @@ function mapTicketsToRows(tickets: TicketReportRow[], fromDate: string, toDate: 
     }));
 }
 
-function getRowsForReport(
-  reportType: ReportTypeKey,
-  tickets: TicketReportRow[],
-  fromDate: string,
-  toDate: string,
-): ReportExportRow[] {
-  if (reportType === "Tickets" || reportType === "SLA") {
-    return mapTicketsToRows(tickets, fromDate, toDate);
-  }
+type Money = { centAmount?: number | null; currencyCode?: string | null; fractionDigits?: number | null } | null | undefined;
 
-  return [];
+function money(value: Money) {
+  if (!value || typeof value.centAmount !== "number") return "";
+  return (value.centAmount / 10 ** (value.fractionDigits ?? 2)).toFixed(value.fractionDigits ?? 2);
+}
+
+// SLA = the tickets report plus real time-to-resolve, computed from each
+// ticket's own createdAt and resolutionDate (blank while unresolved).
+function mapTicketsToSlaRows(tickets: TicketReportRow[], fromDate: string, toDate: string): ReportExportRow[] {
+  const byId = new Map(tickets.map((t) => [t.ticketNumber || t.id, t]));
+  return mapTicketsToRows(tickets, fromDate, toDate).map((row) => {
+    const ticket = byId.get(String(row["Ticket ID"]));
+    const created = ticket?.createdAt ? new Date(ticket.createdAt).getTime() : NaN;
+    const resolved = ticket?.resolutionDate ? new Date(ticket.resolutionDate).getTime() : NaN;
+    const hours = Number.isFinite(created) && Number.isFinite(resolved) && resolved >= created ? ((resolved - created) / 36e5).toFixed(1) : "";
+    return { ...row, "Hours to Resolve": hours };
+  });
+}
+
+type OrderReportRow = {
+  id: string;
+  orderNumber?: string | null;
+  customerId?: string | null;
+  customerEmail?: string | null;
+  orderState?: string | null;
+  state?: string | null;
+  shipmentState?: string | null;
+  paymentState?: string | null;
+  createdAt?: string | null;
+  lastModifiedAt?: string | null;
+  totalPrice?: Money;
+  lineItems?: Array<{ quantity?: number | null }> | null;
+};
+
+function mapOrdersToRows(orders: OrderReportRow[], fromDate: string, toDate: string): ReportExportRow[] {
+  return orders
+    .filter((o) => isWithinDateRange(o.createdAt, fromDate, toDate))
+    .map((o) => ({
+      "Order Number": o.orderNumber || o.id,
+      "Customer Email": o.customerEmail || "",
+      "Customer ID": o.customerId || "",
+      "Order State": o.orderState || o.state || "",
+      "Payment State": o.paymentState || "",
+      "Shipment State": o.shipmentState || "",
+      Total: money(o.totalPrice),
+      Currency: o.totalPrice?.currencyCode || "",
+      "Line Items": o.lineItems?.length ?? 0,
+      "Total Quantity": (o.lineItems ?? []).reduce((n, li) => n + (li.quantity ?? 0), 0),
+      "Created At": o.createdAt || "",
+      "Last Modified At": o.lastModifiedAt || "",
+    }));
+}
+
+type CustomerReportRow = {
+  id: string;
+  customerNumber?: string | null;
+  externalId?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  companyName?: string | null;
+  email?: string | null;
+  createdAt?: string | null;
+  lastModifiedAt?: string | null;
+  customerGroup?: { name?: string | null; key?: string | null } | null;
+};
+
+function mapCustomersToRows(customers: CustomerReportRow[], fromDate: string, toDate: string): ReportExportRow[] {
+  return customers
+    .filter((c) => isWithinDateRange(c.createdAt, fromDate, toDate))
+    .map((c) => ({
+      "Customer ID": c.id,
+      "Customer Number": c.customerNumber || "",
+      "First Name": c.firstName || "",
+      "Last Name": c.lastName || "",
+      Email: c.email || "",
+      Company: c.companyName || "",
+      "Customer Group": c.customerGroup?.name || c.customerGroup?.key || "",
+      "External ID": c.externalId || "",
+      "Created At": c.createdAt || "",
+      "Last Modified At": c.lastModifiedAt || "",
+    }));
+}
+
+type CartReportRow = {
+  id: string;
+  customerId?: string | null;
+  customerEmail?: string | null;
+  cartState?: string | null;
+  createdAt?: string | null;
+  lastModifiedAt?: string | null;
+  totalPrice?: Money;
+  lineItems?: Array<{ quantity?: number | null }> | null;
+};
+
+function mapCartsToRows(carts: CartReportRow[], fromDate: string, toDate: string): ReportExportRow[] {
+  return carts
+    .filter((c) => isWithinDateRange(c.createdAt, fromDate, toDate))
+    .map((c) => ({
+      "Cart ID": c.id,
+      "Customer Email": c.customerEmail || "",
+      "Customer ID": c.customerId || "",
+      State: c.cartState || "",
+      Total: money(c.totalPrice),
+      Currency: c.totalPrice?.currencyCode || "",
+      "Line Items": c.lineItems?.length ?? 0,
+      "Total Quantity": (c.lineItems ?? []).reduce((n, li) => n + (li.quantity ?? 0), 0),
+      "Created At": c.createdAt || "",
+      "Last Modified At": c.lastModifiedAt || "",
+    }));
 }
 
 export function ReportExportPanel() {
   const permissions = useReportPermissions();
+  const apollo = useApolloClient();
   const { toasts, pushToast, dismissToast } = useReportToasts();
   const {
     data: ticketsData,
@@ -146,32 +246,57 @@ export function ReportExportPanel() {
     }
 
     setIsExporting(true);
-    window.setTimeout(async () => {
-      const fileName = `Report - ${selectedReportValue} (${formatDdMmYyyy(fromDate)} to ${formatDdMmYyyy(toDate)})`;
-      try {
+    const fileName = `Report - ${selectedReportValue} (${formatDdMmYyyy(fromDate)} to ${formatDdMmYyyy(toDate)})`;
+    try {
+      let rows: ReportExportRow[];
+      if (selectedReportValue === "Tickets" || selectedReportValue === "SLA") {
         let ticketRows = ticketsData?.ticketPage?.results ?? [];
-
-        if ((selectedReportValue === "Tickets" || selectedReportValue === "SLA") && ticketsError) {
+        if (ticketsError) {
           const result = await refetchTickets();
           ticketRows = result.data?.ticketPage?.results ?? [];
         }
-
-        const rows = getRowsForReport(
-          selectedReportValue,
-          ticketRows,
-          fromDate,
-          toDate,
-        );
-
-        await exportRowsToExcel(rows, fileName);
-        pushToast("success", `${fileName} exported successfully!`);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Unable to export report";
-        pushToast("error", message);
-      } finally {
-        setIsExporting(false);
+        rows = selectedReportValue === "SLA"
+          ? mapTicketsToSlaRows(ticketRows, fromDate, toDate)
+          : mapTicketsToRows(ticketRows, fromDate, toDate);
+      } else if (selectedReportValue === "Orders") {
+        const { data } = await apollo.query<{ orderPage?: { results?: OrderReportRow[] } }>({
+          query: ORDERS_PAGE_QUERY,
+          variables: { limit: 500, offset: 0, sortKey: "createdAt", sortOrder: "desc" },
+          fetchPolicy: "network-only",
+        });
+        rows = mapOrdersToRows(data?.orderPage?.results ?? [], fromDate, toDate);
+      } else if (selectedReportValue === "Customer") {
+        const { data } = await apollo.query<{ customerPage?: { results?: CustomerReportRow[] } }>({
+          query: CUSTOMERS_PAGE_QUERY,
+          variables: { limit: 500, offset: 0, sortKey: "createdAt", sortOrder: "desc" },
+          fetchPolicy: "network-only",
+        });
+        rows = mapCustomersToRows(data?.customerPage?.results ?? [], fromDate, toDate);
+      } else if (selectedReportValue === "Carts") {
+        // commercetools rejects one large cart query as too complex, so page
+        // through 100 at a time (the same size the Carts page loads), up to 500.
+        const carts: CartReportRow[] = [];
+        for (let offset = 0; offset < 500; offset += 100) {
+          const response = await fetch(`/api/carts?limit=100&offset=${offset}`);
+          const payload = (await response.json().catch(() => ({}))) as { results?: CartReportRow[]; total?: number; error?: string };
+          if (!response.ok) throw new Error(payload.error || `Failed to load carts (${response.status})`);
+          const page = payload.results ?? [];
+          carts.push(...page);
+          if (page.length < 100 || (typeof payload.total === "number" && carts.length >= payload.total)) break;
+        }
+        rows = mapCartsToRows(carts, fromDate, toDate);
+      } else {
+        throw new Error("Product export isn't connected yet: there is no catalog listing source for reports.");
       }
-    }, EXPORT_SIMULATION_DELAY_MS);
+
+      await exportRowsToExcel(rows, fileName);
+      pushToast("success", `${fileName} exported successfully!`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to export report";
+      pushToast("error", message);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (

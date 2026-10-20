@@ -31,6 +31,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NotificationToaster } from "@/features/notifications/NotificationCenter";
 
 const sidebarGroups: SidebarGroup[] = [
   {
@@ -1750,6 +1751,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <TicketAIHelper />
         )}
       </div>
+
+      <NotificationToaster />
 
       <CreateProjectModal
         isOpen={isCreateProjectOpen}

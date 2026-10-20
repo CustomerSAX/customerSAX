@@ -177,6 +177,7 @@ function normalizeOrder(order: CommerceOrder, customerNames: Map<string, string>
     discountCodes: [],
     discountTotal: 0,
     grandTotal,
+    currencyCode: order.totalPrice?.currencyCode ?? undefined,
     id: order.id,
     lastModifiedAt: order.lastModifiedAt ?? order.createdAt ?? "",
     lineItems,
@@ -289,11 +290,38 @@ export function useOrderStore() {
     [runOrderUpdate]
   );
 
+  // Creates a real cart for the same customer and adds the order's items to
+  // it (through /api/carts), then returns the new cart's id.
   const duplicateOrder = useCallback(
-    (orderId: string): string => {
+    async (orderId: string): Promise<string> => {
       const order = orders.find((o) => o.id === orderId || o.orderNumber === orderId);
-      const newCartId = `cart-new-${order?.id || Date.now()}`;
-      return newCartId;
+      if (!order) throw new Error("This order is not loaded.");
+      if (!order.currencyCode) throw new Error("The order has no currency on record, so a matching cart can't be created.");
+      const items = order.lineItems.filter((li) => li.sku && li.quantity > 0);
+      if (items.length === 0) throw new Error("None of this order's items has a SKU to add to a new cart.");
+
+      const created = await fetch("/api/carts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          currency: order.currencyCode,
+          customerId: order.customerId,
+          customerEmail: order.customerEmail || undefined
+        })
+      });
+      const cart = (await created.json().catch(() => null)) as { id?: string; error?: string } | null;
+      if (!created.ok || !cart?.id) throw new Error(cart?.error ?? "The commerce backend did not create a cart.");
+
+      const added = await fetch(`/api/carts/${encodeURIComponent(cart.id)}/update`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ actions: items.map((li) => ({ addLineItem: { sku: li.sku, quantity: li.quantity } })) })
+      });
+      if (!added.ok) {
+        const body = (await added.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(`A cart was created but the items could not be added: ${body?.error ?? `HTTP ${added.status}`}`);
+      }
+      return cart.id;
     },
     [orders]
   );

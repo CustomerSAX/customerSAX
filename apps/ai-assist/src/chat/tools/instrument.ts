@@ -22,33 +22,44 @@ function isErrorResult(result: unknown): boolean {
 }
 
 /**
- * Mutates each tool in `tools` in place, wrapping its `execute` with a
- * start (debug) + end (info) trace line under `module: "tools"`. Returns the
- * same map so precise per-tool types are preserved for the caller.
+ * Returns a copy of `tools` in which each tool's `execute` is wrapped with a
+ * start (debug) + end (info) trace line under `module: "tools"`.
+ *
+ * The originals are NOT modified. Many tools are shared module-level objects
+ * and the tool sets are rebuilt on every request, so wrapping in place stacked
+ * one more wrapper per request — every call then logged N times after N
+ * requests. Copying keeps exactly one wrapper per build.
  */
 export function instrumentTools<T extends Record<string, unknown>>(tools: T, baseLog: Logger): T {
   const log = baseLog.child({ module: "tools" });
+  const instrumented: Record<string, unknown> = {};
 
   for (const [name, value] of Object.entries(tools)) {
     const tool = value as { execute?: LooseExecute };
     const original = tool.execute;
-    if (typeof original !== "function") continue;
+    if (typeof original !== "function") {
+      instrumented[name] = value;
+      continue;
+    }
 
-    tool.execute = async (...args: unknown[]) => {
-      const first = args[0];
-      const argKeys = first && typeof first === "object" ? Object.keys(first as object) : [];
-      const startedAt = Date.now();
-      log.debug(`tool ${name}`, { argKeys });
-      try {
-        const result = await original(...args);
-        log.info(`tool ${name}`, { argKeys, ok: !isErrorResult(result), ms: Date.now() - startedAt });
-        return result;
-      } catch (err) {
-        log.error(`tool ${name}`, err, { argKeys, ok: false, ms: Date.now() - startedAt });
-        throw err;
+    instrumented[name] = {
+      ...tool,
+      execute: async (...args: unknown[]) => {
+        const first = args[0];
+        const argKeys = first && typeof first === "object" ? Object.keys(first as object) : [];
+        const startedAt = Date.now();
+        log.debug(`tool ${name}`, { argKeys });
+        try {
+          const result = await original(...args);
+          log.info(`tool ${name}`, { argKeys, ok: !isErrorResult(result), ms: Date.now() - startedAt });
+          return result;
+        } catch (err) {
+          log.error(`tool ${name}`, err, { argKeys, ok: false, ms: Date.now() - startedAt });
+          throw err;
+        }
       }
     };
   }
 
-  return tools;
+  return instrumented as T;
 }

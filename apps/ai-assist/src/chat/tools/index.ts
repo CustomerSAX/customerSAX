@@ -12,6 +12,7 @@ import { buildCommerceTools } from "./commerce.js";
 import { buildUiTools } from "./ui-tools.js";
 import { buildTicketTools } from "./tickets.js";
 import { buildCrmTools } from "./crm.js";
+import { buildWrapUpTools } from "./wrap-up.js";
 
 /**
  * Builds the per-request tool set.
@@ -28,9 +29,10 @@ export function buildChatTools(): ToolSet {
   const approvalGate = { pending: false };
 
   return {
-    ...buildCommerceTools(),
+    ...buildCommerceTools(approvalGate),
     ...buildUiTools(approvalGate),
     ...(buildTicketTools(approvalGate) as ToolSet),
-    ...(buildCrmTools(approvalGate) as ToolSet)
+    ...(buildCrmTools(approvalGate) as ToolSet),
+    ...(buildWrapUpTools(approvalGate) as ToolSet)
   };
 }

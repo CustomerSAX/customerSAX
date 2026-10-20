@@ -59,6 +59,25 @@ export const config = {
     maxAgenticSteps: 20,
   },
 
+  /** Public voice widget (/voice/*) limits. Tenants come from VOICE_WIDGET_TENANTS (see voice/tenants.ts). */
+  voice: {
+    /** New voice sessions per client IP per hour (env: VOICE_SESSION_RATE_LIMIT). */
+    sessionRateLimitPerIp: envInt("VOICE_SESSION_RATE_LIMIT", 20),
+    /** New voice sessions per widget tenant per hour — backstop for spoofed/rotating IPs (env: VOICE_TENANT_SESSION_LIMIT). */
+    sessionRateLimitPerTenant: envInt("VOICE_TENANT_SESSION_LIMIT", 500),
+    /** Caller turns per session; bounds LLM spend per conversation (env: VOICE_MAX_TURNS). */
+    maxTurns: envInt("VOICE_MAX_TURNS", 40),
+    /** Max characters of recognised speech accepted per turn. */
+    maxTurnChars: 500,
+    /** Agentic steps per turn (tool calls + reply). */
+    maxStepsPerTurn: 6,
+    /** Serve GET /voice/demo — on by default outside production (env: VOICE_DEMO_ENABLED=true|false). */
+    demoEnabled:
+      process.env.VOICE_DEMO_ENABLED !== undefined
+        ? process.env.VOICE_DEMO_ENABLED === "true"
+        : process.env.NODE_ENV !== "production" && !process.env.K_SERVICE,
+  },
+
   /** Commerce (BFF) client behaviour. */
   commerce: {
     /**

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { aiStatsRouter } from "./ai-stats.js";
 import { assistRouter } from "./assist.js";
 import { chatRouter } from "./chat.js";
 import { healthRouter } from "./health.js";
@@ -14,3 +15,4 @@ routes.use(assistRouter);
 routes.use(chatRouter);
 routes.use(ticketReviewRouter);
 routes.use(quoteReviewRouter);
+routes.use(aiStatsRouter);

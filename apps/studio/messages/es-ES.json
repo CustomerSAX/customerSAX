@@ -108,6 +108,8 @@
     "ordersReviewed": "Pedidos revisados",
     "aiAssistResolved": "Resueltos con asistencia de IA",
     "notAvailable": "No disponible",
+    "ordersReviewedSub": "Revisiones de pedidos con IA · últimos {days} días",
+    "aiResolvedSub": "Tickets cerrados con revisión de IA · últimos {days} días",
     "ticketingUnavailable": "Sistema de tickets no disponible",
     "loading": "Cargando…",
     "activeWorkQueue": "Cola de trabajo activa",

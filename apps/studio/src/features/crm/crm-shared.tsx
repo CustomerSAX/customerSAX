@@ -4,6 +4,7 @@ import { useState } from "react";
 import { gql, useMutation } from "@apollo/client";
 import { Button, FormField, Input, Label, Modal, Select, TextArea, StatusPill, type StatusTone } from "@csa/ui";
 import { formatDate } from "@/lib/format-date";
+import { notify } from "@/features/notifications/notification-store";
 
 // Shared CRM queries, types, formatting helpers and the Log activity form, used by
 // the customer CRM tab and the CSA Assistant CRM cards. Data is read live from the
@@ -256,6 +257,11 @@ export function LogActivityModal({
             ...(type === "TASK" ? { completed } : {}),
           },
         },
+      });
+      notify({
+        variant: "success",
+        title: isOpenTask ? `Follow-up added in ${crmName}` : `Activity logged in ${crmName}`,
+        description: `${subject.trim()} · ${contactName}`
       });
       await onLogged();
       onClose();
