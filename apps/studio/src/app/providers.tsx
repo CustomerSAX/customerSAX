@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { apolloClient } from "../graphql/client";
 import { getQueryClient } from "../lib/query-client";
 import { useCurrentUser } from "../lib/use-current-user";
+import { PageContextProvider } from "../features/csa-assistant";
 
 function AppProvidersInner({ children }: { children: ReactNode }) {
   const { user } = useCurrentUser();
@@ -21,7 +22,9 @@ function AppProvidersInner({ children }: { children: ReactNode }) {
   return (
     <MeridianProvider defaultTheme="light">
       <UIProvider config={uiConfig}>
-        <ApolloProvider client={apolloClient}>{children}</ApolloProvider>
+        <ApolloProvider client={apolloClient}>
+          <PageContextProvider>{children}</PageContextProvider>
+        </ApolloProvider>
       </UIProvider>
     </MeridianProvider>
   );

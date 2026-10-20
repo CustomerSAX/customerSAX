@@ -86,9 +86,9 @@ export function useCsaChat(sessionContext: SessionContext) {
 
   const isLoading = chat.status === "submitted" || chat.status === "streaming";
 
-  // Stable handleInputChange for <input onChange={handleInputChange}>
+  // Stable handleInputChange for <input onChange={handleInputChange}> or <textarea>
   const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value),
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setInput(e.target.value),
     []
   );
 

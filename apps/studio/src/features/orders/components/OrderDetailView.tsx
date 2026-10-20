@@ -1,43 +1,44 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useRegisterPageContext } from "@/features/csa-assistant";
+import { notify } from "@/features/notifications/notification-store";
 import { stripLocalePrefix } from "@/i18n/routing";
+import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import {
-  DetailPage,
   BackLink,
+  DetailPage,
   EntityHeader,
   EntityTabs,
-  type EntityTab,
+  MoreActionsMenu,
+  PrimaryButton,
   StatusPill,
+  SummaryCard,
+  SummaryGrid,
+  type EntityTab,
   type StatusTone,
   type TimelineItem,
   type TimelineState,
-  PrimaryButton,
-  MoreActionsMenu,
-  SummaryGrid,
-  SummaryCard,
 } from "@csa/ui";
-import { useOrderStore, useOrderDetail } from "../hooks/use-orders";
-import { notify } from "@/features/notifications/notification-store";
-import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
+import { useTranslations } from "next-intl";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useOrderDetail, useOrderStore } from "../hooks/use-orders";
 import type {
   Order,
-  OrderState,
-  ShipmentState,
-  PaymentState,
-  OrderReturnItem,
   OrderAddress,
+  OrderReturnItem,
+  OrderState,
+  PaymentState,
+  ShipmentState,
 } from "../types/order-types";
 import type { CatalogProduct, ShippingMethodOption } from "./order-tab-types";
 
 // ── Tab Sub-Components ───────────────────────────────────────────────
-import { OrderGeneralTab } from "./OrderGeneralTab";
-import { OrderShippingTab } from "./OrderShippingTab";
-import { OrderReturnsTab } from "./OrderReturnsTab";
-import { OrderPaymentsTab } from "./OrderPaymentsTab";
 import { OrderCommentsTab } from "./OrderCommentsTab";
+import { OrderGeneralTab } from "./OrderGeneralTab";
+import { OrderPaymentsTab } from "./OrderPaymentsTab";
+import { OrderReturnsTab } from "./OrderReturnsTab";
+import { OrderShippingTab } from "./OrderShippingTab";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -183,6 +184,39 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
 
   const fallbackOrder = useMemo(() => createEmptyOrder(id), [id]);
   const order = singleOrder || getOrderById(id) || orders.find((o) => o.id === id) || fallbackOrder;
+
+  useRegisterPageContext(
+    "OrderDetailView",
+    order
+      ? {
+        entityType: "order",
+        entityId: order.id || id,
+        type: "order",
+        id: order.id || id,
+        pageType: "order_details",
+        recordSummary: {
+          orderNumber: order.orderNumber || id,
+          orderId: order.id || id,
+          orderState: order.orderState,
+          paymentState: order.paymentState,
+          shipmentState: order.shipmentState,
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          customerId: order.customerId,
+          grandTotal: order.grandTotal,
+          itemCount: order.lineItems?.length || 0,
+        },
+        parentRelationship: order.customerId
+          ? {
+            type: "customer",
+            id: order.customerId,
+            label: order.customerName,
+          }
+          : undefined,
+      }
+      : null,
+    [order.id, order.orderNumber, order.orderState, order.paymentState, order.customerName, order.customerId, order.grandTotal, order.lineItems?.length]
+  );
   const loading = singleLoading && !order;
   const error = singleError;
 
@@ -519,9 +553,8 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
       <EntityHeader
         title={order?.orderNumber ? `Order #${order.orderNumber}` : "Order Detail"}
         status={<StatusPill tone={statusTone(order.orderState)}>{order.orderState}</StatusPill>}
-        meta={`Placed ${order.createdAt ? fmtDate(order.createdAt) : "—"} • ${
-          order.store && order.store !== "--" ? order.store : "—"
-        }${order.companyName ? ` • ${order.companyName}` : ""}`}
+        meta={`Placed ${order.createdAt ? fmtDate(order.createdAt) : "—"} • ${order.store && order.store !== "--" ? order.store : "—"
+          }${order.companyName ? ` • ${order.companyName}` : ""}`}
         actions={
           <>
             <MoreActionsMenu
@@ -551,11 +584,10 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
 
       {(loading || error) && (
         <div
-          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${
-            error
-              ? "border-m-error-border bg-m-error-light text-m-error"
-              : "border-m-border bg-m-surface-2 text-m-text-muted"
-          }`}
+          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${error
+            ? "border-m-error-border bg-m-error-light text-m-error"
+            : "border-m-border bg-m-surface-2 text-m-text-muted"
+            }`}
         >
           {error
             ? "Unable to load this order from the BFF. Showing available local order state."

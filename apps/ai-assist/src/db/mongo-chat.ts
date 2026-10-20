@@ -33,7 +33,7 @@ export interface ChatSession {
   sessionId: string;
   userEmail: string;
   projectKey: string;
-  pageContext?: { type: string; id: string } | null;
+  pageContext?: Record<string, unknown> | { type: string; id: string } | null;
   messages: StoredMessage[];
   createdAt: Date;
   updatedAt: Date;
@@ -45,7 +45,7 @@ export interface SessionSummary {
   messageCount: number;
   createdAt: Date;
   updatedAt: Date;
-  pageContext: { type: string; id: string } | null;
+  pageContext: Record<string, unknown> | { type: string; id: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,14 +102,19 @@ export async function loadOrCreateSession(
   sessionId: string,
   userEmail: string,
   projectKey: string,
-  pageContext?: { type: string; id: string } | null
+  pageContext?: Record<string, unknown> | { type: string; id: string } | null
 ): Promise<ChatSession> {
   const col = await getCollection();
   const now = new Date();
 
   if (col) {
     const existing = await col.findOne({ sessionId, userEmail });
-    if (existing) return existing as unknown as ChatSession;
+    if (existing) {
+      if (pageContext) {
+        await col.updateOne({ sessionId }, { $set: { pageContext, updatedAt: now } });
+      }
+      return existing as unknown as ChatSession;
+    }
 
     const newSession: Omit<ChatSession, "_id"> = {
       sessionId,
@@ -126,7 +131,13 @@ export async function loadOrCreateSession(
 
   // In-memory fallback
   const existing = memoryStore.get(sessionId);
-  if (existing && existing.userEmail === userEmail) return existing;
+  if (existing && existing.userEmail === userEmail) {
+    if (pageContext) {
+      existing.pageContext = pageContext;
+      existing.updatedAt = now;
+    }
+    return existing;
+  }
 
   const newSession: ChatSession = {
     sessionId,
@@ -139,6 +150,32 @@ export async function loadOrCreateSession(
   };
   memoryStore.set(sessionId, newSession);
   return newSession;
+}
+
+/**
+ * Updates the active page context for an existing session.
+ */
+export async function updateSessionPageContext(
+  sessionId: string,
+  pageContext: Record<string, unknown> | { type: string; id: string } | null
+): Promise<void> {
+  try {
+    const col = await getCollection();
+    if (col) {
+      await col.updateOne(
+        { sessionId },
+        { $set: { pageContext: pageContext ?? null, updatedAt: new Date() } }
+      );
+      return;
+    }
+    const session = [...memoryStore.values()].find((s) => s.sessionId === sessionId);
+    if (session) {
+      session.pageContext = pageContext ?? null;
+      session.updatedAt = new Date();
+    }
+  } catch (err) {
+    log.error("updateSessionPageContext failed", err);
+  }
 }
 
 /**

@@ -74,6 +74,7 @@ import { ticketIdFromRoute } from "../api/ticket-id";
 import { useAssignees } from "../hooks/use-assignees";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { useCurrentUser } from "@/lib/use-current-user";
+import { useRegisterPageContext } from "@/features/csa-assistant";
 import type { TicketStatus, TicketPriority, WorklogComment } from "../types/ticket-types";
 
 interface TicketDetailViewProps {
@@ -145,6 +146,37 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   const { user: currentUser } = useCurrentUser();
 
   const ticket = getTicketById(ticketId);
+
+  useRegisterPageContext(
+    "TicketDetailView",
+    ticket
+      ? {
+          entityType: "ticket",
+          entityId: ticket.id || id,
+          type: "ticket",
+          id: ticket.id || id,
+          pageType: "ticket_details",
+          recordSummary: {
+            ticketId: ticket.id || id,
+            ticketNumber: ticket.ticketNumber || id,
+            subject: ticket.subject,
+            status: ticket.status,
+            priority: ticket.priority,
+            customerEmail: ticket.email,
+            orderNumber: ticket.orderNumber,
+            assignedTo: ticket.assignedTo,
+          },
+          parentRelationship: ticket.orderNumber
+            ? {
+                type: "order",
+                id: ticket.orderNumber,
+                label: `Order ${ticket.orderNumber}`,
+              }
+            : undefined,
+        }
+      : null,
+    [ticket?.id, ticket?.ticketNumber, ticket?.subject, ticket?.status, ticket?.priority, ticket?.email, ticket?.orderNumber]
+  );
 
   const [activeTab, setActiveTab] = useState<string>("conversation");
 

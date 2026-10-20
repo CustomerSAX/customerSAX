@@ -1,9 +1,72 @@
 export type BusinessType = "b2c" | "b2b";
 
-export interface PageContext {
-  type: "customer" | "order" | "ticket" | "cart" | "product" | "businessUnit";
+export type PageEntityType = "customer" | "order" | "ticket" | "cart" | "product" | "businessUnit";
+
+export type StudioPageType =
+  | "dashboard"
+  | "order_list"
+  | "order_details"
+  | "customer_list"
+  | "customer_details"
+  | "ticket_list"
+  | "ticket_details"
+  | "product_list"
+  | "product_details"
+  | "cart_list"
+  | "cart_details"
+  | "csa_assistant"
+  | "b2b_company"
+  | "b2b_employees"
+  | "reports"
+  | "knowledgebase"
+  | "general";
+
+export interface VisibleRecordContextItem {
   id: string;
+  label?: string;
+  identifier?: string;
+  subtitle?: string;
+  status?: string;
+  total?: string;
+  email?: string;
+  name?: string;
+  [key: string]: unknown;
 }
+
+export interface ActiveFiltersContext {
+  search?: string;
+  filters?: Record<string, unknown>;
+  page?: number;
+  limit?: number;
+  totalCount?: number;
+}
+
+export interface PageContext {
+  type: PageEntityType;
+  id: string;
+  route?: string;
+  pageType?: StudioPageType | string;
+  entityType?: PageEntityType;
+  entityId?: string;
+  entityTitle?: string;
+  recordSummary?: Record<string, unknown>;
+  selectedRecord?: Record<string, unknown>;
+  selectedRows?: string[];
+  visibleRecords?: VisibleRecordContextItem[];
+  activeFilters?: ActiveFiltersContext;
+  parentRelationship?: {
+    type: PageEntityType;
+    id: string;
+    label?: string;
+  };
+  timestamp?: number;
+  [key: string]: unknown;
+}
+
+export type StructuredPageContext = Partial<PageContext> & {
+  route: string;
+  pageType: StudioPageType | string;
+};
 
 export interface SessionContext {
   userEmail?: string;
