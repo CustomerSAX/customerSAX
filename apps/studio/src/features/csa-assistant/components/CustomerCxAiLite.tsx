@@ -411,7 +411,11 @@ export function CustomerCxAiLite() {
                             />
                           )}
                           {toolName === "order_summary" && (
-                            <OrderSummaryCard args={p.input as OrderSummaryArgs} />
+                            <OrderSummaryCard
+                              args={p.input as OrderSummaryArgs}
+                              onSuggest={sendSuggestion}
+                              isLoading={isLoading}
+                            />
                           )}
                           {toolName === "order_confirmation" && (
                             <OrderConfirmationCard args={p.input as OrderConfirmationArgs} />

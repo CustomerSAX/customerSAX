@@ -200,12 +200,12 @@ function OrderActionButtons({
 
 export function OrderSummaryCard({
   args,
-  onSuggest,
-  isLoading
+  onSuggest = () => {},
+  isLoading = false
 }: {
   args: OrderSummaryArgs;
-  onSuggest: (prompt: string) => void;
-  isLoading: boolean;
+  onSuggest?: (prompt: string) => void;
+  isLoading?: boolean;
 }) {
   const liveOrder = useLiveOrder(args.orderId, isLoading);
   const { live } = liveOrder;
