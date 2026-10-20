@@ -28,6 +28,7 @@ import {
 import { SectionCard } from "@csa/ui";
 import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
 import { useOrderStore } from "../hooks/use-orders";
+import { notify } from "@/features/notifications/notification-store";
 import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
 import { formatDateTime } from "@/lib/format-date";
 import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
@@ -191,10 +192,15 @@ export function OrderListView() {
     }
   }, [refetch]);
 
-  const handleDuplicateOrder = (e: React.MouseEvent, order: Order) => {
+  const handleDuplicateOrder = async (e: React.MouseEvent, order: Order) => {
     e.stopPropagation();
-    const newCartId = duplicateOrder(order.id);
-    router.push(`/cart/${newCartId}`);
+    try {
+      const newCartId = await duplicateOrder(order.id);
+      notify({ variant: "success", title: "Order duplicated", description: `New cart created from order ${order.orderNumber}` });
+      router.push(`/cart/${newCartId}`);
+    } catch (err) {
+      notify({ variant: "error", title: "Couldn't duplicate the order", description: err instanceof Error ? err.message : String(err) });
+    }
   };
 
   const handleOrderColumnsChange = useCallback(

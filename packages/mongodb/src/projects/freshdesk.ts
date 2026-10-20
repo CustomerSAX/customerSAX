@@ -52,10 +52,28 @@ export function freshdeskClient(credentials: FreshdeskCredentials) {
       throw new Error("Could not reach Freshdesk. Check the domain and connection");
     }
     if (!response.ok) {
+      // Freshdesk explains refusals in the body ({ code, message } or
+      // { description, errors: [...] }); pass that reason on so an admin can
+      // tell an expired plan or missing permission from a bad request.
+      const detail = await response
+        .json()
+        .then((raw: unknown) => {
+          const b = (raw ?? {}) as {
+            code?: string;
+            message?: string;
+            description?: string;
+            errors?: Array<{ field?: string; message?: string }>;
+          };
+          return [b.code, b.message || b.description, ...(b.errors ?? []).map((e) => [e.field, e.message].filter(Boolean).join(": "))]
+            .filter(Boolean)
+            .join(" — ")
+            .replace(/\.+$/, "");
+        })
+        .catch(() => "");
       const error = new Error(
         response.status === 429
           ? `Freshdesk rate limit reached; retry after ${response.headers.get("retry-after") || "60"} seconds`
-          : `Freshdesk request failed (HTTP ${response.status}). Check the API key, agent permissions and required ticket fields`
+          : `Freshdesk request failed (HTTP ${response.status})${detail ? `: ${detail.slice(0, 300)}` : ""}. Check the API key, agent permissions and required ticket fields`
       );
       Object.assign(error, { status: response.status });
       throw error;

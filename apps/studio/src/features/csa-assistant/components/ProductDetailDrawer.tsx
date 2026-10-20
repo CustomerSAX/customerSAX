@@ -248,15 +248,18 @@ export function ProductDetailDrawer({
   if (!isOpen && !closing) return null;
   if (typeof document === 'undefined') return null;
 
-  const stockIsOut = activeStock.toLowerCase().includes('out') || activeStock === '0';
-  const stockIsLow = activeStock.toLowerCase().includes('low');
+  // No inventory record → stock is unknown, which must not read as "In Stock".
+  const stockText = activeStock?.trim() ?? '';
+  const stockUnknown = !stockText;
+  const stockIsOut = stockText.toLowerCase().includes('out') || stockText === '0';
+  const stockIsLow = stockText.toLowerCase().includes('low');
   const inStock = !stockIsOut;
   // NOTE: stockColor stays literal hex (not a var()) because it's concatenated
   // with a hex alpha suffix below (`${stockColor}40`) for the badge border —
   // CSS custom properties can't have a hex alpha suffix appended to them.
-  const stockColor = stockIsOut ? '#c0392b' : stockIsLow ? '#d97706' : '#16a34a';
-  const stockBg = stockIsOut ? 'var(--color-error-bg)' : stockIsLow ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
-  const stockLabel = stockIsOut ? 'Out of Stock' : stockIsLow ? 'Low Stock' : 'In Stock';
+  const stockColor = stockUnknown ? '#6b7280' : stockIsOut ? '#c0392b' : stockIsLow ? '#d97706' : '#16a34a';
+  const stockBg = stockUnknown ? 'var(--color-surface-2)' : stockIsOut ? 'var(--color-error-bg)' : stockIsLow ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
+  const stockLabel = stockUnknown ? 'Stock unknown' : stockIsOut ? 'Out of Stock' : stockIsLow ? 'Low Stock' : 'In Stock';
 
   const drawerUi = (
     <>

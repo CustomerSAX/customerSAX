@@ -56,13 +56,36 @@ export interface UpdateUiStateArgs {
   customerId?: string;
 }
 
+/** One before → after line on an approval card. */
+export interface ApprovalChange {
+  label: string;
+  from?: string;
+  to: string;
+}
+
+/** A value the rep can adjust on the approval card before approving. */
+export interface ApprovalField {
+  key: string;
+  label: string;
+  type?: "text" | "textarea" | "select" | "date";
+  value?: string;
+  options?: Array<{ value: string; label: string }>;
+  required?: boolean;
+}
+
 export interface ActionApprovalArgs {
   actionId: string;
   title: string;
   description: string;
   intent: string;
   executeCommand: string;
+  changes?: ApprovalChange[];
+  steps?: string[];
+  fields?: ApprovalField[];
 }
+
+/** What happened to an approval card, read from the rep's next message. */
+export type ApprovalResolution = "approved" | "declined" | "superseded" | null;
 
 export interface SuggestedActionsArgs {
   actions: Array<{ label: string; prompt: string }>;
@@ -110,8 +133,10 @@ export interface ProductCardArgs {
   name: string;
   sku: string;
   variantId?: string;
+  /** Formatted price; empty when the product has no price in the conversation's currency. */
   price: string;
-  stock: string;
+  /** "Out of stock" / "12 in stock"; absent or empty when there is no inventory record — unknown, not "in stock". */
+  stock?: string;
   image?: string;
   images?: string[];
   slug?: string;
@@ -137,6 +162,20 @@ export interface CaseBriefingArgs {
   relatedOrderNumber?: string;
   recommendedResolution: string;
   suggestedActions: string[];
+  /** CRM contact id; when present the card shows a live CRM strip. */
+  crmContactId?: string;
+  /** Internal ticket id; the card then shows the ticket action buttons. */
+  ticketId?: string;
+}
+
+/** crm_contact_card: only the id comes from the model; the card loads everything else live. */
+/** ticket_card: only the id comes from the model; the ticket loads live. */
+export interface TicketCardArgs {
+  ticketId: string;
+}
+
+export interface CrmContactCardArgs {
+  contactId: string;
 }
 
 export interface DraftEmailArgs {

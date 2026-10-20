@@ -89,6 +89,8 @@
     "ordersReviewed": "Geprüfte Bestellungen",
     "aiAssistResolved": "Durch KI gelöst",
     "notAvailable": "Nicht verfügbar",
+    "ordersReviewedSub": "KI-Bestellprüfungen · letzte {days} Tage",
+    "aiResolvedSub": "Per KI-Prüfung geschlossene Tickets · letzte {days} Tage",
     "ticketingUnavailable": "Ticketdienst nicht verfügbar",
     "loading": "Wird geladen…",
     "activeWorkQueue": "Aktive Arbeitswarteschlange",

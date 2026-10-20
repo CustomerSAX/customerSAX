@@ -77,7 +77,7 @@ export function OrderInquirySuggestions({
           id="order-inquiry-suggestions-title"
           className="text-sm font-semibold text-m-text"
         >
-          AI inquiry suggestions
+          Common inquiry templates
         </h3>
         <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-blue-700">
           Quick drafts

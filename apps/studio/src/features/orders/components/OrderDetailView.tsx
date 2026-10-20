@@ -20,6 +20,7 @@ import {
   SummaryCard,
 } from "@csa/ui";
 import { useOrderStore, useOrderDetail } from "../hooks/use-orders";
+import { notify } from "@/features/notifications/notification-store";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import type {
   Order,
@@ -463,9 +464,14 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     setShowCommentForm(false);
   };
 
-  const handleDuplicateOrder = () => {
-    const cartId = duplicateOrder(order.id);
-    router.push(`/cart/${cartId}`);
+  const handleDuplicateOrder = async () => {
+    try {
+      const cartId = await duplicateOrder(order.id);
+      notify({ variant: "success", title: "Order duplicated", description: `New cart created from order ${order.orderNumber}` });
+      router.push(`/cart/${cartId}`);
+    } catch (err) {
+      notify({ variant: "error", title: "Couldn't duplicate the order", description: err instanceof Error ? err.message : String(err) });
+    }
   };
 
   // ── Derived View Data ──────────────────────────────────────────

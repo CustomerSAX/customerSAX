@@ -23,7 +23,7 @@ const CONTACT_FIELDS = `
 const ACCOUNT_FIELDS = `
   id provider externalUrl name industry type website phone billingAddress { ${ADDRESS_FIELDS} } ownerName
 `;
-const ACTIVITY_FIELDS = "id type subject description status activityDate ownerName createdAt";
+const ACTIVITY_FIELDS = "id type subject description status completed activityDate ownerName createdAt";
 
 const READ_DENIED = { error: "PERMISSION DENIED: You don't have access to customer records." };
 const WRITE_DENIED = {
@@ -32,7 +32,7 @@ const WRITE_DENIED = {
 
 const APPROVAL_GATE_ERROR =
   "APPROVAL_GATE_BLOCKED: An action_approval confirmation card was shown earlier in this turn. " +
-  "You must NOT call any write tool (log_crm_activity, update_crm_contact) until the agent explicitly clicks " +
+  "You must NOT call any write tool (log_crm_activity, update_crm_contact, update_crm_activity) until the agent explicitly clicks " +
   "Approve in the UI. Stop your response now and wait for the next user message.";
 
 /**
@@ -105,12 +105,43 @@ export const getCrmContactDetailsTool = tool({
         );
         account = accountData.crmAccount;
       }
-      return { contact: data.crmContact, account, recentActivities: data.crmContactActivities };
+      return {
+        contact: data.crmContact,
+        account,
+        recentActivities: data.crmContactActivities,
+        // The studio shows this contact's card and open follow-ups (with action
+        // buttons) straight from this result.
+        displayed:
+          "The rep can already see this contact's CRM card (name, title, company, owner, email, phone, last activity) and the list of open follow-ups with Mark done / Reschedule / Log update / Draft email buttons. " +
+          "Do NOT restate those details or list the follow-ups. Reply with ONE short line (e.g. 'Testing One has 1 open follow-up — overdue since 11 Oct.')."
+      };
     } catch (err) {
       return toolError(err);
     }
   },
 });
+
+export type CrmActivityInput = {
+  contactId: string;
+  type: "CALL" | "EMAIL" | "TASK";
+  subject: string;
+  description?: string;
+  activityDate?: string;
+  durationMinutes?: number;
+  completed?: boolean;
+};
+
+/** Records an activity on a CRM contact. Callers own permission/approval checks. */
+export async function logCrmActivity(input: CrmActivityInput): Promise<{ id: string; subject?: string }> {
+  const data = await bffQuery<{ logCrmActivity: { id: string; subject?: string } }>(
+    `mutation LogCrmActivity($input: CrmActivityInput!) { logCrmActivity(input: $input) { ${ACTIVITY_FIELDS} } }`,
+    { input }
+  );
+  return data.logCrmActivity;
+}
+
+/** Same error shape the CRM tools return — flags "no CRM connected" as configuration, not an outage. */
+export { toolError as crmToolError };
 
 export function buildCrmTools(approvalGate?: { pending: boolean }) {
   const logCrmActivityTool = tool({
@@ -121,23 +152,56 @@ export function buildCrmTools(approvalGate?: { pending: boolean }) {
       type: z.enum(["CALL", "EMAIL", "TASK"]).describe("CALL for a phone conversation, EMAIL for an email exchange, TASK for a follow-up"),
       subject: z.string().describe("Short subject line"),
       description: z.string().optional().describe("What happened / what needs doing"),
-      activityDate: z.string().optional().describe("YYYY-MM-DD; defaults to today"),
+      activityDate: z.string().optional().describe("YYYY-MM-DD; defaults to today. For an open TASK this is its due date"),
+      durationMinutes: z
+        .number()
+        .positive()
+        .optional()
+        .describe("CALL only: how many minutes the call lasted. Zoho CRM requires it; ask the rep instead of guessing"),
+      completed: z
+        .boolean()
+        .optional()
+        .describe("TASK only: false to create an open follow-up the team still has to do; omit or true to record it as done"),
     }),
     execute: async (input) => {
       if (approvalGate?.pending) return { error: APPROVAL_GATE_ERROR };
       if (!getSystemPromptContext().canUpdateCustomers) return WRITE_DENIED;
       try {
-        const data = await bffQuery<{ logCrmActivity: { id: string } }>(
-          `mutation LogCrmActivity($input: CrmActivityInput!) { logCrmActivity(input: $input) { ${ACTIVITY_FIELDS} } }`,
-          { input }
-        );
-        log.info("write:log_crm_activity", { targetId: data.logCrmActivity.id, ok: true });
-        return data.logCrmActivity;
+        const activity = await logCrmActivity(input);
+        log.info("write:log_crm_activity", { targetId: activity.id, ok: true });
+        return activity;
       } catch (err) {
         log.info("write:log_crm_activity", { ok: false });
         return toolError(err);
       }
     },
+  });
+
+  const updateCrmActivityTool = tool({
+    description:
+      "Mark an open CRM follow-up task as done (completed: true), reopen it (completed: false), or move its due date (activityDate). Only tasks can be updated. Use the activity id from get_crm_contact_details in THIS turn. ALWAYS require action_approval first.",
+    inputSchema: z.object({
+      activityId: z.string().describe("Task id from get_crm_contact_details (recentActivities[].id)"),
+      completed: z.boolean().optional().describe("true = mark done, false = reopen"),
+      activityDate: z.string().optional().describe("New due date, YYYY-MM-DD")
+    }),
+    execute: async ({ activityId, ...input }) => {
+      if (approvalGate?.pending) return { error: APPROVAL_GATE_ERROR };
+      if (!getSystemPromptContext().canUpdateCustomers) return WRITE_DENIED;
+      try {
+        const data = await bffQuery<{ updateCrmActivity: { id: string } | null }>(
+          `mutation UpdateCrmActivity($id: ID!, $input: CrmActivityUpdateInput!) {
+            updateCrmActivity(id: $id, input: $input) { ${ACTIVITY_FIELDS} }
+          }`,
+          { id: activityId, input }
+        );
+        log.info("write:update_crm_activity", { targetId: activityId, ok: data.updateCrmActivity != null });
+        return data.updateCrmActivity ?? { error: "CRM task not found" };
+      } catch (err) {
+        log.info("write:update_crm_activity", { targetId: activityId, ok: false });
+        return toolError(err);
+      }
+    }
   });
 
   const updateCrmContactTool = tool({
@@ -177,6 +241,7 @@ export function buildCrmTools(approvalGate?: { pending: boolean }) {
       get_crm_contact_details: getCrmContactDetailsTool,
       log_crm_activity: logCrmActivityTool,
       update_crm_contact: updateCrmContactTool,
+      update_crm_activity: updateCrmActivityTool,
     },
     log
   );
