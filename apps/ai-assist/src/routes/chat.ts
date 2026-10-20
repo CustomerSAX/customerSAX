@@ -87,6 +87,32 @@ function extractText(message: UIMessage): string {
 }
 
 /**
+ * What the rep's latest message authorises. Only two UI actions are approvals:
+ * the Approve click on an approval card (sent as `[approved-action] …`) and a
+ * `return.confirm` hidden action (return stepper / refund card Confirm), which
+ * names the one order it applies to. Anything else — typed text, other hidden
+ * actions — authorises no commerce write.
+ */
+function approvalFromMessage(raw: unknown): SystemPromptContext["approval"] {
+  const message = raw as Partial<UIMessage> | null | undefined;
+  if (!message || message.role !== "user" || !Array.isArray(message.parts)) return null;
+  const text = extractText(message as UIMessage);
+  if (text.startsWith("[approved-action]")) return { kind: "approval_card" };
+  const hidden = text.match(/^\[hidden-action\]\s*(\{[\s\S]*\})$/);
+  if (hidden) {
+    try {
+      const action = JSON.parse(hidden[1]) as { type?: unknown; orderId?: unknown };
+      if (action.type === "return.confirm" && typeof action.orderId === "string" && action.orderId.trim()) {
+        return { kind: "return_confirm", orderId: action.orderId.trim() };
+      }
+    } catch {
+      // Malformed hidden action — authorises nothing.
+    }
+  }
+  return null;
+}
+
+/**
  * POST /chat
  *
  * Identity + ACL (userEmail/role/projectKey/clientId + can* flags) are derived
@@ -154,6 +180,10 @@ chatRouter.post("/chat", async (request, response, next) => {
       canCreateCarts: isWriter,
       canUpdateCarts: isWriter,
       canViewProducts: true,
+
+      // What the rep's latest message authorises — checked by the commerce
+      // write tools themselves (see buildCommerceTools).
+      approval: approvalFromMessage(messages.at(-1)),
     };
 
     const userEmail = sessionCtx.userEmail;

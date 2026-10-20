@@ -46,6 +46,8 @@ export interface Quote {
   currencyCode?: string;
   itemCount?: number;
   status: QuoteStatus;
+  /** Raw commercetools quoteRequestState, unmapped (e.g. "Closed" stays "Closed"). */
+  ctStatus?: string;
   lineItems: QuoteLineItem[];
   subtotal: number;
   discountPct: number;

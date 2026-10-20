@@ -1,6 +1,7 @@
 "use client";
 
 import { useRegisterPageContext } from "@/features/csa-assistant";
+import { notify } from "@/features/notifications/notification-store";
 import { stripLocalePrefix } from "@/i18n/routing";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import {
@@ -497,9 +498,14 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     setShowCommentForm(false);
   };
 
-  const handleDuplicateOrder = () => {
-    const cartId = duplicateOrder(order.id);
-    router.push(`/cart/${cartId}`);
+  const handleDuplicateOrder = async () => {
+    try {
+      const cartId = await duplicateOrder(order.id);
+      notify({ variant: "success", title: "Order duplicated", description: `New cart created from order ${order.orderNumber}` });
+      router.push(`/cart/${cartId}`);
+    } catch (err) {
+      notify({ variant: "error", title: "Couldn't duplicate the order", description: err instanceof Error ? err.message : String(err) });
+    }
   };
 
   // ── Derived View Data ──────────────────────────────────────────
@@ -579,8 +585,8 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
       {(loading || error) && (
         <div
           className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${error
-              ? "border-m-error-border bg-m-error-light text-m-error"
-              : "border-m-border bg-m-surface-2 text-m-text-muted"
+            ? "border-m-error-border bg-m-error-light text-m-error"
+            : "border-m-border bg-m-surface-2 text-m-text-muted"
             }`}
         >
           {error

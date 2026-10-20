@@ -30,8 +30,8 @@ export function normalizeZendeskSubdomain(value: string) {
     .trim()
     .toLowerCase()
     .replace(/^https:\/\//, "")
-    .replace(/\/$/, "")
-    .replace(/\.zendesk\.com$/, "");
+    .replace(/\.zendesk\.com(?:[/?#].*)?$/, "")
+    .replace(/\/$/, "");
   if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(domain))
     throw new Error("Enter a valid Zendesk subdomain");
   return domain;

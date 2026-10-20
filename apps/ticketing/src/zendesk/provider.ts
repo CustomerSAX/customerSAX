@@ -2,7 +2,7 @@ import { GraphQLError } from "graphql";
 import type { TicketingProvider } from "../providers/types.js";
 import type { Ticket, TicketUpdate } from "../tickets/types.js";
 import { api as localApi, error, zendeskConfig } from "./client.js";
-import { ticketFields } from "./fields.js";
+import { ticketFields, fieldUpdate } from "./fields.js";
 
 type User = {
   id: number;
@@ -216,11 +216,9 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
     if (input.subject != null) body.subject = input.subject;
     if (input.status) {
       body.status = statusToZendesk(input.status);
-      if (body.status === "closed")
-        error(
-          "Resolve Zendesk tickets; Zendesk manages closing them",
-          "UNSUPPORTED_OPERATION"
-        );
+      // Completing a ticket here solves it remotely; Zendesk automations own
+      // the irreversible transition from solved to closed.
+      if (body.status === "closed") body.status = "solved";
     }
     if (input.priority) body.priority = priority(input.priority);
     if (input.customerEmail)
@@ -232,7 +230,10 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
     const custom: Array<{ id: number; value: string | null }> = [];
     for (const key of customNames) {
       if (input[key] === undefined) continue;
+      if (key === "solution" && input.solution?.trim())
+        body.comment = { body: input.solution.trim(), public: false };
       if (fields[key]) custom.push({ id: fields[key]!, value: input[key] ?? null });
+      else if (key === "solution") continue;
       else if (input[key] && key !== "source" && key !== "contactType")
         error(`Set ZENDESK_FIELD_MAPPINGS for ${key} before sending this field`);
     }
@@ -254,6 +255,29 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
     return map(data.ticket, existing.users);
   }
   return {
+    updateFields: async (id, expectedLastModifiedAt, changes) => {
+      const existing = await read(id);
+      if (!existing) error("Zendesk ticket not found", "NOT_FOUND");
+      if (existing.ticket.updated_at !== expectedLastModifiedAt) error("The ticket changed. Refresh before saving.", "CONFLICT");
+      const body = fieldUpdate(await ticketFields(existing.ticket, api), changes);
+      if (body.assignee_id != null) await assignee(String(body.assignee_id));
+      for (const follower of (body.followers ?? []) as Array<{ user_id: number; action: string }>) {
+        if (follower.action === "put") await assignee(String(follower.user_id));
+      }
+      const { ticket } = await api<{ ticket: RemoteTicket }>(`tickets/${externalId(id)}.json`, "PUT", {
+        ticket: { ...body, safe_update: true, updated_stamp: expectedLastModifiedAt }
+      });
+      return ticketFields(ticket, api);
+    },
+    closeIfUnchanged: async (id, expectedLastModifiedAt, solution) => {
+      const existing = await read(id);
+      if (!existing || existing.ticket.updated_at !== expectedLastModifiedAt) return null;
+      if (existing.ticket.status === "closed") return map(existing.ticket, existing.users);
+      const { ticket } = await api<{ ticket: RemoteTicket }>(`tickets/${externalId(id)}.json`, "PUT", {
+        ticket: { status: "solved", comment: { body: solution, public: false }, safe_update: true, updated_stamp: expectedLastModifiedAt }
+      });
+      return map(ticket, existing.users);
+    },
     getFields: async id => {
       const data = await read(id);
       if (!data) error("Zendesk ticket not found", "NOT_FOUND");

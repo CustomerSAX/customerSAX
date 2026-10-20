@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { Badge } from "@csa/ui";
@@ -35,6 +35,38 @@ function priorityBadgeVariant(
     default:
       return "neutral";
   }
+}
+
+type AiStats = { aiResolved: number; ordersReviewed: number; days: number };
+type AiStatsState = { phase: "loading" } | { phase: "ok"; stats: AiStats } | { phase: "error" };
+
+// Real counts from the ticket AI review records for the active project
+// (/api/ai-stats). On any failure the tiles keep showing "Not available".
+function useAiStats(): AiStatsState {
+  const [state, setState] = useState<AiStatsState>({ phase: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/ai-stats", { cache: "no-store" });
+        const data = (await res.json().catch(() => null)) as Partial<AiStats> | null;
+        if (cancelled) return;
+        if (!res.ok || typeof data?.aiResolved !== "number" || typeof data?.ordersReviewed !== "number") {
+          setState({ phase: "error" });
+          return;
+        }
+        setState({ phase: "ok", stats: { aiResolved: data.aiResolved, ordersReviewed: data.ordersReviewed, days: data.days ?? 30 } });
+      } catch {
+        if (!cancelled) setState({ phase: "error" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return state;
 }
 
 type ServiceStatus = "online" | "offline" | "unknown";
@@ -91,6 +123,7 @@ export function Dashboard() {
   }, [tickets]);
 
   const health = useServiceHealth();
+  const aiStats = useAiStats();
 
   // Locale-aware relative time from a real timestamp. `useNow` supplies the
   // same initial value during SSR and hydration, then refreshes every minute.
@@ -150,14 +183,15 @@ export function Dashboard() {
           <SummaryCard
             icon="shopping-bag"
             label={t("ordersReviewed")}
-            value="—"
-            sub={t("notAvailable")}
+            value={aiStats.phase === "ok" ? String(aiStats.stats.ordersReviewed) : "—"}
+            sub={aiStats.phase === "ok" ? t("ordersReviewedSub", { days: aiStats.stats.days }) : t("notAvailable")}
           />
           <SummaryCard
             icon="sparkles"
             label={t("aiAssistResolved")}
-            value="—"
-            sub={t("notAvailable")}
+            value={aiStats.phase === "ok" ? String(aiStats.stats.aiResolved) : "—"}
+            sub={aiStats.phase === "ok" ? t("aiResolvedSub", { days: aiStats.stats.days }) : t("notAvailable")}
+            tone={aiStats.phase === "ok" && aiStats.stats.aiResolved > 0 ? "success" : "default"}
           />
         </SummaryGrid>
 

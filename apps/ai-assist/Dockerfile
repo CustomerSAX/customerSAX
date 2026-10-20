@@ -4,6 +4,7 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml pnpm-workspace.yaml
 COPY apps/ai-assist/package.json apps/ai-assist/package.json
+COPY apps/voice-widget/package.json apps/voice-widget/package.json
 COPY packages/cache/package.json packages/cache/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/headers/package.json packages/headers/package.json
@@ -17,6 +18,7 @@ COPY packages/config packages/config
 COPY packages/headers packages/headers
 COPY packages/logger packages/logger
 COPY packages/mongodb packages/mongodb
+COPY apps/voice-widget apps/voice-widget
 COPY apps/ai-assist apps/ai-assist
 RUN pnpm --filter @csa/ai-assist... --if-present build
 
@@ -36,4 +38,6 @@ COPY --from=build /app/apps/ai-assist/node_modules /app/apps/ai-assist/node_modu
 COPY --from=build /app/apps/ai-assist/package.json /app/apps/ai-assist/package.json
 COPY --from=build /app/apps/ai-assist/src /app/apps/ai-assist/src
 COPY --from=build /app/apps/ai-assist/dist /app/apps/ai-assist/dist
+# Public voice widget bundle, served by ai-assist at /voice/widget.js
+COPY --from=build /app/apps/voice-widget/dist /app/apps/voice-widget/dist
 CMD ["node", "apps/ai-assist/dist/index.js"]

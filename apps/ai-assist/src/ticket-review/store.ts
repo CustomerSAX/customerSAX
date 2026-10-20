@@ -3,11 +3,11 @@ import { setupDnsFallback } from "@csa/mongodb";
 import type { Review, ReviewStore } from "./types.js";
 
 let connection: Promise<MongoClient> | undefined;
-async function collection() {
+async function database() {
   const uri = process.env.MONGO_URI?.trim() || process.env.MONGODB_URI?.trim();
   if (!uri)
     throw new Error(
-      "Ticket approvals require MongoDB. Configure MONGO_URI for AI Assist."
+      "AI review approvals require MongoDB. Configure MONGO_URI for AI Assist."
     );
   if (!connection) {
     setupDnsFallback();
@@ -19,12 +19,17 @@ async function collection() {
       });
   }
   const client = await connection;
-  return client
-    .db(
-      process.env.MONGO_DB_NAME?.trim() || process.env.MONGO_TICKETS_DB?.trim() || "csa"
-    )
-    .collection<Review>("csa_ticket_ai_reviews", { writeConcern: { w: "majority" } });
+  return client.db(
+    process.env.MONGO_DB_NAME?.trim() || process.env.MONGO_TICKETS_DB?.trim() || "csa"
+  );
 }
+
+/** Shared AI review database connection (ticket and quote reviews). */
+export async function reviewCollection<T extends { _id: string }>(name: string) {
+  return (await database()).collection<T>(name, { writeConcern: { w: "majority" } });
+}
+
+const collection = () => reviewCollection<Review>("csa_ticket_ai_reviews");
 
 // No memory fallback: the approval and execution claim must survive restarts.
 export const reviewStore: ReviewStore = {
@@ -64,4 +69,20 @@ export const reviewStore: ReviewStore = {
 /** One scoped read for the ticket list; never runs analysis or sends email. */
 export async function getReviewsByIds(ids: string[], clientId: string, projectKey: string): Promise<Review[]> {
   return (await collection()).find({ _id: { $in: ids }, clientId, projectKey }).toArray();
+}
+
+/**
+ * Read-only dashboard counts for one client project over the last `days`:
+ * tickets the AI review flow closed, and reviews that examined a linked order.
+ * Always scoped to the caller's own client + project.
+ */
+export async function reviewStats(scope: { clientId: string; projectKey: string }, days = 30) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const base = { clientId: scope.clientId, projectKey: scope.projectKey, updatedAt: { $gte: since } };
+  const col = await collection();
+  const [aiResolved, ordersReviewed] = await Promise.all([
+    col.countDocuments({ ...base, status: "closed" }),
+    col.countDocuments({ ...base, orderProposal: { $exists: true } })
+  ]);
+  return { aiResolved, ordersReviewed, days, since };
 }

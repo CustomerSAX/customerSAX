@@ -34,6 +34,7 @@ type Dependencies = {
   ): Promise<ReviewTicket | null>;
   draftResolution(action: NonNullable<Review["action"]>): Promise<string>;
   customer(id: string): Promise<ContactCustomer>;
+  customerByEmail?(email: string): Promise<ContactCustomer | null>;
   analyze(ticket: ReviewTicket): Promise<Analysis>;
   executeOrder?(
     order: ReviewOrder,
@@ -49,6 +50,19 @@ const digest = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const fingerprint = (ticket: ReviewTicket) => digest(ticket);
 const normalizedEmail = (email?: string | null) => email?.trim().toLowerCase() ?? "";
+const addressWords = (value: string) =>
+  value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+function requestedAddress(customer: ContactCustomer, source: string) {
+  const text = ` ${addressWords(source)} `;
+  const matches = customer.targets.filter((target) =>
+    target.label.split(",").some((part) => {
+      const name = addressWords(part);
+      return name.length > 2 && text.includes(` ${name} `);
+    })
+  );
+  return matches.length === 1 ? matches[0] : undefined;
+}
 
 function orderOwnershipIssue(
   ticket: ReviewTicket,
@@ -76,6 +90,12 @@ export const reviewId = (scope: Scope, ticketId: string) =>
   digest([scope.clientId, scope.projectKey, ticketId]);
 
 export function createReviewService(deps: Dependencies) {
+  async function ticketCustomer(ticket: ReviewTicket) {
+    if (ticket.customerId) return deps.customer(ticket.customerId);
+    if (ticket.id.startsWith("zendesk:") && ticket.customerEmail?.trim() && deps.customerByEmail)
+      return deps.customerByEmail(ticket.customerEmail.trim());
+    return null;
+  }
   async function change(
     review: Review,
     scope: Scope,
@@ -174,9 +194,9 @@ export function createReviewService(deps: Dependencies) {
     addressId?: string
   ): Promise<Review> {
     const ticket = await deps.ticket(ticketId);
-    if (ticket.id.startsWith("zendesk:") || ticket.id.startsWith("freshdesk:"))
+    if (ticket.id.startsWith("freshdesk:"))
       throw new ReviewError(
-        "AI ticket actions currently support native tickets only.",
+        "AI ticket actions currently support native and Zendesk tickets.",
         400
       );
     const previous = await load(scope, ticketId);
@@ -305,6 +325,7 @@ export function createReviewService(deps: Dependencies) {
         return requestMissingDetails(prepared, ticket, scope, findings.customerQuestions ?? []);
       }
       const analysis = await deps.analyze(ticket);
+      let applyRequestedAddress = false;
       const patch: Partial<Review> = {
         summary: analysis.summary,
         explanation: analysis.explanation,
@@ -316,33 +337,39 @@ export function createReviewService(deps: Dependencies) {
         if (!phone) {
           patch.explanation =
             "The requested new number could not be verified in the ticket. Add an explicit new contact number to the ticket before continuing.";
-        } else if (!ticket.customerId) {
-          patch.explanation =
-            "Link the correct customer to this ticket before preparing a contact-number change.";
         } else {
-          const customer = await deps.customer(ticket.customerId);
-          if (
-            customer.id !== ticket.customerId ||
-            customer.email.toLowerCase() !== ticket.customerEmail.toLowerCase()
+          const customer = await ticketCustomer(ticket);
+          if (!customer) {
+            patch.explanation = ticket.id.startsWith("zendesk:")
+              ? "Could not find one exact commercetools customer match for the Zendesk requester's email in this project. Check the requester email and customer account, then analyze again."
+              : "Link the correct customer to this ticket before preparing a contact-number change.";
+          } else if (
+            (ticket.customerId && customer.id !== ticket.customerId) ||
+            !normalizedEmail(customer.email) ||
+            normalizedEmail(customer.email) !== normalizedEmail(ticket.customerEmail)
           ) {
             patch.explanation =
               "The linked customer does not match the ticket email. Correct the customer link before continuing.";
           } else {
             patch.targets = customer.targets;
+            const matched = requestedAddress(customer, source);
             const target = addressId
               ? customer.targets.find((item) => item.id === addressId)
-              : customer.targets.length === 1
+              : matched ?? (customer.targets.length === 1
                 ? customer.targets[0]
-                : undefined;
+                : undefined);
             if (!target)
               patch.explanation = customer.targets.length
                 ? "Select the customer address whose phone number should change, then prepare the proposal."
                 : "This customer has no address with a phone field to update. Add the appropriate customer address first.";
+            else if (ticket.status.toLowerCase() === "closed")
+              patch.explanation = "Reopen the ticket before updating customer contact details.";
             else if (target.phone === phone)
               patch.explanation =
                 "The selected address already has the requested number. No update is needed.";
             else {
               patch.status = "pending";
+              applyRequestedAddress = !addressId && matched?.id === target.id;
               patch.explanation =
                 "On approval, update only the phone field on the selected customer address in commercetools. Other address fields and the ticket status stay unchanged.";
               patch.action = {
@@ -359,6 +386,8 @@ export function createReviewService(deps: Dependencies) {
         }
       }
       const prepared = (await change(started, scope, patch, "proposal_prepared"))!;
+      if (applyRequestedAddress && prepared.status === "pending")
+        return decide(scope, ticketId, prepared.revision, "approve", true);
       return requestMissingDetails(prepared, ticket, scope,
         analysis.intent === "needs_information" ? analysis.customerQuestions ?? [] : []);
     } catch {
@@ -379,7 +408,8 @@ export function createReviewService(deps: Dependencies) {
     scope: Scope,
     ticketId: string,
     revision: string,
-    decision: "approve" | "decline"
+    decision: "approve" | "decline",
+    automatic = false
   ) {
     const review = await load(scope, ticketId);
     if (!review || review.revision !== revision)
@@ -487,10 +517,15 @@ export function createReviewService(deps: Dependencies) {
 
     const ticket = await deps.ticket(ticketId);
     const customer = await deps.customer(review.action.customerId);
+    const emailMatch = !ticket.customerId && ticket.id.startsWith("zendesk:")
+      ? await ticketCustomer(ticket) : customer;
     const target = customer.targets.find((item) => item.id === review.action!.addressId);
     if (
+      ticket.status.toLowerCase() === "closed" ||
       fingerprint(ticket) !== review.fingerprint ||
       customer.id !== review.action.customerId ||
+      emailMatch?.id !== review.action.customerId ||
+      normalizedEmail(ticket.customerEmail) !== normalizedEmail(customer.email) ||
       customer.email !== review.action.customerEmail ||
       customer.version !== review.action.expectedVersion ||
       target?.phone !== review.action.previousPhone
@@ -511,11 +546,11 @@ export function createReviewService(deps: Dependencies) {
       scope,
       {
         status: "executing",
-        approvedBy: scope.userEmail,
-        approvedAt: now(),
-        explanation: "Approved. Updating the selected contact number in CT…"
+        approvedBy: automatic ? undefined : scope.userEmail,
+        approvedAt: automatic ? undefined : now(),
+        explanation: "Updating the requested contact number in CT…"
       },
-      "approved"
+      automatic ? "explicit_address_request_applied" : "approved"
     );
     if (!executing) return (await load(scope, ticketId))!;
     try {
@@ -656,7 +691,7 @@ export function createReviewService(deps: Dependencies) {
           },
           "closure_stale"
         );
-      if (closed.status.toLowerCase() !== "closed")
+      if (closed.status.toLowerCase() !== "closed" && !(ticketId.startsWith("zendesk:") && closed.status.toLowerCase() === "resolved"))
         throw new Error("Closure was not confirmed");
       return await change(
         closing,
@@ -664,7 +699,7 @@ export function createReviewService(deps: Dependencies) {
         {
           status: "closed",
           explanation:
-            "The ticket has been closed with your approval and resolution notes."
+            ticketId.startsWith("zendesk:") ? "The Zendesk ticket has been resolved with your approval and a private resolution note. Zendesk manages final closure." : "The ticket has been closed with your approval and resolution notes."
         },
         "ticket_closed"
       );

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Button, Input, Select } from "@csa/ui";
+import { notify } from "@/features/notifications/notification-store";
 
 const LABEL_CLASS = "mb-1 block text-xs font-semibold text-m-text";
 const PROVIDER_NAME: Record<string, string> = { salesforce: "Salesforce", hubspot: "HubSpot", zoho: "Zoho CRM" };
@@ -138,6 +139,11 @@ export function CrmSettings({
         setZohoGrantCode("");
         await refetch();
         onSaved();
+        notify({
+          variant: "success",
+          title: provider === "none" ? "CRM disconnected" : `${PROVIDER_NAME[provider] ?? provider} connected`,
+          description: project.displayName
+        });
         setNotice({
           ok: true,
           message:

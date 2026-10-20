@@ -1,37 +1,38 @@
 "use client";
 
-import { Fragment, useState, useMemo, useCallback } from "react";
-import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Fragment, useCallback, useMemo, useState } from "react";
 // Keep route-mode checks independent from the locale segment shown in the URL.
-import { stripLocalePrefix } from "@/i18n/routing";
-import {
-  PageHeader,
-  Button,
-  Icon,
-  SearchBar,
-  Select,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-  TablePagination,
-  Badge,
-  Skeleton,
-  EmptyState,
-  Panel,
-  useDataTable,
-} from "@csa/ui";
-import { SectionCard } from "@csa/ui";
 import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
-import { useOrderStore } from "../hooks/use-orders";
 import { useRegisterPageContext } from "@/features/csa-assistant";
-import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
+import { notify } from "@/features/notifications/notification-store";
+import { stripLocalePrefix } from "@/i18n/routing";
 import { formatDateTime } from "@/lib/format-date";
 import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  Icon,
+  PageHeader,
+  Panel,
+  SearchBar,
+  SectionCard,
+  Select,
+  Skeleton,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TablePagination,
+  TableRow,
+  useDataTable,
+} from "@csa/ui";
+import { useOrderStore } from "../hooks/use-orders";
+import type { Order, OrderState, PaymentState, ShipmentState } from "../types/order-types";
 
 const B2C_SEARCH_FIELD_OPTIONS = [
   { value: "all", label: "All fields" },
@@ -192,10 +193,15 @@ export function OrderListView() {
     }
   }, [refetch]);
 
-  const handleDuplicateOrder = (e: React.MouseEvent, order: Order) => {
+  const handleDuplicateOrder = async (e: React.MouseEvent, order: Order) => {
     e.stopPropagation();
-    const newCartId = duplicateOrder(order.id);
-    router.push(`/cart/${newCartId}`);
+    try {
+      const newCartId = await duplicateOrder(order.id);
+      notify({ variant: "success", title: "Order duplicated", description: `New cart created from order ${order.orderNumber}` });
+      router.push(`/cart/${newCartId}`);
+    } catch (err) {
+      notify({ variant: "error", title: "Couldn't duplicate the order", description: err instanceof Error ? err.message : String(err) });
+    }
   };
 
   const handleOrderColumnsChange = useCallback(

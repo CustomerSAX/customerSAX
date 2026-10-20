@@ -58,6 +58,7 @@ function fixture() {
     explanation: "Update the contact number."
   };
   const execute = vi.fn(async () => ({ version: 5, phone: "14692466072" }));
+  const customerByEmail = vi.fn(async (_email: string): Promise<ContactCustomer | null> => structuredClone(customer));
   const analyze = vi.fn(async () => structuredClone(analysis));
   const draftResolution = vi.fn(
     async () =>
@@ -97,6 +98,7 @@ function fixture() {
     executeOrder,
     ticket: async () => structuredClone(ticket),
     customer: async () => structuredClone(customer),
+    customerByEmail,
     analyze,
     closeTicket,
     draftResolution,
@@ -104,6 +106,7 @@ function fixture() {
   });
   return {
     requestInformation,
+    customerByEmail,
     order,
     findings,
     executeOrder,
@@ -433,6 +436,42 @@ describe("persistent ticket proposal approval", () => {
     expect(f.execute).not.toHaveBeenCalled();
   });
 
+  it("applies a uniquely named address once and waits for permission to close", async () => {
+    const f = fixture();
+    f.customer.targets.push({ id: "address-2", label: "Newmarket, US", phone: "2222222222" });
+    f.ticket.message = "Please update my contact details for NEWMARKET address to 14692466072";
+    f.analysis.evidence = f.ticket.message;
+    const completed = await f.service.prepare(scope, f.ticket.id);
+    expect(completed.status).toBe("succeeded");
+    expect(completed.result?.phone).toBe("14692466072");
+    expect(f.execute).toHaveBeenCalledWith(expect.objectContaining({ addressId: "address-2" }));
+    expect(completed.approvedBy).toBeUndefined();
+    expect(completed.audit.some(event => event.event === "explicit_address_request_applied")).toBe(true);
+    expect(f.closeTicket).not.toHaveBeenCalled();
+    await f.service.prepare(scope, f.ticket.id, true);
+    expect(f.execute).toHaveBeenCalledTimes(1);
+    const closed = await f.service.decideClosure(scope, f.ticket.id, completed.revision, "approve_close", "Updated Newmarket phone number.");
+    expect(closed?.status).toBe("closed");
+    expect(f.closeTicket).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["duplicate", "substring", "both", "closed", "uncertain"])("handles named addresses without unsafe execution: %s", async condition => {
+    const f = fixture();
+    f.customer.targets.push({ id: "address-2", label: "Newmarket, US", phone: "2222222222" });
+    f.ticket.message = "Update my Newmarket address phone to 14692466072";
+    if (condition === "duplicate") f.customer.targets[0].label = "Newmarket, US";
+    if (condition === "substring") f.ticket.message = "Update my Newmarketville address phone to 14692466072";
+    if (condition === "both") f.ticket.message = "Update Main Street and Newmarket to 14692466072";
+    if (condition === "closed") f.ticket.status = "Closed";
+    if (condition === "uncertain") f.execute.mockRejectedValue(new Error("Timeout"));
+    f.analysis.evidence = f.ticket.message;
+    const result = await f.service.prepare(scope, f.ticket.id);
+    expect(result.status).toBe(condition === "uncertain" ? "uncertain" : "blocked");
+    await f.service.prepare(scope, f.ticket.id, true);
+    expect(f.execute).toHaveBeenCalledTimes(condition === "uncertain" ? 1 : 0);
+    expect(f.closeTicket).not.toHaveBeenCalled();
+  });
+
   it("does not retry an uncertain write, even after reanalysis", async () => {
     const f = fixture();
     f.execute.mockRejectedValue(new Error("Timeout after dispatch"));
@@ -679,4 +718,90 @@ describe("automatic missing-information email", () => {
     expect(review.informationRequestError).toContain("could not be confirmed");
     expect(f.execute).not.toHaveBeenCalled();
   });
+});
+
+it("summarizes Zendesk tickets using the persistent native review flow", async () => {
+  const f = fixture();
+  f.ticket.id = "zendesk:account:1";
+  f.analysis.intent = "unsupported";
+  f.analysis.summary = "Customer needs help with cloud migration.";
+  const review = await f.service.prepare(scope, f.ticket.id);
+  expect(review.summary).toBe(f.analysis.summary);
+  expect(review.action).toBeNull();
+  expect(f.execute).not.toHaveBeenCalled();
+  expect((await f.service.load(scope, f.ticket.id))?.summary).toBe(f.analysis.summary);
+});
+
+it("requires separate approval to resolve a Zendesk ticket after a successful action", async () => {
+  const f = fixture();
+  f.ticket.id = "zendesk:account:1";
+  f.closeTicket.mockImplementation(async () => ({ ...f.ticket, status: "Resolved", lastModifiedAt: "2026-10-06" }));
+  const proposal = await f.service.prepare(scope, f.ticket.id);
+  const completed = await f.service.decide(scope, f.ticket.id, proposal.revision, "approve");
+  expect(completed.status).toBe("succeeded");
+  expect(f.closeTicket).not.toHaveBeenCalled();
+  const resolved = await f.service.decideClosure(scope, f.ticket.id, completed.revision, "approve_close", "Updated contact details");
+  expect(resolved?.status).toBe("closed");
+  expect(resolved?.explanation).toContain("resolved");
+  expect(f.closeTicket).toHaveBeenCalledTimes(1);
+});
+
+it("matches an unlinked Zendesk requester by email and prepares the CT change", async () => {
+  const f = fixture();
+  f.ticket.id = "zendesk:account:2";
+  f.ticket.customerId = null;
+  f.ticket.customerEmail = " Customer@Example.com ";
+  const review = await f.service.prepare(scope, f.ticket.id);
+  expect(f.customerByEmail).toHaveBeenCalledWith("Customer@Example.com");
+  expect(review.status).toBe("pending");
+  expect(review.action?.customerId).toBe(f.customer.id);
+  expect(f.execute).not.toHaveBeenCalled();
+  const completed = await f.service.decide(scope, f.ticket.id, review.revision, "approve");
+  expect(completed.status).toBe("succeeded");
+  expect(f.execute).toHaveBeenCalledWith(expect.objectContaining({ customerId: f.customer.id, phone: "14692466072" }));
+  expect(f.customerByEmail).toHaveBeenCalledTimes(2);
+  expect(f.closeTicket).not.toHaveBeenCalled();
+});
+
+it("applies an unlinked Zendesk request naming one matched CT address, leaving resolution for approval", async () => {
+  const f = fixture();
+  f.ticket.id = "zendesk:account:2";
+  f.ticket.customerId = null;
+  f.customer.targets.push({ id: "newmarket", label: "Newmarket, US", phone: "1111111111" });
+  f.ticket.message = "Update my Newmarket address phone to 14692466072";
+  f.analysis.evidence = f.ticket.message;
+  const review = await f.service.prepare(scope, f.ticket.id);
+  expect(review.status).toBe("succeeded");
+  expect(f.execute).toHaveBeenCalledWith(expect.objectContaining({ addressId: "newmarket", customerId: f.customer.id }));
+  expect(f.closeTicket).not.toHaveBeenCalled();
+});
+
+it.each(["missing email", "no unique match", "wrong email"])("blocks unverified Zendesk customers: %s", async condition => {
+  const f = fixture();
+  f.ticket.id = "zendesk:account:2";
+  f.ticket.customerId = null;
+  if (condition === "missing email") f.ticket.customerEmail = "";
+  if (condition === "no unique match") f.customerByEmail.mockResolvedValue(null);
+  if (condition === "wrong email") f.customerByEmail.mockResolvedValue({ ...f.customer, email: "someone-else@example.com" });
+  const review = await f.service.prepare(scope, f.ticket.id);
+  expect(review.status).toBe("blocked");
+  expect(review.action).toBeNull();
+  expect(f.execute).not.toHaveBeenCalled();
+});
+
+it("rechecks uniqueness before applying a matched email proposal", async () => {
+  const f = fixture();
+  f.ticket.id = "zendesk:account:2";
+  f.ticket.customerId = null;
+  const review = await f.service.prepare(scope, f.ticket.id);
+  f.customerByEmail.mockResolvedValue(null);
+  expect((await f.service.decide(scope, f.ticket.id, review.revision, "approve")).status).toBe("stale");
+  expect(f.execute).not.toHaveBeenCalled();
+});
+
+it("keeps native tickets on their explicit customer link workflow", async () => {
+  const f = fixture();
+  f.ticket.customerId = null;
+  expect((await f.service.prepare(scope, f.ticket.id)).status).toBe("blocked");
+  expect(f.customerByEmail).not.toHaveBeenCalled();
 });

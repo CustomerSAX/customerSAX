@@ -211,8 +211,8 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
   // Workflow transition options based on current status
   const workflowStatusOptions = useMemo(() => {
     const allowed = TICKET_WORKFLOW[status] || [status];
-    return allowed.map((s) => ({ value: s, label: s }));
-  }, [status]);
+    return allowed.filter(s => !ticket?.id.startsWith("zendesk:") || s !== "Closed" || ticket.status === "Closed").map((s) => ({ value: s, label: s }));
+  }, [status, ticket]);
 
   const handleSaveChanges = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -412,7 +412,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
 
       <ContentGrid>
         <MainColumn span={8}>
-          {!ticket.id.startsWith("zendesk:") && !ticket.id.startsWith("freshdesk:") && (
+          {!ticket.id.startsWith("freshdesk:") && (
             <TicketAIReview
               key={JSON.stringify([
                 currentUser?.activeClientId,
@@ -565,7 +565,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
           )}
 
           {activeTab === "ai" &&
-            (ticket.id.startsWith("zendesk:") || ticket.id.startsWith("freshdesk:")) && (
+            ticket.id.startsWith("freshdesk:") && (
               <SectionCard title="AI Assist" icon="sparkles">
                 <CardEmpty
                   icon="sparkles"
@@ -703,7 +703,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
 
         <SideColumn span={4}>
           {ticket.id.startsWith("zendesk:") && (
-            <ProviderFields id={ticket.id} provider="Zendesk" />
+            <ProviderFields key={ticket.id} id={ticket.id} provider="Zendesk" lastModifiedAt={ticket.lastModifiedAt} onTicketChanged={refetch} />
           )}
           {ticket.id.startsWith("freshdesk:") && (
             <ProviderFields id={ticket.id} provider="Freshdesk" />
@@ -741,6 +741,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                   onChange={(e) => setStatus(e.target.value as TicketStatus)}
                   options={workflowStatusOptions}
                 />
+                {ticket.id.startsWith("zendesk:") && <p className="text-xs text-m-text-muted">Selecting Resolved and saving also marks this ticket solved in Zendesk. Resolution notes are saved as a private note. Zendesk controls final closure.</p>}
               </FormField>
 
               <FormField>

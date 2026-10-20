@@ -7,6 +7,7 @@ import { contextStorage } from "../chat/system-prompt.js";
 import { bffQuery } from "../commerce/graphql-client.js";
 import { getConfiguredProvider, getLanguageModel } from "../llm/index.js";
 import { aiStatus } from "../ticket-review/status.js";
+import { matchCustomerEmail } from "../ticket-review/customer-match.js";
 import { reviewId } from "../ticket-review/service.js";
 import { getReviewsByIds, reviewStore } from "../ticket-review/store.js";
 import { createReviewService, ReviewError } from "../ticket-review/service.js";
@@ -48,6 +49,7 @@ const analysisSchema = z.object({
 const service = createReviewService({
   store: reviewStore,
   async requestInformation(ticket, questions) {
+    if (ticket.id.startsWith("zendesk:")) return null;
     if (!ticket.lastModifiedAt) return null;
     const data = await bffQuery<{ requestTicketInformation: import("../ticket-review/types.js").InformationRequest | null }>(
       `mutation RequestCustomerInformation($id: ID!, $expectedLastModifiedAt: String!, $questions: [String!]!) {
@@ -164,6 +166,11 @@ No proposed action has been completed and the response has not been sent. Do not
     if (!data.customerContactTargets)
       throw new ReviewError("Customer contact details are unavailable.", 404);
     return data.customerContactTargets;
+  },
+  async customerByEmail(email) {
+    if ((process.env.AI_COMMERCE_PLATFORM ?? "commercetools") !== "commercetools")
+      throw new ReviewError("Customer matching currently requires commercetools.", 400);
+    return matchCustomerEmail(bffQuery, email);
   },
   async analyze(ticket) {
     try {

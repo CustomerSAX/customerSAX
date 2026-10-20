@@ -76,7 +76,41 @@ const actionApprovalSchema = z.object({
     "MUST be human-readable — NEVER a raw tool name. " +
     "Good: 'Create the support ticket for John Doe with high priority' or 'Place the order for Jane Smith — 2 items totalling $150'. " +
     "Bad: 'create_ticket' or 'place_order'."
-  )
+  ),
+  changes: z
+    .array(z.object({ label: z.string(), from: z.string().optional(), to: z.string() }))
+    .max(8)
+    .optional()
+    .describe(
+      "Before → after lines shown on the card, using only real values from tool results this turn, " +
+      "e.g. [{label:'Order status', from:'Open', to:'Cancelled'}]. Omit 'from' for new records."
+    ),
+  steps: z
+    .array(z.string())
+    .max(5)
+    .optional()
+    .describe(
+      "When ONE approval covers several writes, list each in order (e.g. ['Cancel order RC-1043', 'Log this to Zoho CRM']). " +
+      "The rep approves them all with one click; execute every step after approval."
+    ),
+  fields: z
+    .array(
+      z.object({
+        key: z.string(),
+        label: z.string(),
+        type: z.enum(["text", "textarea", "select", "date"]).optional(),
+        value: z.string().optional().describe("Pre-filled value the rep can keep or change"),
+        options: z.array(z.object({ value: z.string(), label: z.string() })).optional(),
+        required: z.boolean().optional()
+      })
+    )
+    .max(5)
+    .optional()
+    .describe(
+      "Values the rep can adjust on the card before approving (reason, note, date, summary). " +
+      "Pre-fill with the best value you have; use type 'select' with options for fixed choices such as reason codes. " +
+      "The approval message returns the final values as 'Values: {json}' — execute with exactly those."
+    )
 });
 
 const suggestedActionsSchema = z.object({
@@ -173,7 +207,26 @@ const caseBriefingSchema = z.object({
   confidenceScore: z.number().min(0).max(100),
   relatedOrderNumber: z.string().optional(),
   recommendedResolution: z.string(),
-  suggestedActions: z.array(z.string()).max(4)
+  suggestedActions: z.array(z.string()).max(4),
+  ticketId: z
+    .string()
+    .optional()
+    .describe("The ticket's internal id from get_ticket (not the ticket number); the card then offers Resolve & wrap up / Edit / Add note / Draft reply"),
+  crmContactId: z
+    .string()
+    .optional()
+    .describe("CRM contact id from find_crm_contact for this customer, when one was found; the card then shows live CRM context")
+});
+
+// The ticket card loads the ticket live; only its id comes from the model.
+const ticketCardSchema = z.object({
+  ticketId: z.string().describe("The ticket's internal id from get_ticket / search_tickets (not the ticket number)")
+});
+
+// The card loads the contact, company, owner and follow-ups live from the CRM;
+// the model passes only the id, so no CRM value is ever written by the model.
+const crmContactCardSchema = z.object({
+  contactId: z.string().describe("CRM contact id returned by find_crm_contact in this turn")
 });
 
 // ─── Tool definitions ─────────────────────────────────────────────────────────
@@ -219,9 +272,18 @@ const orderConfirmationTool = tool({
 });
 
 const orderSummaryTool = tool({
-  description: "Display an order summary card in the conversation or right panel.",
+  description:
+    "Display an order summary card (status, date, items, total, payment, shipment, plus Cancel order / Start return / Reorder / Create ticket buttons).",
   inputSchema: orderSummarySchema,
-  execute: async (_args: z.infer<typeof orderSummarySchema>) => ({ success: true })
+  execute: async (_args: z.infer<typeof orderSummarySchema>) => ({
+    success: true,
+    displayed:
+      "This order's card is now visible with its number, status, date, items, total, payment, shipment and action buttons. " +
+      "If you are showing several orders, every one of them needs its own order_summary call — make sure each order got a card. " +
+      "Several orders are shown together as one table with an Actions button per row. " +
+      "Do NOT list any order fields as text, and don't say where the cards are (no 'above'/'below'). " +
+      "Reply with ONE short line (e.g. '4 recent orders for Pooja Naik — 2 still open.')."
+  })
 });
 
 const renderRefundActionTool = tool({
@@ -244,6 +306,33 @@ const caseBriefingCardTool = tool({
     "Display a structured case briefing card in the right panel — used after initial case assessment.",
   inputSchema: caseBriefingSchema,
   execute: async (_args: z.infer<typeof caseBriefingSchema>) => ({ success: true })
+});
+
+const ticketCardTool = tool({
+  description:
+    "Display a live ticket card (number, subject, status, priority, customer, assignee, last update) with Resolve & wrap up / Edit / Add note / Draft reply buttons.",
+  inputSchema: ticketCardSchema,
+  execute: async (_args: z.infer<typeof ticketCardSchema>) => ({
+    success: true,
+    displayed:
+      "The ticket card is now visible with its number, subject, status, priority, customer, assignee and action buttons. " +
+      "Several tickets are shown together as one table with an Actions button per row — make sure each ticket in a list got its own ticket_card call. " +
+      "Do NOT restate those fields as text or as bullet points. Reply with ONE short line."
+  })
+});
+
+const crmContactCardTool = tool({
+  description:
+    "Display a live CRM contact card (contact, company, account owner, follow-up count, last activity, Open in CRM / Log call / Add follow-up buttons) together with an actionable list of the contact's open follow-ups (Mark done / Reschedule / Log update / Draft email on each).",
+  inputSchema: crmContactCardSchema,
+  execute: async (_args: z.infer<typeof crmContactCardSchema>) => ({
+    success: true,
+    displayed:
+      "The CRM card is now visible to the rep with the contact's name, title, company, account owner, email, phone and last activity, " +
+      "and above it a list of every open follow-up (overdue first) with Mark done / Reschedule / Log update / Draft email buttons. " +
+      "Do NOT repeat any of that as text or bullets. Reply with ONE summary line built from get_crm_contact_details, e.g. " +
+      "'Rachel Baker has 2 open follow-ups — 1 overdue (Confirm delivery slot, due 5 Oct).' or 'Nothing pending for Jane Smith.'"
+  })
 });
 
 // ─── Export ───────────────────────────────────────────────────────────────────
@@ -286,6 +375,8 @@ export function buildUiTools(approvalGate: { pending: boolean }) {
     order_summary: orderSummaryTool,
     render_refund_action: renderRefundActionTool,
     get_resolution_reasons: getResolutionReasonsTool,
-    case_briefing_card: caseBriefingCardTool
+    case_briefing_card: caseBriefingCardTool,
+    crm_contact_card: crmContactCardTool,
+    ticket_card: ticketCardTool
   }, log);
 }
