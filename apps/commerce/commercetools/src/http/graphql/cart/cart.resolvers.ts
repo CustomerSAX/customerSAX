@@ -165,9 +165,11 @@ export const resolvers = {
       `,
       {
         draft: {
-          businessUnit: args.businessUnitKey ? { key: args.businessUnitKey } : undefined,
+          businessUnit: args.businessUnitKey?.trim() ? { key: args.businessUnitKey.trim() } : undefined,
           currency: args.currency,
-          customerId: args.customerId,
+          // An empty id from a caller means "no customer" — commercetools
+          // rejects "" as an invalid id rather than ignoring it.
+          customerId: args.customerId?.trim() || undefined,
           // Without this, orders placed from this cart show a blank
           // customer email in Merchant Center even though the cart is
           // correctly linked to a real customerId — commercetools does not
@@ -187,7 +189,16 @@ export const resolvers = {
   addCartLineItem: async (
     _parent: unknown,
     args: { id: string; quantity: number; sku: string }
-  ) => updateCart(args.id, [{ addLineItem: { quantity: args.quantity, sku: args.sku } }]),
+  ) => {
+    // A cart with no country can't select a country-scoped price (see
+    // countryForSku) — set it from the item's own real prices first.
+    const cart = await getCartPricingContext(args.id);
+    const country = cart.country ? null : await countryForSku(args.sku, cart.currency);
+    return updateCart(args.id, [
+      ...(country ? [{ setCountry: { country } }] : []),
+      { addLineItem: { quantity: args.quantity, sku: args.sku } }
+    ]);
+  },
   removeCartLineItem: async (
     _parent: unknown,
     args: { id: string; lineItemId: string }
@@ -226,10 +237,19 @@ export const resolvers = {
   updateCartAddresses: async (
     _parent: unknown,
     args: { billingAddress?: unknown; id: string; shippingAddress?: unknown }
-  ) =>
-    updateCart(
+  ) => {
+    // The cart's country drives price selection. When it isn't set yet, the
+    // shipping address's country is the customer's real country — adopt it.
+    // An already-set country is never changed here (that would re-price items).
+    const shippingCountry = (args.shippingAddress as { country?: unknown } | undefined)?.country;
+    const adoptCountry =
+      typeof shippingCountry === "string" && shippingCountry.trim() && !(await getCartPricingContext(args.id)).country
+        ? shippingCountry.trim().toUpperCase()
+        : null;
+    return updateCart(
       args.id,
       [
+        adoptCountry ? { setCountry: { country: adoptCountry } } : undefined,
         args.shippingAddress
           ? { setShippingAddress: { address: args.shippingAddress } }
           : undefined,
@@ -237,7 +257,8 @@ export const resolvers = {
           ? { setBillingAddress: { address: args.billingAddress } }
           : undefined
       ].filter(Boolean)
-    ),
+    );
+  },
   shippingMethods: async (_parent: unknown, args: { limit?: number }) => {
     const data = await commercetoolsGraphql<Record<string, unknown>>(
       `#graphql
@@ -323,6 +344,63 @@ function cartSearchWhere(args: CartSearchArgs) {
   // throws "Cannot perform operation. Cart is not in Active state." — so we
   // must never surface those carts to callers in the first place.
   return `(${base}) and cartState="Active"`;
+}
+
+/** The cart's country and currency — the two inputs commercetools uses to select a line item's price. */
+async function getCartPricingContext(id: string): Promise<{ country: string | null; currency: string }> {
+  const data = await commercetoolsGraphql<{
+    cart: { country?: string | null; totalPrice: { currencyCode: string } } | null;
+  }>(
+    `#graphql
+      query CartPricingContext($id: String!) { cart(id: $id) { country totalPrice { currencyCode } } }
+    `,
+    { id }
+  );
+  if (!data.cart) throw new Error("Cart not found.");
+  return { country: data.cart.country ?? null, currency: data.cart.totalPrice.currencyCode };
+}
+
+/**
+ * commercetools picks a line item's price by the cart's currency AND country.
+ * Carts created without a country therefore can't take an item whose prices
+ * are all country-scoped ("does not contain a price for currency 'USD' all
+ * countries…") — e.g. b2c-csa's Orion Double Bed is priced in USD for US only.
+ *
+ * Resolves the country from the item's own real prices for the cart currency:
+ *  - a country-less price exists, or no price at all → null (nothing to set;
+ *    commercetools reports a genuinely missing price itself)
+ *  - priced for exactly one country → that country
+ *  - priced for several countries → an error asking for the shipping address,
+ *    since picking one would be a guess
+ */
+async function countryForSku(sku: string, currency: string): Promise<string | null> {
+  type Variant = { sku?: string | null; prices?: Array<{ country?: string | null; value: { currencyCode: string } }> | null };
+  const data = await commercetoolsGraphql<{
+    products: { results: Array<{ masterData: { current: { masterVariant: Variant; variants: Variant[] } } }> };
+  }>(
+    `#graphql
+      query PricesBySku($where: String!) {
+        products(where: $where, limit: 1) {
+          results { masterData { current {
+            masterVariant { sku prices { country value { currencyCode } } }
+            variants { sku prices { country value { currencyCode } } }
+          } } }
+        }
+      }
+    `,
+    { where: `masterData(current(masterVariant(sku=${JSON.stringify(sku)}) or variants(sku=${JSON.stringify(sku)})))` }
+  );
+  const current = data.products.results[0]?.masterData.current;
+  const variant = current && [current.masterVariant, ...current.variants].find((v) => v.sku === sku);
+  const prices = (variant?.prices ?? []).filter((p) => p.value.currencyCode === currency);
+  if (prices.length === 0 || prices.some((p) => !p.country)) return null;
+
+  const countries = [...new Set(prices.map((p) => p.country as string))];
+  if (countries.length === 1) return countries[0];
+  throw new Error(
+    `'${sku}' is priced in ${currency} for several countries (${countries.join(", ")}). ` +
+      "Set the cart's shipping address first so the right country's price is used."
+  );
 }
 
 async function getCartVersion(id: string) {

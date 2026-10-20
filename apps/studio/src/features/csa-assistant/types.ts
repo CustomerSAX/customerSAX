@@ -120,7 +120,8 @@ export interface OrderConfirmationArgs {
 export interface CartSummaryArgs {
   cartId: string;
   cartVersion?: number;
-  customer: { name: string; email?: string };
+  /** Absent when the cart has no known customer — never a placeholder. */
+  customer?: { name: string; email?: string };
   itemCount: number;
   items: Array<{ sku: string; name: string; quantity: number; lineTotal: string }>;
   subtotal: string;

@@ -597,7 +597,14 @@ export const createCartTool = tool({
             ${CART_FIELDS}
           }
         }`,
-        { currency, customerId, customerEmail, businessUnitKey }
+        // The model fills every optional field, often with "" — an empty id
+        // isn't "no customer" to commercetools, it's an invalid id.
+        {
+          currency,
+          customerId: customerId?.trim() || undefined,
+          customerEmail: customerEmail?.trim() || undefined,
+          businessUnitKey: businessUnitKey?.trim() || undefined
+        }
       );
       return data.createB2bCart ?? { error: "Cart creation failed" };
     } catch (err) {
@@ -796,6 +803,32 @@ export const removeFromCartTool = tool({
         { id: cartId, lineItemId }
       );
       return data.removeCartLineItem ?? { error: "Failed to remove item" };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
+// ─── change_cart_quantity ─────────────────────────────────────────────────────
+
+export const changeCartQuantityTool = tool({
+  description:
+    "Set a cart line item to a new total quantity (e.g. 'make it 3' → quantity 3). Use this instead of removing and re-adding. " +
+    "Quantity 0 removes the line. Draft cart operation — no approval needed.",
+  inputSchema: z.object({
+    cartId: z.string().describe("Cart ID"),
+    lineItemId: z.string().describe("Line item ID from view_cart / the cart in this conversation"),
+    quantity: z.number().int().min(0).max(999).describe("New TOTAL quantity for the line (not a delta)")
+  }),
+  execute: async ({ cartId, lineItemId, quantity }) => {
+    try {
+      const data = await bffQuery<{ changeCartLineItemQuantity: unknown }>(
+        `mutation ChangeCartQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!) {
+          changeCartLineItemQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) { ${CART_FIELDS} }
+        }`,
+        { id: cartId, lineItemId, quantity }
+      );
+      return data.changeCartLineItemQuantity ?? { error: "Failed to change the quantity" };
     } catch (err) {
       return { error: String(err) };
     }
@@ -1228,6 +1261,7 @@ const WRITE_RULES: Record<string, WriteRule> = {
   create_cart: { permission: "canCreateCarts", approval: "none" },
   add_to_cart: { permission: "canUpdateCarts", approval: "none" },
   remove_from_cart: { permission: "canUpdateCarts", approval: "none" },
+  change_cart_quantity: { permission: "canUpdateCarts", approval: "none" },
   update_cart_address: { permission: "canUpdateCarts", approval: "none" },
   update_cart_shipping_method: { permission: "canUpdateCarts", approval: "none" },
   place_order: { permission: "canCreateOrders", approval: "approval_card" },
@@ -1302,6 +1336,7 @@ export function buildCommerceTools(approvalGate?: { pending: boolean }) {
     create_cart: guarded("create_cart", createCartTool),
     add_to_cart: guarded("add_to_cart", addToCartTool),
     remove_from_cart: guarded("remove_from_cart", removeFromCartTool),
+    change_cart_quantity: guarded("change_cart_quantity", changeCartQuantityTool),
     update_cart_address: guarded("update_cart_address", updateCartAddressTool),
     list_shipping_methods: listShippingMethodsTool,
     update_cart_shipping_method: guarded("update_cart_shipping_method", updateCartShippingMethodTool),

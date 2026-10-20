@@ -407,21 +407,74 @@ export function OrderConfirmationCard({ args }: { args: OrderConfirmationArgs })
 
 // ─── Cart Summary Card ────────────────────────────────────────────────────────
 
-export function CartSummaryCard({ args }: { args: CartSummaryArgs }) {
+export function CartSummaryCard({
+  args,
+  onSuggest,
+  isLoading = false,
+  editable = false,
+}: {
+  args: CartSummaryArgs;
+  /** Sends a message / hidden action through the chat — the AI runs the real cart update. */
+  onSuggest?: (prompt: string) => void;
+  isLoading?: boolean;
+  /**
+   * Only the newest cart card is editable: older cards are snapshots of an
+   * earlier cart, and a +/− computed from their quantities would be wrong.
+   */
+  editable?: boolean;
+}) {
+  const canAct = editable && !!onSuggest;
+  // Same hidden actions as the Create Order stepper, so both stay in sync.
+  const send = (action: Record<string, unknown>) => onSuggest?.(`[hidden-action] ${JSON.stringify(action)}`);
+
   return (
     <Card variant="default" className="my-2 max-w-md">
       <CardHeader className="px-4 pt-4 pb-2">
         <CardTitle className="text-sm font-semibold">Cart Summary</CardTitle>
-        <p className="text-xs text-m-text-muted">{args.customer.name}</p>
+        {args.customer?.name && <p className="text-xs text-m-text-muted">{args.customer.name}</p>}
       </CardHeader>
       <CardContent className="px-4 pb-4 space-y-2">
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {args.items.map((item, i) => (
-            <div key={i} className="flex justify-between text-xs">
-              <span className="text-m-text">
-                {item.name} <span className="text-m-text-muted">×{item.quantity}</span>
+            <div key={item.sku || i} className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-m-text min-w-0 flex-1 truncate" title={item.name}>
+                {item.name}
+                {!canAct && <span className="text-m-text-muted"> ×{item.quantity}</span>}
               </span>
-              <span className="font-medium">{item.lineTotal}</span>
+              {canAct && (
+                <span className="flex items-center gap-1 shrink-0" role="group" aria-label={`Quantity of ${item.name}`}>
+                  <button
+                    type="button"
+                    aria-label={`Decrease ${item.name}`}
+                    disabled={isLoading || item.quantity <= 1}
+                    onClick={() => send({ type: "order.change_quantity", sku: item.sku, quantity: item.quantity - 1 })}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded-m-sm border border-m-border text-m-text hover:bg-m-surface-2 disabled:opacity-40 disabled:cursor-default"
+                  >
+                    <Icon name="minus" size="xs" />
+                  </button>
+                  <span className="min-w-[1.25rem] text-center font-medium tabular-nums">{item.quantity}</span>
+                  <button
+                    type="button"
+                    aria-label={`Increase ${item.name}`}
+                    disabled={isLoading}
+                    onClick={() => send({ type: "order.change_quantity", sku: item.sku, quantity: item.quantity + 1 })}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded-m-sm border border-m-border text-m-text hover:bg-m-surface-2 disabled:opacity-40 disabled:cursor-default"
+                  >
+                    <Icon name="plus" size="xs" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${item.name}`}
+                    title="Remove"
+                    disabled={isLoading}
+                    onClick={() => send({ type: "order.remove_item", sku: item.sku })}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded-m-sm text-m-text-muted hover:text-m-error hover:bg-m-error-light disabled:opacity-40 disabled:cursor-default"
+                  >
+                    <Icon name="trash-2" size="xs" />
+                  </button>
+                </span>
+              )}
+              <span className="font-medium shrink-0 tabular-nums">{item.lineTotal}</span>
             </div>
           ))}
         </div>
@@ -443,6 +496,32 @@ export function CartSummaryCard({ args }: { args: CartSummaryArgs }) {
             <span>Total</span><span>{args.total}</span>
           </div>
         </div>
+        {canAct && (
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="flex-1"
+              leftIcon={<Icon name="plus" size="xs" />}
+              disabled={isLoading}
+              onClick={() => onSuggest?.("Show products I can add to this cart")}
+            >
+              Add items
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="flex-1"
+              leftIcon={<Icon name="credit-card" size="xs" />}
+              disabled={isLoading || args.items.length === 0}
+              onClick={() => send({ type: "order.checkout", cartId: args.cartId })}
+            >
+              Checkout
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

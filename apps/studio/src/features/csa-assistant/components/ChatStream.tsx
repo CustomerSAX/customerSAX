@@ -217,7 +217,7 @@ function ToolCallCard({
     case "order_confirmation":
       return <OrderConfirmationCard args={args as OrderConfirmationArgs} />;
     case "cart_summary":
-      return <CartSummaryCard args={args as CartSummaryArgs} />;
+      return <CartSummaryCard args={args as CartSummaryArgs} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} />;
     case "crm_contact_card":
       // Pending follow-ups with actions sit in the reply, above the profile card.
       return (

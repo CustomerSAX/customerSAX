@@ -109,6 +109,7 @@ const CT = {
   CREATE_CART:              'create_cart',
   ADD_TO_CART:              'add_to_cart',
   REMOVE_FROM_CART:         'remove_from_cart',
+  CHANGE_CART_QUANTITY:     'change_cart_quantity',
   UPDATE_CART_ADDRESS:      'update_cart_address',
   UPDATE_CART_SHIPPING:     'update_cart_shipping_method',
   // Commitment writes (always need action_approval first)
@@ -316,8 +317,10 @@ Recognized \`order.*\` action types (Create Order stepper) — map each to the m
 - \`order.select_customer\` \`{customerId?, email?, name?}\` — gate 1: resolve this as the customer (call \`find_customer\` to confirm/refresh unless you already resolved this exact customer earlier this turn).
 - \`order.add_item\` \`{sku, name, quantity}\` — gates 2–3: add this item to the resolved customer's cart, creating the cart first if none exists yet. This is a draft cart operation — call \`create_cart\`/\`add_to_cart\` directly, no approval, then \`cart_summary\` so the rep sees it land. Pass both \`customerId\` and \`customerEmail\` when creating the cart so the order has an email on record.
 - \`order.remove_item\` \`{sku, lineItemId?}\` — call \`remove_from_cart\` directly with the cart id and \`lineItemId\`. This is a draft cart operation — no approval needed. If you don't have the \`lineItemId\` yet, call \`view_cart\` first to get current line items, then remove. Follow immediately with \`cart_summary\` so the rep sees the updated cart.
+- \`order.change_quantity\` \`{sku, quantity}\` — \`quantity\` is the line's new TOTAL. Call \`change_cart_quantity\` directly with the cart id, the line's \`lineItemId\` (from \`view_cart\` if you don't have it) and that quantity. Draft cart operation — no approval needed. Follow immediately with \`cart_summary\`.
 - \`order.set_address\` \`{billing, shipping, sameAsBilling}\` — gate 4: set these as the cart's billing/shipping address via \`update_cart_address\`. Draft operation — no approval.
 - \`order.set_shipping_method\` \`{id, name}\` — gate 4: set this real shipping method on the cart via \`update_cart_shipping_method\`. Draft operation — no approval. Then a short confirmation line.
+- \`order.checkout\` \`{cartId}\` — the rep clicked Checkout on a cart card. Continue the PLACE ORDER playbook with THIS cart id — never create a new cart or re-add its items. Call \`view_cart\` for it, then work through the gates that aren't satisfied yet (customer → address → shipping method → approval), asking only for what's missing. Placing still needs its \`action_approval\`.
 - \`order.place\` \`{}\` — gate 5: show \`cart_summary\` + \`action_approval\`, then only after the rep approves call \`place_order\` with the cart id directly — it places immediately.
 - \`order.request_payment_reminder\` \`{}\` — there is no payment-reminder capability in this system — say so plainly.
 
@@ -488,6 +491,7 @@ The principle: draft operations are immediate and reversible; commitment operati
 - \`create_cart\` — call directly once you have currency + customer id/email
 - \`add_to_cart\` — call directly once you have cart id, sku, quantity
 - \`remove_from_cart\` — call directly with cart id + lineItemId
+- \`change_cart_quantity\` — call directly with cart id + lineItemId + the new TOTAL quantity. Use it whenever the rep changes how many of an item they want ("make it 3", "one more", "only 2 of those"): work out the new total from the current cart line — never add a second line or remove and re-add. Quantity 0 removes the line.
 - \`update_cart_address\` — call directly to set billing/shipping address (folds into gate 5 approval)
 - \`update_cart_shipping_method\` — call directly to set shipping method (folds into gate 5 approval)
 \`place_order\` is NOT a draft operation — it is the single commitment point and always requires \`action_approval\` first. After the rep approves, call \`place_order\` with the cart id directly — it executes the order immediately.

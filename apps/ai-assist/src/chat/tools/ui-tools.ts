@@ -143,7 +143,14 @@ const productCardSchema = z.object({
 const cartSummarySchema = z.object({
   cartId: z.string(),
   cartVersion: z.number().optional(),
-  customer: z.object({ name: z.string(), email: z.string().optional() }),
+  customer: z
+    .object({ name: z.string(), email: z.string().optional() })
+    .optional()
+    .describe(
+      "The cart's customer exactly as a tool result in this conversation names them. If no tool result names the customer " +
+      "(e.g. view_cart shows customerId null), set name and email to empty strings — the card then shows no customer line. " +
+      "Never make up a name or email."
+    ),
   itemCount: z.number().int(),
   items: z.array(z.object({
     sku: z.string(),
