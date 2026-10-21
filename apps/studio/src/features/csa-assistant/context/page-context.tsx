@@ -97,6 +97,18 @@ function parseRouteContext(pathname: string): {
     return { pageType: "cart_list", entityType: "cart", route: cleanPath };
   }
 
+  if (section === "quotes") {
+    if (second && second !== "create") {
+      return {
+        pageType: "quote_details",
+        entityType: "quote",
+        entityId: decodeURIComponent(second),
+        route: cleanPath,
+      };
+    }
+    return { pageType: "quote_list", entityType: "quote", route: cleanPath };
+  }
+
   if (section === "csa-assistant") {
     return { pageType: "csa_assistant", route: cleanPath };
   }
@@ -224,6 +236,27 @@ function computeContextPill(context: PageContext): ContextPillInfo {
     };
   }
 
+  if (pageType === "quote_details") {
+    const quoteNum = (recordSummary?.quoteNumber as string) || (recordSummary?.key as string) || entityId;
+    const status = recordSummary?.status as string;
+    return {
+      icon: "file-text",
+      label: `Quote #${quoteNum}`,
+      detail: status ? `Status: ${status}` : undefined,
+      badgeTone: "info",
+    };
+  }
+
+  if (pageType === "quote_list") {
+    const count = visibleRecords?.length;
+    return {
+      icon: "file-text",
+      label: "B2B Quotes",
+      detail: count ? `${count} visible` : undefined,
+      badgeTone: "neutral",
+    };
+  }
+
   return {
     icon: "sparkles",
     label: "Customer CX",
@@ -273,6 +306,18 @@ function computeSuggestedPrompts(context: PageContext): string[] {
         "Show urgent unresolved tickets",
         "Find tickets related to shipping delays",
         "Create a new support ticket",
+      ];
+    case "quote_details":
+      return [
+        "Analyze Quote",
+        "Verify stock availability",
+        "Draft buyer reply",
+      ];
+    case "quote_list":
+      return [
+        "Show quotes needing review",
+        "Find high value pending quotes",
+        "Filter quotes by status",
       ];
     case "product_details":
       return [

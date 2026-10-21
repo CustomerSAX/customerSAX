@@ -1,6 +1,6 @@
 export type BusinessType = "b2c" | "b2b";
 
-export type PageEntityType = "customer" | "order" | "ticket" | "cart" | "product" | "businessUnit";
+export type PageEntityType = "customer" | "order" | "ticket" | "cart" | "product" | "quote" | "businessUnit";
 
 export type StudioPageType =
   | "dashboard"
@@ -14,6 +14,8 @@ export type StudioPageType =
   | "product_details"
   | "cart_list"
   | "cart_details"
+  | "quote_list"
+  | "quote_details"
   | "csa_assistant"
   | "b2b_company"
   | "b2b_employees"

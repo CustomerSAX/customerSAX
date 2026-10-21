@@ -165,6 +165,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
             customerEmail: ticket.email,
             orderNumber: ticket.orderNumber,
             assignedTo: ticket.assignedTo,
+            message: ticket.message,
           },
           parentRelationship: ticket.orderNumber
             ? {
@@ -175,7 +176,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
             : undefined,
         }
       : null,
-    [ticket?.id, ticket?.ticketNumber, ticket?.subject, ticket?.status, ticket?.priority, ticket?.email, ticket?.orderNumber]
+    [ticket?.id, ticket?.ticketNumber, ticket?.subject, ticket?.status, ticket?.priority, ticket?.email, ticket?.orderNumber, ticket?.message]
   );
 
   const [activeTab, setActiveTab] = useState<string>("conversation");
@@ -204,6 +205,24 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
     setPriority(ticket.priority);
     setSolution(ticket.solution || "");
   }, [ticket]);
+
+  // Listen for draft insertion from Customer CX AI Lite
+  useEffect(() => {
+    const handleInsertDraft = (e: Event) => {
+      const detail = (e as CustomEvent<{ text?: string; target?: string }>).detail;
+      if (!detail?.text) return;
+      if (detail.target === "solution") {
+        setSolution((prev) => (prev.trim() ? `${prev}\n\n${detail.text}` : detail.text || ""));
+      } else {
+        setWorklogInput((prev) => (prev.trim() ? `${prev}\n\n${detail.text}` : detail.text || ""));
+      }
+      setSaveSuccessMsg("Draft inserted into form.");
+      const t = setTimeout(() => setSaveSuccessMsg(""), 3000);
+      return () => clearTimeout(t);
+    };
+    window.addEventListener("csa:insert-draft", handleInsertDraft);
+    return () => window.removeEventListener("csa:insert-draft", handleInsertDraft);
+  }, []);
 
   // Audit Search State
   const [auditSearchText, setAuditSearchText] = useState("");

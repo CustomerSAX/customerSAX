@@ -75,14 +75,26 @@ export const getTicketTool = tool({
     id: z.string().describe("Ticket internal ID, or the ticket number without '#'")
   }),
   execute: async ({ id }) => {
+    const cleanId = id.trim().replace(/^#/, "");
     try {
       const data = await bffQuery<{ ticket: unknown }>(
         `query GetTicket($id: ID!) {
           ticket(id: $id) { ${TICKET_FIELDS} }
         }`,
-        { id }
+        { id: cleanId }
       );
-      return data.ticket ?? { error: "Ticket not found" };
+      if (data.ticket) return data.ticket;
+
+      // Fallback search by ticketNumber or keyword if direct lookup yielded nothing
+      const searchData = await bffQuery<{ ticketPage: { results: unknown[] } }>(
+        `query SearchTicketFallback($search: String) {
+          ticketPage(search: $search, limit: 1) {
+            results { ${TICKET_FIELDS} }
+          }
+        }`,
+        { search: cleanId }
+      );
+      return searchData.ticketPage?.results?.[0] ?? { error: "Ticket not found" };
     } catch (err) {
       return { error: String(err) };
     }

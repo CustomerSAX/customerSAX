@@ -27,7 +27,10 @@ const starters = [
 const buttonStyle =
   "rounded-lg p-2 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current";
 
-/** UI-only prototype: all messages and drafts stay in component state. */
+/**
+ * @deprecated Orphaned UI-only prototype: superseded by CustomerCxAiLite and the production create_ticket tool.
+ * All messages and drafts stay in local component state. Do not import or mount this component.
+ */
 export function TicketAIHelper() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([greeting]);

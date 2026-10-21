@@ -271,25 +271,24 @@ function buildPageContextBlock(ctx: SystemPromptContext): string {
         break;
       }
       case 'ticket': {
+        const ticketNum = summary?.ticketNumber ? ` (#${summary.ticketNumber})` : '';
+        const subjectPart = summary?.subject ? ` — "${summary.subject}"` : '';
         sections.push(
-          `**Current view:** The agent is viewing a **support ticket** (ID: \`${id}\`).\n` +
+          `**Current view:** The agent is viewing a **support ticket**${ticketNum}${subjectPart} (ID: \`${id}\`).\n` +
+          `- Ticket ID: \`${id}\`${summary ? `\n- Summary: ${JSON.stringify(summary)}` : ''}\n` +
           `\n` +
           `**On the VERY FIRST response — run this data chain before saying anything:**\n` +
           `  a. Call \`${TICKETS.GET}\` with id \`"${id}"\` to get the full ticket.\n` +
-          `     Field semantics: \`description\` = the customer's written message. \`subject\` = short title only. \`orderNumber\` = explicit linked order.\n` +
+          `     Field semantics: \`description\` / \`message\` = the customer's written message. \`subject\` = short title only. \`orderNumber\` = explicit linked order.\n` +
           `     IMPORTANT LINKED ORDER RULE: If the ticket returned by \`get_ticket\` contains a non-empty \`orderNumber\` field (e.g. "ORD-RC-945959"), that order IS the explicit linked order for this ticket. You MUST treat this \`orderNumber\` as the primary subject order of the ticket. NEVER claim or state that the customer's order is unknown, unspecified, or ambiguous when \`orderNumber\` is present on the ticket header, even if the customer's written message text does not write out the order number.\n` +
           `  a2. If the ticket has a customer email, call \`find_crm_contact\` with that email. If it returns \`crmNotConnected: true\` or no contact, skip silently (do not mention the CRM).\n` +
-        `  b. Immediately call \`case_briefing_card\` to render a structured AI Case Briefing Card in the UI.\n` +
+          `  b. Immediately call \`case_briefing_card\` to render a structured AI Case Briefing Card in the UI.\n` +
           `     Pass: ticketId (the ticket's internal id \`"${id}"\`), customerName, ticketNumber, issueCategory, caseSummary, rootCause, sentiment, confidenceScore, relatedOrderNumber (\`orderNumber\` from ticket), recommendedResolution, and 1-3 suggestedActions. When step a2 found a CRM contact, also pass its id as \`crmContactId\` (the card then shows live CRM context: owner, company, open and overdue follow-ups).\n` +
           `  c. Take \`email\` from the ticket and call \`${CT.READ_CUSTOMER}\` with \`email: "<email>"\`.\n` +
           `\n` +
-          `**How to reply (colleague, not a report — the card already shows the details):**\n` +
-          `  The \`case_briefing_card\` you just rendered already displays issue category, root cause, ` +
-          `recommended resolution, and next steps — do NOT restate any of those fields in your text reply, ` +
-          `in prose OR as a bulleted list. Your text reply is ONLY a concise 1-2 sentence colleague greeting ` +
-          `(e.g. "Looks like a billing question from Shivam — want me to pull up the order?"), never a summary ` +
-          `of the ticket. If the rep's message ALSO asked for "a quick case briefing" or similar, the card IS ` +
-          `that briefing — still keep your text reply to 1-2 sentences.`
+          `**How to reply:**\n` +
+          `  The \`case_briefing_card\` displays key briefing metrics.\n` +
+          `  When the rep asks to summarize the ticket issue or explain what happened, provide a clear, concise summary of the customer's problem, cause, and recommended next steps directly from the ticket details.`
         );
         break;
       }
@@ -306,6 +305,17 @@ function buildPageContextBlock(ctx: SystemPromptContext): string {
           `**Current view:** The agent is viewing a **product** record.\n` +
           `- Product ID / SKU: \`${id}\`${summary ? `\n- Summary: ${JSON.stringify(summary)}` : ''}\n` +
           `- Use \`${CT.SEARCH_PRODUCTS}\` or list tools to retrieve details if needed.`
+        );
+        break;
+      }
+      case 'quote': {
+        const quoteNum = summary?.quoteNumber ? ` (#${summary.quoteNumber})` : '';
+        const companyPart = summary?.companyName ? ` for ${summary.companyName}` : '';
+        sections.push(
+          `**Current view:** The agent is viewing a **B2B quote request**${quoteNum}${companyPart} (ID: \`${id}\`).\n` +
+          `- Quote ID: \`${id}\`${summary ? `\n- Active Quote Details: ${JSON.stringify(summary)}` : ''}\n` +
+          `- **Context Resolution:** If the user asks to "Analyze Quote", verify stock, review pricing, or check line items, automatically resolve to this quote (ID: \`${id}\`).\n` +
+          `- When asked to analyze the quote, evaluate line items, buyer details, pricing, discount, and inventory availability using the quote details and commerce tools.`
         );
         break;
       }

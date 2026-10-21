@@ -1286,6 +1286,29 @@ function guardWrite<T extends { execute?: (...args: never[]) => unknown }>(
   } as T;
 }
 
+// ─── get_quote ──────────────────────────────────────────────────────────────
+
+export const getQuoteTool = tool({
+  description:
+    "Retrieve a B2B quote request by its ID, returning its customer, company, line items, pricing, and inventory availability.",
+  inputSchema: z.object({
+    id: z.string().describe("The quote ID")
+  }),
+  execute: async ({ id }) => {
+    try {
+      const data = await bffQuery<{ quoteReviewSnapshot: unknown }>(
+        `query ReviewQuoteRequest($id: ID!) {
+          quoteReviewSnapshot(id: $id)
+        }`,
+        { id: id.trim() }
+      );
+      return data.quoteReviewSnapshot ?? { error: "Quote not found" };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
 export function buildCommerceTools(approvalGate?: { pending: boolean }) {
   const guarded = <T extends { execute?: (...args: never[]) => unknown }>(name: string, original: T) =>
     guardWrite(name, WRITE_RULES[name], original, approvalGate);
@@ -1297,6 +1320,7 @@ export function buildCommerceTools(approvalGate?: { pending: boolean }) {
     b2b_orders: b2bOrdersTool,
     view_cart: viewCartTool,
     b2b_carts: b2bCartsTool,
+    get_quote: getQuoteTool,
     search_products: searchProductsTool,
     list_products: listProductsTool,
     create_cart: guarded("create_cart", createCartTool),

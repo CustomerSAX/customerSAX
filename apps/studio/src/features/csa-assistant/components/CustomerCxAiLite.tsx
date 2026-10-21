@@ -7,6 +7,10 @@ import {
   AlertCircle,
   ChevronDown,
   Compass,
+  Maximize2,
+  Mic,
+  MicOff,
+  Minimize2,
   Package,
   RotateCcw,
   Send,
@@ -21,18 +25,27 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePageContext } from "../context/page-context";
 import { useCsaChat } from "../hooks/use-csa-chat";
+import { useVoiceChat } from "../hooks/use-voice-chat";
 import type {
-  ActionApprovalArgs, BusinessType, CartSummaryArgs,
+  ActionApprovalArgs,
+  BusinessType,
+  CartSummaryArgs,
   CaseBriefingArgs,
+  CrmContactCardArgs,
   DraftEmailArgs,
   OrderConfirmationArgs,
   OrderSummaryArgs,
   ProductCardArgs,
-  RenderRefundActionArgs, SessionContext, SuggestedActionsArgs
+  RenderRefundActionArgs,
+  SessionContext,
+  SuggestedActionsArgs,
+  TicketCardArgs,
 } from "../types";
 import { ActionApproval } from "./ActionApproval";
 import { Markdown } from "./Markdown";
 import { SuggestedActions } from "./SuggestedActions";
+import { TicketCard } from "./TicketCards";
+import { CrmContactCard, CrmPendingFollowups } from "./CrmCards";
 import {
   CartSummaryCard,
   CaseBriefingCard,
@@ -49,6 +62,9 @@ const CT_BUSINESS_TYPE: BusinessType | undefined =
 
 const VIP_THRESHOLD = process.env.NEXT_PUBLIC_CSA_VIP_THRESHOLD || undefined;
 const STORAGE_OPEN_KEY = "csa-ai-lite-expanded";
+const STORAGE_MODE_KEY = "csa-ai-lite-mode";
+
+type AiLiteMode = "compact" | "expanded";
 
 function isInternalMessageText(text: string): boolean {
   const trimmed = text.trim();
@@ -99,6 +115,29 @@ export function CustomerCxAiLite() {
       return false;
     }
   });
+
+  const [mode, setMode] = useState<AiLiteMode>(() => {
+    if (typeof window === "undefined") return "compact";
+    try {
+      const saved = localStorage.getItem(STORAGE_MODE_KEY);
+      return saved === "expanded" ? "expanded" : "compact";
+    } catch {
+      return "compact";
+    }
+  });
+
+  const handleSetMode = useCallback((nextMode: AiLiteMode) => {
+    setMode(nextMode);
+    try {
+      localStorage.setItem(STORAGE_MODE_KEY, nextMode);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const toggleMode = useCallback(() => {
+    handleSetMode(mode === "compact" ? "expanded" : "compact");
+  }, [mode, handleSetMode]);
 
   const handleToggle = useCallback(() => {
     setIsOpen((prev) => {
@@ -158,6 +197,7 @@ export function CustomerCxAiLite() {
     messages,
     error,
     input,
+    setInput,
     handleInputChange,
     handleSubmit,
     isLoading,
@@ -167,6 +207,16 @@ export function CustomerCxAiLite() {
     clearSession,
     setMessages,
   } = chat;
+
+  // Browser-native voice dictation integration
+  const voice = useVoiceChat({
+    messages,
+    isLoading,
+    input,
+    setInput,
+    sendText: sendSuggestion,
+    lang: "en-US",
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -192,9 +242,18 @@ export function CustomerCxAiLite() {
 
   const handleQuickPromptClick = useCallback(
     (promptText: string) => {
-      sendSuggestion(promptText);
+      // Auto-expand workspace for complex deep analysis workflows
+      if (
+        promptText.startsWith("⚡") ||
+        promptText.toLowerCase().includes("analyze") ||
+        promptText.toLowerCase().includes("review")
+      ) {
+        handleSetMode("expanded");
+      }
+      const cleanPrompt = promptText.replace(/^⚡\s*/, "");
+      sendSuggestion(cleanPrompt);
     },
-    [sendSuggestion]
+    [sendSuggestion, handleSetMode]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -209,11 +268,18 @@ export function CustomerCxAiLite() {
     return null;
   }
 
+  const isExpandedMode = mode === "expanded";
+
+  const containerClassName = isExpandedMode
+    ? "fixed inset-y-0 right-0 z-[200] flex pointer-events-none justify-end"
+    : "fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2 sm:bottom-6 sm:right-6 pointer-events-none";
+
+  const windowClassName = isExpandedMode
+    ? "pointer-events-auto flex h-[100dvh] w-full sm:w-[min(760px,50vw)] flex-col overflow-hidden border-l border-m-border bg-m-surface text-m-text shadow-2xl backdrop-blur-md transition-all duration-300"
+    : "pointer-events-auto flex h-[min(640px,calc(100dvh-88px))] w-[calc(100vw-32px)] max-w-[440px] flex-col overflow-hidden rounded-2xl border border-m-border bg-m-surface text-m-text shadow-[0_20px_50px_rgba(15,23,42,0.22)] backdrop-blur-md transition-all duration-300";
+
   return (
-    <aside
-      aria-label="Customer CX AI"
-      className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2 sm:bottom-6 sm:right-6 pointer-events-none"
-    >
+    <aside aria-label="Customer CX AI" className={containerClassName}>
       {/* ── Collapsed Launcher Button ──────────────────────────────────── */}
       {!isOpen && (
         <button
@@ -236,13 +302,13 @@ export function CustomerCxAiLite() {
         </button>
       )}
 
-      {/* ── Expanded Chat Window ───────────────────────────────────────── */}
+      {/* ── AI Assistant Window (Shared instance between compact popover & workspace drawer) ── */}
       {isOpen && (
         <section
           role="dialog"
           aria-modal="false"
-          aria-label="Customer CX AI Assist Conversation"
-          className="pointer-events-auto flex h-[min(620px,calc(100dvh-88px))] w-[calc(100vw-32px)] max-w-[420px] flex-col overflow-hidden rounded-2xl border border-m-border bg-m-surface text-m-text shadow-[0_20px_50px_rgba(15,23,42,0.22)] backdrop-blur-md transition-all duration-200"
+          aria-label={isExpandedMode ? "Customer CX AI Assist Workspace" : "Customer CX AI Assist Conversation"}
+          className={windowClassName}
         >
           {/* Header */}
           <header className="flex shrink-0 items-center justify-between border-b border-m-border bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-4 py-3 text-white">
@@ -253,7 +319,7 @@ export function CustomerCxAiLite() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-semibold leading-tight text-white truncate">
-                    Customer CX AI Assist
+                    {isExpandedMode ? "Customer CX AI — Workspace" : "Customer CX AI Assist"}
                   </h2>
                 </div>
                 <p className="text-[11px] text-blue-100 truncate flex items-center gap-1.5 mt-0.5">
@@ -272,6 +338,15 @@ export function CustomerCxAiLite() {
                 className="rounded-lg p-1.5 text-white/80 transition hover:bg-white/15 hover:text-white"
               >
                 <RotateCcw size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={toggleMode}
+                title={isExpandedMode ? "Collapse to compact view" : "Expand to workspace drawer"}
+                aria-label={isExpandedMode ? "Collapse to compact view" : "Expand to workspace drawer"}
+                className="rounded-lg p-1.5 text-white/80 transition hover:bg-white/15 hover:text-white"
+              >
+                {isExpandedMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </button>
               <button
                 type="button"
@@ -302,12 +377,19 @@ export function CustomerCxAiLite() {
                 )}
               </div>
             </div>
-            <span
-              className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 border border-emerald-500/20"
-              title="Assistant automatically uses current screen details"
-            >
-              Live Context
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {isExpandedMode && (
+                <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 border border-blue-500/20">
+                  Workspace
+                </span>
+              )}
+              <span
+                className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 border border-emerald-500/20"
+                title="Assistant automatically uses current screen details"
+              >
+                Live Context
+              </span>
+            </div>
           </div>
 
           {/* Scrollable Conversation Pane */}
@@ -323,7 +405,7 @@ export function CustomerCxAiLite() {
                   <p className="text-m-text-muted">
                     I automatically understand that you are on{" "}
                     <strong className="text-m-text">{contextPill.label}</strong>. You don&apos;t need to
-                    re-type order numbers or customer IDs.
+                    re-type order numbers, ticket IDs, or customer names.
                   </p>
                 </div>
 
@@ -331,21 +413,28 @@ export function CustomerCxAiLite() {
                 {suggestedPrompts.length > 0 && (
                   <div className="space-y-1.5">
                     <span className="text-[11px] font-medium uppercase tracking-wider text-m-text-muted">
-                      Quick Suggestions
+                      Suggested Actions
                     </span>
                     <div className="flex flex-col gap-1.5">
-                      {suggestedPrompts.map((promptText, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => handleQuickPromptClick(promptText)}
-                          disabled={isLoading}
-                          className="flex items-center justify-between rounded-lg border border-m-border bg-m-surface px-3 py-2 text-left text-xs text-m-text transition hover:border-blue-500 hover:bg-blue-50/50 hover:text-blue-700 disabled:opacity-50"
-                        >
-                          <span className="truncate pr-2">{promptText}</span>
-                          <Send size={11} className="shrink-0 text-m-text-muted" />
-                        </button>
-                      ))}
+                      {suggestedPrompts.map((promptText, i) => {
+                        const isDeep =
+                          promptText.startsWith("⚡") || promptText.toLowerCase().includes("analyze");
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => handleQuickPromptClick(promptText)}
+                            disabled={isLoading}
+                            className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition disabled:opacity-50 ${isDeep
+                                ? "border-blue-300 bg-blue-50/70 text-blue-800 hover:border-blue-500 hover:bg-blue-100/70 font-medium"
+                                : "border-m-border bg-m-surface text-m-text hover:border-blue-500 hover:bg-blue-50/50 hover:text-blue-700"
+                              }`}
+                          >
+                            <span className="truncate pr-2">{promptText}</span>
+                            <Send size={11} className="shrink-0 text-m-text-muted" />
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -372,8 +461,8 @@ export function CustomerCxAiLite() {
                         <div
                           key={`text-${idx}`}
                           className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed shadow-sm break-words ${isUser
-                            ? "rounded-tr-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
-                            : "rounded-tl-sm bg-m-surface-2 text-m-text border border-m-border/60"
+                              ? "rounded-tr-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
+                              : "rounded-tl-sm bg-m-surface-2 text-m-text border border-m-border/60"
                             }`}
                         >
                           <Markdown>{textPart.text}</Markdown>
@@ -401,7 +490,7 @@ export function CustomerCxAiLite() {
                         return null;
 
                       return (
-                        <div key={`${message.id}-tool-${partIdx}`} className="w-full max-w-[92%] my-1">
+                        <div key={`${message.id}-tool-${partIdx}`} className="w-full max-w-[95%] my-1">
                           {toolName === "action_approval" && (
                             <ActionApproval
                               args={p.input as ActionApprovalArgs}
@@ -425,6 +514,22 @@ export function CustomerCxAiLite() {
                           )}
                           {toolName === "case_briefing_card" && (
                             <CaseBriefingCard args={p.input as CaseBriefingArgs} />
+                          )}
+                          {toolName === "ticket_card" && (
+                            <TicketCard
+                              args={p.input as TicketCardArgs}
+                              onSuggest={sendSuggestion}
+                              isLoading={isLoading}
+                            />
+                          )}
+                          {toolName === "crm_contact_card" && (
+                            <div className="space-y-2">
+                              <CrmPendingFollowups
+                                contactId={(p.input as CrmContactCardArgs).contactId}
+                                onSuggest={sendSuggestion}
+                              />
+                              <CrmContactCard args={p.input as CrmContactCardArgs} />
+                            </div>
                           )}
                           {toolName === "draft_email" && (
                             <DraftEmailCard args={p.input as DraftEmailArgs} />
@@ -495,7 +600,37 @@ export function CustomerCxAiLite() {
           </div>
 
           {/* Input & Action Bar */}
-          <footer className="border-t border-m-border bg-m-surface-2 p-2.5">
+          <footer className="border-t border-m-border bg-m-surface-2 p-2.5 space-y-2">
+            {/* Dictating / Voice Status preview */}
+            {voice.dictating && (
+              <div className="flex items-center justify-between px-2.5 py-1.5 text-xs bg-red-500/10 text-red-700 rounded-lg border border-red-500/20">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+                  <span className="font-medium">Listening... speak now</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={voice.toggleDictation}
+                  className="text-[11px] font-semibold text-red-700 hover:underline"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+
+            {voice.error && (
+              <div className="flex items-center justify-between px-2.5 py-1.5 text-[11px] bg-red-50 text-red-700 rounded-lg border border-red-200">
+                <span className="truncate">{voice.error}</span>
+                <button
+                  type="button"
+                  onClick={voice.dismissError}
+                  className="ml-2 font-semibold hover:underline"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="flex flex-col gap-2">
               <div className="relative flex items-center rounded-xl border border-m-border bg-m-surface focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/10">
                 <textarea
@@ -510,6 +645,22 @@ export function CustomerCxAiLite() {
                 />
 
                 <div className="flex items-center pr-1.5 gap-1">
+                  {voice.recognitionSupported && (
+                    <button
+                      type="button"
+                      onClick={voice.toggleDictation}
+                      disabled={isLoading}
+                      title={voice.dictating ? "Stop voice dictation" : "Voice dictation (speech-to-text)"}
+                      aria-label={voice.dictating ? "Stop voice dictation" : "Voice dictation"}
+                      className={`rounded-lg p-1.5 transition ${voice.dictating
+                          ? "bg-red-500/15 text-red-600 animate-pulse"
+                          : "text-m-text-muted hover:bg-m-surface-2 hover:text-m-text"
+                        }`}
+                    >
+                      {voice.dictating ? <MicOff size={15} /> : <Mic size={15} />}
+                    </button>
+                  )}
+
                   {isLoading ? (
                     <button
                       type="button"
