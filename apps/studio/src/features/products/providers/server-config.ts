@@ -9,15 +9,30 @@ export async function currentProductsConfiguration() {
   const token = await currentSessionToken();
   if (!token) throw new Error("Sign in to browse products");
   const session = await getValidatedSession(token);
-  const user = session?.user as {
-    activeClientId?: string;
-    activeProjectKey?: string;
-    email?: string;
-    role?: string;
-  } | undefined;
+  const user = session?.user as
+    | {
+        activeClientId?: string;
+        activeProjectKey?: string;
+        email?: string;
+        role?: string;
+      }
+    | undefined;
   if (!user) throw new Error("Sign in to browse products");
   if (!user?.activeClientId || !user.activeProjectKey)
     throw new Error("Select a project to browse products");
+  if (
+    await connectionHub.forProject({
+      clientId: user.activeClientId,
+      projectKey: user.activeProjectKey
+    })
+  ) {
+    return {
+      key: `${user.activeClientId}:${user.activeProjectKey}:connection-hub`,
+      provider: productsProvider("algolia"),
+      searchConfig: undefined,
+      connectionHubEnabled: true
+    };
+  }
   const result = await fetch(
     process.env.BFF_URL?.trim() ||
       process.env.AI_COMMERCE_SERVICE_URL?.trim() ||
@@ -61,20 +76,6 @@ export async function currentProductsConfiguration() {
     (!settings.appId || !settings.indexName || !settings.searchApiKey)
   )
     throw new Error("Project Algolia configuration is incomplete");
-  if (
-    connectionHub.forProject({
-      clientId: user.activeClientId,
-      projectKey: user.activeProjectKey,
-      settings: settings ?? null
-    })
-  ) {
-    return {
-      key: `${user.activeClientId}:${user.activeProjectKey}:connection-hub`,
-      provider: productsProvider("algolia"),
-      searchConfig: undefined,
-      connectionHubEnabled: true
-    };
-  }
   const provider = productsProvider(settings?.provider);
   return {
     key: `${user.activeClientId}:${user.activeProjectKey}:${provider}`,

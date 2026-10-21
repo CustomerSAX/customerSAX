@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         ? "Enter a valid product search."
         : status === 401
           ? "Sign in to search products."
-          : status === 403 || status === 409
+          : status === 403 || status === 404 || status === 409
             ? "Product search is not available for the selected project."
             : "Product search is temporarily unavailable. Please try again.";
     return NextResponse.json(

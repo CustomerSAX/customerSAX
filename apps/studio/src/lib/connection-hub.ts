@@ -1,6 +1,5 @@
 import "server-only";
-import { applyCsaHeaders } from "@csa/headers";
-import { authServiceUrl, currentSessionToken } from "../app/api/auth/shared";
+import { currentSessionToken, getValidatedSession } from "../app/api/auth/shared";
 
 export class ConnectionHubError extends Error {
   constructor(readonly status: number) {
@@ -12,7 +11,7 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function getConfig(): HubConfig | undefined {
+function getConfig() {
   if (process.env.CONNECTION_HUB_ENABLED !== "true") return undefined;
   const url = process.env.CONNECTION_HUB_URL?.trim();
   const apiKey = process.env.CONNECTION_HUB_API_KEY?.trim();
@@ -36,95 +35,55 @@ function getConfig(): HubConfig | undefined {
   return { url: parsed.origin, apiKey, clientId };
 }
 
-function forProject({
+async function forProject({
   clientId,
-  projectKey,
-  settings
+  projectKey
 }: {
   clientId: string;
   projectKey: string;
-  settings: ProjectProductsSettings | null;
-}): HubProjectConfig | undefined {
+}): Promise<HubProjectConfig | undefined> {
   const config = getConfig();
+  if (!config || config.clientId !== clientId) return undefined;
+  if (!projectKey) throw new ConnectionHubError(409);
+  const response = await fetch(
+    `${config.url}/v1/projects/${encodeURIComponent(projectKey)}/bindings`,
+    {
+      headers: { authorization: `Bearer ${config.apiKey}`, "x-tenant-id": clientId },
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(10000)
+    }
+  );
+  if (!response.ok) throw new ConnectionHubError(response.status === 403 ? 403 : 502);
+  const payload: unknown = await response.json();
   if (
-    !config ||
-    config.clientId !== clientId ||
-    !projectKey ||
-    settings?.provider !== "algolia"
+    !record(payload) ||
+    payload.applicationId !== "customersax" ||
+    !Array.isArray(payload.bindings)
   )
-    return undefined;
-  if (!settings.appId || !settings.indexName) throw new ConnectionHubError(503);
-  return {
-    ...config,
-    projectKey,
-    applicationId: settings.appId,
-    indexName: settings.indexName
-  };
+    throw new ConnectionHubError(502);
+  const relevant = payload.bindings.filter(
+    (binding: unknown) =>
+      record(binding) &&
+      binding.tenantId === clientId &&
+      binding.projectKey === projectKey &&
+      ["search-products", "browse-records"].includes(String(binding.canonicalAction))
+  );
+  if (relevant.length === 0) return undefined;
+  return { ...config, projectKey };
 }
 
 async function authorize(): Promise<HubProjectConfig> {
   const token = await currentSessionToken();
   if (!token) throw new ConnectionHubError(401);
-  const response = await fetch(`${authServiceUrl()}/sessions/current`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: "no-store",
-    redirect: "error",
-    signal: AbortSignal.timeout(5000)
-  });
-  if (!response.ok)
-    throw new ConnectionHubError(
-      response.status === 401 || response.status === 403 ? 401 : 502
-    );
-  const payload: unknown = await response.json();
+  const payload: unknown = await getValidatedSession(token);
   if (!record(payload) || !record(payload.user)) throw new ConnectionHubError(401);
   const { activeClientId, activeProjectKey } = payload.user;
   if (typeof activeClientId !== "string" || typeof activeProjectKey !== "string")
     throw new ConnectionHubError(409);
-  const deployment = getConfig();
-  if (!deployment || deployment.clientId !== activeClientId)
-    throw new ConnectionHubError(403);
-  const settingsResponse = await fetch(
-    process.env.BFF_URL?.trim() ||
-      process.env.AI_COMMERCE_SERVICE_URL?.trim() ||
-      "http://127.0.0.1:4000/graphql",
-    {
-      method: "POST",
-      headers: applyCsaHeaders(new Headers({ "content-type": "application/json" }), {
-        clientId: activeClientId,
-        projectKey: activeProjectKey,
-        userEmail:
-          typeof payload.user.email === "string" ? payload.user.email : undefined,
-        userRole: typeof payload.user.role === "string" ? payload.user.role : undefined
-      }),
-      body: JSON.stringify({
-        query:
-          "query SelectedProjectSearch { projectProductsConfiguration { provider appId indexName } }"
-      }),
-      cache: "no-store",
-      redirect: "error",
-      signal: AbortSignal.timeout(5000)
-    }
-  );
-  if (!settingsResponse.ok) throw new ConnectionHubError(502);
-  const settingsPayload: unknown = await settingsResponse.json();
-  if (
-    !record(settingsPayload) ||
-    (Array.isArray(settingsPayload.errors) && settingsPayload.errors.length > 0) ||
-    !record(settingsPayload.data)
-  )
-    throw new ConnectionHubError(502);
-  const settings = settingsPayload.data.projectProductsConfiguration;
-  if (settings === undefined) throw new ConnectionHubError(502);
-  if (!record(settings) || typeof settings.provider !== "string")
-    throw new ConnectionHubError(403);
-  const config = forProject({
+  const config = await forProject({
     clientId: activeClientId,
-    projectKey: activeProjectKey,
-    settings: {
-      provider: settings.provider,
-      appId: typeof settings.appId === "string" ? settings.appId : undefined,
-      indexName: typeof settings.indexName === "string" ? settings.indexName : undefined
-    }
+    projectKey: activeProjectKey
   });
   if (!config) throw new ConnectionHubError(403);
   return config;
@@ -142,29 +101,34 @@ async function search({
   config: HubProjectConfig;
 }): Promise<HubProducts> {
   const action = query ? "search-products" : "browse-records";
-  const response = await fetch(`${config.url}/v1/actions/${action}`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${config.apiKey}`,
-      "content-type": "application/json",
-      "x-request-id": requestId,
-      "x-csa-client-id": config.clientId,
-      "x-csa-project-key": config.projectKey
-    },
-    body: JSON.stringify({
-      ...(query ? { query, limit } : { limit }),
-      binding: { applicationId: config.applicationId, indexName: config.indexName }
-    }),
-    signal: AbortSignal.timeout(30000),
-    cache: "no-store",
-    redirect: "error"
-  });
+  const response = await fetch(
+    `${config.url}/v1/projects/${encodeURIComponent(config.projectKey)}/actions/${action}`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${config.apiKey}`,
+        "content-type": "application/json",
+        "x-request-id": requestId,
+        "x-tenant-id": config.clientId
+      },
+      body: JSON.stringify(query ? { query, limit } : { limit }),
+      signal: AbortSignal.timeout(30000),
+      cache: "no-store",
+      redirect: "error"
+    }
+  );
   if (!response.ok)
     throw new ConnectionHubError(
-      response.status === 403 ? 403 : response.status === 503 ? 503 : 502
+      [403, 404, 409, 503].includes(response.status) ? response.status : 502
     );
   const payload: unknown = await response.json();
-  if (!record(payload) || !record(payload.execution) || payload.execution.mode !== "live")
+  if (
+    !record(payload) ||
+    !record(payload.execution) ||
+    payload.execution.mode !== "live" ||
+    payload.execution.projectKey !== config.projectKey ||
+    payload.execution.tenantId !== config.clientId
+  )
     throw new ConnectionHubError(502);
   const results: unknown =
     query && record(payload.data) ? payload.data.hits : payload.data;
@@ -201,10 +165,9 @@ function parseInput(value: unknown) {
 
 export const connectionHub = { getConfig, forProject, authorize, search, parseInput };
 export type HubProducts = { results: Record<string, unknown>[]; total: number | null };
-type HubConfig = { url: string; apiKey: string; clientId: string };
-type HubProjectConfig = HubConfig & {
+type HubProjectConfig = {
+  url: string;
+  apiKey: string;
+  clientId: string;
   projectKey: string;
-  applicationId: string;
-  indexName: string;
 };
-type ProjectProductsSettings = { provider: string; appId?: string; indexName?: string };

@@ -114,36 +114,34 @@ it("does not treat GraphQL errors or missing data as an unconfigured project", a
   await expect(currentProductsConfiguration()).rejects.toThrow("Unable to load");
 });
 
-it("selects connection-hub using the session project and its saved Algolia settings", async () => {
+it("uses saved hub bindings without loading project Algolia credentials", async () => {
   vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
   vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
   vi.stubEnv("CONNECTION_HUB_API_KEY", "server-only-connector-key");
   vi.stubEnv("CONNECTION_HUB_CLIENT_ID", "client");
-  mocks.resolve.mockResolvedValue({
-    provider: "algolia",
-    appId: "APP",
-    indexName: "products",
-    searchApiKey: "search-only"
-  });
+  const original = mocks.fetch.getMockImplementation();
+  mocks.fetch.mockImplementation(async (url: string, init: RequestInit) =>
+    url.endsWith("/bindings")
+      ? Response.json({
+          applicationId: "customersax",
+          bindings: [
+            {
+              tenantId: "client",
+              projectKey: "store",
+              canonicalAction: "search-products",
+              enabled: true
+            }
+          ]
+        })
+      : original?.(url, init)
+  );
   const settings = await currentProductsConfiguration();
   expect(settings.connectionHubEnabled).toBe(true);
   expect(settings.searchConfig).toBeUndefined();
+  expect(mocks.resolve).not.toHaveBeenCalled();
   expect(JSON.stringify(settings)).not.toContain("server-only-connector-key");
-  expect(mocks.fetch).toHaveBeenCalledTimes(2);
 });
-
-it("does not override a selected project's Native provider", async () => {
-  vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
-  vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
-  vi.stubEnv("CONNECTION_HUB_API_KEY", "server-only-connector-key");
-  vi.stubEnv("CONNECTION_HUB_CLIENT_ID", "client");
-  mocks.resolve.mockResolvedValue({ provider: "commercetools" });
-  const settings = await currentProductsConfiguration();
-  expect(settings.connectionHubEnabled).toBe(false);
-  expect(settings.provider).toBe("commercetools");
-});
-
-it("preserves the saved provider for another client", async () => {
+it("retains the existing provider for clients without hub configuration", async () => {
   vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
   vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
   vi.stubEnv("CONNECTION_HUB_API_KEY", "server-only-connector-key");
