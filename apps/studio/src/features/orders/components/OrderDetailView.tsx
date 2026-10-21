@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { stripLocalePrefix } from "@/i18n/routing";
+import { projectPath } from "@/lib/project-url";
 import {
   DetailPage,
   BackLink,
@@ -159,7 +159,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
-  const isB2b = stripLocalePrefix(pathname || "/").startsWith("/b2b");
+  const isB2b = projectPath(pathname || "/").pathname.startsWith("/b2b");
 
   const { order: singleOrder, loading: singleLoading, error: singleError } = useOrderDetail(id);
   const {
