@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authServiceUrl, currentSessionToken, invalidateSessionCache } from "../shared";
+import { authServiceUrl, currentSessionToken } from "../shared";
 
 export async function POST(request: Request) {
   const token = await currentSessionToken();
@@ -13,10 +13,7 @@ export async function POST(request: Request) {
     body: JSON.stringify(postBody),
     cache: "no-store"
   });
-  if (response.ok) {
-    invalidateSessionCache(token);
-  }
   const payload = await response.json().catch(() => ({}));
-  return NextResponse.json(payload, { status: response.status });
+  return NextResponse.json(payload, { status: response.status, headers: { "Cache-Control": "private, no-store" } });
 
 }

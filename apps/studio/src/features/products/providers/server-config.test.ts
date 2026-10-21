@@ -10,10 +10,8 @@ vi.mock("../../../app/api/auth/shared", async (importOriginal) => {
   };
 });
 import { currentProductsConfiguration } from "./server-config";
-import { invalidateSessionCache } from "../../../app/api/auth/shared";
 beforeEach(() => {
   vi.clearAllMocks();
-  invalidateSessionCache();
   vi.stubGlobal("fetch", mocks.fetch);
   vi.stubEnv("AUTH_SERVICE_URL", "http://auth.test");
   vi.stubEnv("PRODUCTS_PROVIDER", "commercetools");
