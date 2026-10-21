@@ -128,7 +128,7 @@ variable "ai_gateway_base_url" {
 }
 
 variable "ai_commerce_service_url" {
-  description = "Optional commerce GraphQL URL used by the AI Assist service. Defaults to the Cloud Run URL for commerce_platform."
+  description = "Optional federated GraphQL endpoint used by AI Assist. Defaults to the BFF /graphql endpoint; ticket reviews require ticketing and commerce in the same schema."
   type        = string
   default     = ""
 }
