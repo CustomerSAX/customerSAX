@@ -34,6 +34,11 @@ export async function getProjectsCollection() {
   return getMongoCollection(collectionName, { dbName: adminDbName(), uri: env("MONGO_ADMIN_URI") || undefined });
 }
 
+/** Account ownership is client-wide; many projects may use the same account. */
+export async function getTicketingAccountsCollection() {
+  return getMongoCollection<{ _id: string; clientId: string }>(env("MONGO_TICKETING_ACCOUNTS_COLLECTION") || "csa_ticketing_accounts", { dbName: adminDbName(), uri: env("MONGO_ADMIN_URI") || undefined });
+}
+
 export async function getSmtpProfilesCollection() {
   const collectionName = env("MONGO_SMTP_PROFILES_COLLECTION") || "csa_smtp_profiles";
   return getMongoCollection(collectionName, { dbName: adminDbName(), uri: env("MONGO_ADMIN_URI") || undefined });

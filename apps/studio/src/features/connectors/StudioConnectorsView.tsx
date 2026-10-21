@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@apollo/client";
+import { gql, useApolloClient, useMutation, useQuery } from "@apollo/client";
 import { Badge, Button, Card, Icon } from "@csa/ui";
 import { AppShell } from "@/components/shell/AppShell";
 import { useCurrentUser } from "@/lib/use-current-user";
@@ -23,7 +23,19 @@ import type { OnboardingState } from "@/features/onboarding/types";
 import { CrmConnectorModal } from "@/features/crm/CrmConnectorModal";
 import { activeConnectorId } from "./connector-status";
 
+const SAVE_PRODUCTS = gql`
+  mutation ConnectorProducts($clientId: ID!, $id: ID!, $input: AdminProjectProductsInput!) {
+    adminSaveProjectProducts(clientId: $clientId, id: $id, input: $input) { provider }
+  }
+`;
+const SAVE_CRM = gql`
+  mutation ConnectorCrm($clientId: ID!, $id: ID!, $input: AdminProjectCrmInput!) {
+    adminSaveProjectCrm(clientId: $clientId, id: $id, input: $input) { provider }
+  }
+`;
+
 export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) {
+  const apollo = useApolloClient();
   const { user } = useCurrentUser();
   const clientId = user?.activeClientId || user?.organization?.id;
   const isOrgAdmin = user?.role === "admin" || user?.role === "superadmin";
@@ -48,6 +60,7 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   // CRM is configured per project with its own form (credentials, test, account reservation).
   const [crmConnectorId, setCrmConnectorId] = useState<string | null>(null);
 
@@ -56,6 +69,8 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
   const [updateAi] = useMutation(ADMIN_UPDATE_AI_SETTINGS);
   const [createSmtp] = useMutation(ADMIN_CREATE_SMTP_PROFILE);
   const [updateClient] = useMutation(ADMIN_UPDATE_CLIENT);
+  const [saveProducts] = useMutation(SAVE_PRODUCTS);
+  const [saveCrm] = useMutation(SAVE_CRM);
 
   // Derive status directly from saved data, including when the active project changes.
   const state = useMemo<OnboardingState>(() => {
@@ -126,10 +141,23 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
   };
 
   const handleSaveConnector = async (patch: Partial<OnboardingState>) => {
+    if (saving) return;
+    setSaving(true);
     setSaveError(null);
+    setSaveSuccessMsg(null);
     setIsModalOpen(false);
 
     try {
+      if (!clientId) throw new Error("Select an organization before configuring connectors.");
+      if (patch.search || patch.crm) {
+        const proj = data?.adminProjectsByClient?.find((project: { projectKey: string }) => project.projectKey === user?.activeProjectKey);
+        if (!proj) throw new Error("Select a project before configuring connectors.");
+        if (patch.search) await saveProducts({ variables: { clientId, id: proj.id, input: {
+          provider: patch.search.provider === "native" ? "commercetools" : "algolia",
+          appId: patch.search.appId, indexName: patch.search.indexName, searchApiKey: patch.search.searchApiKey
+        } } });
+        if (patch.crm) await saveCrm({ variables: { clientId, id: proj.id, input: { provider: patch.crm.provider } } });
+      }
       if (patch.ticketing && clientId) {
         const projects = data?.adminProjectsByClient || [];
         const proj = projects.find((project: { projectKey: string }) => project.projectKey === user?.activeProjectKey);
@@ -201,11 +229,28 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
         });
       }
 
+      if (patch.ticketing) {
+        for (const fieldName of ["ticketPage", "tickets", "ticket", "ticketingProvider", "ticketProviderFields"])
+          apollo.cache.evict({ id: "ROOT_QUERY", fieldName });
+        apollo.cache.gc();
+      }
       await refetch();
       setSaveSuccessMsg("Connector configuration updated successfully.");
       setTimeout(() => setSaveSuccessMsg(null), 4000);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : "Could not save connector configuration. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectNative = (category: ConnectorCategoryKey) => {
+    switch (category) {
+      case "ticketing": return handleSaveConnector({ ticketing: { provider: "internal" } });
+      case "product-search": return handleSaveConnector({ search: { provider: "native" } });
+      case "crm": return handleSaveConnector({ crm: { provider: "none" } });
+      case "ai": return handleSaveConnector({ aiSettings: { ...state.aiSettings, enabled: false } });
+      case "sso": return handleSaveConnector({ ssoConfig: { provider: "none" } });
     }
   };
 
@@ -333,9 +378,22 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
                             )}
                           </div>
                           <p className="mt-3 text-xs text-m-text-muted">{category.nativeIntegration.description}</p>
+                          {["ticketing", "product-search", "crm", "ai", "sso"].includes(category.id) && (
+                            <div className="mt-auto pt-4">
+                              <div className="border-t border-m-border/40 pt-3">
+                                <Button size="sm" variant={isNativeActive ? "outline" : "primary"}
+                                  disabled={isNativeActive || saving || loading || !isOrgAdmin}
+                                  onClick={() => { void selectNative(category.id); }} className="w-full text-xs">
+                                  <Icon name="check" size="xs" className="mr-1.5" />
+                                  {isNativeActive ? "Active" : saving ? "Saving…" : "Use native"}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                         {connectors.map((connector) => {
                           const isConfigured = connector.id === activeId;
+
 
                           return (
                             <div
@@ -383,12 +441,14 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
                                   size="sm"
                                   variant={isConfigured ? "outline" : "primary"}
                                   onClick={() => handleOpenConnector(connector)}
+                                  disabled={saving}
                                   className="w-full text-xs"
                                 >
                                   <Icon name="settings" size="xs" className="mr-1.5" />
                                   {isConfigured ? "Configure" : "Connect"}
                                 </Button>
                               </div>
+
                             </div>
                           );
                         })}
