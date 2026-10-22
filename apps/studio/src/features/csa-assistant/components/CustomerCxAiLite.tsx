@@ -103,6 +103,8 @@ export function CustomerCxAiLite() {
   const isExcludedPage =
     cleanPath === "/csa-assistant" ||
     cleanPath.startsWith("/csa-assistant/") ||
+    cleanPath === "/agent-mode" ||
+    cleanPath.startsWith("/agent-mode/") ||
     cleanPath.startsWith("/login") ||
     cleanPath.startsWith("/sign-in") ||
     cleanPath.startsWith("/auth");

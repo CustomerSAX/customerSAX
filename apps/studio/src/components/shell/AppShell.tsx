@@ -74,6 +74,12 @@ const sidebarGroups: SidebarGroup[] = [
         href: "/csa-assistant",
         label: "CSA Assistant",
         icon: "sparkles"
+      },
+      {
+        id: "agent-mode",
+        href: "/agent-mode",
+        label: "Agent Mode",
+        icon: "sparkles"
       }
     ]
   },
@@ -133,6 +139,12 @@ const b2bSidebarGroups: SidebarGroup[] = [
         id: "csa-assistant",
         href: "/csa-assistant",
         label: "CSA Assistant",
+        icon: "sparkles"
+      },
+      {
+        id: "agent-mode",
+        href: "/agent-mode",
+        label: "Agent Mode",
         icon: "sparkles"
       }
     ]
@@ -360,7 +372,8 @@ const standardNavigateCommands: CommandItem[] = [
     href: "/knowledgebase",
     icon: "book-open"
   },
-  { id: "assistant", label: "CSA Assistant", href: "/csa-assistant", icon: "sparkles" }
+  { id: "assistant", label: "CSA Assistant", href: "/csa-assistant", icon: "sparkles" },
+  { id: "agent-mode", label: "Agent Mode", href: "/agent-mode", icon: "sparkles" }
 ];
 
 const b2bNavigateCommands: CommandItem[] = [
@@ -429,7 +442,8 @@ const b2bNavigateCommands: CommandItem[] = [
     href: "/b2b/import-export",
     icon: "upload"
   },
-  { id: "assistant", label: "CSA Assistant", href: "/csa-assistant", icon: "sparkles" }
+  { id: "assistant", label: "CSA Assistant", href: "/csa-assistant", icon: "sparkles" },
+  { id: "agent-mode", label: "Agent Mode", href: "/agent-mode", icon: "sparkles" }
 ];
 
 const standardCreateCommands: CommandItem[] = [
@@ -1408,6 +1422,21 @@ export function AppShell({ children }: { children: ReactNode }) {
               {user?.activeClientId && user.activeProjectKey && !user.requiresProjectSelection && (
                 <NotificationBell key={`${user.email}:${user.activeClientId}:${user.activeProjectKey}`} locale={currentLocale} clientId={user.activeClientId} projectKey={user.activeProjectKey} />
               )}
+
+              <button
+                type="button"
+                onClick={() => router.push(localizeHref("/agent-mode", currentLocale))}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs transition hover:opacity-95 cursor-pointer select-none"
+                style={{
+                  background: "linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25))",
+                  border: "1px solid rgba(255, 255, 255, 0.25)",
+                  color: "var(--topbar-text, #fff)",
+                }}
+                title="Open CustomerX Agent Mode"
+              >
+                <Icon name="sparkles" size="xs" />
+                <span className="hidden sm:inline">Agent Mode</span>
+              </button>
 
               <Dropdown
                 trigger={

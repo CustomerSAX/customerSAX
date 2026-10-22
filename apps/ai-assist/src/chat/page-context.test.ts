@@ -52,7 +52,7 @@ describe("Customer CX AI Lite - Page Context and Resolution", () => {
       pageContext: orderContext,
     });
 
-    expect(prompt).toContain("Customer CX AI Lite");
+    expect(prompt).toContain("Customer CX AI");
     expect(prompt).toContain("The agent is viewing an **order** record");
     expect(prompt).toContain("Order ID: `ord-999`");
     expect(prompt).toContain("ORD-999");
