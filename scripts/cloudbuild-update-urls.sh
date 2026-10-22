@@ -95,7 +95,11 @@ gcloud run services update "${NAME_PREFIX}-bff" \
 
 # ── (b) ai-assist — needs commerce URL for product/order lookups ─────────────
 AI_ENV="NODE_ENV=production,SERVICE_NAME=ai-assist,ENVIRONMENT=${ENVIRONMENT}"
-[ -n "${COMMERCE_CT_URL}" ] && AI_ENV="${AI_ENV},AI_COMMERCE_SERVICE_URL=${COMMERCE_CT_URL}"
+if [ -n "${BFF_URL}" ]; then
+  AI_ENV="${AI_ENV},AI_COMMERCE_SERVICE_URL=${BFF_URL}/graphql"
+elif [ -n "${COMMERCE_CT_URL}" ]; then
+  AI_ENV="${AI_ENV},AI_COMMERCE_SERVICE_URL=${COMMERCE_CT_URL}/graphql"
+fi
 [ -n "${AUTH_URL}" ]         && AI_ENV="${AI_ENV},AUTH_SERVICE_URL=${AUTH_URL}"
 
 echo ""

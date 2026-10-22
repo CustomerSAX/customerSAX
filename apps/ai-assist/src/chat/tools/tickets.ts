@@ -52,16 +52,47 @@ export const searchTicketsTool = tool({
         }`,
         { search: query, customerEmail, customerId, status, priority, limit }
       );
+      let page = data.ticketPage;
+      // Fallback: if searching by customerId yielded no tickets and no customerEmail was passed,
+      // try resolving the customer's email and querying by email (as some tickets are created by email only).
+      if (!page?.results?.length && customerId && !customerEmail) {
+        try {
+          const custData = await bffQuery<{ customer: { email?: string } | null }>(
+            `query ResolveCustomerEmail($id: ID!) {
+              customer(id: $id) { email }
+            }`,
+            { id: customerId }
+          );
+          const email = custData.customer?.email?.trim();
+          if (email) {
+            const fallbackData = await bffQuery<{ ticketPage: { results: unknown[]; total: number } }>(
+              `query SearchTicketsByEmail($search: String, $customerEmail: String, $status: String, $priority: String, $limit: Int) {
+                ticketPage(search: $search, customerEmail: $customerEmail, status: $status, priority: $priority, limit: $limit) {
+                  results { ${TICKET_FIELDS} }
+                  total
+                }
+              }`,
+              { search: query, customerEmail: email, status, priority, limit }
+            );
+            if (fallbackData.ticketPage?.results?.length) {
+              page = fallbackData.ticketPage;
+            }
+          }
+        } catch {
+          // Best-effort fallback
+        }
+      }
+
       // The studio renders these results itself as a ticket table with
       // per-row actions, straight from this output.
-      return data.ticketPage?.results?.length
+      return page?.results?.length
         ? {
-            ...data.ticketPage,
+            ...page,
             displayed:
               "These tickets are now shown to the rep as a table (number, subject, status, priority, assignee, last update) with an Actions button on every row. " +
               "Do NOT list them as text or bullets and do not restate their fields. Reply with ONE short line, e.g. '5 open tickets — 2 are urgent.'"
           }
-        : data.ticketPage;
+        : page;
     } catch (err) {
       return { error: String(err) };
     }

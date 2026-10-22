@@ -256,7 +256,7 @@ function buildPageContextBlock(ctx: SystemPromptContext): string {
           `**Current view:** The agent is viewing a **customer** record${namePart}${emailPart}.\n` +
           `- Customer ID: \`${id}\`${summary ? `\n- Summary: ${JSON.stringify(summary)}` : ''}\n` +
           `- **Context Resolution:** If the user asks about "their orders", "their tickets", or "this customer", resolve immediately to this customer (ID: \`${id}\`).\n` +
-          `- Call \`${CT.READ_CUSTOMER}\` with this ID to get full profile and call \`${TICKETS.SEARCH}\` with \`customerId: "${id}"\` where appropriate.`
+          `- Call \`${CT.READ_CUSTOMER}\` with this ID to get full profile and call \`${TICKETS.SEARCH}\` with \`customerId: "${id}"\`${summary?.email ? ` and \`customerEmail: "${summary.email}"\`` : ""} where appropriate.`
         );
         break;
       }

@@ -203,27 +203,33 @@ function buildFilter(args: TicketListArgs): Filter<Document> {
   const filter: Filter<Document> = { projectKey: resolveProjectKey(args.projectKey) };
 
   if (args.status?.trim()) {
-    filter.status = args.status.trim();
+    filter.status = new RegExp(`^${escapeRegExp(args.status.trim())}$`, "i");
   }
   if (args.priority?.trim()) {
-    filter.priority = args.priority.trim();
+    filter.priority = new RegExp(`^${escapeRegExp(args.priority.trim())}$`, "i");
   }
   if (args.category?.trim()) {
-    filter.category = args.category.trim();
+    filter.category = new RegExp(`^${escapeRegExp(args.category.trim())}$`, "i");
   }
   if (args.assignee?.trim()) {
     // Match both 'assignee' (current field) and the legacy 'assignedTo' field
     // that older documents in MongoDB were written with. Using $and ensures this
     // doesn't conflict with the search $or that may appear later in the filter.
+    const assigneeRegex = new RegExp(escapeRegExp(args.assignee.trim()), "i");
     filter.$and = [
       ...((filter.$and as unknown[]) ?? []),
-      { $or: [{ assignee: args.assignee.trim() }, { assignedTo: args.assignee.trim() }] }
+      { $or: [{ assignee: assigneeRegex }, { assignedTo: assigneeRegex }] }
     ] as Filter<Document>["$and"];
   }
-  if (args.customerEmail?.trim()) {
+  if (args.customerId?.trim() && args.customerEmail?.trim()) {
+    const emailRegex = new RegExp(escapeRegExp(args.customerEmail.trim()), "i");
+    filter.$and = [
+      ...((filter.$and as unknown[]) ?? []),
+      { $or: [{ customerId: args.customerId.trim() }, { customerEmail: emailRegex }] }
+    ] as Filter<Document>["$and"];
+  } else if (args.customerEmail?.trim()) {
     filter.customerEmail = new RegExp(escapeRegExp(args.customerEmail.trim()), "i");
-  }
-  if (args.customerId?.trim()) {
+  } else if (args.customerId?.trim()) {
     filter.customerId = args.customerId.trim();
   }
   if (args.search?.trim()) {
@@ -319,13 +325,20 @@ function matchesIdentity(ticket: Document, id: string, projectKey: string) {
 
 function matchesArgs(ticket: Document, args: TicketListArgs) {
   if (ticket.projectKey !== resolveProjectKey(args.projectKey)) return false;
-  if (args.status?.trim() && ticket.status !== args.status.trim()) return false;
-  if (args.priority?.trim() && ticket.priority !== args.priority.trim()) return false;
-  if (args.category?.trim() && ticket.category !== args.category.trim()) return false;
+  if (args.status?.trim() && String(ticket.status ?? "").toLowerCase() !== args.status.trim().toLowerCase()) return false;
+  if (args.priority?.trim() && String(ticket.priority ?? "").toLowerCase() !== args.priority.trim().toLowerCase()) return false;
+  if (args.category?.trim() && String(ticket.category ?? "").toLowerCase() !== args.category.trim().toLowerCase()) return false;
   // Check both 'assignee' and legacy 'assignedTo' field (same as buildFilter above)
-  if (args.assignee?.trim() && ticket.assignee !== args.assignee.trim() && ticket.assignedTo !== args.assignee.trim()) return false;
-  if (args.customerEmail?.trim() && !contains(ticket.customerEmail, args.customerEmail)) return false;
-  if (args.customerId?.trim() && ticket.customerId !== args.customerId.trim()) return false;
+  if (args.assignee?.trim() && !contains(ticket.assignee, args.assignee) && !contains(ticket.assignedTo, args.assignee)) return false;
+  if (args.customerId?.trim() && args.customerEmail?.trim()) {
+    const matchesId = ticket.customerId === args.customerId.trim();
+    const matchesEmail = contains(ticket.customerEmail, args.customerEmail);
+    if (!matchesId && !matchesEmail) return false;
+  } else if (args.customerEmail?.trim() && !contains(ticket.customerEmail, args.customerEmail)) {
+    return false;
+  } else if (args.customerId?.trim() && ticket.customerId !== args.customerId.trim()) {
+    return false;
+  }
   if (args.search?.trim()) {
     const fields = [ticket.ticketNumber, ticket.subject, ticket.customerEmail, ticket.customerName, ticket.category];
     if (!fields.some((value) => contains(value, args.search!))) return false;
