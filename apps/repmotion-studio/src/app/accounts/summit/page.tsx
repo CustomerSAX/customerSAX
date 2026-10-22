@@ -1,3 +1,5 @@
-import { Account } from "../../../features/repmotion/account";
+import { Account360View } from "@/features/accounts/Account360View";
 
-export default Account;
+export default function SummitAccountPage() {
+  return <Account360View accountId="summit" />;
+}
