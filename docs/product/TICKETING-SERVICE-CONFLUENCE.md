@@ -229,3 +229,12 @@ For local development only, the service can run without `MONGO_URI` using an in-
 ## Summary
 
 The CSA Ticketing Service is a real, production-oriented ticket management capability integrated across Studio, Customer 360, and the CSA AI Assistant. It is built as a MongoDB-backed Apollo Federation subgraph and accessed through the BFF gateway with project-scoped context. The current implementation covers the core support workflow and has a clear path to enterprise-grade improvements such as canonical workflow states, complete audit history, SLA tracking, and managed attachments.
+
+
+## Connection Hub Zendesk POC
+
+The ticketing service can resolve a `zendesk-read` project binding from Connection Hub before resolving its saved provider. Configure `CONNECTION_HUB_ENABLED`, `CONNECTION_HUB_URL`, `CONNECTION_HUB_API_KEY` and `CONNECTION_HUB_CLIENT_ID` on `apps/ticketing/.env` as well as Studio. The authenticated client and project are passed from the existing GraphQL context; browser requests never choose the connector account or release.
+
+Activate in the connection-hub repo with `npm run activate:zendesk -- b2c-csa`, after setting a valid `ZENDESK_ACCESS_TOKEN` and `ZENDESK_SUBDOMAIN` there and restarting Hub. Restart CustomerSax ticketing and use Tickets search/details. Reads travel through BFF → ticketing → Connection Hub → downloaded Zendesk connector → Zendesk. The response uses the existing Zendesk ticket mapper. Connection Hub records the binding, connection, release and cache hit.
+
+Projects without this binding retain their saved provider. Disabled bindings and Hub failures return errors rather than silently calling Zendesk directly. Writes use the existing saved Zendesk project connection only when its account matches the Hub binding; Hub writes and OAuth refresh are outside this read POC. The access token is encrypted in Hub and must be rotated before expiry.

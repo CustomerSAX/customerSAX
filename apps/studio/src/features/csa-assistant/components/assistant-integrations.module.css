@@ -1,0 +1,271 @@
+.integrations {
+  color: var(--color-ink);
+  font-size: 13px;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.toolbar > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius-full, 24px);
+  background: transparent;
+  color: var(--color-ink-soft);
+  font: inherit;
+  cursor: pointer;
+}
+.toolbar > button:hover,
+.toolbar > button.selected {
+  background: var(--color-surface-3);
+  color: var(--color-ink);
+}
+.toolbar > button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.projectName {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.integrations button:focus-visible,
+.popover :is(button, a, input):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.popover {
+  z-index: 100;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  padding: 18px;
+  background: var(--color-surface-1);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 16px);
+  box-shadow: var(--shadow-lg, 0 12px 40px #0002);
+  font-size: 13px;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  color: var(--color-ink-soft);
+}
+.search input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  color: var(--color-ink);
+  border: 0;
+  padding: 4px;
+  font: inherit;
+}
+.caption {
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  color: var(--color-ink-soft);
+  margin: 4px 0 12px;
+}
+.muted {
+  color: var(--color-ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.pluginList {
+  max-height: min(320px, 40vh);
+  overflow-y: auto;
+}
+.selectedConnector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.selectedConnector .pluginRow {
+  flex: 1;
+  min-width: 0;
+}
+.removeConnector {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-error, #b91c1c);
+  padding: 8px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.removeConnector:hover {
+  background: var(--color-surface-3);
+}
+.removeConnector:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.pluginRow {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 8px;
+  border-radius: 8px;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: #0006;
+}
+.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 111;
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-1);
+  color: var(--color-ink);
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dialogHeader button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 8px;
+  cursor: pointer;
+}
+.connectionStatus {
+  font-size: 13px;
+  font-weight: 600;
+}
+.connectionForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+.connectionForm label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.pluginRow:hover {
+  background: var(--color-surface-3);
+}
+.pluginRow > span:nth-child(2) {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.pluginLogo {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  flex-shrink: 0;
+}
+.browse {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--color-border);
+  margin-top: 12px;
+  padding: 13px 4px 0;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+.browse > svg:last-child {
+  margin-left: auto;
+}
+.browse:hover {
+  color: var(--color-primary);
+}
+.retry {
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.arrow {
+  fill: var(--color-border);
+}
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.attachments > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.attachments button {
+  display: flex;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.note {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  margin-top: 6px;
+}
+.fileError {
+  font-size: 12px;
+  color: var(--color-error, #b91c1c);
+  margin-top: 6px;
+}
+@media (max-width: 400px) {
+  .toolbar {
+    gap: 2px;
+  }
+  .toolbar > button {
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+  .projectName {
+    max-width: 100px;
+  }
+}

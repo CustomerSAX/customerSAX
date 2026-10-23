@@ -42,6 +42,7 @@ import type { VoicePhase } from "../hooks/use-voice-chat";
 import { useLocale } from "next-intl";
 import { useChatToolEffects } from "../hooks/use-chat-tool-effects";
 import { useActionNotifications } from "../hooks/use-action-notifications";
+import { AssistantIntegrations, type AssistantAttachment } from "./AssistantIntegrations";
 
 // ─── Internal/technical message filtering ──────────────────────────────────
 // Stepper actions and the ticket-open auto-briefing are sent through the same
@@ -726,6 +727,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   const setRightPanelTab   = useConversationStore((s) => s.setRightPanelTab);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const activeTicketId = useConversationStore((s) => s.activeTicketId);
   const setActiveStepper = useConversationStore((s) => s.setActiveStepper);
   const tickets = useConversationStore((s) => s.context.tickets);
@@ -1078,7 +1080,14 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+        <form onSubmit={(event) => {
+          if (attachments.length === 0) { handleSubmit(event); return; }
+          event.preventDefault();
+          if (!input.trim() || isLoading) return;
+          sendSuggestion(input.trim() + attachments.map((file) => `\n\nAttached file: ${file.name}\n${file.text}`).join(""));
+          setInput("");
+          setAttachments([]);
+        }} className="flex items-center gap-2">
           <Input
             placeholder={voice.dictating ? "Listening… speak now" : "Ask me to draft a reply or check order history..."}
             value={input}
@@ -1144,6 +1153,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
             />
           )}
         </form>
+        <AssistantIntegrations disabled={isLoading} attachments={attachments} setAttachments={setAttachments} onPrompt={setInput} />
       </div>
     </div>
   );
