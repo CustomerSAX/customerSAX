@@ -1,3 +1,5 @@
-import { Service } from "../../features/repmotion/service";
+import { ServiceWatchView } from "../../features/service/ServiceWatchView";
 
-export default Service;
+export default function ServicePage() {
+  return <ServiceWatchView />;
+}
