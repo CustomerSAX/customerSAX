@@ -24,6 +24,8 @@ import { formatDate } from "@/lib/format-date";
 import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 import { useQuotes } from "../hooks/use-quotes";
 import { QuoteStatusChip } from "./QuoteStatusChip";
+import { QuoteAIQuickReview } from "./QuoteAIQuickReview";
+import { useQuoteAIStatuses } from "../hooks/use-quote-ai-statuses";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
 import {
   baseQuoteStatusLabel,
@@ -44,6 +46,7 @@ export function QuoteListView() {
     quotes,
     totalItems,
     loading,
+    refetch,
     filter,
     sort,
     page,
@@ -53,6 +56,11 @@ export function QuoteListView() {
     setPage,
     setPerPage,
   } = useQuotes();
+  const { statuses: aiStatuses, refresh: refreshAIStatuses } = useQuoteAIStatuses(quotes);
+  const handleAIChange = async () => {
+    await refetch();
+    await refreshAIStatuses();
+  };
 
   const { allCompanies } = useCompanies();
 
@@ -197,6 +205,7 @@ export function QuoteListView() {
                 {t("total")}
               </TableHead>
               <TableHead>{common("status")}</TableHead>
+              <TableHead>{t("aiStatus")}</TableHead>
               <TableHead
                 sortable
                 sortDirection={sort.key === "validUntil" ? sort.order : false}
@@ -218,7 +227,7 @@ export function QuoteListView() {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 9 }).map((__, j) => (
+                  {Array.from({ length: 10 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton width="80%" height={16} />
                     </TableCell>
@@ -227,7 +236,7 @@ export function QuoteListView() {
               ))
             ) : quotes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-12">
+                <TableCell colSpan={10} className="py-12">
                   <EmptyState
                     icon="file-text"
                     title={t("emptyTitle")}
@@ -272,6 +281,14 @@ export function QuoteListView() {
                     </TableCell>
                     <TableCell>
                       <QuoteStatusChip status={displayStatus} label={t.has(`status.${displayStatus}`) ? t(`status.${displayStatus}`) : displayStatus} />
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <QuoteAIQuickReview
+                        quoteId={q.id}
+                        quoteNumber={q.quoteNumber}
+                        status={aiStatuses[q.id] ?? "loading"}
+                        onChanged={handleAIChange}
+                      />
                     </TableCell>
                     <TableCell className="text-m-text-muted">
                       {formatDate(q.validUntil, locale)}

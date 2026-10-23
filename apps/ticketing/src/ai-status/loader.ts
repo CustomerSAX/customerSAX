@@ -5,7 +5,7 @@ const batches = new WeakMap<object, Pending[]>();
 
 /** Per-request batching avoids an HTTP/database request for every table row. */
 export function loadAIStatus(ticket: Ticket, context: unknown): Promise<string> {
-  if (/^(zendesk|freshdesk):/.test(ticket.id)) return Promise.resolve("not_supported");
+  if (ticket.id.startsWith("freshdesk:")) return Promise.resolve("not_supported");
   const identity = context as Identity | undefined;
   if (!identity?.clientId || !identity.projectKey || !identity.userEmail) return Promise.resolve("unavailable");
   return new Promise(resolve => {

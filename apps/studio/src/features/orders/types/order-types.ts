@@ -139,4 +139,6 @@ export interface Order {
   shippingTotal: number;
   discountTotal: number;
   grandTotal: number;
+  /** ISO currency of the order total, when commercetools returned one. */
+  currencyCode?: string;
 }

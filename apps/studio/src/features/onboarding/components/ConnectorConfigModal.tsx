@@ -140,10 +140,11 @@ export function ConnectorConfigModal({
         const cleanSubdomain = zendeskSubdomain
           .trim()
           .toLowerCase()
-          .replace(/^https?:\/\//, "")
-          .replace(/\.zendesk\.com.*$/, "");
-        if (!cleanSubdomain) {
-          setError("Zendesk Subdomain is required.");
+          .replace(/^https:\/\//, "")
+          .replace(/\.zendesk\.com(?:[/?#].*)?$/, "")
+          .replace(/\/$/, "");
+        if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(cleanSubdomain)) {
+          setError("Enter only your Zendesk subdomain, for example royalcyber-21430. The .zendesk.com suffix is added automatically.");
           return;
         }
         if (!zendeskClientId.trim()) {
@@ -435,11 +436,13 @@ export function ConnectorConfigModal({
             {connector.id === "zendesk" && (
               <div className="space-y-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-m-text">
+                  <label htmlFor="zendesk-subdomain" className="text-xs font-semibold text-m-text">
                     Zendesk Subdomain <span className="text-m-error">*</span>
                   </label>
                   <div className="flex items-center">
                     <Input
+                      id="zendesk-subdomain"
+                      aria-describedby="zendesk-subdomain-help"
                       value={zendeskSubdomain}
                       onChange={(e) => setZendeskSubdomain(e.target.value)}
                       placeholder="mycompany"
@@ -450,6 +453,9 @@ export function ConnectorConfigModal({
                       .zendesk.com
                     </span>
                   </div>
+                  <p id="zendesk-subdomain-help" className="text-[11px] text-m-text-muted">
+                    Enter only the part before .zendesk.com, for example royalcyber-21430. We add .zendesk.com automatically.
+                  </p>
                 </div>
 
                 <div className="flex flex-col gap-1.5">

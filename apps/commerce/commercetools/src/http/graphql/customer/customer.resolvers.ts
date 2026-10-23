@@ -273,7 +273,9 @@ async function searchCustomers(args: CustomerSearchArgs) {
 
 async function textScanCustomers(text: string, args: CustomerSearchArgs) {
   const { limit, offset } = paging(args);
-  const needle = text.toLowerCase();
+  // Every word must appear in some field, so a full name ("Pooja Naik")
+  // matches even though first and last name are stored separately.
+  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
   const data = await commercetoolsGraphql<{ customers: { results: CtCustomer[] } }>(
     `#graphql
       query CustomersScan($limit: Int!, $where: String) {
@@ -285,11 +287,12 @@ async function textScanCustomers(text: string, args: CustomerSearchArgs) {
     { limit: 500, where: customerListWhere(args) }
   );
 
-  const matched = data.customers.results.filter((customer) =>
-    [customer.email, customer.firstName, customer.lastName, customer.companyName, customer.customerNumber, customer.externalId]
+  const matched = data.customers.results.filter((customer) => {
+    const values = [customer.email, customer.firstName, customer.lastName, customer.companyName, customer.customerNumber, customer.externalId]
       .filter((value): value is string => Boolean(value))
-      .some((value) => value.toLowerCase().includes(needle))
-  );
+      .map((value) => value.toLowerCase());
+    return words.every((word) => values.some((value) => value.includes(word)));
+  });
 
   const results = matched.slice(offset, offset + limit).map(mapCustomer).filter(Boolean);
 

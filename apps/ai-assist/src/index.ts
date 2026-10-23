@@ -6,6 +6,7 @@ import express from "express";
 import cors from "cors";
 import { createLogger, expressContext } from "@csa/logger";
 import { routes } from "./routes/index.js";
+import { voiceRouter } from "./routes/voice.js";
 
 const log = createLogger("ai-assist");
 const app = express();
@@ -13,6 +14,12 @@ const host = process.env.HOST ?? (process.env.K_SERVICE ? "0.0.0.0" : "127.0.0.1
 const port = Number(process.env.PORT ?? process.env.AI_ASSIST_PORT ?? 8080);
 
 const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";
+
+// The public voice widget is called from merchant sites, not the studio, so its
+// routes answer CORS for each tenant's own origins. Mounted ahead of the global
+// CORS middleware, which would otherwise answer every preflight for the studio
+// origin only.
+app.use("/voice", expressContext(log), voiceRouter);
 
 app.use(cors({
   origin: corsOrigin,

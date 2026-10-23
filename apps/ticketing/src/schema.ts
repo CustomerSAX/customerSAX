@@ -30,7 +30,9 @@ export const typeDefs = gql`
   type TicketNotification { id: ID!, ticketId: ID!, ticketNumber: String!, title: String!, subject: String!, createdAt: String!, read: Boolean! }
   type TicketNotificationFeed { items: [TicketNotification!]!, unreadCount: Int!, asOf: String! }
   type TicketInformationRequest { status: String!, recipient: String!, subject: String!, text: String!, createdAt: String!, messageId: String }
-  type TicketProviderField { id: ID!, label: String!, type: String!, value: String }
+  type TicketProviderFieldOption { label: String!, value: String! }
+  type TicketProviderField { id: ID!, label: String!, type: String!, value: String, editable: Boolean, rawValue: String, options: [TicketProviderFieldOption!] }
+  input TicketProviderFieldUpdate { id: ID!, value: String! }
   type Ticket @key(fields: "id") {
     aiStatus: String!
     informationRequest: TicketInformationRequest
@@ -137,6 +139,7 @@ export const typeDefs = gql`
   }
 
   extend type Mutation {
+    updateTicketProviderFields(id: ID!, expectedLastModifiedAt: String!, fields: [TicketProviderFieldUpdate!]!): [TicketProviderField!]!
     markTicketNotificationRead(id: ID!, clientId: ID!, projectKey: String!): Boolean!
     markAllTicketNotificationsRead(through: String!, clientId: ID!, projectKey: String!): Boolean!
     requestTicketInformation(id: ID!, expectedLastModifiedAt: String!, questions: [String!]!): TicketInformationRequest
@@ -166,6 +169,13 @@ export const resolvers = {
     attachments: async (ticket: Ticket, _args: unknown, context: unknown) => (await detail(ticket, context))?.attachments || [],
   },
   Mutation: {
+    updateTicketProviderFields: async (_: unknown, args: { id: string; expectedLastModifiedAt: string; fields: Array<{ id: string; value: string }> }, context: unknown) => {
+      const identity = context as TicketingContext;
+      if (!identity?.userEmail || !["agent", "admin", "superadmin"].includes(identity.userRole ?? "")) throw new Error("An authenticated agent is required to update ticket fields");
+      const provider = await selectedProvider(context);
+      if (!provider.updateFields) throw new Error("Field editing is not supported by this provider");
+      return provider.updateFields(args.id, args.expectedLastModifiedAt, args.fields);
+    },
     markTicketNotificationRead: async (_: unknown, args: { id: string; clientId: string; projectKey: string }, context: unknown) => markNotificationsRead(await notificationScope(context, args), args.id),
     markAllTicketNotificationsRead: async (_: unknown, args: { through: string; clientId: string; projectKey: string }, context: unknown) => markNotificationsRead(await notificationScope(context, args), undefined, args.through),
     requestTicketInformation: async (_parent: unknown, args: { id: string; expectedLastModifiedAt: string; questions: string[] }, context: unknown) => {

@@ -7,6 +7,7 @@ import {
 } from "@csa/i18n";
 import { localeFromPathname, localizePathname, stripLocalePrefix } from "./i18n/routing";
 import { NextResponse, type NextRequest } from "next/server";
+import { projectPath } from "./lib/project-url";
 
 const sessionCookieName = process.env.AUTH_COOKIE_NAME?.trim() || "csa_session";
 
@@ -33,8 +34,9 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  const appPathname = stripLocalePrefix(pathname);
-  const canonicalPathname = localizePathname(appPathname, locale);
+  const localizedPathname = stripLocalePrefix(pathname);
+  const appPathname = projectPath(localizedPathname).pathname;
+  const canonicalPathname = localizePathname(localizedPathname, locale);
   if (pathname !== canonicalPathname) {
     const destination = request.nextUrl.clone();
     destination.pathname = canonicalPathname;

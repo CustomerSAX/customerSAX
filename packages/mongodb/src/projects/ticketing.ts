@@ -1,6 +1,6 @@
 import { normalizeFreshdeskDomain, projectFreshdeskCredentials, freshdeskClient } from "./freshdesk.js";
 import { ObjectId } from "mongodb";
-import { getProjectsCollection } from "../admin/db.js";
+import { getProjectsCollection, getTicketingAccountsCollection } from "../admin/db.js";
 import { encrypt, decrypt } from "../encrypt.js";
 
 export type ProjectTicketing = {
@@ -30,8 +30,8 @@ export function normalizeZendeskSubdomain(value: string) {
     .trim()
     .toLowerCase()
     .replace(/^https:\/\//, "")
-    .replace(/\/$/, "")
-    .replace(/\.zendesk\.com$/, "");
+    .replace(/\.zendesk\.com(?:[/?#].*)?$/, "")
+    .replace(/\/$/, "");
   if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(domain))
     throw new Error("Enter a valid Zendesk subdomain");
   return domain;
@@ -97,19 +97,33 @@ export async function saveProjectTicketing(
   const existing = await project(clientId, id);
   const settings = prepareTicketing(input, existing.ticketing);
   const collection = await getProjectsCollection();
-  // Atomic uniqueness protects against two admins assigning one account concurrently.
-  // Keep the reservation even while native is selected, preserving account ownership.
-  await collection.createIndex(
-    { "ticketing.subdomain": 1 },
-    {
-      unique: true,
-      partialFilterExpression: { "ticketing.subdomain": { $type: "string" } },
-      name: "unique_ticketing_zendesk_account"
+  // Reserve accounts for a client, rather than for an individual project.
+  // Check legacy rows before removing the old indexes so existing ownership
+  // remains protected; the registry's unique _id arbitrates concurrent claims.
+  for (const [provider, field, account] of [
+    ["zendesk", "ticketing.subdomain", settings.subdomain],
+    ["freshdesk", "ticketing.freshdeskDomain", settings.freshdeskDomain]
+  ]) {
+    if (!account) continue;
+    if (await collection.findOne({ [field!]: account, clientId: { $ne: clientId } }))
+      throw new Error("This ticketing account belongs to another client");
+    try {
+      await (await getTicketingAccountsCollection()).updateOne(
+        { _id: `${provider}:${account}`, clientId },
+        { $setOnInsert: { clientId } },
+        { upsert: true }
+      );
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) throw new Error("This ticketing account belongs to another client");
+      throw error;
     }
-  );
-  await collection.createIndex({ "ticketing.freshdeskDomain": 1 }, {
-    unique: true, partialFilterExpression: { "ticketing.freshdeskDomain": { $type: "string" } }, name: "unique_ticketing_freshdesk_account"
-  });
+  }
+  // Existing installations already have these project-unique indexes. Remove
+  // them on save; ignoring only IndexNotFound makes this migration idempotent.
+  for (const name of ["unique_ticketing_zendesk_account", "unique_ticketing_freshdesk_account"]) {
+    try { await collection.dropIndex(name); }
+    catch (error) { if ((error as { code?: number }).code !== 27) throw error; }
+  }
   try {
     const result = await collection.updateOne(
       { _id: existing._id, clientId },
@@ -118,7 +132,7 @@ export async function saveProjectTicketing(
     if (!result.matchedCount) throw new Error("Project no longer exists");
   } catch (e) {
     if ((e as { code?: number }).code === 11000)
-      throw new Error("This ticketing account is already assigned to another project");
+      throw new Error("Could not save this shared ticketing account. Retry after the admin deployment completes.");
     throw e;
   }
   return ticketingSettingsView(settings);

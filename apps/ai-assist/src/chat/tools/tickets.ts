@@ -21,11 +21,27 @@ export const searchTicketsTool = tool({
     query: z.string().optional().describe("Keyword search within ticket subject or body"),
     customerEmail: z.string().optional().describe("Filter by customer email"),
     customerId: z.string().optional().describe("Filter by commercetools customer UUID — use when you have the customer ID from a find_customer result"),
-    status: z.enum(["open", "in progress", "waiting", "resolved", "closed"]).optional().describe("Filter by ticket status"),
-    priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("Filter by priority"),
+    status: z
+      .enum(["any", "open", "in progress", "waiting", "resolved", "closed"])
+      .optional()
+      .describe("Filter by ticket status; 'any' (no filter) unless the rep asked for a status"),
+    priority: z
+      .enum(["any", "low", "normal", "high", "urgent"])
+      .optional()
+      .describe("Filter by priority; 'any' (no filter) unless the rep explicitly asked for a priority"),
     limit: z.number().optional().default(10)
   }),
-  execute: async ({ query, customerEmail, customerId, status, priority, limit }) => {
+  execute: async (args) => {
+    // The model tends to fill every optional field; an empty string or "any"
+    // must mean "no filter", or a request like "open tickets" silently drops
+    // every ticket that isn't also e.g. priority "normal".
+    const opt = (v?: string) => (v && v.trim() && v !== "any" ? v.trim() : undefined);
+    const query = opt(args.query);
+    const customerEmail = opt(args.customerEmail);
+    const customerId = opt(args.customerId);
+    const status = opt(args.status);
+    const priority = opt(args.priority);
+    const limit = args.limit;
     try {
       const data = await bffQuery<{ ticketPage: { results: unknown[]; total: number } }>(
         `query SearchTickets($search: String, $customerEmail: String, $customerId: String, $status: String, $priority: String, $limit: Int) {
@@ -36,7 +52,16 @@ export const searchTicketsTool = tool({
         }`,
         { search: query, customerEmail, customerId, status, priority, limit }
       );
-      return data.ticketPage;
+      // The studio renders these results itself as a ticket table with
+      // per-row actions, straight from this output.
+      return data.ticketPage?.results?.length
+        ? {
+            ...data.ticketPage,
+            displayed:
+              "These tickets are now shown to the rep as a table (number, subject, status, priority, assignee, last update) with an Actions button on every row. " +
+              "Do NOT list them as text or bullets and do not restate their fields. Reply with ONE short line, e.g. '5 open tickets — 2 are urgent.'"
+          }
+        : data.ticketPage;
     } catch (err) {
       return { error: String(err) };
     }
@@ -44,9 +69,10 @@ export const searchTicketsTool = tool({
 });
 
 export const getTicketTool = tool({
-  description: "Retrieve a single ticket by its ID.",
+  description:
+    "Retrieve a single ticket by its internal ID or by its plain ticket number. When the rep says 'ticket 3' or '#3', call this with id \"3\" (digits only, no '#') — do not search for it.",
   inputSchema: z.object({
-    id: z.string().describe("Ticket ID")
+    id: z.string().describe("Ticket internal ID, or the ticket number without '#'")
   }),
   execute: async ({ id }) => {
     try {
@@ -115,27 +141,37 @@ export const searchKnowledgeBaseTool = tool({
     limit: z.number().optional().default(5)
   }),
   execute: async ({ query, limit }) => {
-    const kbUrl = process.env.KNOWLEDGE_BASE_URL?.trim();
-    if (!kbUrl) {
-      return {
-        results: [],
-        total: 0,
-        note: "Knowledge base is not configured in this deployment. Advise the rep to check the internal wiki or escalate to a senior agent."
-      };
-    }
-
-    try {
-      const res = await fetch(`${kbUrl}/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
-        headers: { "x-api-key": process.env.KNOWLEDGE_BASE_API_KEY ?? "" },
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!res.ok) return { error: `KB service returned ${res.status}`, results: [], total: 0 };
-      return await res.json();
-    } catch (err) {
-      return { error: String(err), results: [], total: 0 };
-    }
+    const result = await searchKnowledgeBase(query, limit);
+    return result === null
+      ? {
+          results: [],
+          total: 0,
+          note: "Knowledge base is not configured in this deployment. Advise the rep to check the internal wiki or escalate to a senior agent."
+        }
+      : result;
   }
 });
+
+/**
+ * Queries the knowledge-base service. Returns null when no KB is configured,
+ * `{ error, results: [], total: 0 }` on a backend failure, otherwise the
+ * service's own response.
+ */
+export async function searchKnowledgeBase(query: string, limit: number): Promise<Record<string, unknown> | null> {
+  const kbUrl = process.env.KNOWLEDGE_BASE_URL?.trim();
+  if (!kbUrl) return null;
+
+  try {
+    const res = await fetch(`${kbUrl}/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
+      headers: { "x-api-key": process.env.KNOWLEDGE_BASE_API_KEY ?? "" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return { error: `KB service returned ${res.status}`, results: [], total: 0 };
+    return (await res.json()) as Record<string, unknown>;
+  } catch (err) {
+    return { error: String(err), results: [], total: 0 };
+  }
+}
 
 export const getKnowledgeBaseArticleTool = tool({
   description: "Fetch the full text of a specific knowledge base article by its ID or slug.",
@@ -171,8 +207,91 @@ export const getKnowledgeBaseArticleTool = tool({
 
 const APPROVAL_GATE_ERROR =
   "APPROVAL_GATE_BLOCKED: An action_approval confirmation card was shown earlier in this turn. " +
-  "You must NOT call any write tool (create_ticket, update_ticket) until the agent explicitly clicks " +
+  "You must NOT call any write tool (create_ticket, update_ticket, add_ticket_note) until the agent explicitly clicks " +
   "Approve in the UI. Stop your response now and wait for the next user message.";
+
+/**
+ * Creates a ticket through the BFF. Callers own their own permission/approval
+ * checks — this only maps the draft and runs the mutation.
+ *
+ * `worklog` is an ai-assist-level concept (internal notes). It is added AFTER
+ * the ticket exists, via `addTicketWorklog`, rather than as `comments` on the
+ * draft: providers differ — Freshdesk rejects comments on create ("Add
+ * Freshdesk notes using Add Internal Note after creating the ticket") — and the
+ * two-step path works for every provider. If the note fails, the ticket still
+ * exists, so it is returned with `noteError` instead of being reported as a
+ * failed create.
+ */
+export async function createTicketFromDraft(
+  args: Record<string, unknown> & { worklog?: string },
+  author: string
+): Promise<{ id?: string; ticketNumber?: string; noteError?: string } | null> {
+  const { worklog, ...draft } = args;
+
+  const create = (d: Record<string, unknown>) =>
+    bffQuery<{ createTicket: { id?: string; ticketNumber?: string } | null }>(
+      `mutation CreateTicket($draft: TicketDraftInput!) {
+        createTicket(draft: $draft) { ${TICKET_FIELDS} }
+      }`,
+      { draft: d }
+    );
+
+  let data: Awaited<ReturnType<typeof create>>;
+  try {
+    data = await create(draft);
+  } catch (err) {
+    // Some providers (Freshdesk) have no field for the order/customer link and
+    // reject the whole ticket. Keep the ticket, and keep the link visible to
+    // the rep by writing it into the description instead of dropping it.
+    if (!/(orderNumber|customerId) mapping is not configured/.test(String(err))) throw err;
+    const { orderNumber, customerId, ...rest } = draft;
+    const links = [
+      orderNumber ? `Order number: ${String(orderNumber)}` : null,
+      customerId ? `Customer ID: ${String(customerId)}` : null
+    ].filter(Boolean);
+    const message = [typeof rest.message === "string" ? rest.message : "", links.join("\n")].filter(Boolean).join("\n\n");
+    data = await create({ ...rest, message });
+  }
+  const created = data.createTicket;
+  if (!created?.id || !worklog) return created;
+
+  try {
+    await addTicketNote(created.id, worklog, author);
+    return created;
+  } catch (err) {
+    log.warn("ticket created but internal note failed", { targetId: created.id, reason: String(err) });
+    return { ...created, noteError: "The ticket was created, but its internal note could not be added." };
+  }
+}
+
+/** Applies a patch (status, priority, assignee, …) to a ticket. Callers own permission/approval checks. */
+export async function updateTicketFields(
+  id: string,
+  patch: Record<string, unknown>
+): Promise<{ id?: string; ticketNumber?: string; status?: string } | null> {
+  const data = await bffQuery<{ updateTicket: { id?: string; ticketNumber?: string; status?: string } | null }>(
+    `mutation UpdateTicket($id: ID!, $patch: TicketUpdateInput!) {
+      updateTicket(id: $id, patch: $patch) { ${TICKET_FIELDS} }
+    }`,
+    { id, patch }
+  );
+  return data.updateTicket;
+}
+
+/** Adds an internal (rep-only) note to a ticket. Returns null when the ticket doesn't exist. */
+export async function addTicketNote(
+  id: string,
+  note: string,
+  author: string
+): Promise<{ id?: string; ticketNumber?: string } | null> {
+  const data = await bffQuery<{ addTicketWorklog: { id?: string; ticketNumber?: string } | null }>(
+    `mutation AddTicketNote($id: ID!, $comment: WorklogCommentInput!) {
+      addTicketWorklog(id: $id, comment: $comment) { ${TICKET_FIELDS} }
+    }`,
+    { id, comment: { id: randomUUID(), comment: note, createdAt: new Date().toISOString(), status: "internal", author } }
+  );
+  return data.addTicketWorklog;
+}
 
 export function buildTicketTools(approvalGate?: { pending: boolean }) {
   const createTicketTool = tool({
@@ -206,36 +325,12 @@ export function buildTicketTools(approvalGate?: { pending: boolean }) {
           return { error: "PERMISSION DENIED: You only have read access to tickets. Please reach out to the admin to perform write or update actions." };
         }
 
-        // `worklog` is an ai-assist-level concept (internal notes). TicketDraftInput
-        // has no `worklog` field — it only accepts `comments: [WorklogCommentInput!]`.
-        // Passing `worklog` directly causes a GraphQL "unexpected field" rejection.
-        // Convert it to a WorklogCommentInput and include it in comments instead.
-        const { worklog, ...draftFields } = args;
-        const comments = worklog
-          ? [
-              {
-                id: randomUUID(),
-                comment: worklog,
-                createdAt: new Date().toISOString(),
-                status: "internal",
-                author: ctx.userEmail ?? "csa_assistant",
-              },
-            ]
-          : undefined;
-
-        const draft = { ...draftFields, ...(comments ? { comments } : {}) };
-
-        const data = await bffQuery<{ createTicket: { id?: string; ticketNumber?: string } | null }>(
-          `mutation CreateTicket($draft: TicketDraftInput!) {
-            createTicket(draft: $draft) { ${TICKET_FIELDS} }
-          }`,
-          { draft }
-        );
+        const created = await createTicketFromDraft(args, ctx.userEmail ?? "csa_assistant");
         log.info("write:create_ticket", {
-          targetId: data.createTicket?.id ?? data.createTicket?.ticketNumber,
-          ok: data.createTicket != null
+          targetId: created?.id ?? created?.ticketNumber,
+          ok: created != null
         });
-        return data.createTicket;
+        return created;
       } catch (err) {
         log.info("write:create_ticket", { ok: false });
         return { error: String(err) };
@@ -264,16 +359,38 @@ export function buildTicketTools(approvalGate?: { pending: boolean }) {
         if (!ctx.canUpdateTickets) {
           return { error: "PERMISSION DENIED: You only have read access to tickets. Please reach out to the admin to perform write or update actions." };
         }
-        const data = await bffQuery<{ updateTicket: unknown }>(
-          `mutation UpdateTicket($id: ID!, $patch: TicketUpdateInput!) {
-            updateTicket(id: $id, patch: $patch) { ${TICKET_FIELDS} }
-          }`,
-          { id, patch }
-        );
-        log.info("write:update_ticket", { targetId: id, ok: data.updateTicket != null });
-        return data.updateTicket;
+        const updated = await updateTicketFields(id, patch);
+        log.info("write:update_ticket", { targetId: id, ok: updated != null });
+        return updated;
       } catch (err) {
         log.info("write:update_ticket", { targetId: id, ok: false });
+        return { error: String(err) };
+      }
+    }
+  });
+
+  // Internal note (worklog) on an existing ticket — never visible to the customer.
+  const addTicketNoteTool = tool({
+    description: "Add an internal note to an existing ticket (agents only; the customer never sees it). ALWAYS require action_approval first.",
+    inputSchema: z.object({
+      id: z.string().describe("Ticket ID"),
+      note: z.string().min(1).describe("Note text, exactly as approved by the rep")
+    }),
+    execute: async ({ id, note }) => {
+      if (approvalGate?.pending) {
+        return { error: APPROVAL_GATE_ERROR };
+      }
+
+      try {
+        const ctx = getSystemPromptContext();
+        if (!ctx.canUpdateTickets) {
+          return { error: "PERMISSION DENIED: You only have read access to tickets. Please reach out to the admin to perform write or update actions." };
+        }
+        const noted = await addTicketNote(id, note, ctx.userEmail ?? "csa_assistant");
+        log.info("write:add_ticket_note", { targetId: id, ok: noted != null });
+        return noted ?? { error: "Ticket not found" };
+      } catch (err) {
+        log.info("write:add_ticket_note", { targetId: id, ok: false });
         return { error: String(err) };
       }
     }
@@ -284,6 +401,7 @@ export function buildTicketTools(approvalGate?: { pending: boolean }) {
     get_ticket: getTicketTool,
     create_ticket: createTicketTool,
     update_ticket: updateTicketTool,
+    add_ticket_note: addTicketNoteTool,
     list_assignees: listAssigneesTool,
     search_knowledge_base: searchKnowledgeBaseTool,
     get_knowledge_base_article: getKnowledgeBaseArticleTool

@@ -7,14 +7,17 @@ import { useCurrentUser } from "@/lib/use-current-user";
 import { useConversationStore } from "../store/conversation-store";
 import type {
   ActionApprovalArgs,
+  ApprovalResolution,
   CartSummaryArgs,
   CaseBriefingArgs,
+  CrmContactCardArgs,
   DraftEmailArgs,
   OrderConfirmationArgs,
   OrderSummaryArgs,
   ProductCardArgs,
   RenderRefundActionArgs,
-  SuggestedActionsArgs
+  SuggestedActionsArgs,
+  TicketCardArgs
 } from "../types";
 import {
   CartSummaryCard,
@@ -22,16 +25,23 @@ import {
   DraftEmailCard,
   OrderConfirmationCard,
   OrderSummaryCard,
+  OrderSummaryTable,
   ProductCard,
   RenderRefundCard
 } from "./ToolCards";
+import { CrmContactCard, CrmPendingFollowups } from "./CrmCards";
+import { TicketCard, TicketSummaryTable } from "./TicketCards";
 import { ActionApproval } from "./ActionApproval";
 import { SuggestedActions } from "./SuggestedActions";
 import { Markdown } from "./Markdown";
 import { CheckoutFlow } from "./CheckoutFlow";
 import { useCartStore } from "../store/cart-store";
 import type { CsaChat } from "../hooks/use-csa-chat";
+import { useVoiceChat } from "../hooks/use-voice-chat";
+import type { VoicePhase } from "../hooks/use-voice-chat";
+import { useLocale } from "next-intl";
 import { useChatToolEffects } from "../hooks/use-chat-tool-effects";
+import { useActionNotifications } from "../hooks/use-action-notifications";
 
 // ─── Internal/technical message filtering ──────────────────────────────────
 // Stepper actions and the ticket-open auto-briefing are sent through the same
@@ -56,6 +66,102 @@ function isInternalMessageText(text: string): boolean {
 }
 
 /** True when a message has nothing worth showing once internal text parts are excluded. */
+const DECLINE_TEXT = "Please discard that action — I do not want to proceed.";
+
+function messageText(message: UIMessage | undefined): string {
+  return (message?.parts ?? [])
+    .filter((p) => p.type === "text")
+    .map((p) => (p as { text?: string }).text ?? "")
+    .join("\n")
+    .trim();
+}
+
+/**
+ * How the rep answered the approval cards in messages[index], read from the
+ * next user message: an Approve/Confirm click, the Decline text, or anything
+ * else (they moved on). Null while no later user message exists.
+ */
+function approvalResolution(messages: UIMessage[], index: number): ApprovalResolution {
+  const next = messages.slice(index + 1).find((m) => m.role === "user");
+  if (!next) return null;
+  const text = messageText(next);
+  if (text.startsWith("[approved-action]") || text.includes('"type":"return.confirm"')) return "approved";
+  if (text === DECLINE_TEXT) return "declined";
+  return "superseded";
+}
+
+// Tool cards ToolCallCard (or the product row) actually renders; every other
+// tool part is invisible to the rep.
+const VISIBLE_TOOLS = new Set([
+  "order_summary",
+  "order_confirmation",
+  "cart_summary",
+  "crm_contact_card",
+  "ticket_card",
+  "case_briefing_card",
+  "draft_email",
+  "action_approval",
+  "suggested_actions",
+  "render_refund_action",
+  "product_card"
+]);
+
+type ToolPart = { type: string; toolName?: string; state?: string; output?: unknown; errorText?: string };
+
+function toolParts(message: UIMessage): Array<ToolPart & { name: string }> {
+  return (message.parts ?? []).flatMap((part) => {
+    const p = part as ToolPart;
+    if (p.type === "dynamic-tool") return [{ ...p, name: p.toolName ?? "" }];
+    if (p.type.startsWith("tool-") && p.type !== "tool-invocation") return [{ ...p, name: p.type.slice(5) }];
+    return [];
+  });
+}
+
+function hasVisibleContent(message: UIMessage): boolean {
+  const text = (message.parts ?? []).some(
+    (p) => p.type === "text" && (p as { text?: string }).text?.trim() && !isInternalMessageText((p as { text: string }).text)
+  );
+  return (
+    text ||
+    toolParts(message).some(
+      (p) =>
+        VISIBLE_TOOLS.has(p.name) ||
+        (p.name === "search_tickets" && p.state === "output-available" && Boolean((p.output as { results?: unknown[] } | undefined)?.results?.length)) ||
+        ((p.name === "list_products" || p.name === "search_products") && p.state === "output-available" && catalogProductsToCards(p.output).length > 0) ||
+        (p.name === "get_crm_contact_details" && p.state === "output-available" && Boolean((p.output as { contact?: { id?: string } } | undefined)?.contact?.id))
+    )
+  );
+}
+
+function isEmptyResult(output: unknown): boolean {
+  if (output == null) return true;
+  if (Array.isArray(output)) return output.length === 0;
+  if (typeof output !== "object") return false;
+  const o = output as Record<string, unknown>;
+  if (o.total === 0) return true;
+  return Object.values(o).every((v) => v == null || (Array.isArray(v) && v.length === 0));
+}
+
+/**
+ * What to tell the rep when the assistant's turn ended with nothing on screen,
+ * based only on what its tools actually returned.
+ */
+function emptyReplyNotice(message: UIMessage): string {
+  const lookups = toolParts(message).filter((p) => !VISIBLE_TOOLS.has(p.name) && p.name !== "update_ui_state");
+  const failure = lookups.find(
+    (p) => p.state === "output-error" || (p.output && typeof p.output === "object" && typeof (p.output as { error?: unknown }).error === "string")
+  );
+  if (failure) {
+    const detail = failure.errorText ?? String((failure.output as { error: string }).error);
+    return `This lookup couldn't be completed because a connected system returned an error (${detail.replace(/^Error:\s*/, "").slice(0, 160)}). Please try again.`;
+  }
+  const finished = lookups.filter((p) => p.state === "output-available");
+  if (finished.length > 0 && finished.every((p) => isEmptyResult(p.output))) {
+    return "No matching records were found for this request. Check the name, email or number and try again.";
+  }
+  return "No reply came back for this request. Please try again or rephrase it.";
+}
+
 function isFullyInternalMessage(message: UIMessage): boolean {
   if (!message.parts || message.parts.length === 0) return false;
   const hasVisibleText = message.parts.some(
@@ -88,7 +194,9 @@ function ToolCallCard({
   onDecline,
   onSuggest,
   onRefundConfirm,
-  isLoading
+  isLoading,
+  resolution,
+  isLatest
 }: {
   toolName: string;
   args: unknown;
@@ -97,19 +205,31 @@ function ToolCallCard({
   onSuggest: (prompt: string) => void;
   onRefundConfirm: (args: RenderRefundActionArgs) => void;
   isLoading: boolean;
+  resolution: ApprovalResolution;
+  isLatest: boolean;
 }) {
   // Skip UI-state calls — they're invisible
   if (toolName === "update_ui_state" || toolName === "get_resolution_reasons") return null;
 
   switch (toolName) {
     case "order_summary":
-      return <OrderSummaryCard args={args as OrderSummaryArgs} />;
+      return <OrderSummaryCard args={args as OrderSummaryArgs} onSuggest={onSuggest} isLoading={isLoading} />;
     case "order_confirmation":
       return <OrderConfirmationCard args={args as OrderConfirmationArgs} />;
     case "cart_summary":
       return <CartSummaryCard args={args as CartSummaryArgs} />;
+    case "crm_contact_card":
+      // Pending follow-ups with actions sit in the reply, above the profile card.
+      return (
+        <>
+          <CrmPendingFollowups contactId={(args as CrmContactCardArgs).contactId} onSuggest={onSuggest} />
+          <CrmContactCard args={args as CrmContactCardArgs} />
+        </>
+      );
     case "case_briefing_card":
-      return <CaseBriefingCard args={args as CaseBriefingArgs} />;
+      return <CaseBriefingCard args={args as CaseBriefingArgs} onSuggest={onSuggest} isLoading={isLoading} />;
+    case "ticket_card":
+      return <TicketCard args={args as TicketCardArgs} onSuggest={onSuggest} isLoading={isLoading} />;
     case "draft_email":
       return <DraftEmailCard args={args as DraftEmailArgs} />;
     case "action_approval":
@@ -119,6 +239,8 @@ function ToolCallCard({
           onApprove={onApprove}
           onDecline={onDecline}
           isPending={isLoading}
+          resolution={resolution}
+          autoFocus={isLatest && !isLoading}
         />
       );
     case "suggested_actions":
@@ -136,6 +258,7 @@ function ToolCallCard({
           onConfirm={() => onRefundConfirm(args as RenderRefundActionArgs)}
           onDecline={onDecline}
           isPending={isLoading}
+          resolution={resolution}
         />
       );
     default:
@@ -151,7 +274,9 @@ function MessageBubble({
   onDecline,
   onSuggest,
   onRefundConfirm,
-  isLoading
+  isLoading,
+  resolution,
+  isLatest
 }: {
   message: UIMessage;
   onApprove: (cmd: string) => void;
@@ -159,6 +284,8 @@ function MessageBubble({
   onSuggest: (prompt: string) => void;
   onRefundConfirm: (args: RenderRefundActionArgs) => void;
   isLoading: boolean;
+  resolution: ApprovalResolution;
+  isLatest: boolean;
 }) {
   const isUser = message.role === "user";
   const { user } = useCurrentUser();
@@ -166,16 +293,30 @@ function MessageBubble({
   // ── Collect product_card parts upfront for horizontal scroll rendering ──
   // They're skipped in the main tool-card loop below and rendered together in
   // a single flex row so all cards appear at the same height, same width.
+  // Cards come from two sources: list_products / search_products results (every
+  // returned product — so a product list always renders as cards, never
+  // depending on the model also calling product_card for each one) and explicit
+  // product_card calls. A product already shown from a result isn't repeated.
   const productCards: { args: ProductCardArgs; key: string }[] = [];
+  const shownSkus = new Set<string>();
   message.parts?.forEach((part, partIdx) => {
-    const p = part as { type: string; toolName?: string; state?: string; input?: unknown };
+    const p = part as { type: string; toolName?: string; state?: string; input?: unknown; output?: unknown };
     const isStaticTool = p.type.startsWith("tool-") && p.type !== "tool-invocation";
     const isDynamicTool = p.type === "dynamic-tool";
     if (!isStaticTool && !isDynamicTool) return;
     const toolName = isDynamicTool ? (p.toolName ?? "") : p.type.slice(5);
+    if ((toolName === "list_products" || toolName === "search_products") && p.state === "output-available") {
+      catalogProductsToCards(p.output).forEach((args, i) => {
+        if (args.sku) shownSkus.add(args.sku);
+        productCards.push({ args, key: `${message.id}-part-${partIdx}-${i}` });
+      });
+      return;
+    }
     if (toolName !== "product_card") return;
     if (p.state !== "output-available" && p.state !== "input-available") return;
-    productCards.push({ args: p.input as ProductCardArgs, key: `${message.id}-part-${partIdx}` });
+    const args = p.input as ProductCardArgs;
+    if (args?.sku && shownSkus.has(args.sku)) return;
+    productCards.push({ args, key: `${message.id}-part-${partIdx}` });
   });
 
   // Route through the AI's order.add_item action so the real cart flow
@@ -194,6 +335,63 @@ function MessageBubble({
 
   const hasProductCards = productCards.length > 0;
 
+  // Same for tickets: two or more ticket cards become one table.
+  const ticketParts = (message.parts ?? []).flatMap((part, partIdx) => {
+    const p = part as { type: string; toolName?: string; state?: string; input?: unknown };
+    const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+    if (name !== "ticket_card" || (p.state !== "output-available" && p.state !== "input-available")) return [];
+    const id = (p.input as TicketCardArgs | undefined)?.ticketId;
+    return id ? [{ partIdx, id }] : [];
+  });
+  const tableTicketIds = ticketParts.length > 1 ? Array.from(new Set(ticketParts.map((t) => t.id))) : [];
+
+  // CRM details fetched without a contact card (the model skipped the card
+  // tool) still show the card and pending follow-ups, from the real result.
+  const crmFromDetails = (() => {
+    const parts = message.parts ?? [];
+    const hasCard = parts.some((part) => {
+      const p = part as { type: string; toolName?: string };
+      return p.type === "tool-crm_contact_card" || (p.type === "dynamic-tool" && p.toolName === "crm_contact_card");
+    });
+    if (hasCard) return null;
+    const found = parts.flatMap((part, partIdx) => {
+      const p = part as { type: string; toolName?: string; state?: string; output?: unknown };
+      const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+      if (name !== "get_crm_contact_details" || p.state !== "output-available") return [];
+      const id = (p.output as { contact?: { id?: string } } | undefined)?.contact?.id;
+      return id ? [{ partIdx, contactId: id }] : [];
+    });
+    return found.length ? found[found.length - 1] : null;
+  })();
+
+  // A ticket search that found tickets is shown as the same table, straight
+  // from the tool's real results, unless the reply already has ticket cards.
+  const searchTable = (() => {
+    if (ticketParts.length > 0) return null;
+    const found = (message.parts ?? []).flatMap((part, partIdx) => {
+      const p = part as { type: string; toolName?: string; state?: string; output?: unknown };
+      const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+      if (name !== "search_tickets" || p.state !== "output-available") return [];
+      const out = p.output as { results?: Array<{ id?: string }>; total?: number } | undefined;
+      const ids = (out?.results ?? []).map((t) => t.id).filter((id): id is string => Boolean(id));
+      return ids.length ? [{ partIdx, ids: Array.from(new Set(ids)).slice(0, 10), total: out?.total ?? ids.length }] : [];
+    });
+    return found.length ? found[found.length - 1] : null;
+  })();
+
+  // Two or more orders in one reply read better as a single table than as a
+  // stack of tall cards; it renders where the first order card would have.
+  const orderParts = (message.parts ?? []).flatMap((part, partIdx) => {
+    const p = part as { type: string; toolName?: string; state?: string; input?: unknown };
+    const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+    if (name !== "order_summary" || (p.state !== "output-available" && p.state !== "input-available")) return [];
+    return [{ partIdx, args: p.input as OrderSummaryArgs }];
+  });
+  // The same order shown twice in one reply appears once in the table.
+  const tableOrders = orderParts.length > 1
+    ? orderParts.filter((o, i) => orderParts.findIndex((x) => x.args.orderId === o.args.orderId) === i).map((o) => o.args)
+    : [];
+
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
       {!isUser && (
@@ -209,8 +407,12 @@ function MessageBubble({
         </div>
       )}
 
-      {/* Always constrain to 78% — the horizontal scroll row scrolls within that width */}
-      <div className={`flex flex-col gap-1 max-w-[78%] ${isUser ? "items-end" : "items-start"}`}>
+      {/* Constrained to 78% (product cards scroll within it); replies with a table take the full chat width so every column fits. */}
+      <div
+        className={`flex flex-col gap-1 ${
+          !isUser && (tableTicketIds.length > 0 || searchTable || tableOrders.length > 0) ? "min-w-0 flex-1" : "max-w-[78%]"
+        } ${isUser ? "items-end" : "items-start"}`}
+      >
         {/* Text bubble — in ai@6+, text is in parts, not message.content */}
         {message.parts?.filter(p => p.type === "text").map((p, i) => {
           const textPart = p as { type: "text"; text: string };
@@ -228,6 +430,14 @@ function MessageBubble({
             </div>
           );
         })}
+
+        {/* A finished assistant turn must never be a blank bubble. */}
+        {!isUser && !(isLatest && isLoading) && !hasVisibleContent(message) && (
+          <div className="rounded-m-lg rounded-tl-sm px-3.5 py-2.5 bg-m-surface-2 text-m-text-muted text-sm flex items-start gap-2">
+            <Icon name="info" size="xs" className="mt-0.5 shrink-0" />
+            <span>{emptyReplyNotice(message)}</span>
+          </div>
+        )}
 
         {/* Tool cards — product_card parts are skipped here and rendered in the
             horizontal scroll row below so all cards appear at a consistent size. */}
@@ -247,6 +457,51 @@ function MessageBubble({
           // Handled in the horizontal scroll row below
           if (toolName === "product_card") return null;
 
+          if (toolName === "get_crm_contact_details" && crmFromDetails && partIdx === crmFromDetails.partIdx) {
+            return (
+              <div key={`${message.id}-crm-details`} className="w-full">
+                <CrmPendingFollowups contactId={crmFromDetails.contactId} onSuggest={onSuggest} />
+                <CrmContactCard args={{ contactId: crmFromDetails.contactId }} />
+              </div>
+            );
+          }
+
+          if (toolName === "search_tickets" && searchTable && partIdx === searchTable.partIdx) {
+            return (
+              <TicketSummaryTable
+                key={`${message.id}-ticket-search`}
+                ticketIds={searchTable.ids}
+                total={searchTable.total}
+                onSuggest={onSuggest}
+                isLoading={isLoading}
+              />
+            );
+          }
+
+          if (toolName === "ticket_card" && tableTicketIds.length > 0) {
+            if (partIdx !== ticketParts[0].partIdx) return null;
+            return (
+              <TicketSummaryTable
+                key={`${message.id}-tickets`}
+                ticketIds={tableTicketIds}
+                onSuggest={onSuggest}
+                isLoading={isLoading}
+              />
+            );
+          }
+
+          if (toolName === "order_summary" && tableOrders.length > 0) {
+            if (partIdx !== orderParts[0].partIdx) return null;
+            return (
+              <OrderSummaryTable
+                key={`${message.id}-orders`}
+                orders={tableOrders}
+                onSuggest={onSuggest}
+                isLoading={isLoading}
+              />
+            );
+          }
+
           return (
             <ToolCallCard
               key={`${message.id}-part-${partIdx}`}
@@ -257,6 +512,8 @@ function MessageBubble({
               onSuggest={onSuggest}
               onRefundConfirm={onRefundConfirm}
               isLoading={isLoading}
+              resolution={resolution}
+              isLatest={isLatest}
             />
           );
         })}
@@ -376,12 +633,86 @@ function ThinkingIndicator() {
   );
 }
 
+// ─── Catalog results → product cards ─────────────────────────────────────────
+
+/**
+ * Maps a list_products / search_products result (`{ products: CatalogProduct[] }`,
+ * see ai-assist chat/tools/commerce.ts) to product card args. Values pass
+ * through unchanged; a missing price or stock stays empty rather than invented.
+ */
+function catalogProductsToCards(output: unknown): ProductCardArgs[] {
+  const products = (output as { products?: unknown } | null)?.products;
+  if (!Array.isArray(products)) return [];
+  return products.flatMap((raw) => {
+    const p = raw as {
+      productId?: string; sku?: string | null; variantId?: string; name?: string; description?: string | null;
+      category?: string | null; image?: string | null; price?: string | null; stock?: string | null;
+    };
+    if (!p?.name || !p.sku) return [];
+    return [{
+      name: p.name,
+      sku: p.sku,
+      variantId: p.variantId,
+      price: p.price ?? "",
+      stock: p.stock ?? undefined,
+      image: p.image ?? undefined,
+      slug: p.productId,
+      description: p.description ?? undefined,
+      category: p.category ?? undefined,
+    }];
+  });
+}
+
+// ─── Voice mode strip ─────────────────────────────────────────────────────────
+
+const VOICE_PHASE_LABEL: Record<VoicePhase, string> = {
+  off: "",
+  listening: "Listening…",
+  thinking: "Thinking…",
+  speaking: "Speaking…",
+  paused: "Paused — tap to talk"
+};
+
+/** Status bar shown above the input while hands-free voice mode is on. */
+function VoiceModeStrip({
+  phase,
+  interim,
+  onInterrupt,
+  onExit
+}: {
+  phase: VoicePhase;
+  interim: string;
+  onInterrupt: () => void;
+  onExit: () => void;
+}) {
+  const active = phase === "listening" || phase === "speaking" || phase === "thinking";
+  return (
+    <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-m-md bg-m-primary/10 text-sm" aria-live="polite">
+      <span className="relative flex h-2.5 w-2.5 shrink-0">
+        {active && <span className="absolute inline-flex h-full w-full rounded-full bg-m-primary opacity-60 animate-ping motion-reduce:animate-none" />}
+        <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${phase === "listening" ? "bg-m-error" : active ? "bg-m-primary" : "bg-m-text-muted"}`} />
+      </span>
+      <span className="font-medium text-m-text shrink-0">{VOICE_PHASE_LABEL[phase]}</span>
+      <span className="min-w-0 flex-1 truncate text-m-text-muted italic">{phase === "listening" ? interim : ""}</span>
+      {phase !== "listening" && (
+        <Button type="button" variant="secondary" size="sm" onClick={onInterrupt}>
+          {phase === "paused" ? "Talk" : "Interrupt"}
+        </Button>
+      )}
+      <Button type="button" variant="ghost" size="sm" onClick={onExit} aria-label="Turn off voice mode">
+        Exit voice
+      </Button>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   const {
     messages,
     input,
+    setInput,
     handleInputChange,
     handleSubmit,
     isLoading,
@@ -427,6 +758,10 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   }, [messages, isLoading]);
 
   useChatToolEffects(messages, isLoading);
+  useActionNotifications(messages, isLoading);
+
+  const locale = useLocale();
+  const voice = useVoiceChat({ messages, isLoading, input, setInput, sendText: sendSuggestion, lang: locale });
 
   function handleRefundConfirm(args: RenderRefundActionArgs) {
     const command = `[hidden-action] ${JSON.stringify({ type: "return.confirm", orderId: args.orderId, reason: args.reason, lineItems: args.items })}`;
@@ -434,7 +769,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   }
 
   function handleDecline() {
-    sendSuggestion("Please discard that action — I do not want to proceed.");
+    sendSuggestion(DECLINE_TEXT);
   }
 
   return (
@@ -566,17 +901,21 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           </div>
         )}
 
-        {messages.filter((message) => !isFullyInternalMessage(message)).map((message: UIMessage) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            onApprove={approveAction}
-            onDecline={handleDecline}
-            onSuggest={sendSuggestion}
-            onRefundConfirm={handleRefundConfirm}
-            isLoading={isLoading}
-          />
-        ))}
+        {messages.map((message: UIMessage, index) =>
+          isFullyInternalMessage(message) ? null : (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              onApprove={approveAction}
+              onDecline={handleDecline}
+              onSuggest={sendSuggestion}
+              onRefundConfirm={handleRefundConfirm}
+              isLoading={isLoading}
+              resolution={message.role === "assistant" ? approvalResolution(messages, index) : null}
+              isLatest={index === messages.length - 1}
+            />
+          )
+        )}
 
         {isLoading && <ThinkingIndicator />}
 
@@ -703,6 +1042,18 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
                   sendSuggestion(steer);
                 }
               },
+              {
+                // After-call work in one approval: ticket note + status + CRM log
+                // (+ optional follow-up) — see the WRAP-UP playbook / wrap_up_case.
+                title: 'Wrap Up',
+                steer: acCustomer
+                  ? `Wrap up this case for ${acCustomer}`
+                  : 'Wrap up this case',
+                icon: 'clipboard-check' as const,
+                iconClass: 'text-emerald-600',
+                hoverClass: 'hover:border-emerald-300 hover:bg-emerald-50',
+                onClick: (steer: string) => sendSuggestion(steer)
+              },
             ].map(action => (
               <button
                 key={action.title}
@@ -716,15 +1067,53 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           </div>
         </div>
 
+        {voice.voiceMode && (
+          <VoiceModeStrip phase={voice.phase} interim={voice.interim} onInterrupt={voice.interrupt} onExit={voice.toggleVoiceMode} />
+        )}
+        {voice.error && (
+          <div role="alert" className="flex items-center gap-2 mb-2 px-3 py-2 rounded-m-md bg-m-error-light text-m-error text-xs">
+            <Icon name="mic-off" size="xs" />
+            <span className="flex-1">{voice.error}</span>
+            <button type="button" onClick={voice.dismissError} className="font-medium underline">Dismiss</button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="flex items-center gap-2">
           <Input
-            placeholder="Ask me to draft a reply or check order history..."
+            placeholder={voice.dictating ? "Listening… speak now" : "Ask me to draft a reply or check order history..."}
             value={input}
             onChange={handleInputChange}
             size="md"
             className="min-w-0 flex-1"
             disabled={isLoading}
           />
+          {voice.recognitionSupported && !voice.voiceMode && (
+            <Button
+              type="button"
+              variant={voice.dictating ? "danger" : "ghost"}
+              size="md"
+              iconOnly
+              leftIcon={<Icon name={voice.dictating ? "mic-off" : "mic"} size="xs" />}
+              aria-label={voice.dictating ? "Stop dictation" : "Dictate a message"}
+              aria-pressed={voice.dictating}
+              title={voice.dictating ? "Stop dictation" : "Dictate a message"}
+              disabled={isLoading}
+              onClick={voice.toggleDictation}
+            />
+          )}
+          {voice.recognitionSupported && voice.synthesisSupported && (
+            <Button
+              type="button"
+              variant={voice.voiceMode ? "primary" : "ghost"}
+              size="md"
+              iconOnly
+              leftIcon={<Icon name="audio-lines" size="xs" />}
+              aria-label={voice.voiceMode ? "Turn off voice mode" : "Turn on voice mode"}
+              aria-pressed={voice.voiceMode}
+              title={voice.voiceMode ? "Turn off voice mode" : "Voice mode — talk hands-free, replies are read aloud"}
+              onClick={voice.toggleVoiceMode}
+            />
+          )}
           {isLoading ? (
             // While the model is generating, the send button becomes a stop
             // control — previously there was no way to interrupt a reply

@@ -12,11 +12,14 @@ import {
 const db = vi.hoisted(() => ({
   findOne: vi.fn(),
   updateOne: vi.fn(),
-  createIndex: vi.fn()
+  dropIndex: vi.fn()
 }));
-vi.mock("../admin/db.js", () => ({ getProjectsCollection: async () => db }));
+const accounts = vi.hoisted(() => ({ updateOne: vi.fn() }));
+vi.mock("../admin/db.js", () => ({ getProjectsCollection: async () => db, getTicketingAccountsCollection: async () => accounts }));
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  db.dropIndex.mockResolvedValue(undefined);
+  accounts.updateOne.mockResolvedValue({ matchedCount: 1 });
   vi.stubEnv("SUPERADMIN_ENCRYPTION_KEY", "a".repeat(64));
 });
 afterEach(() => {
@@ -29,6 +32,26 @@ const input = {
   clientId: "oauth",
   clientSecret: "private-secret"
 };
+it.each([
+  "royalcyber-21430",
+  " RoyalCyber-21430 ",
+  "royalcyber-21430.zendesk.com",
+  "https://royalcyber-21430.zendesk.com/agent/home/tickets",
+  "https://royalcyber-21430.zendesk.com/"
+])("accepts the reported Zendesk account: %s", subdomain => {
+  expect(prepareTicketing({ ...input, subdomain }).subdomain).toBe("royalcyber-21430");
+});
+it.each([
+  "https://royalcyber-21430.zendesk.com.evil.test/agent/home/tickets",
+  "https://evil.test/royalcyber-21430.zendesk.com",
+  "https://user@royalcyber-21430.zendesk.com/",
+  "royalcyber-21430.zendesk.com:443/",
+  "-royalcyber-21430",
+  "royalcyber-21430-",
+  ""
+])("rejects invalid Zendesk destinations: %s", subdomain => {
+  expect(() => prepareTicketing({ ...input, subdomain })).toThrow("valid Zendesk subdomain");
+});
 it("encrypts secrets, omits them from views, and retains them on blank updates", () => {
   const saved = prepareTicketing(input);
   expect(saved.subdomain).toBe("acme");
@@ -73,17 +96,16 @@ it("rejects project access outside the requested client before writing", async (
     "does not belong"
   );
 });
-it("uses an atomic unique account reservation and sanitizes duplicate errors", async () => {
+it("keeps atomic account ownership between clients while allowing projects to share", async () => {
   const _id = new ObjectId();
-  db.findOne.mockResolvedValue({ _id, clientId: "client" });
-  db.updateOne.mockRejectedValue({ code: 11000 });
-  await expect(saveProjectTicketing("client", _id.toHexString(), input)).rejects.toThrow(
-    "already assigned"
+  db.findOne.mockResolvedValueOnce({ _id, clientId: "client" }).mockResolvedValueOnce(null);
+  accounts.updateOne.mockRejectedValue({ code: 11000 });
+  await expect(saveProjectTicketing("client", _id.toHexString(), input)).rejects.toThrow("another client");
+  expect(accounts.updateOne).toHaveBeenCalledWith(
+    { _id: "zendesk:acme", clientId: "client" }, { $setOnInsert: { clientId: "client" } }, { upsert: true }
   );
-  expect(db.createIndex).toHaveBeenCalledWith(
-    { "ticketing.subdomain": 1 },
-    expect.objectContaining({ unique: true })
-  );
+  expect(db.dropIndex).not.toHaveBeenCalled();
+  expect(db.updateOne).not.toHaveBeenCalled();
 });
 it("exchanges confidential client credentials without redirects and suppresses provider error bodies", async () => {
   const fetcher = vi
@@ -114,4 +136,39 @@ it("exchanges confidential client credentials without redirects and suppresses p
       clientSecret: "secret"
     })
   ).rejects.toThrow("HTTP 403");
+});
+
+it.each([
+  input,
+  { provider: "freshdesk", freshdeskDomain: "acme", freshdeskApiKey: "private-api-key" }
+])("allows one client to use a ticketing account in two projects: $provider", async connection => {
+  const first = new ObjectId();
+  const second = new ObjectId();
+  db.findOne.mockImplementation(async query => query._id ? { _id: query._id, clientId: "client" } : null);
+  db.updateOne.mockResolvedValue({ matchedCount: 1 });
+  await saveProjectTicketing("client", first.toHexString(), connection);
+  await saveProjectTicketing("client", second.toHexString(), connection);
+  expect(db.updateOne).toHaveBeenCalledTimes(2);
+  expect(accounts.updateOne).toHaveBeenCalledTimes(2);
+  expect(accounts.updateOne.mock.calls[0][0]).toEqual(accounts.updateOne.mock.calls[1][0]);
+  expect(db.dropIndex).toHaveBeenCalledWith("unique_ticketing_zendesk_account");
+  expect(db.dropIndex).toHaveBeenCalledWith("unique_ticketing_freshdesk_account");
+});
+
+it("protects legacy ownership in another client before dropping old indexes", async () => {
+  const id = new ObjectId();
+  db.findOne.mockResolvedValueOnce({ _id: id, clientId: "client" }).mockResolvedValueOnce({ clientId: "another-client", ticketing: { subdomain: "acme" } });
+  await expect(saveProjectTicketing("client", id.toHexString(), input)).rejects.toThrow("another client");
+  expect(accounts.updateOne).not.toHaveBeenCalled();
+  expect(db.dropIndex).not.toHaveBeenCalled();
+});
+
+it("tolerates already removed indexes but does not hide migration failures", async () => {
+  const id = new ObjectId();
+  db.findOne.mockImplementation(async query => query._id ? { _id: query._id, clientId: "client" } : null);
+  db.updateOne.mockResolvedValue({ matchedCount: 1 });
+  db.dropIndex.mockRejectedValue({ code: 27 });
+  await expect(saveProjectTicketing("client", id.toHexString(), input)).resolves.toMatchObject({ provider: "zendesk" });
+  db.dropIndex.mockRejectedValue(new Error("not authorized to drop index"));
+  await expect(saveProjectTicketing("client", id.toHexString(), input)).rejects.toThrow("not authorized");
 });

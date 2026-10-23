@@ -27,6 +27,7 @@ import {
   type StatusTone,
 } from "@csa/ui";
 import { formatDateTime } from "@/lib/format-date";
+import { QuoteAIReview } from "./QuoteAIReview";
 import {
   baseQuoteStatusLabel,
   workflowStatusLabel,
@@ -881,6 +882,7 @@ export function QuoteDetailView({ id }: { id: string }) {
 
       <ContentGrid>
         <MainColumn>
+          <QuoteAIReview quoteId={quote.id} onQuoteChanged={refetch} />
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <SectionCard title="Business unit">
               <InfoList>

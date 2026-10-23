@@ -40,12 +40,9 @@ locals {
     "subscriptions"          = google_cloud_run_v2_service.subscriptions.uri
   }
 
-  selected_commerce_service_url = (
+  ai_graphql_service_url = (
     var.ai_commerce_service_url != "" ? var.ai_commerce_service_url :
-    var.commerce_platform == "shopify" ? google_cloud_run_v2_service.commerce_shopify.uri :
-    var.commerce_platform == "bigcommerce" ? google_cloud_run_v2_service.commerce_bigcommerce.uri :
-    contains(["salesforce", "sfcc"], var.commerce_platform) ? google_cloud_run_v2_service.commerce_sfcc.uri :
-    google_cloud_run_v2_service.commerce_commercetools.uri
+    "${google_cloud_run_v2_service.bff.uri}/graphql"
   )
 }
 
@@ -364,7 +361,7 @@ resource "google_cloud_run_v2_service" "ai_assist" {
 
       env {
         name  = "AI_COMMERCE_SERVICE_URL"
-        value = local.selected_commerce_service_url
+        value = local.ai_graphql_service_url
       }
 
       env {

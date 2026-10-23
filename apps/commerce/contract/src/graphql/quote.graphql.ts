@@ -76,10 +76,12 @@ export const quoteTypeDefs = gql`
   extend type Query {
     quote(id: ID!): Quote
     quotes(companyKey: String, customerId: ID, limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): QuotePage!
+    quoteReviewSnapshot(id: ID!): Json
   }
 
   extend type Mutation {
     createQuoteRequest(cartId: ID!, comment: String): QuoteRequestResult!
     updateQuoteRequestState(id: ID!, state: String!): QuoteRequestResult!
+    updateReviewedQuoteRequest(id: ID!, expectedVersion: Int!, state: String!): QuoteRequestResult!
   }
 `;

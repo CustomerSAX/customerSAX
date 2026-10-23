@@ -3,8 +3,9 @@
 import { NotificationBell } from "@/features/notifications/NotificationBell";
 import { apolloClient } from "@/graphql/client";
 import { TicketAIHelper } from "@/features/tickets/components/TicketAIHelper";
-import { localizeHref, localizePathname, stripLocalePrefix } from "@/i18n/routing";
+import { localizeHref, localizePathname } from "@/i18n/routing";
 import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
+import { projectHref, projectPath } from "@/lib/project-url";
 import { useQueryClient } from "@tanstack/react-query";
 import { gql, useQuery } from "@apollo/client";
 import {
@@ -31,6 +32,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NotificationToaster } from "@/features/notifications/NotificationCenter";
 
 const sidebarGroups: SidebarGroup[] = [
   {
@@ -573,7 +575,7 @@ const fallbackUser: CurrentUser = {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const appPathname = stripLocalePrefix(pathname || "/");
+  const appPathname = projectPath(pathname || "/").pathname;
   const router = useRouter();
   const locale = useLocale();
   const currentLocale = isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
@@ -1065,7 +1067,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     await apolloClient.clearStore().catch(() => undefined);
     queryClient.clear();
-    window.location.assign(pathname || "/dashboard");
+    window.location.assign(projectHref(`${pathname || "/dashboard"}${window.location.search}${window.location.hash}`, project, currentUser.projects));
   };
 
   const isAdmin = currentUser.role === "admin" || currentUser.role === "superadmin";
@@ -1750,6 +1752,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <TicketAIHelper />
         )}
       </div>
+
+      <NotificationToaster />
 
       <CreateProjectModal
         isOpen={isCreateProjectOpen}

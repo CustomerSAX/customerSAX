@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { stripLocalePrefix } from "@/i18n/routing";
+import { projectPath } from "@/lib/project-url";
 import {
   DetailPage,
   BackLink,
@@ -20,6 +20,7 @@ import {
   SummaryCard,
 } from "@csa/ui";
 import { useOrderStore, useOrderDetail } from "../hooks/use-orders";
+import { notify } from "@/features/notifications/notification-store";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import type {
   Order,
@@ -158,7 +159,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
-  const isB2b = stripLocalePrefix(pathname || "/").startsWith("/b2b");
+  const isB2b = projectPath(pathname || "/").pathname.startsWith("/b2b");
 
   const { order: singleOrder, loading: singleLoading, error: singleError } = useOrderDetail(id);
   const {
@@ -463,9 +464,14 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     setShowCommentForm(false);
   };
 
-  const handleDuplicateOrder = () => {
-    const cartId = duplicateOrder(order.id);
-    router.push(`/cart/${cartId}`);
+  const handleDuplicateOrder = async () => {
+    try {
+      const cartId = await duplicateOrder(order.id);
+      notify({ variant: "success", title: "Order duplicated", description: `New cart created from order ${order.orderNumber}` });
+      router.push(`/cart/${cartId}`);
+    } catch (err) {
+      notify({ variant: "error", title: "Couldn't duplicate the order", description: err instanceof Error ? err.message : String(err) });
+    }
   };
 
   // ── Derived View Data ──────────────────────────────────────────
