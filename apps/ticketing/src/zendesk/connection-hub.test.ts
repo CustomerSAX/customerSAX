@@ -3,6 +3,7 @@ import { connectionHubZendesk } from "./connection-hub.js";
 
 const request = vi.fn();
 const binding = {
+  id: "binding-a",
   connectorId: "zendesk",
   canonicalAction: "zendesk-read",
   projectKey: "b2c-csa",
@@ -12,6 +13,8 @@ const binding = {
   providerAccount: "acme"
 };
 beforeEach(() => {
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "false");
+  vi.stubEnv("CONNECTION_HUB_TENANT_ID", "");
   vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
   vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
   vi.stubEnv("CONNECTION_HUB_API_KEY", "execution-key-for-tests");
@@ -38,6 +41,7 @@ function result(overrides = {}, data: unknown = { results: [] }) {
       tenantId: "client-a",
       projectKey: "b2c-csa",
       connectionId: "conn-a",
+      bindingId: "binding-a",
       providerStatus: 200,
       ...overrides
     }
@@ -81,6 +85,7 @@ it("rejects forged execution scope, demo responses and malformed data", async ()
     { tenantId: "other" },
     { projectKey: "other" },
     { connectionId: "other" },
+    { bindingId: "other" },
     { mode: "demo" },
     { connector: "@rc-connect/algolia" }
   ]) {
@@ -106,5 +111,27 @@ it("rejects URLs containing credentials or a path", async () => {
   await expect(
     connectionHubZendesk.forProject({ clientId: "client-a", projectKey: "b2c-csa" })
   ).rejects.toThrow("unavailable");
+  expect(request).not.toHaveBeenCalled();
+});
+
+it("uses production Hub settings and mapped tenant for the existing Tickets adapter", async () => {
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "true");
+  vi.stubEnv("CONNECTION_HUB_PROD_URL", "https://hub.example.test");
+  vi.stubEnv("CONNECTION_HUB_PROD_API_KEY", "production-execution-key");
+  vi.stubEnv("CONNECTION_HUB_PROD_TENANT_ID", "hub-tenant");
+  request.mockResolvedValueOnce(Response.json({ applicationId: "connection-hub", bindings: [{ ...binding, tenantId: "hub-tenant" }] }));
+  const connection = await connectionHubZendesk.forProject({ clientId: "client-a", projectKey: "b2c-csa" });
+  expect(request).toHaveBeenLastCalledWith("https://hub.example.test/v1/projects/b2c-csa/bindings", expect.objectContaining({ headers: { authorization: "Bearer production-execution-key", "x-tenant-id": "hub-tenant" } }));
+  request.mockResolvedValueOnce(result({ tenantId: "hub-tenant" }, { tickets: [] }));
+  expect(await connection?.api("tickets.json")).toEqual({ tickets: [] });
+  expect(request.mock.calls[1][0]).toBe("https://hub.example.test/v1/projects/b2c-csa/actions/zendesk-read");
+});
+it("rejects invalid production mode and insecure production URLs", async () => {
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "invalid");
+  await expect(connectionHubZendesk.forProject({ clientId: "client-a", projectKey: "b2c-csa" })).rejects.toThrow("unavailable");
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "true");
+  vi.stubEnv("CONNECTION_HUB_PROD_URL", "http://localhost:3100");
+  vi.stubEnv("CONNECTION_HUB_PROD_API_KEY", "production-execution-key");
+  await expect(connectionHubZendesk.forProject({ clientId: "client-a", projectKey: "b2c-csa" })).rejects.toThrow("unavailable");
   expect(request).not.toHaveBeenCalled();
 });

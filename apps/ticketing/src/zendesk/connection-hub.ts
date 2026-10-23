@@ -24,9 +24,12 @@ async function forProject({
     process.env.CONNECTION_HUB_CLIENT_ID !== clientId
   )
     return undefined;
-  const key = process.env.CONNECTION_HUB_API_KEY;
-  const base = process.env.CONNECTION_HUB_URL;
-  if (!key || key.length < 16 || !base || !projectKey) fail();
+  const production = process.env.USE_CONNECTION_HUB_PROD ?? "false";
+  if (!["true", "false"].includes(production)) fail();
+  const key = (production === "true" ? process.env.CONNECTION_HUB_PROD_API_KEY : process.env.CONNECTION_HUB_API_KEY)?.trim();
+  const base = production === "true" ? process.env.CONNECTION_HUB_PROD_URL : process.env.CONNECTION_HUB_URL;
+  const tenantId = (production === "true" ? process.env.CONNECTION_HUB_PROD_TENANT_ID : process.env.CONNECTION_HUB_TENANT_ID)?.trim() || clientId;
+  if (!key || key.length < 16 || /\s/.test(key) || !base || !projectKey) fail();
   const url = new URL(base);
   if (
     url.username ||
@@ -35,10 +38,10 @@ async function forProject({
     url.search ||
     url.hash ||
     (url.protocol !== "https:" &&
-      !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)))
+      !(production === "false" && url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)))
   )
     fail();
-  const headers = { authorization: `Bearer ${key}`, "x-tenant-id": clientId };
+  const headers = { authorization: `Bearer ${key}`, "x-tenant-id": tenantId };
   const response = await fetch(
     `${url.origin}/v1/projects/${encodeURIComponent(projectKey)}/bindings`,
     { headers, redirect: "error", signal: AbortSignal.timeout(10000) }
@@ -47,7 +50,7 @@ async function forProject({
   const payload: unknown = await response.json();
   if (
     !record(payload) ||
-    payload.applicationId !== "customersax" ||
+    !["customersax", "connection-hub"].includes(String(payload.applicationId)) ||
     !Array.isArray(payload.bindings)
   )
     fail();
@@ -55,7 +58,7 @@ async function forProject({
     (item: unknown) =>
       record(item) &&
       item.canonicalAction === "zendesk-read" &&
-      item.tenantId === clientId &&
+      item.tenantId === tenantId &&
       item.projectKey === projectKey
   );
   if (binding === undefined) return undefined;
@@ -63,6 +66,8 @@ async function forProject({
     !record(binding) ||
     binding.connectorId !== "zendesk" ||
     binding.enabled !== true ||
+    typeof binding.id !== "string" ||
+    typeof binding.connectionId !== "string" ||
     typeof binding.providerAccount !== "string" ||
     !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(binding.providerAccount)
   )
@@ -91,10 +96,11 @@ async function forProject({
       if (
         !record(execution) ||
         execution.mode !== "live" ||
-        execution.tenantId !== clientId ||
+        execution.tenantId !== tenantId ||
         execution.projectKey !== projectKey ||
         execution.connector !== "@rc-connect/zendesk" ||
         execution.connectionId !== binding.connectionId ||
+        execution.bindingId !== binding.id ||
         !record(envelope.data)
       )
         fail();

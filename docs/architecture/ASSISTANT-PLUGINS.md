@@ -33,10 +33,30 @@ requests also carry the form's expected scope to reject stale project changes.
 Management calls stay server-side and require an administrator. The deployment
 is restricted to `CONNECTION_HUB_CLIENT_ID`; tenant mapping is server-configured.
 
-Only `zendesk-find-tickets → find-tickets` is bound. This is independent of
+Assistant setup binds only `zendesk-find-tickets → find-tickets`. This is independent of
 `zendesk-read`, which the Tickets page can use when Zendesk is the selected
 ticketing provider. Connecting the assistant plugin never modifies the MongoDB
 project's ticketing selection or the existing ticketing binding.
+
+## Using the same account on the Tickets page
+
+Select Zendesk as the project's ticketing provider in Admin Settings → Connectors.
+The existing Zendesk adapter keeps the same list, filters, detail, comments and
+provider-fields UI. Its `zendesk-read → rc_zendesk_read` binding can reference
+the same encrypted Hub connection and approved release as the assistant search
+binding. Create that binding explicitly through Hub's administrator API; this
+is separate from connecting or removing the assistant plugin.
+
+Ticketing's existing read adapter now honors `USE_CONNECTION_HUB_PROD`, the
+production URL/execution key and tenant mapping, matching the assistant path.
+Reads validate live execution metadata against the selected binding and account.
+Native and Freshdesk projects retain their selected provider.
+
+Create/update/note operations continue using the project's existing direct
+Zendesk OAuth client settings, with the same account required as the Hub read
+binding. The assistant's read-only token does not enable ticket writes. The
+current `rc_b2b_shop_july_2023` project has both read bindings configured against
+its existing `royalcyber-21430` Hub connection.
 
 The `search_zendesk_tickets` model tool calls BFF's `zendeskPluginTickets` query.
 Ticketing verifies authenticated agent identity and project ownership, checks

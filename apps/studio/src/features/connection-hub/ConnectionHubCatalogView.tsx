@@ -11,6 +11,44 @@ export function ConnectionHubCatalogView() {
   const { user } = useCurrentUser();
   const [search, setSearch] = useState("");
   const allowed = user?.role === "admin" || user?.role === "superadmin";
+  const projectStatus = useQuery({
+    queryKey: [
+      "connection-hub-project-status",
+      user?.activeClientId,
+      user?.activeProjectKey
+    ],
+    enabled: allowed && !!user?.activeClientId && !!user.activeProjectKey,
+    queryFn: async ({ signal }) => {
+      const response = await fetch("/api/connection-hub/status", {
+        cache: "no-store",
+        signal
+      });
+      const payload: unknown = await response.json();
+      if (
+        !response.ok ||
+        !record(payload) ||
+        payload.ok !== true ||
+        payload.projectKey !== user?.activeProjectKey ||
+        payload.clientId !== user?.activeClientId ||
+        !Array.isArray(payload.bindings) ||
+        !payload.bindings.every(
+          (item: unknown) =>
+            record(item) &&
+            typeof item.connectorId === "string" &&
+            typeof item.operation === "string" &&
+            typeof item.enabled === "boolean"
+        )
+      )
+        throw new Error("Unable to check connector status.");
+      return payload.bindings as {
+        connectorId: string;
+        operation: string;
+        enabled: boolean;
+      }[];
+    },
+    retry: false,
+    staleTime: 30000
+  });
   const catalog = useQuery({
     queryKey: ["connection-hub-catalog", user?.activeClientId || user?.organization?.id],
     enabled: allowed,
@@ -43,16 +81,21 @@ export function ConnectionHubCatalogView() {
         <div>
           <h2 className="text-lg font-bold text-m-text">Connection Hub</h2>
           <p className="mt-1 text-sm text-m-text-muted">
-            Explore the connectors and actions available from Connection Hub.
+            Connectors and enabled actions for{" "}
+            {user?.activeProjectKey || "the selected project"}.
           </p>
         </div>
         <Button
           variant="outline"
-          disabled={catalog.isFetching}
-          onClick={() => void catalog.refetch()}
+          disabled={catalog.isFetching || projectStatus.isFetching}
+          onClick={() => {
+            void catalog.refetch();
+            if (user?.activeProjectKey && user.activeClientId)
+              void projectStatus.refetch();
+          }}
         >
           <Icon name="refresh-cw" size="xs" className="mr-2" />
-          {catalog.isFetching ? "Refreshing…" : "Refresh"}
+          {catalog.isFetching || projectStatus.isFetching ? "Refreshing…" : "Refresh"}
         </Button>
       </div>
       {catalog.isPending ? (
@@ -78,6 +121,17 @@ export function ConnectionHubCatalogView() {
         </p>
       ) : (
         <>
+          <p className="text-xs text-m-text-muted">
+            Enabled means an action is configured in Hub for this project. This page does
+            not test account credentials. Choose the provider used by Tickets or Products
+            in the Connectors tab.
+          </p>
+          {projectStatus.isError && (
+            <p role="alert" className="text-sm text-m-text-muted">
+              Project status is unavailable. The catalog below is still available; click
+              Refresh to retry.
+            </p>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="w-full max-w-md">
               <Input
@@ -98,55 +152,108 @@ export function ConnectionHubCatalogView() {
             </p>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {visible.map((item) => (
-                <Card
-                  key={item.id}
-                  className="min-w-0 space-y-4 border border-m-border bg-m-surface p-5 shadow-m-card"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-m-border bg-m-surface-subtle">
-                      {getProviderLogo(item.id, "h-6 w-6") ?? (
-                        <Icon name="link" size="sm" />
-                      )}
+              {visible.map((item) => {
+                const bindings = (projectStatus.data ?? []).filter(
+                  (binding) =>
+                    binding.connectorId === item.id &&
+                    item.actions.some((action) => action.id === binding.operation)
+                );
+                const enabled = new Set(
+                  bindings
+                    .filter((binding) => binding.enabled)
+                    .map((binding) => binding.operation)
+                );
+                const known = projectStatus.isSuccess && !projectStatus.isError;
+                const label = !user?.activeProjectKey
+                  ? "Select a project"
+                  : projectStatus.isError
+                    ? "Status unavailable"
+                    : !known
+                      ? "Checking status…"
+                      : enabled.size > 0
+                        ? "Enabled"
+                        : bindings.length > 0
+                          ? "Disabled"
+                          : "Not connected";
+                return (
+                  <Card
+                    key={item.id}
+                    className="min-w-0 space-y-4 border border-m-border bg-m-surface p-5 shadow-m-card"
+                  >
+                    <div className="flex flex-wrap items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-m-border bg-m-surface-subtle">
+                        {getProviderLogo(item.id, "h-6 w-6") ?? (
+                          <Icon name="link" size="sm" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-m-text">{item.name}</h3>
+                        <p className="break-words text-xs text-m-text-muted">
+                          {item.category}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          known && enabled.size > 0
+                            ? "success"
+                            : projectStatus.isError || (known && bindings.length > 0)
+                              ? "warning"
+                              : "neutral"
+                        }
+                        dot
+                        size="sm"
+                      >
+                        {label}
+                      </Badge>
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-m-text">{item.name}</h3>
-                      <p className="break-words text-xs text-m-text-muted">
-                        {item.category}
+                    {known && (
+                      <p className="text-xs text-m-text-muted">
+                        {enabled.size} of {item.actions.length} actions enabled for this
+                        project
                       </p>
+                    )}
+                    <p className="text-sm text-m-text-muted">{item.description}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="neutral" size="sm">
+                        {item.actions.length} actions
+                      </Badge>
+                      <Badge variant="neutral" size="sm">
+                        {item.authenticationType.replace(/_/g, " ")}
+                      </Badge>
                     </div>
-                  </div>
-                  <p className="text-sm text-m-text-muted">{item.description}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="neutral" size="sm">
-                      {item.actions.length} actions
-                    </Badge>
-                    <Badge variant="neutral" size="sm">
-                      {item.authenticationType.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
-                  <details className="border-t border-m-border pt-3">
-                    <summary className="cursor-pointer text-sm font-medium text-m-primary">
-                      View actions
-                    </summary>
-                    <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto text-sm text-m-text">
-                      {item.actions.map((action) => (
-                        <li
-                          key={action.id}
-                          className="flex items-start justify-between gap-3"
-                        >
-                          <span className="min-w-0 break-words">{action.name}</span>
-                          {action.readOnly && (
-                            <span className="shrink-0 text-xs text-m-text-muted">
-                              Read only
+                    <details className="border-t border-m-border pt-3">
+                      <summary className="cursor-pointer text-sm font-medium text-m-primary">
+                        View actions
+                      </summary>
+                      <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto text-sm text-m-text">
+                        {item.actions.map((action) => (
+                          <li
+                            key={action.id}
+                            className="flex items-start justify-between gap-3"
+                          >
+                            <span className="min-w-0 break-words">{action.name}</span>
+                            <span className="flex shrink-0 flex-wrap justify-end gap-2 text-xs text-m-text-muted">
+                              {action.readOnly && <span>Read only</span>}
+                              <Badge
+                                variant={
+                                  known && enabled.has(action.id) ? "success" : "neutral"
+                                }
+                                size="sm"
+                              >
+                                {!known
+                                  ? "Unknown"
+                                  : enabled.has(action.id)
+                                    ? "Enabled"
+                                    : "Not enabled"}
+                              </Badge>
                             </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                </Card>
-              ))}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </>
