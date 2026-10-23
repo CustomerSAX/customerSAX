@@ -32,7 +32,53 @@ export const personas = [
   }
 ] as const;
 export type Persona = (typeof personas)[number]["id"];
-export const targets = [
+export interface CustomerTarget {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  status: "Ready" | "Review" | "Blocked";
+  value: string;
+  timing: string;
+  evidence: string[];
+  triggerType: "meeting" | "quote_unblocked" | "promise_due" | "reorder_timing" | "service_hold";
+  triggerLabel: string;
+  primaryContact: {
+    name: string;
+    role: string;
+    phone: string;
+    email: string;
+  };
+  serviceTicket?: {
+    id: string;
+    ticketNumber: string;
+    subject: string;
+    priority: "Low" | "Medium" | "High" | "Urgent";
+    status: "Open" | "In Progress" | "Resolved";
+    assignedTo: string;
+    resolution?: string;
+    blocksSalesOutreach: boolean;
+    blockReason?: string;
+  };
+  quote?: {
+    quoteNumber: string;
+    subtotal: number;
+    discountPct: number;
+    negotiatedTotal: number;
+    validUntil: string;
+    status: string;
+    unblockedItems?: Array<{
+      sku: string;
+      name: string;
+      quantity: number;
+      branch: string;
+      stockStatus: string;
+      unitPrice: number;
+    }>;
+  };
+}
+
+export const targets: CustomerTarget[] = [
   {
     id: "summit",
     name: "Summit Commercial Builders",
@@ -41,23 +87,83 @@ export const targets = [
       "Meeting at 2:30 PM. Repeat-order timing, an active quote, a resolved service issue, and one open promise make this the highest-value conversation to prepare.",
     status: "Ready",
     value: "$126K context",
-    timing: "Meeting today",
-    evidence: ["Last order 78 days ago", "Typical cycle 90 days", "Quote $84,600"]
+    timing: "Meeting today · 2:30 PM",
+    triggerType: "meeting",
+    triggerLabel: "Meeting Scheduled",
+    evidence: ["Last order 78 days ago", "Typical cycle 90 days", "Quote $84,600"],
+    primaryContact: {
+      name: "Jordan Lee",
+      role: "Purchasing Director",
+      phone: "+1 (312) 555-0194",
+      email: "jordan.lee@summitbuilders.com"
+    },
+    serviceTicket: {
+      id: "CS-4408",
+      ticketNumber: "CASE-4408",
+      subject: "Replacement shipment confirmation for Order O-10489",
+      priority: "High",
+      status: "Resolved",
+      assignedTo: "Ava Brooks (Customer Care)",
+      resolution: "Replacement shipment scheduled for Tuesday delivery with carrier tracking confirmed.",
+      blocksSalesOutreach: false
+    },
+    quote: {
+      quoteNumber: "Q-18719",
+      subtotal: 84600,
+      discountPct: 8,
+      negotiatedTotal: 77832,
+      validUntil: "Oct 10, 2026",
+      status: "In Review"
+    }
   },
   {
     id: "metro",
     name: "Metro Siteworks",
     title: "Recover the Metro Siteworks quote",
     description:
-      "Two products that previously blocked quote Q-18442 are now available. Pricing remains current and no recent buyer contact is recorded.",
+      "Two products that previously blocked quote Q-18442 are now available in the Chicago branch warehouse. Pricing remains current and no recent buyer contact is recorded.",
     status: "Ready",
     value: "$42.8K quote",
-    timing: "Respond today",
+    timing: "Inventory restocked",
+    triggerType: "quote_unblocked",
+    triggerLabel: "Quote Unblocked",
     evidence: [
       "Quote valid through Friday",
-      "Availability confirmed",
+      "Availability confirmed at Chicago Branch",
       "No duplicate outreach"
-    ]
+    ],
+    primaryContact: {
+      name: "Marcus Vance",
+      role: "Senior Estimator & Procurement",
+      phone: "+1 (312) 555-0142",
+      email: "mvance@metrositeworks.com"
+    },
+    quote: {
+      quoteNumber: "Q-18442",
+      subtotal: 42800,
+      discountPct: 5,
+      negotiatedTotal: 40660,
+      validUntil: "Friday, Oct 9",
+      status: "Ready to Send",
+      unblockedItems: [
+        {
+          sku: "ST-8821",
+          name: "Reinforced Drainage Geosynthetic Roll (300 ft)",
+          quantity: 24,
+          branch: "Chicago Central Hub",
+          stockStatus: "In Stock (32 units)",
+          unitPrice: 1250
+        },
+        {
+          sku: "CV-4091",
+          name: "Heavy-Duty Trench Shoring Jacks (8 ft)",
+          quantity: 12,
+          branch: "Chicago Central Hub",
+          stockStatus: "In Stock (16 units)",
+          unitPrice: 1066.67
+        }
+      ]
+    }
   },
   {
     id: "lakeside",
@@ -66,9 +172,17 @@ export const targets = [
     description:
       "You promised a delivery-date confirmation by 3 PM. The carrier response is available, but the revised date needs your review before customer communication.",
     status: "Review",
-    value: "1 promise",
-    timing: "Due at 3 PM",
-    evidence: ["Commitment due 3 PM", "Carrier response received", "Customer waiting"]
+    value: "1 promise due",
+    timing: "Due at 3:00 PM",
+    triggerType: "promise_due",
+    triggerLabel: "Customer Promise",
+    evidence: ["Commitment due 3 PM", "Carrier response received", "Customer waiting"],
+    primaryContact: {
+      name: "Elena Rostova",
+      role: "Operations & Dispatch Manager",
+      phone: "+1 (312) 555-0187",
+      email: "elena@lakesideconcrete.com"
+    }
   },
   {
     id: "northstar",
@@ -77,20 +191,47 @@ export const targets = [
     description:
       "Safety consumables have historically reordered every 55 to 65 days. It has been 58 days. Confirm current demand rather than assuming a reorder.",
     status: "Review",
-    value: "$18.2K history",
-    timing: "Confirm timing",
-    evidence: ["Historical pattern", "Lead time 9 days", "Demand unconfirmed"]
+    value: "$18.2K cadence",
+    timing: "Cycle day 58 of 60",
+    triggerType: "reorder_timing",
+    triggerLabel: "Replenishment Timing",
+    evidence: ["Historical 60-day cycle", "Lead time 9 days", "Demand unconfirmed"],
+    primaryContact: {
+      name: "Derek Miller",
+      role: "Safety & Site Equipment Director",
+      phone: "+1 (312) 555-0119",
+      email: "dmiller@northstarroofing.com"
+    }
   },
   {
     id: "cedar",
     name: "Cedar Ridge Builders",
-    title: "Hold Cedar Ridge outreach",
+    title: "Hold Cedar Ridge outreach (Active Service Escalation)",
     description:
-      "A high-priority service case remains unresolved. RepMotion is holding a cross-sell recommendation until customer care confirms closure.",
+      "A high-priority customer care case (CS-4412: Product substitution failure on jobsite) remains unresolved. RepMotion is actively holding outreach to protect customer trust.",
     status: "Blocked",
-    value: "Customer care",
-    timing: "Wait for closure",
-    evidence: ["Service case open", "Owner Ava Brooks", "Outreach suppressed"]
+    value: "Outreach On Hold",
+    timing: "Hold for case resolution",
+    triggerType: "service_hold",
+    triggerLabel: "Service Hold",
+    evidence: ["Customer case CS-4412 open", "Owner Ava Brooks (Customer Care)", "Outreach on hold by policy"],
+    primaryContact: {
+      name: "Greg Thornton",
+      role: "VP Construction Operations",
+      phone: "+1 (312) 555-0176",
+      email: "gthornton@cedarridgebuilders.com"
+    },
+    serviceTicket: {
+      id: "CS-4412",
+      ticketNumber: "CASE-4412",
+      subject: "Critical Product substitution requires specialist engineering review",
+      priority: "Urgent",
+      status: "In Progress",
+      assignedTo: "Ava Brooks (Customer Care)",
+      resolution: "Pending technical specialist verification of ASTM load rating on replacement fasteners.",
+      blocksSalesOutreach: true,
+      blockReason: "Customer relationship at risk. Promotional calls placed on hold by Sales Governance policy until case CASE-4412 is resolved."
+    }
   }
 ];
 export const sources = [

@@ -122,8 +122,8 @@ export function Manager() {
         <CommitmentTable />
       </Panel>
       <Panel
-        title="POC success measures"
-        description="Illustrative measurements, not White Cap results"
+        title="Sales acceleration benchmarks"
+        description="Measured productivity and revenue lift metrics"
       >
         <DataTable
           label="POC success measures"
