@@ -3,11 +3,12 @@ import { resolveProjectTicketing } from "@csa/mongodb";
 import { resolvers } from "../schema.js";
 import { resolveTicketing } from "./index.js";
 import { zendeskProvider } from "../zendesk/provider.js";
+import { connectionHubZendesk } from "../zendesk/connection-hub.js";
 vi.mock("@csa/mongodb", async original => ({ ...(await original<typeof import("@csa/mongodb")>()), resolveProjectTicketing: vi.fn(), nativeTicketLegacyAccess: vi.fn(async () => false), projectFreshdeskCredentials: vi.fn(() => ({ domain: "fresh.freshdesk.com", apiKey: "test-key" })) }));
 vi.mock("../zendesk/project-client.js", () => ({ projectZendeskClient: (clientId: string, projectKey: string, settings: { subdomain: string }) => ({ subdomain: settings.subdomain, clientId, projectKey }) }));
 vi.mock("../zendesk/provider.js", () => ({ zendeskProvider: vi.fn(() => ({ getTicket: vi.fn() })) }));
-beforeEach(() => { vi.clearAllMocks(); vi.stubEnv("TICKETING_PROVIDER", "zendesk"); });
-afterEach(() => vi.unstubAllEnvs());
+beforeEach(() => { vi.clearAllMocks(); vi.stubEnv("TICKETING_PROVIDER", "zendesk"); vi.spyOn(connectionHubZendesk, "forProject").mockResolvedValue(undefined); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 it("uses the active client/project settings instead of environment credentials", async () => {
   vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "zendesk", subdomain: "project-account" });
   expect((await resolveTicketing("project-a", "client-a")).name).toBe("zendesk");
@@ -15,8 +16,17 @@ it("uses the active client/project settings instead of environment credentials",
   expect(zendeskProvider).toHaveBeenCalledWith("project-a", { subdomain: "project-account", clientId: "client-a", projectKey: "project-a" });
 });
 it("honors native settings despite a Zendesk environment default", async () => {
+  vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
+  vi.mocked(connectionHubZendesk.forProject).mockRejectedValue(new Error("Zendesk is unavailable through Connection Hub"));
   vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "internal" });
   expect((await resolveTicketing("project-b", "client-a")).name).toBe("internal");
+  expect(zendeskProvider).not.toHaveBeenCalled();
+  expect(connectionHubZendesk.forProject).not.toHaveBeenCalled();
+});
+it("still reports Connection Hub failures when Zendesk is selected", async () => {
+  vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "zendesk", subdomain: "project-account" });
+  vi.mocked(connectionHubZendesk.forProject).mockRejectedValue(new Error("Zendesk is unavailable through Connection Hub"));
+  await expect(resolveTicketing("project-a", "client-a")).rejects.toThrow("Zendesk is unavailable through Connection Hub");
   expect(zendeskProvider).not.toHaveBeenCalled();
 });
 it("does not fall back when settings cannot be resolved", async () => {
@@ -31,9 +41,11 @@ it("rejects missing client context in production", async () => {
 });
 
 it("selects Freshdesk for the active project without using Zendesk", async () => {
+  vi.mocked(connectionHubZendesk.forProject).mockRejectedValue(new Error("Zendesk is unavailable through Connection Hub"));
   vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "freshdesk", freshdeskDomain: "fresh.freshdesk.com", freshdeskApiKeyEncrypted: "encrypted" });
   expect((await resolveTicketing("project", "client")).name).toBe("freshdesk");
   expect(zendeskProvider).not.toHaveBeenCalled();
+  expect(connectionHubZendesk.forProject).not.toHaveBeenCalled();
 });
 
 

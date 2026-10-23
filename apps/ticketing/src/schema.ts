@@ -3,6 +3,7 @@ import { listNotifications, markNotificationsRead } from "./notifications/store.
 import { analyzeCreatedTicket } from "./email/analyze-created.js";
 import { gql } from "graphql-tag";
 import { resolveTicketing } from "./providers/index.js";
+import { searchZendeskPlugin } from "./zendesk/plugin.js";
 import type { Ticket, TicketDraft, TicketListArgs, TicketUpdate, WorklogComment } from "./tickets/types.js";
 
 type TicketingContext = { clientId?: string; projectKey?: string; userEmail?: string; userRole?: string };
@@ -27,6 +28,8 @@ async function notificationScope(context: unknown, expected: { clientId: string;
 }
 
 export const typeDefs = gql`
+  type ZendeskPluginTicket { id: ID!, subject: String!, status: String!, priority: String }
+  type ZendeskPluginTicketPage { results: [ZendeskPluginTicket!]!, count: Int!, total: Int! }
   type TicketNotification { id: ID!, ticketId: ID!, ticketNumber: String!, title: String!, subject: String!, createdAt: String!, read: Boolean! }
   type TicketNotificationFeed { items: [TicketNotification!]!, unreadCount: Int!, asOf: String! }
   type TicketInformationRequest { status: String!, recipient: String!, subject: String!, text: String!, createdAt: String!, messageId: String }
@@ -117,6 +120,7 @@ export const typeDefs = gql`
   }
 
   extend type Query {
+    zendeskPluginTickets(query: String!, limit: Int = 10): ZendeskPluginTicketPage!
     ticketNotifications(clientId: ID!, projectKey: String!): TicketNotificationFeed!
     ticketingProvider: String!
     ticketProviderFields(id: ID!): [TicketProviderField!]!
@@ -205,6 +209,7 @@ export const resolvers = {
       (await selectedProvider(context)).addWorklog(args.id, args.comment)
   },
   Query: {
+    zendeskPluginTickets: (_: unknown, args: { query: string; limit?: number }, context: unknown) => searchZendeskPlugin(context as TicketingContext, args.query, args.limit),
     ticketNotifications: async (_: unknown, args: { clientId: string; projectKey: string }, context: unknown) => listNotifications(await notificationScope(context, args)),
     ticketingProvider: async (_parent: unknown, _args: unknown, context: unknown) =>
       (await resolveTicketing(selectedProject(context), (context as TicketingContext | undefined)?.clientId)).name,

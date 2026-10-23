@@ -169,6 +169,35 @@ To add an alternative provider in the future (such as a backend search service o
 
 ## Server-side connection-hub transport
 
+Studio can use either a local Hub or its deployed Cloud Run service. These are server-only settings in `apps/studio/.env`:
+
+```dotenv
+CONNECTION_HUB_ENABLED=true
+USE_CONNECTION_HUB_PROD=true
+CONNECTION_HUB_PROD_URL=https://csa-production-connection-hub-17754871169.us-central1.run.app
+CONNECTION_HUB_PROD_API_KEY=<production Hub execution API_KEY>
+CONNECTION_HUB_CLIENT_ID=<authenticated CSA activeClientId>
+CONNECTION_HUB_PROD_TENANT_ID=<Hub runtime TENANT_ID>
+```
+
+`USE_CONNECTION_HUB_PROD=false` selects the existing `CONNECTION_HUB_URL` and `CONNECTION_HUB_API_KEY`; `true` selects only the production URL and key. Missing production settings fail closed and never fall back to localhost or its credentials. An unbound project in production mode returns a configuration error rather than silently selecting another product provider. `CONNECTION_HUB_ENABLED=false` disables the integration. Restart Studio after changing these values. Keep keys out of `NEXT_PUBLIC_*` variables. These settings currently apply to Studio's Products and Teams transports, not the ticketing service or AI-assist MCP integration.
+
+The key is Hub's REST execution `API_KEY`, not an MCP client token, administrator key or Algolia key. Hub must already have a live Algolia connection and approved `search-products` / `browse-records` bindings for the selected project. MCP account grants do not create REST project bindings. The deployed application ID `connection-hub` and legacy `customersax` are both accepted; authorization still validates tenant and project for bindings and execution results.
+
+`CONNECTION_HUB_CLIENT_ID` restricts which authenticated CSA client can use this integration. `CONNECTION_HUB_PROD_TENANT_ID` identifies its Hub workspace; when omitted it defaults to the CSA client ID. Local mode supports a separate optional `CONNECTION_HUB_TENANT_ID`. The browser cannot select any of these values or override its session's project. Do not map multiple CSA clients onto this single-client configuration.
+
+For private Cloud Run, Studio uses Google Application Default Credentials to obtain and refresh an ID token with the Hub service origin as its audience. It sends the ID token in `X-Serverless-Authorization` and the Hub execution key in `Authorization`. The Google principal needs `roles/run.invoker` on the Hub service. No service IAM or cloud environment settings are changed by this code.
+
+For local development, configure an impersonated service account that can invoke Hub:
+
+```bash
+gcloud auth application-default login --impersonate-service-account=YOUR_HUB_INVOKER_SERVICE_ACCOUNT
+```
+
+Your user needs permission to impersonate that account. Ordinary user ADC alone may not support ID-token minting. On Cloud Run, ADC uses the attached runtime service account. On Vercel, configure a supported workload identity credential source; local ADC is not automatically available in a Vercel deployment. The flag does not create credentials, IAM grants, production connections or bindings. See [Google's local ADC setup](https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment) and [Cloud Run service authentication](https://docs.cloud.google.com/run/docs/authenticating/service-to-service).
+
+Verify a real bound project through Products after switching. A successful test must return live provider data with the configured Hub tenant and authenticated selected project. Missing credentials, Google/Hub authorization failures, mismatched scopes and simulated responses remain errors. The automated tests use synthetic responses and cannot establish production connectivity.
+
 The Products page can use connection-hub for the authenticated selected project within the configured CustomerSax client. Studio verifies the session and active project before calling the connector service. The browser calls `POST /api/connection-hub/products`; the server calls connection-hub's `search-products` action for a query and `browse-records` for an empty query. API keys and Algolia credentials remain server-side.
 
 Add these to `apps/studio/.env.local` (never use `NEXT_PUBLIC_`):

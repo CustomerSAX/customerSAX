@@ -20,7 +20,11 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     const status = error instanceof ConnectionHubError ? error.status : 502;
-    log.error("Product search request failed", undefined, { status, requestId });
+    log.error("Product search request failed", undefined, {
+      status,
+      requestId,
+      code: error instanceof ConnectionHubError ? error.code : "HUB_REQUEST_FAILED"
+    });
     const message =
       status === 400
         ? "Enter a valid product search."

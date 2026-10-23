@@ -7,9 +7,17 @@ const mocks = vi.hoisted(() => ({
   log: vi.fn(),
   project: "b2c-csa",
   bindings: vi.fn(),
-  result: vi.fn()
+  result: vi.fn(),
+  googleHeaders: vi.fn()
 }));
 vi.mock("server-only", () => ({}));
+vi.mock("google-auth-library", () => ({
+  GoogleAuth: class {
+    async getIdTokenClient() {
+      return { getRequestHeaders: mocks.googleHeaders };
+    }
+  }
+}));
 vi.mock("../app/api/auth/shared", () => ({
   currentSessionToken: mocks.token,
   getValidatedSession: mocks.session
@@ -27,6 +35,11 @@ beforeEach(() => {
   vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
   vi.stubEnv("CONNECTION_HUB_API_KEY", "private-server-api-key");
   vi.stubEnv("CONNECTION_HUB_CLIENT_ID", "client-a");
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "false");
+  vi.stubEnv("CONNECTION_HUB_TENANT_ID", "");
+  mocks.googleHeaders.mockResolvedValue(
+    new Headers({ authorization: "Bearer synthetic-google-token" })
+  );
   mocks.token.mockResolvedValue("session-token");
   mocks.session.mockImplementation(async () => ({
     user: { activeClientId: "client-a", activeProjectKey: mocks.project }
@@ -177,4 +190,71 @@ it("does not treat a failed binding lookup as an unbound project", async () => {
   const response = await POST(request({ query: "product" }));
   expect(response.status).toBe(502);
   expect(await response.text()).not.toContain("private-error");
+});
+
+it("uses deployed Hub for Products while retaining the authenticated CSA client and project", async () => {
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "true");
+  vi.stubEnv("CONNECTION_HUB_PROD_URL", "https://hub-test.us-central1.run.app");
+  vi.stubEnv("CONNECTION_HUB_PROD_API_KEY", "synthetic-prod-execution-key");
+  vi.stubEnv("CONNECTION_HUB_PROD_TENANT_ID", "hub-workspace");
+  mocks.bindings.mockReturnValue([
+    {
+      tenantId: "hub-workspace",
+      projectKey: mocks.project,
+      canonicalAction: "search-products",
+      enabled: true
+    }
+  ]);
+  mocks.result.mockReturnValue({
+    data: { hits: [{ objectID: "product-1" }], nbHits: 1 },
+    execution: { mode: "live", projectKey: mocks.project, tenantId: "hub-workspace" }
+  });
+  mocks.fetch.mockImplementation(async (url: string) =>
+    url.endsWith("/bindings")
+      ? Response.json({ applicationId: "connection-hub", bindings: mocks.bindings() })
+      : Response.json(mocks.result())
+  );
+  const response = await POST(request({ query: "product", limit: 5 }));
+  expect(response.status).toBe(200);
+  expect(mocks.fetch).toHaveBeenLastCalledWith(
+    "https://hub-test.us-central1.run.app/v1/projects/b2c-csa/actions/search-products",
+    expect.objectContaining({
+      headers: expect.objectContaining({
+        authorization: "Bearer synthetic-prod-execution-key",
+        "X-Serverless-Authorization": "Bearer synthetic-google-token",
+        "x-tenant-id": "hub-workspace"
+      })
+    })
+  );
+  const body = await response.text();
+  expect(body).not.toContain("synthetic-prod-execution-key");
+  expect(body).not.toContain("synthetic-google-token");
+  mocks.session.mockResolvedValue({
+    user: { activeClientId: "other-client", activeProjectKey: mocks.project }
+  });
+  const calls = mocks.fetch.mock.calls.length;
+  expect((await POST(request({ query: "product" }))).status).toBe(403);
+  expect(mocks.fetch.mock.calls.length).toBe(calls);
+});
+
+it("reports missing production configuration without sending a local request", async () => {
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "true");
+  vi.stubEnv("CONNECTION_HUB_PROD_API_KEY", "");
+  const response = await POST(request({ query: "product" }));
+  expect(response.status).toBe(503);
+  expect(mocks.fetch).not.toHaveBeenCalled();
+  expect(await response.text()).not.toContain("private-server-api-key");
+});
+
+it("does not silently bypass deployed Hub when the selected project is unbound", async () => {
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "true");
+  vi.stubEnv("CONNECTION_HUB_PROD_URL", "https://hub-test.us-central1.run.app");
+  vi.stubEnv("CONNECTION_HUB_PROD_API_KEY", "synthetic-prod-execution-key");
+  vi.stubEnv("CONNECTION_HUB_PROD_TENANT_ID", "hub-workspace");
+  mocks.fetch.mockResolvedValue(
+    Response.json({ applicationId: "connection-hub", bindings: [] })
+  );
+  const response = await POST(request({ query: "product" }));
+  expect(response.status).toBe(409);
+  expect(mocks.fetch).toHaveBeenCalledTimes(1);
 });

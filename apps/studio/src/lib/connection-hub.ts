@@ -1,8 +1,12 @@
 import "server-only";
 import { currentSessionToken, getValidatedSession } from "../app/api/auth/shared";
+import { connectionHubTransport, type HubConfig } from "./connection-hub-transport";
 
 export class ConnectionHubError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly code = "HUB_REQUEST_FAILED"
+  ) {
     super("Product search is unavailable");
   }
 }
@@ -12,27 +16,19 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function getConfig() {
-  if (process.env.CONNECTION_HUB_ENABLED !== "true") return undefined;
-  const url = process.env.CONNECTION_HUB_URL?.trim();
-  const apiKey = process.env.CONNECTION_HUB_API_KEY?.trim();
-  const clientId = process.env.CONNECTION_HUB_CLIENT_ID?.trim();
-  if (!url || !apiKey || apiKey.length < 16 || !clientId)
-    throw new ConnectionHubError(503);
-  const parsed = new URL(url);
-  if (
-    parsed.username ||
-    parsed.password ||
-    parsed.search ||
-    parsed.hash ||
-    parsed.pathname !== "/" ||
-    (parsed.protocol !== "https:" &&
-      !(
-        parsed.protocol === "http:" &&
-        ["127.0.0.1", "localhost"].includes(parsed.hostname)
-      ))
-  )
-    throw new ConnectionHubError(503);
-  return { url: parsed.origin, apiKey, clientId };
+  try {
+    return connectionHubTransport.getConfig();
+  } catch {
+    throw new ConnectionHubError(503, "HUB_CONFIGURATION_REQUIRED");
+  }
+}
+
+async function headers(options: Parameters<typeof connectionHubTransport.headers>[0]) {
+  try {
+    return await connectionHubTransport.headers(options);
+  } catch {
+    throw new ConnectionHubError(503, "HUB_GOOGLE_AUTH_REQUIRED");
+  }
 }
 
 async function forProject({
@@ -48,7 +44,7 @@ async function forProject({
   const response = await fetch(
     `${config.url}/v1/projects/${encodeURIComponent(projectKey)}/bindings`,
     {
-      headers: { authorization: `Bearer ${config.apiKey}`, "x-tenant-id": clientId },
+      headers: await headers({ config }),
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(10000)
@@ -58,18 +54,22 @@ async function forProject({
   const payload: unknown = await response.json();
   if (
     !record(payload) ||
-    payload.applicationId !== "customersax" ||
+    !["customersax", "connection-hub"].includes(String(payload.applicationId)) ||
     !Array.isArray(payload.bindings)
   )
     throw new ConnectionHubError(502);
   const relevant = payload.bindings.filter(
     (binding: unknown) =>
       record(binding) &&
-      binding.tenantId === clientId &&
+      binding.tenantId === config.tenantId &&
       binding.projectKey === projectKey &&
       ["search-products", "browse-records"].includes(String(binding.canonicalAction))
   );
-  if (relevant.length === 0) return undefined;
+  if (relevant.length === 0) {
+    if (config.useConnectionHubProd)
+      throw new ConnectionHubError(409, "HUB_PROJECT_NOT_BOUND");
+    return undefined;
+  }
   return { ...config, projectKey };
 }
 
@@ -105,12 +105,7 @@ async function search({
     `${config.url}/v1/projects/${encodeURIComponent(config.projectKey)}/actions/${action}`,
     {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${config.apiKey}`,
-        "content-type": "application/json",
-        "x-request-id": requestId,
-        "x-tenant-id": config.clientId
-      },
+      headers: await headers({ config, requestId, json: true }),
       body: JSON.stringify(query ? { query, limit } : { limit }),
       signal: AbortSignal.timeout(30000),
       cache: "no-store",
@@ -127,7 +122,7 @@ async function search({
     !record(payload.execution) ||
     payload.execution.mode !== "live" ||
     payload.execution.projectKey !== config.projectKey ||
-    payload.execution.tenantId !== config.clientId
+    payload.execution.tenantId !== config.tenantId
   )
     throw new ConnectionHubError(502);
   const results: unknown =
@@ -163,11 +158,13 @@ function parseInput(value: unknown) {
   return { query: query.trim(), limit };
 }
 
-export const connectionHub = { getConfig, forProject, authorize, search, parseInput };
-export type HubProducts = { results: Record<string, unknown>[]; total: number | null };
-type HubProjectConfig = {
-  url: string;
-  apiKey: string;
-  clientId: string;
-  projectKey: string;
+export const connectionHub = {
+  getConfig,
+  headers,
+  forProject,
+  authorize,
+  search,
+  parseInput
 };
+export type HubProducts = { results: Record<string, unknown>[]; total: number | null };
+type HubProjectConfig = HubConfig & { projectKey: string };

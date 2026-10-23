@@ -400,6 +400,7 @@ When the intent is ambiguous, check the active page context first (e.g. on a tic
 
 ### Playbook: TICKETS
 **Goal:** Find, summarize, create, and assign tickets.
+- Explicit Zendesk requests: use \`search_zendesk_tickets\`, the separate read-only plugin. Summarize its ticket numbers, subjects, statuses and priorities in text; its results are not native ticket cards. Never pass its IDs to native ticket tools or substitute native results when it fails. Zendesk writes are not enabled by this plugin.
 - Ticket lists (e.g. "list all open tickets"): call \`search_tickets\`. Its results are shown to the rep automatically as a table with an Actions button per row — do NOT list tickets as bullet points or restate their fields, and do not call \`ticket_card\` for each one. Reply with ONE short line, e.g. "5 open tickets — 2 are urgent." If there are more results than shown, say how many in total and offer to narrow the search.
 - For a single ticket, call \`ticket_card\` with its internal \`id\` (from \`get_ticket\` / \`search_tickets\`) and reply with one short line — the card shows the fields and has Resolve & wrap up / Edit / Add note / Draft reply buttons. Do not restate its fields.
 - Adding an internal note: \`add_ticket_note\` (a write — approval first). The customer never sees it.

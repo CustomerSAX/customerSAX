@@ -47,7 +47,10 @@ export async function resolveTicketing(projectKey: string, clientId?: string) {
     if (process.env.NODE_ENV === "production") throw new Error("An authenticated client is required for ticketing");
     return { name: ticketingProviderName(), provider: ticketingProvider(projectKey) };
   }
-  const hub = await connectionHubZendesk.forProject({ clientId, projectKey });
+  const settings = await resolveProjectTicketing(clientId, projectKey);
+  const hub = settings.provider === "zendesk"
+    ? await connectionHubZendesk.forProject({ clientId, projectKey })
+    : undefined;
   if (hub) {
     const connection = {
       subdomain: hub.subdomain,
@@ -62,7 +65,6 @@ export async function resolveTicketing(projectKey: string, clientId?: string) {
     };
     return { name: "zendesk", provider: withNotifications(zendeskProvider(projectKey, connection), clientId) };
   }
-  const settings = await resolveProjectTicketing(clientId, projectKey);
   if (settings.provider === "internal") return {
     name: "internal", provider: withNotifications(nativeProvider(projectKey, { clientId, includeLegacy: await nativeTicketLegacyAccess(clientId, projectKey) }), clientId)
   };

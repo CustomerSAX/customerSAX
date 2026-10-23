@@ -68,10 +68,7 @@ async function authorize() {
   const response = await fetch(
     `${config.url}/v1/projects/${encodeURIComponent(activeProjectKey)}/bindings`,
     {
-      headers: {
-        authorization: `Bearer ${config.apiKey}`,
-        "x-tenant-id": config.clientId
-      },
+      headers: await connectionHub.headers({ config }),
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(10000)
@@ -81,14 +78,14 @@ async function authorize() {
   const payload: unknown = await response.json();
   if (
     !record(payload) ||
-    payload.applicationId !== "customersax" ||
+    !["customersax", "connection-hub"].includes(String(payload.applicationId)) ||
     !Array.isArray(payload.bindings)
   )
     throw new TeamsHubError(502);
   const binding: unknown = payload.bindings.find(
     (item: unknown) =>
       record(item) &&
-      item.tenantId === activeClientId &&
+      item.tenantId === config.tenantId &&
       item.projectKey === activeProjectKey &&
       item.canonicalAction === "teams-read"
   );
@@ -121,12 +118,7 @@ async function execute({
     `${config.url}/v1/projects/${encodeURIComponent(config.projectKey)}/actions/teams-read`,
     {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${config.apiKey}`,
-        "content-type": "application/json",
-        "x-tenant-id": config.clientId,
-        "x-request-id": requestId
-      },
+      headers: await connectionHub.headers({ config, requestId, json: true }),
       body: JSON.stringify(input),
       cache: "no-store",
       redirect: "error",
@@ -144,7 +136,7 @@ async function execute({
   if (
     execution.mode !== "live" ||
     execution.connector !== "@rc-connect/microsoft-teams" ||
-    execution.tenantId !== config.clientId ||
+    execution.tenantId !== config.tenantId ||
     execution.projectKey !== config.projectKey ||
     execution.bindingId !== config.bindingId ||
     execution.connectionId !== config.connectionId
