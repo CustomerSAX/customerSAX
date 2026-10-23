@@ -17,6 +17,7 @@
     "app:subscriptions": "pnpm --filter @csa/subscriptions",
     "app:studio": "pnpm --filter @csa/studio",
     "app:repmotion-studio": "pnpm --filter @csa/repmotion-studio",
+    "build:repmotion-studio": "turbo run build --filter=@csa/repmotion-studio",
     "app:marketing": "pnpm --filter marketing",
     "app:docs": "pnpm --filter @csa/docs-site",
 
@@ -58,5 +59,12 @@
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
+  "workspaces": [
+    "apps/*",
+    "apps/commerce/*",
+    "packages/*",
+    "configs/*",
+    "infra/*"
+  ],
   "packageManager": "pnpm@9.6.0"
 }
