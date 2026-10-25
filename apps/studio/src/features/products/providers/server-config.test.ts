@@ -12,6 +12,9 @@ vi.mock("../../../app/api/auth/shared", async (importOriginal) => {
 import { currentProductsConfiguration } from "./server-config";
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("CONNECTION_HUB_ENABLED", "false");
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "false");
+  vi.stubEnv("CONNECTION_HUB_CATALOG_REQUIRE_GOOGLE_AUTH", "false");
   vi.stubGlobal("fetch", mocks.fetch);
   vi.stubEnv("AUTH_SERVICE_URL", "http://auth.test");
   vi.stubEnv("PRODUCTS_PROVIDER", "commercetools");
@@ -121,14 +124,19 @@ it("uses saved hub bindings without loading project Algolia credentials", async 
     url.endsWith("/bindings")
       ? Response.json({
           applicationId: "customersax",
-          bindings: [
-            {
-              tenantId: "client",
-              projectKey: "store",
-              canonicalAction: "search-products",
-              enabled: true
-            }
-          ]
+          bindings: ["search-products", "browse-records"].map((action) => ({
+            id: action,
+            revision: 1,
+            tenantId: "client",
+            projectKey: "store",
+            canonicalAction: action,
+            connectorId: "algolia",
+            operation: action === "search-products" ? "rc_search_products" : action,
+            allowedIndex: "products",
+            connectionId: "conn-a",
+            releaseId: "release-a",
+            enabled: true
+          }))
         })
       : original?.(url, init)
   );

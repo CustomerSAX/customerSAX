@@ -317,7 +317,7 @@ const ADMIN_TABS: Array<{ id: AdminSettingsTab; label: string; icon: string }> =
   { id: "organization", label: "Organization", icon: "building-2" },
   { id: "projects", label: "Projects", icon: "folder" },
   { id: "connection-hub", label: "Connection Hub", icon: "link" },
-  { id: "connectors", label: "Connectors", icon: "link" },
+  { id: "connectors", label: "Native Connectors", icon: "layers" },
   { id: "users", label: "Users", icon: "users" },
   { id: "roles", label: "Roles", icon: "shield" }
 ];

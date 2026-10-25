@@ -40,9 +40,10 @@ project's ticketing selection or the existing ticketing binding.
 
 ## Using the same account on the Tickets page
 
-Select Zendesk as the project's ticketing provider in Admin Settings → Connectors.
-The existing Zendesk adapter keeps the same list, filters, detail, comments and
-provider-fields UI. Its `zendesk-read → rc_zendesk_read` binding can reference
+The Native Connectors tab lists built-in capabilities only; external discovery and
+account setup belong to Connection Hub. Existing project ticketing selections are
+preserved by that UI cleanup. For a project already using Zendesk, the adapter
+keeps the same list, filters, detail, comments and provider-fields UI. Its `zendesk-read → rc_zendesk_read` binding can reference
 the same encrypted Hub connection and approved release as the assistant search
 binding. Create that binding explicitly through Hub's administrator API; this
 is separate from connecting or removing the assistant plugin.

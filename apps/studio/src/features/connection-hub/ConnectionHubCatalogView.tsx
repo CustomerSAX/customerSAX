@@ -7,10 +7,21 @@ import { useCurrentUser } from "@/lib/use-current-user";
 import { getProviderLogo } from "@/features/onboarding/components/ProviderLogo";
 import type { HubCatalogConnector } from "@/lib/connection-hub-catalog";
 
+import {
+  AlgoliaPluginDialog,
+  useAlgoliaPluginStatus
+} from "@/features/csa-assistant/components/AlgoliaPluginDialog";
+
 export function ConnectionHubCatalogView() {
   const { user } = useCurrentUser();
   const [search, setSearch] = useState("");
+  const [algoliaOpen, setAlgoliaOpen] = useState(false);
   const allowed = user?.role === "admin" || user?.role === "superadmin";
+  const algolia = useAlgoliaPluginStatus(
+    user?.activeClientId,
+    user?.activeProjectKey,
+    allowed
+  );
   const projectStatus = useQuery({
     queryKey: [
       "connection-hub-project-status",
@@ -90,6 +101,7 @@ export function ConnectionHubCatalogView() {
           disabled={catalog.isFetching || projectStatus.isFetching}
           onClick={() => {
             void catalog.refetch();
+            void algolia.refetch();
             if (user?.activeProjectKey && user.activeClientId)
               void projectStatus.refetch();
           }}
@@ -122,9 +134,9 @@ export function ConnectionHubCatalogView() {
       ) : (
         <>
           <p className="text-xs text-m-text-muted">
-            Enabled means an action is configured in Hub for this project. This page does
-            not test account credentials. Choose the provider used by Tickets or Products
-            in the Connectors tab.
+            Connect Algolia here to use it for Products and assistant product searches.
+            Removing Algolia restores the saved native provider. Native capabilities
+            are listed in the Native Connectors tab.
           </p>
           {projectStatus.isError && (
             <p role="alert" className="text-sm text-m-text-muted">
@@ -164,17 +176,20 @@ export function ConnectionHubCatalogView() {
                     .map((binding) => binding.operation)
                 );
                 const known = projectStatus.isSuccess && !projectStatus.isError;
-                const label = !user?.activeProjectKey
-                  ? "Select a project"
-                  : projectStatus.isError
-                    ? "Status unavailable"
-                    : !known
-                      ? "Checking status…"
-                      : enabled.size > 0
-                        ? "Enabled"
-                        : bindings.length > 0
-                          ? "Disabled"
-                          : "Not connected";
+                const label =
+                  item.id === "algolia" && algolia.data?.incomplete
+                    ? "Setup incomplete"
+                    : !user?.activeProjectKey
+                      ? "Select a project"
+                      : projectStatus.isError
+                        ? "Status unavailable"
+                        : !known
+                          ? "Checking status…"
+                          : enabled.size > 0
+                            ? "Enabled"
+                            : bindings.length > 0
+                              ? "Disabled"
+                              : "Not connected";
                 return (
                   <Card
                     key={item.id}
@@ -221,6 +236,15 @@ export function ConnectionHubCatalogView() {
                         {item.authenticationType.replace(/_/g, " ")}
                       </Badge>
                     </div>
+                    {item.id === "algolia" && (
+                      <Button
+                        variant="outline"
+                        disabled={!user?.activeClientId || !user.activeProjectKey}
+                        onClick={() => setAlgoliaOpen(true)}
+                      >
+                        {algolia.data?.selected ? "Manage Algolia" : "Connect Algolia"}
+                      </Button>
+                    )}
                     <details className="border-t border-m-border pt-3">
                       <summary className="cursor-pointer text-sm font-medium text-m-primary">
                         View actions
@@ -257,6 +281,15 @@ export function ConnectionHubCatalogView() {
             </div>
           )}
         </>
+      )}
+      {algoliaOpen && user?.activeClientId && user.activeProjectKey && (
+        <AlgoliaPluginDialog
+          key={`algolia:${user.activeClientId}:${user.activeProjectKey}`}
+          clientId={user.activeClientId}
+          projectKey={user.activeProjectKey}
+          admin={allowed}
+          onClose={() => setAlgoliaOpen(false)}
+        />
       )}
     </section>
   );

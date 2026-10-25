@@ -37,6 +37,7 @@ beforeEach(() => {
   vi.stubEnv("CONNECTION_HUB_CLIENT_ID", "client-a");
   vi.stubEnv("USE_CONNECTION_HUB_PROD", "false");
   vi.stubEnv("CONNECTION_HUB_TENANT_ID", "");
+  vi.stubEnv("CONNECTION_HUB_CATALOG_REQUIRE_GOOGLE_AUTH", "false");
   mocks.googleHeaders.mockResolvedValue(
     new Headers({ authorization: "Bearer synthetic-google-token" })
   );
@@ -44,18 +45,34 @@ beforeEach(() => {
   mocks.session.mockImplementation(async () => ({
     user: { activeClientId: "client-a", activeProjectKey: mocks.project }
   }));
-  mocks.bindings.mockImplementation(() => [
-    {
-      id: "binding-1",
+  mocks.bindings.mockImplementation(() =>
+    ["search-products", "browse-records"].map((action) => ({
+      id: action,
       tenantId: "client-a",
       projectKey: mocks.project,
-      canonicalAction: "search-products",
+      canonicalAction: action,
+      connectorId: "algolia",
+      operation: action === "search-products" ? "rc_search_products" : action,
+      connectionId: "conn-a",
+      releaseId: "release-a",
+      allowedIndex: "products",
+      revision: 1,
       enabled: true
-    }
-  ]);
+    }))
+  );
   mocks.result.mockImplementation(() => ({
     data: { hits: [{ objectID: "product-1" }], nbHits: 1 },
-    execution: { mode: "live", projectKey: mocks.project, tenantId: "client-a" }
+    execution: {
+      mode: "live",
+      projectKey: mocks.project,
+      tenantId: "client-a",
+      connector: "@rc-connect/algolia",
+      action: "rc_search_products",
+      bindingId: "search-products",
+      bindingRevision: 1,
+      connectionId: "conn-a",
+      releaseId: "release-a"
+    }
   }));
   mocks.fetch.mockImplementation(async (url: string) =>
     url.endsWith("/bindings")
@@ -103,7 +120,17 @@ it("uses the session project after a dropdown change", async () => {
 it("uses upstream browse with an honest unknown total", async () => {
   mocks.result.mockImplementation(() => ({
     data: [{ objectID: "product-1" }],
-    execution: { mode: "live", projectKey: mocks.project, tenantId: "client-a" }
+    execution: {
+      mode: "live",
+      projectKey: mocks.project,
+      tenantId: "client-a",
+      connector: "@rc-connect/algolia",
+      action: "browse-records",
+      bindingId: "browse-records",
+      bindingRevision: 1,
+      connectionId: "conn-a",
+      releaseId: "release-a"
+    }
   }));
   const response = await POST(request({ query: "", limit: 5 }));
   expect(await response.json()).toEqual({
@@ -135,26 +162,16 @@ it.each([
   expect((await POST(request(body))).status).toBe(400);
   expect(mocks.fetch).toHaveBeenCalledTimes(1);
 });
-it("keeps disabled bindings on the hub path and propagates revocation errors", async () => {
-  mocks.bindings.mockImplementation(() => [
-    {
-      tenantId: "client-a",
-      projectKey: mocks.project,
-      canonicalAction: "search-products",
-      enabled: false
-    }
-  ]);
-  const config = await connectionHub.forProject({
-    clientId: "client-a",
-    projectKey: mocks.project
-  });
-  expect(config).toBeDefined();
-  mocks.fetch.mockImplementation(async (url: string) =>
-    url.endsWith("/bindings")
-      ? Response.json({ applicationId: "customersax", bindings: mocks.bindings() })
-      : new Response("revoked", { status: 403 })
-  );
+it("returns to Native when both read bindings are explicitly disabled", async () => {
+  const disabled = mocks
+    .bindings()
+    .map((item: Record<string, unknown>) => ({ ...item, enabled: false }));
+  mocks.bindings.mockReturnValue(disabled);
+  expect(
+    await connectionHub.forProject({ clientId: "client-a", projectKey: mocks.project })
+  ).toBeUndefined();
   expect((await POST(request({ query: "product" }))).status).toBe(403);
+  expect(mocks.fetch.mock.calls.every(([url]) => url.endsWith("/bindings"))).toBe(true);
 });
 it("does not activate an unbound project or reuse a different project's binding", async () => {
   mocks.bindings.mockReturnValue([
@@ -197,17 +214,15 @@ it("uses deployed Hub for Products while retaining the authenticated CSA client 
   vi.stubEnv("CONNECTION_HUB_PROD_URL", "https://hub-test.us-central1.run.app");
   vi.stubEnv("CONNECTION_HUB_PROD_API_KEY", "synthetic-prod-execution-key");
   vi.stubEnv("CONNECTION_HUB_PROD_TENANT_ID", "hub-workspace");
-  mocks.bindings.mockReturnValue([
-    {
-      tenantId: "hub-workspace",
-      projectKey: mocks.project,
-      canonicalAction: "search-products",
-      enabled: true
-    }
-  ]);
+  vi.stubEnv("CONNECTION_HUB_CATALOG_REQUIRE_GOOGLE_AUTH", "true");
+  const saved = mocks
+    .bindings()
+    .map((item: Record<string, unknown>) => ({ ...item, tenantId: "hub-workspace" }));
+  const result = mocks.result();
+  mocks.bindings.mockReturnValue(saved);
   mocks.result.mockReturnValue({
-    data: { hits: [{ objectID: "product-1" }], nbHits: 1 },
-    execution: { mode: "live", projectKey: mocks.project, tenantId: "hub-workspace" }
+    ...result,
+    execution: { ...result.execution, tenantId: "hub-workspace" }
   });
   mocks.fetch.mockImplementation(async (url: string) =>
     url.endsWith("/bindings")
@@ -246,15 +261,38 @@ it("reports missing production configuration without sending a local request", a
   expect(await response.text()).not.toContain("private-server-api-key");
 });
 
-it("does not silently bypass deployed Hub when the selected project is unbound", async () => {
+it("uses Native when the project has no selected Algolia bindings", async () => {
   vi.stubEnv("USE_CONNECTION_HUB_PROD", "true");
   vi.stubEnv("CONNECTION_HUB_PROD_URL", "https://hub-test.us-central1.run.app");
   vi.stubEnv("CONNECTION_HUB_PROD_API_KEY", "synthetic-prod-execution-key");
   vi.stubEnv("CONNECTION_HUB_PROD_TENANT_ID", "hub-workspace");
-  mocks.fetch.mockResolvedValue(
+  mocks.fetch.mockImplementation(async () =>
     Response.json({ applicationId: "connection-hub", bindings: [] })
   );
   const response = await POST(request({ query: "product" }));
-  expect(response.status).toBe(409);
-  expect(mocks.fetch).toHaveBeenCalledTimes(1);
+  expect(response.status).toBe(403);
+  expect(
+    await connectionHub.forProject({ clientId: "client-a", projectKey: mocks.project })
+  ).toBeUndefined();
+  expect(mocks.fetch.mock.calls.every(([url]) => url.endsWith("/bindings"))).toBe(true);
+});
+
+it("fails closed on partial selection instead of querying Native", async () => {
+  mocks.bindings.mockReturnValue(mocks.bindings().slice(0, 1));
+  expect((await POST(request({ query: "product" }))).status).toBe(409);
+  expect(mocks.fetch.mock.calls.every(([url]) => url.endsWith("/bindings"))).toBe(true);
+});
+it("rejects mismatched release or connection execution metadata", async () => {
+  const result = mocks.result();
+  mocks.result.mockReturnValue({
+    ...result,
+    execution: { ...result.execution, connectionId: "foreign" }
+  });
+  expect((await POST(request({ query: "product" }))).status).toBe(502);
+});
+it("uses application authentication alone for public Hub", async () => {
+  expect((await POST(request({ query: "product" }))).status).toBe(200);
+  const headers = mocks.fetch.mock.calls.at(-1)![1].headers;
+  expect(headers.authorization).toBe("Bearer private-server-api-key");
+  expect(headers["X-Serverless-Authorization"]).toBeUndefined();
 });

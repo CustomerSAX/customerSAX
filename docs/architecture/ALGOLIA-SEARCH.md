@@ -167,56 +167,32 @@ To add an alternative provider in the future (such as a backend search service o
    ```
    The CSA search UI will interact through the unified contract without requiring UI rewrites.
 
-## Server-side connection-hub transport
+## Algolia through Connection Hub
 
-Studio can use either a local Hub or its deployed Cloud Run service. These are server-only settings in `apps/studio/.env`:
+Administrators select a project and open **Admin Settings → Connection Hub → Algolia → Connect Algolia** (also available in Assistant → Plugins). Enter the Algolia application ID, index name and an index-restricted read key with `search` and `browse` permissions. Hub must run in live mode and have an enabled, approved Algolia release. The form validates and encrypts the credentials through Hub, then enables the project's `search-products` → `rc_search_products` and `browse-records` → `browse-records` bindings. It does not approve releases automatically.
+
+Both Products and assistant product search use those bindings when selected. Removing Algolia disables these two bindings and restores the saved native provider; native provider settings and Zendesk are untouched. Partially configured bindings, authorization failures, outages and simulated responses remain visible errors, never a silent switch to another catalog. If a two-action update is interrupted, reconnect or remove Algolia to finish the selection.
+
+Products uses the cookie-authenticated `POST /api/connection-hub/products` route. Assistant tools call the BFF's `projectConnectionHubProducts` query, owned by Admin. Admin verifies client/project ownership before Hub access. Both use the shared server-only `@csa/connection-hub` transport, checking live execution metadata against the exact project, tenant, binding, revision, release and connection. No browser request can choose a Hub account or project. Algolia records in chat are read-only text: their objectIDs are not native commerce product IDs and do not enable native cart or Details actions.
+
+### Server configuration
+
+Configure Studio and Admin with the same server-only execution settings:
 
 ```dotenv
 CONNECTION_HUB_ENABLED=true
 USE_CONNECTION_HUB_PROD=true
 CONNECTION_HUB_PROD_URL=https://csa-production-connection-hub-17754871169.us-central1.run.app
-CONNECTION_HUB_PROD_API_KEY=<production Hub execution API_KEY>
+CONNECTION_HUB_PROD_API_KEY=<Hub execution API_KEY>
 CONNECTION_HUB_CLIENT_ID=<authenticated CSA activeClientId>
 CONNECTION_HUB_PROD_TENANT_ID=<Hub runtime TENANT_ID>
+CONNECTION_HUB_CATALOG_REQUIRE_GOOGLE_AUTH=false
 ```
 
-`USE_CONNECTION_HUB_PROD=false` selects the existing `CONNECTION_HUB_URL` and `CONNECTION_HUB_API_KEY`; `true` selects only the production URL and key. Missing production settings fail closed and never fall back to localhost or its credentials. An unbound project in production mode returns a configuration error rather than silently selecting another product provider. `CONNECTION_HUB_ENABLED=false` disables the integration. Restart Studio after changing these values. Keep keys out of `NEXT_PUBLIC_*` variables. These settings currently apply to Studio's Products and Teams transports, not the ticketing service or AI-assist MCP integration.
+Studio additionally needs `CONNECTION_HUB_PROD_ADMIN_API_KEY` to manage connections. Admin only reads/executes and does not need that management key. Keep every Hub/provider key out of `NEXT_PUBLIC_*` variables. Hub's application key is separate from the Algolia read key and MCP token.
 
-The key is Hub's REST execution `API_KEY`, not an MCP client token, administrator key or Algolia key. Hub must already have a live Algolia connection and approved `search-products` / `browse-records` bindings for the selected project. MCP account grants do not create REST project bindings. The deployed application ID `connection-hub` and legacy `customersax` are both accepted; authorization still validates tenant and project for bindings and execution results.
+`USE_CONNECTION_HUB_PROD=false` selects the local `CONNECTION_HUB_URL`, `CONNECTION_HUB_API_KEY`, `CONNECTION_HUB_TENANT_ID` and Studio's `CONNECTION_HUB_ADMIN_API_KEY`. Missing production settings never fall back to local credentials. `CONNECTION_HUB_ENABLED=false` disables Hub selection; other clients keep their existing provider. This deployment maps one configured CSA client to one Hub tenant; use separate configuration for additional clients rather than sharing this tenant mapping.
 
-`CONNECTION_HUB_CLIENT_ID` restricts which authenticated CSA client can use this integration. `CONNECTION_HUB_PROD_TENANT_ID` identifies its Hub workspace; when omitted it defaults to the CSA client ID. Local mode supports a separate optional `CONNECTION_HUB_TENANT_ID`. The browser cannot select any of these values or override its session's project. Do not map multiple CSA clients onto this single-client configuration.
+Public Hub needs application authentication only. For a private Hub set `CONNECTION_HUB_CATALOG_REQUIRE_GOOGLE_AUTH=true`; both runtimes then need Google ADC and a principal with `roles/run.invoker` on Hub. The transport adds the Google ID token in `X-Serverless-Authorization`, retaining the Hub key in `Authorization`.
 
-For private Cloud Run, Studio uses Google Application Default Credentials to obtain and refresh an ID token with the Hub service origin as its audience. It sends the ID token in `X-Serverless-Authorization` and the Hub execution key in `Authorization`. The Google principal needs `roles/run.invoker` on the Hub service. No service IAM or cloud environment settings are changed by this code.
-
-For local development, configure an impersonated service account that can invoke Hub:
-
-```bash
-gcloud auth application-default login --impersonate-service-account=YOUR_HUB_INVOKER_SERVICE_ACCOUNT
-```
-
-Your user needs permission to impersonate that account. Ordinary user ADC alone may not support ID-token minting. On Cloud Run, ADC uses the attached runtime service account. On Vercel, configure a supported workload identity credential source; local ADC is not automatically available in a Vercel deployment. The flag does not create credentials, IAM grants, production connections or bindings. See [Google's local ADC setup](https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment) and [Cloud Run service authentication](https://docs.cloud.google.com/run/docs/authenticating/service-to-service).
-
-Verify a real bound project through Products after switching. A successful test must return live provider data with the configured Hub tenant and authenticated selected project. Missing credentials, Google/Hub authorization failures, mismatched scopes and simulated responses remain errors. The automated tests use synthetic responses and cannot establish production connectivity.
-
-The Products page can use connection-hub for the authenticated selected project within the configured CustomerSax client. Studio verifies the session and active project before calling the connector service. The browser calls `POST /api/connection-hub/products`; the server calls connection-hub's `search-products` action for a query and `browse-records` for an empty query. API keys and Algolia credentials remain server-side.
-
-Add these to `apps/studio/.env.local` (never use `NEXT_PUBLIC_`):
-
-```dotenv
-CONNECTION_HUB_ENABLED=true
-CONNECTION_HUB_URL=http://127.0.0.1:3100
-CONNECTION_HUB_API_KEY=<same API_KEY as connection-hub>
-CONNECTION_HUB_CLIENT_ID=<authenticated activeClientId>
-```
-
-Use `activeClientId` from the authenticated `/api/auth/me` response for the client ID. The project key is read automatically from the authenticated session updated by the project dropdown; do not set `CONNECTION_HUB_PROJECT_KEY`. The selected project's saved Products configuration must use Algolia with the application ID and index configured in connection-hub. Studio passes those settings as an expected binding; connection-hub rejects a mismatch before executing an action. Restart Studio after changing environment variables. Keep connection-hub running in `EXECUTION_MODE=live` with the intended Algolia index and credentials. Studio rejects simulated provider results. Open Products and search as you type, with the search button, or Enter. With no query it browses up to 20 records; searches show up to 20 matches and the provider's total. Browse does not claim an exact catalog total. Facets, replica sorting and further pages are not implemented by this connector transport. Projects using Native commerce and clients outside the configured client continue using their existing provider. Switching the dropdown reloads the page using the new session project; the browser cannot override the project in a search request.
-
-Errors render in the catalog with retry. Missing sessions, mismatched projects, invalid inputs, upstream failures and malformed results fail closed. The client restriction and saved project configuration protect the current single-catalog connection-hub service; expand connection-hub's connection/binding model before enabling additional tenants.
-
-## Connection-hub project bindings
-
-When `CONNECTION_HUB_ENABLED=true`, Studio checks connection-hub for the authenticated session's selected project. Projects with saved `search-products` or `browse-records` bindings use the server-side connector transport; unbound projects retain the existing provider. Disabled bindings still select the connector transport so disabling an action cannot silently bypass it through direct Algolia.
-
-Studio uses `CONNECTION_HUB_URL`, `CONNECTION_HUB_API_KEY` and `CONNECTION_HUB_CLIENT_ID` only on the server. The session supplies the project key; the browser supplies only query and limit. `POST /api/connection-hub/products` calls `POST /v1/projects/<selected-project>/actions/search-products` or `browse-records`. Connection-hub resolves the saved connection, allowed index, approved release and digest, and snapshots the binding revision before execution. Provider credentials and package selection are owned by connection-hub and never supplied by Studio.
-
-Run connection-hub's `npm run setup:control-plane`, restart it, then `npm run activate -- b2c-csa` to approve the current build and register the existing Algolia credentials and project bindings. This is an explicit activation; changing environment credentials alone does not update a saved connection. Keep its encryption key stable across restarts. The admin API supports deliberate promotion, disabling and connection revocation. See connection-hub's README for endpoint contracts and local SQLite limitations.
+After updating dependencies, build `@csa/connection-hub` and restart Studio, Admin and AI-assist; BFF must refresh composition for the new Admin query. No Hub redeployment is required. Products supports search and empty-query browsing up to 20 records; browse total is unknown. Facets, replicas and further pages are not supported by this transport. Selected Hub failures and valid empty results have distinct states. Verify with real read-only searches in the selected project's index; unit-test fixtures alone cannot prove connectivity.

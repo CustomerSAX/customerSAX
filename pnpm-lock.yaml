@@ -38,6 +38,9 @@ importers:
       '@csa/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@csa/connection-hub':
+        specifier: workspace:*
+        version: link:../../packages/connection-hub
       '@csa/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -588,6 +591,9 @@ importers:
       '@auth0/nextjs-auth0':
         specifier: ^4.27.0
         version: 4.27.0(next@16.3.1(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@csa/connection-hub':
+        specifier: workspace:*
+        version: link:../../packages/connection-hub
       '@csa/headers':
         specifier: workspace:*
         version: link:../../packages/headers
@@ -869,6 +875,22 @@ importers:
         version: 5.9.3
 
   packages/config:
+    devDependencies:
+      '@csa/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@types/node':
+        specifier: ^20.14.11
+        version: 20.19.43
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
+  packages/connection-hub:
+    dependencies:
+      google-auth-library:
+        specifier: 11.0.2
+        version: 11.0.2
     devDependencies:
       '@csa/config-typescript':
         specifier: workspace:*

@@ -8,6 +8,7 @@ import { useCurrentUser } from "@/lib/use-current-user";
 import { getProviderLogo } from "@/features/onboarding/components/ProviderLogo";
 import styles from "./assistant-integrations.module.css";
 import { ZendeskPluginDialog, useZendeskPluginStatus } from "./ZendeskPluginDialog";
+import { AlgoliaPluginDialog, useAlgoliaPluginStatus } from "./AlgoliaPluginDialog";
 type Connector = { id: string; name: string; description: string };
 export type AssistantAttachment = { id: string; name: string; text: string };
 export function AssistantIntegrations({
@@ -24,6 +25,12 @@ export function AssistantIntegrations({
   const { user } = useCurrentUser();
   const [pluginsOpen, setPluginsOpen] = useState(false);
   const [zendeskOpen, setZendeskOpen] = useState(false);
+  const [algoliaOpen, setAlgoliaOpen] = useState(false);
+  const algolia = useAlgoliaPluginStatus(
+    user?.activeClientId,
+    user?.activeProjectKey,
+    pluginsOpen
+  );
   const [search, setSearch] = useState("");
   const [fileError, setFileError] = useState("");
   const [reading, setReading] = useState(false);
@@ -69,6 +76,7 @@ export function AssistantIntegrations({
   const visible = (catalog.data ?? []).filter(
     (c) =>
       !(c.id === "zendesk" && zendesk.data?.connected) &&
+      !(c.id === "algolia" && algolia.data?.selected) &&
       `${c.name} ${c.description}`.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -233,6 +241,32 @@ export function AssistantIntegrations({
                   </div>
                 </>
               )}
+              {algolia.data?.selected && (
+                <>
+                  <p className={styles.caption}>SELECTED PRODUCT CONNECTOR</p>
+                  <button
+                    type="button"
+                    className={styles.pluginRow}
+                    onClick={() => {
+                      setPluginsOpen(false);
+                      setAlgoliaOpen(true);
+                    }}
+                  >
+                    <span className={styles.pluginLogo}>
+                      {getProviderLogo("algolia", "h-5 w-5")}
+                    </span>
+                    <span>
+                      Algolia{algolia.data.incomplete ? " · Setup incomplete" : ""}
+                    </span>
+                    <ChevronRight size={16} />
+                  </button>
+                </>
+              )}
+              {algolia.isError && (
+                <p role="alert" className={styles.fileError}>
+                  Algolia status is unavailable. Reopen Plugins to retry.
+                </p>
+              )}
               {removeError && (
                 <p role="alert" className={styles.fileError}>
                   {removeError}
@@ -275,7 +309,7 @@ export function AssistantIntegrations({
               ) : (
                 <div className={styles.pluginList}>
                   {visible.map((connector) =>
-                    connector.id === "zendesk" ? (
+                    ["zendesk", "algolia"].includes(connector.id) ? (
                       <button
                         key={connector.id}
                         type="button"
@@ -283,13 +317,14 @@ export function AssistantIntegrations({
                         title={connector.description}
                         onClick={() => {
                           setPluginsOpen(false);
-                          setZendeskOpen(true);
+                          if (connector.id === "algolia") setAlgoliaOpen(true);
+                          else setZendeskOpen(true);
                         }}
                       >
                         <span className={styles.pluginLogo}>
-                          {getProviderLogo("zendesk", "h-5 w-5")}
+                          {getProviderLogo(connector.id, "h-5 w-5")}
                         </span>
-                        <span>Zendesk</span>
+                        <span>{connector.name}</span>
                         <ChevronRight size={16} />
                       </button>
                     ) : (
@@ -312,15 +347,9 @@ export function AssistantIntegrations({
                 </div>
               )}
               {admin && (
-                <Link className={styles.browse} href="/admin-settings/connectors">
+                <Link className={styles.browse} href="/admin-settings/connection-hub">
                   <Link2 size={18} />
                   Connect plugins
-                  <ChevronRight size={17} />
-                </Link>
-              )}
-              {admin && (
-                <Link className={styles.browse} href="/admin-settings/connection-hub">
-                  Browse all plugins
                   <ChevronRight size={17} />
                 </Link>
               )}
@@ -336,6 +365,16 @@ export function AssistantIntegrations({
           clientId={user.activeClientId}
           admin={admin}
           onClose={() => setZendeskOpen(false)}
+          onPrompt={onPrompt}
+        />
+      )}
+      {algoliaOpen && user?.activeClientId && user.activeProjectKey && (
+        <AlgoliaPluginDialog
+          key={`algolia:${user.activeClientId}:${user.activeProjectKey}`}
+          clientId={user.activeClientId}
+          projectKey={user.activeProjectKey}
+          admin={admin}
+          onClose={() => setAlgoliaOpen(false)}
           onPrompt={onPrompt}
         />
       )}

@@ -143,3 +143,8 @@ export async function testProjectProducts(
     };
   }
 }
+
+export async function assertProjectProductsScope({ clientId, projectKey }: { clientId: string; projectKey: string }) {
+  const doc = await (await getProjectsCollection()).findOne({ clientId, projectKey }, { projection: { _id: 1 } });
+  if (!doc) throw new Error("Active project does not belong to this client");
+}
