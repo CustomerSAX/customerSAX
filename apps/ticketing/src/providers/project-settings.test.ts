@@ -1,59 +1,73 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { resolveProjectTicketing } from "@csa/mongodb";
-import { resolvers } from "../schema.js";
+const mocks = vi.hoisted(() => ({
+  authorize: vi.fn(),
+  hub: vi.fn(),
+  legacy: vi.fn(),
+  zendesk: vi.fn()
+}));
+vi.mock("@csa/mongodb", async (original) => ({
+  ...(await original<typeof import("@csa/mongodb")>()),
+  assertProjectScope: mocks.authorize,
+  resolveProjectTicketing: mocks.legacy,
+  nativeTicketLegacyAccess: vi.fn(async () => false)
+}));
+vi.mock("../zendesk/connection-hub.js", () => ({
+  connectionHubZendesk: { forProject: mocks.hub }
+}));
+vi.mock("../zendesk/provider.js", () => ({ zendeskProvider: mocks.zendesk }));
 import { resolveTicketing } from "./index.js";
-import { zendeskProvider } from "../zendesk/provider.js";
-import { connectionHubZendesk } from "../zendesk/connection-hub.js";
-vi.mock("@csa/mongodb", async original => ({ ...(await original<typeof import("@csa/mongodb")>()), resolveProjectTicketing: vi.fn(), nativeTicketLegacyAccess: vi.fn(async () => false), projectFreshdeskCredentials: vi.fn(() => ({ domain: "fresh.freshdesk.com", apiKey: "test-key" })) }));
-vi.mock("../zendesk/project-client.js", () => ({ projectZendeskClient: (clientId: string, projectKey: string, settings: { subdomain: string }) => ({ subdomain: settings.subdomain, clientId, projectKey }) }));
-vi.mock("../zendesk/provider.js", () => ({ zendeskProvider: vi.fn(() => ({ getTicket: vi.fn() })) }));
-beforeEach(() => { vi.clearAllMocks(); vi.stubEnv("TICKETING_PROVIDER", "zendesk"); vi.spyOn(connectionHubZendesk, "forProject").mockResolvedValue(undefined); });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
-it("uses the active client/project settings instead of environment credentials", async () => {
-  vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "zendesk", subdomain: "project-account" });
+import { resolvers } from "../schema.js";
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.authorize.mockResolvedValue(undefined);
+  mocks.hub.mockResolvedValue(undefined);
+  mocks.zendesk.mockReturnValue({ getTicket: vi.fn() });
+  vi.stubEnv("TICKETING_PROVIDER", "zendesk");
+});
+afterEach(() => vi.unstubAllEnvs());
+it("selects enabled Hub Zendesk regardless of the old project provider or environment", async () => {
+  const connection = { subdomain: "hub-account", api: vi.fn() };
+  mocks.hub.mockResolvedValue(connection);
   expect((await resolveTicketing("project-a", "client-a")).name).toBe("zendesk");
-  expect(resolveProjectTicketing).toHaveBeenCalledWith("client-a", "project-a");
-  expect(zendeskProvider).toHaveBeenCalledWith("project-a", { subdomain: "project-account", clientId: "client-a", projectKey: "project-a" });
+  expect(mocks.authorize).toHaveBeenCalledWith({
+    clientId: "client-a",
+    projectKey: "project-a"
+  });
+  expect(mocks.zendesk).toHaveBeenCalledWith("project-a", connection);
+  expect(mocks.legacy).not.toHaveBeenCalled();
 });
-it("honors native settings despite a Zendesk environment default", async () => {
-  vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
-  vi.mocked(connectionHubZendesk.forProject).mockRejectedValue(new Error("Zendesk is unavailable through Connection Hub"));
-  vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "internal" });
-  expect((await resolveTicketing("project-b", "client-a")).name).toBe("internal");
-  expect(zendeskProvider).not.toHaveBeenCalled();
-  expect(connectionHubZendesk.forProject).not.toHaveBeenCalled();
+it("uses native tickets when no Hub ticketing provider is selected, without old Zendesk or Freshdesk credentials", async () => {
+  mocks.legacy.mockResolvedValue({ provider: "freshdesk" });
+  expect((await resolveTicketing("project-a", "client-a")).name).toBe("internal");
+  expect(mocks.zendesk).not.toHaveBeenCalled();
+  expect(mocks.legacy).not.toHaveBeenCalled();
 });
-it("still reports Connection Hub failures when Zendesk is selected", async () => {
-  vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "zendesk", subdomain: "project-account" });
-  vi.mocked(connectionHubZendesk.forProject).mockRejectedValue(new Error("Zendesk is unavailable through Connection Hub"));
-  await expect(resolveTicketing("project-a", "client-a")).rejects.toThrow("Zendesk is unavailable through Connection Hub");
-  expect(zendeskProvider).not.toHaveBeenCalled();
+it("fails closed on Hub outages instead of returning unrelated native or legacy tickets", async () => {
+  mocks.hub.mockRejectedValue(new Error("Hub unavailable"));
+  await expect(resolveTicketing("project", "client")).rejects.toThrow("Hub unavailable");
+  expect(mocks.legacy).not.toHaveBeenCalled();
 });
-it("does not fall back when settings cannot be resolved", async () => {
-  vi.mocked(resolveProjectTicketing).mockRejectedValue(new Error("not authorized"));
+it("rejects unauthorized projects before Hub access", async () => {
+  mocks.authorize.mockRejectedValue(new Error("not authorized"));
   await expect(resolveTicketing("project", "client")).rejects.toThrow("not authorized");
-  expect(zendeskProvider).not.toHaveBeenCalled();
+  expect(mocks.hub).not.toHaveBeenCalled();
 });
-it("rejects missing client context in production", async () => {
+it("requires client identity in production", async () => {
   vi.stubEnv("NODE_ENV", "production");
   await expect(resolveTicketing("project")).rejects.toThrow("authenticated client");
-  expect(resolveProjectTicketing).not.toHaveBeenCalled();
+  expect(mocks.hub).not.toHaveBeenCalled();
 });
-
-it("selects Freshdesk for the active project without using Zendesk", async () => {
-  vi.mocked(connectionHubZendesk.forProject).mockRejectedValue(new Error("Zendesk is unavailable through Connection Hub"));
-  vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "freshdesk", freshdeskDomain: "fresh.freshdesk.com", freshdeskApiKeyEncrypted: "encrypted" });
-  expect((await resolveTicketing("project", "client")).name).toBe("freshdesk");
-  expect(zendeskProvider).not.toHaveBeenCalled();
-  expect(connectionHubZendesk.forProject).not.toHaveBeenCalled();
-});
-
-
-it("rejects notification access without agent identity or after a project switch", async () => {
+it("rejects notification access without agent identity or after switching projects", async () => {
   const args = { clientId: "client-a", projectKey: "project-a" };
-  await expect(resolvers.Query.ticketNotifications(null, args, { ...args })).rejects.toThrow("authenticated agent");
-  await expect(resolvers.Query.ticketNotifications(null, args, {
-    clientId: "client-a", projectKey: "project-b", userEmail: "agent@example.com", userRole: "agent"
-  })).rejects.toThrow("Active project changed");
-  expect(resolveProjectTicketing).not.toHaveBeenCalled();
+  await expect(
+    resolvers.Query.ticketNotifications(null, args, { ...args })
+  ).rejects.toThrow("authenticated agent");
+  await expect(
+    resolvers.Query.ticketNotifications(null, args, {
+      ...args,
+      projectKey: "project-b",
+      userEmail: "agent@example.com",
+      userRole: "agent"
+    })
+  ).rejects.toThrow("Active project changed");
 });

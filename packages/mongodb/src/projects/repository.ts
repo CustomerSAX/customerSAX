@@ -42,8 +42,9 @@ function ctCredsView(doc: CsaProject) {
     ctApiUrl: c?.apiUrl ?? doc.ctApiUrl ?? "",
     ctAuthUrl: c?.authUrl ?? doc.ctAuthUrl ?? "",
     ctClientId: c?.clientId ?? doc.ctClientId ?? "",
-    ctClientSecretEncrypted: c?.clientSecretEncrypted ?? doc.ctClientSecretEncrypted ?? "",
-    scopes: c?.scopes ?? doc.scopes,
+    ctClientSecretEncrypted:
+      c?.clientSecretEncrypted ?? doc.ctClientSecretEncrypted ?? "",
+    scopes: c?.scopes ?? doc.scopes
   };
 }
 
@@ -64,21 +65,38 @@ export function projectSecretMasked(doc: CsaProject): string {
 }
 
 export function projectView(doc: CsaProject) {
-  const { _id, credentials, ticketing: _ticketing, crm: _crm, products: _products, platform, ctApiUrl: _a, ctAuthUrl: _b, ctClientId: _c, ctClientSecretEncrypted: _d, scopes: _e, ...rest } = doc;
+  const {
+    _id,
+    credentials,
+    ticketing: _ticketing,
+    crm: _crm,
+    products: _products,
+    platform,
+    ctApiUrl: _a,
+    ctAuthUrl: _b,
+    ctClientId: _c,
+    ctClientSecretEncrypted: _d,
+    scopes: _e,
+    ...rest
+  } = doc;
   void credentials;
   const ct = ctCredsView(doc);
   const isConfigured = Boolean(
     (doc.platform === "shopify" && doc.credentials?.shopify?.adminAccessTokenEncrypted) ||
-    (doc.platform === "bigcommerce" && doc.credentials?.bigcommerce?.accessTokenEncrypted) ||
-    ((doc.platform === "commercetools" || !doc.platform) && ct.ctClientSecretEncrypted && ct.ctApiUrl && ct.ctClientId)
+    (doc.platform === "bigcommerce" &&
+      doc.credentials?.bigcommerce?.accessTokenEncrypted) ||
+    ((doc.platform === "commercetools" || !doc.platform) &&
+      ct.ctClientSecretEncrypted &&
+      ct.ctApiUrl &&
+      ct.ctClientId)
   );
   const status = doc.status || (isConfigured ? "active" : "setup_required");
   return {
     id: _id.toHexString(),
     ...rest,
     platform: projectPlatform(doc),
-    ticketingProvider: doc.ticketing?.provider ?? "internal",
-    crmProvider: doc.crm?.provider ?? "none",
+    ticketingProvider: "connection-hub",
+    crmProvider: "connection-hub",
     isConfigured,
     status,
     productsProvider: doc.products?.provider ?? null,
@@ -90,7 +108,7 @@ export function projectView(doc: CsaProject) {
     shopifyStoreDomain: doc.credentials?.shopify?.storeDomain,
     shopifyApiVersion: doc.credentials?.shopify?.apiVersion,
     bigcommerceStoreHash: doc.credentials?.bigcommerce?.storeHash,
-    bigcommerceClientId: doc.credentials?.bigcommerce?.clientId,
+    bigcommerceClientId: doc.credentials?.bigcommerce?.clientId
   };
 }
 
@@ -106,7 +124,10 @@ export async function listProjectsByClient(clientId: string): Promise<CsaProject
  * bound to one organisation can never read another tenant's project by id.
  * Superadmin/cross-client flows must use `findProjectByIdAnyClient` explicitly.
  */
-export async function findProjectById(id: string, clientId: string): Promise<CsaProject | null> {
+export async function findProjectById(
+  id: string,
+  clientId: string
+): Promise<CsaProject | null> {
   return (await projects.findById(id, { clientId })) as CsaProject | null;
 }
 
@@ -146,7 +167,9 @@ export async function getProjectWithSecret(id: string): Promise<
 
   const view = projectView(doc);
   const ctClientSecret =
-    doc.platform !== "shopify" && doc.platform !== "bigcommerce" && ctCredsView(doc).ctClientSecretEncrypted
+    doc.platform !== "shopify" &&
+    doc.platform !== "bigcommerce" &&
+    ctCredsView(doc).ctClientSecretEncrypted
       ? decrypt(ctCredsView(doc).ctClientSecretEncrypted)
       : undefined;
   const shopifyAdminAccessToken =
@@ -213,7 +236,13 @@ export async function createProject(data: {
     }
     scopes = data.scopes?.trim() || undefined;
     credentials = {
-      commercetools: { apiUrl: ctApiUrl, authUrl: ctAuthUrl, clientId: ctClientId, clientSecretEncrypted: ctClientSecretEncrypted, scopes },
+      commercetools: {
+        apiUrl: ctApiUrl,
+        authUrl: ctAuthUrl,
+        clientId: ctClientId,
+        clientSecretEncrypted: ctClientSecretEncrypted,
+        scopes
+      }
     };
   }
 
@@ -243,7 +272,7 @@ export async function createProject(data: {
     standaloneB2bEnabled: data.standaloneB2bEnabled === true,
     createdBy: data.createdBy,
     createdAt: now,
-    updatedAt: now,
+    updatedAt: now
   };
 
   await col.insertOne(doc as never);
@@ -301,7 +330,9 @@ export async function updateProject(
     set["credentials.shopify.storeDomain"] = updates.shopifyStoreDomain.trim();
   }
   if (updates.shopifyAdminAccessToken !== undefined) {
-    set["credentials.shopify.adminAccessTokenEncrypted"] = encrypt(updates.shopifyAdminAccessToken);
+    set["credentials.shopify.adminAccessTokenEncrypted"] = encrypt(
+      updates.shopifyAdminAccessToken
+    );
   }
   if (updates.shopifyApiVersion !== undefined) {
     set["credentials.shopify.apiVersion"] = updates.shopifyApiVersion.trim();
@@ -313,7 +344,9 @@ export async function updateProject(
     set["credentials.bigcommerce.clientId"] = updates.bigcommerceClientId.trim();
   }
   if (updates.bigcommerceAccessToken !== undefined) {
-    set["credentials.bigcommerce.accessTokenEncrypted"] = encrypt(updates.bigcommerceAccessToken);
+    set["credentials.bigcommerce.accessTokenEncrypted"] = encrypt(
+      updates.bigcommerceAccessToken
+    );
   }
 
   const unset: Record<string, true> = {};
@@ -324,9 +357,15 @@ export async function updateProject(
       set.smtpProfileId = updates.smtpProfileId.trim();
     }
   }
-  if (updates.standaloneB2cEnabled !== undefined) set.standaloneB2cEnabled = updates.standaloneB2cEnabled;
-  if (updates.standaloneB2bEnabled !== undefined) set.standaloneB2bEnabled = updates.standaloneB2bEnabled;
-  if (updates.ctClientSecret || updates.shopifyAdminAccessToken || updates.bigcommerceAccessToken) {
+  if (updates.standaloneB2cEnabled !== undefined)
+    set.standaloneB2cEnabled = updates.standaloneB2cEnabled;
+  if (updates.standaloneB2bEnabled !== undefined)
+    set.standaloneB2bEnabled = updates.standaloneB2bEnabled;
+  if (
+    updates.ctClientSecret ||
+    updates.shopifyAdminAccessToken ||
+    updates.bigcommerceAccessToken
+  ) {
     set.isConfigured = true;
     set.status = "active";
   }

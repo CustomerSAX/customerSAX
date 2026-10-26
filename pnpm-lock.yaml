@@ -386,6 +386,9 @@ importers:
       '@csa/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@csa/connection-hub':
+        specifier: workspace:*
+        version: link:../../packages/connection-hub
       '@csa/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -800,6 +803,9 @@ importers:
       '@csa/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@csa/connection-hub':
+        specifier: workspace:*
+        version: link:../../packages/connection-hub
       '@csa/email':
         specifier: workspace:*
         version: link:../../packages/email

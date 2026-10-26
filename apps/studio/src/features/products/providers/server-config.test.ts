@@ -70,10 +70,8 @@ it("resolves saved settings only for the authenticated active project", async ()
     headers: { authorization: "Bearer session-token" },
     cache: "no-store"
   });
-  expect(settings.provider).toBe("algolia");
-  expect(settings.searchConfig?.sortOptions).toEqual([
-    { label: "Relevance", value: "project-index" }
-  ]);
+  expect(settings.provider).toBe("commercetools");
+  expect(settings.searchConfig).toBeUndefined();
 });
 it("defaults unconfigured projects to Native even when the environment selects Algolia", async () => {
   vi.stubEnv("PRODUCTS_PROVIDER", "algolia");

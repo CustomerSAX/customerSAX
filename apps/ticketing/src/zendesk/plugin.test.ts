@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { resolveProjectTicketing } from "@csa/mongodb";
+import { assertProjectScope } from "@csa/mongodb";
 import { searchZendeskPlugin } from "./plugin.js";
-vi.mock("@csa/mongodb", () => ({ resolveProjectTicketing: vi.fn() }));
+vi.mock("@csa/mongodb", () => ({ assertProjectScope: vi.fn() }));
 const fetchMock = vi.fn();
 const identity = {
   clientId: "client-a",
@@ -16,6 +16,10 @@ const binding = {
   tenantId: "client-a",
   projectKey: "project-a",
   connectionId: "conn-a",
+  operation: "find-tickets",
+  revision: 1,
+  releaseId: "release-a",
+  allowedIndex: "tickets",
   enabled: true
 };
 const execution = {
@@ -26,7 +30,9 @@ const execution = {
   bindingId: "binding-a",
   connectionId: "conn-a",
   action: "find-tickets",
-  providerStatus: 200
+  providerStatus: 200,
+  bindingRevision: 1,
+  releaseId: "release-a"
 };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -39,7 +45,7 @@ beforeEach(() => {
     USE_CONNECTION_HUB_PROD: "false"
   }))
     vi.stubEnv(key, value);
-  vi.mocked(resolveProjectTicketing).mockResolvedValue({ provider: "internal" });
+  vi.mocked(assertProjectScope).mockResolvedValue(undefined);
   fetchMock.mockResolvedValueOnce(
     Response.json({ applicationId: "customersax", bindings: [binding] })
   );
@@ -65,7 +71,10 @@ it("searches external Zendesk tickets while native ticketing remains selected", 
     count: 1,
     total: 1
   });
-  expect(resolveProjectTicketing).toHaveBeenCalledWith("client-a", "project-a");
+  expect(assertProjectScope).toHaveBeenCalledWith({
+    clientId: "client-a",
+    projectKey: "project-a"
+  });
   expect(fetchMock.mock.calls[1][0]).toContain("/project-a/actions/zendesk-find-tickets");
   expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
     search_type: "custom",
@@ -123,11 +132,16 @@ it.each([
   );
 });
 it("does not contact Hub when project ownership cannot be verified", async () => {
-  vi.mocked(resolveProjectTicketing).mockRejectedValueOnce(new Error("not authorized"));
+  vi.mocked(assertProjectScope).mockRejectedValueOnce(new Error("not authorized"));
   await expect(searchZendeskPlugin(identity, "open")).rejects.toThrow("not authorized");
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it.each(["CSA Agent", "CSA Administrator", "CSA Super Administrator"])("accepts the authenticated AI Assist role label %s", async (userRole) => {
-  expect(await searchZendeskPlugin({ ...identity, userRole }, "status:open")).toMatchObject({ count: 1 });
-});
+it.each(["CSA Agent", "CSA Administrator", "CSA Super Administrator"])(
+  "accepts the authenticated AI Assist role label %s",
+  async (userRole) => {
+    expect(
+      await searchZendeskPlugin({ ...identity, userRole }, "status:open")
+    ).toMatchObject({ count: 1 });
+  }
+);

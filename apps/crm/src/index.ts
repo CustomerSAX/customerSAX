@@ -5,7 +5,7 @@ import { resolvers, typeDefs } from "./schema.js";
 
 const port = Number(process.env.PORT ?? process.env.CRM_PORT ?? 4390);
 
-// Project CRM credentials are resolved per request, not from startup env.
+// CRM actions and accounts are resolved from Connection Hub per request.
 
 await startSubgraph({
   serviceName: "crm",

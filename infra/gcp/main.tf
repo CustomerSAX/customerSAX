@@ -431,6 +431,22 @@ resource "google_cloud_run_v2_service" "admin" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_secret_manager_secret" "hub_platform_config" {
+  secret_id = "${local.name_prefix}-hub-platform-config"
+  replication {
+    user_managed {
+      replicas { location = var.region }
+    }
+  }
+  depends_on = [google_project_service.required]
+}
+
+resource "google_secret_manager_secret_iam_member" "hub_platform_runtime" {
+  secret_id = google_secret_manager_secret.hub_platform_config.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${local.compute_sa_email}"
+}
+
 resource "google_cloud_run_v2_service" "ticketing" {
   name     = "${local.name_prefix}-ticketing"
   location = var.region

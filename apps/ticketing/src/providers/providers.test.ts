@@ -37,7 +37,7 @@ it("keeps native GraphQL create/read/update behavior and context scoping", async
   expect(page.errors).toBeUndefined();
   expect(page.data?.ticketingProvider).toBe("internal");
 });
-it("rejects unknown providers instead of falling back silently", () => {
+it("does not select legacy environment providers", () => {
   vi.stubEnv("TICKETING_PROVIDER", "typo");
-  expect(ticketingProviderName).toThrow("internal or zendesk");
+  expect(ticketingProviderName()).toBe("internal");
 });

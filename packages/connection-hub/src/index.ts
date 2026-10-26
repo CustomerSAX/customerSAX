@@ -1,4 +1,12 @@
 import { GoogleAuth, type IdTokenClient } from "google-auth-library";
+import { platformConfiguration } from "./runtime.js";
+export {
+  hubRuntime,
+  platformConfiguration,
+  HubRuntimeError,
+  type HubProject,
+  type HubBinding
+} from "./runtime.js";
 
 export class AlgoliaHubError extends Error {
   constructor(
@@ -14,6 +22,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function configuration(clientId: string): HubConfig | undefined {
+  if (process.env.CONNECTION_HUB_PLATFORM_CONFIG) return platformConfiguration(clientId);
   if (
     process.env.CONNECTION_HUB_ENABLED !== "true" ||
     process.env.CONNECTION_HUB_CLIENT_ID?.trim() !== clientId
