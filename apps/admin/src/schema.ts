@@ -1,4 +1,5 @@
 import { gql } from "graphql-tag";
+import { projectConnectionHubProducts, connectionHubProductRecord } from "./products/connection-hub.js";
 import { projectProductsConfiguration } from "./products/configuration.js";
 
 import {
@@ -328,6 +329,8 @@ export const typeDefs = gql`
   type AdminTicketingSlaTarget { priority: String!, firstResponseMinutes: Int, resolutionMinutes: Int }
   input AdminTicketingSlaTargetInput { priority: String!, firstResponseMinutes: Int, resolutionMinutes: Int }
   type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean!, freshdeskDomain: String!, freshdeskApiKeySet: Boolean!, slaTargets: [AdminTicketingSlaTarget!]! }
+  scalar ConnectionHubProductRecord
+  type ConnectionHubProductPage { selected: Boolean!, results: [ConnectionHubProductRecord!]!, total: Int }
   type ProjectProductsConfiguration { provider: String!, appId: String, indexName: String, searchApiKey: String }
   type AdminProjectProducts { configured: Boolean!, provider: String!, appId: String!, indexName: String!, searchApiKeySet: Boolean! }
   input AdminProjectProductsInput { provider: String!, appId: String, indexName: String, searchApiKey: String }
@@ -337,6 +340,7 @@ export const typeDefs = gql`
   input AdminProjectCrmInput { provider: String!, salesforceInstanceUrl: String, salesforceClientId: String, salesforceClientSecret: String, hubspotAccessToken: String, zohoRegion: String, zohoClientId: String, zohoClientSecret: String, zohoGrantCode: String }
   type AdminCrmTest { success: Boolean!, message: String! }
   extend type Query {
+    projectConnectionHubProducts(query: String = "", limit: Int = 20): ConnectionHubProductPage!
     projectProductsConfiguration: ProjectProductsConfiguration
     adminProjectProducts(clientId: ID!, id: ID!): AdminProjectProducts!
     adminProjectTicketing(clientId: ID!, id: ID!): AdminProjectTicketing!
@@ -396,8 +400,10 @@ export const typeDefs = gql`
 // ---------------------------------------------------------------------------
 
 export const resolvers = {
+  ConnectionHubProductRecord: connectionHubProductRecord,
   Query: {
     projectProductsConfiguration,
+    projectConnectionHubProducts,
     adminProjectProducts: (_p: unknown, args: { clientId: string; id: string }) => getProjectProducts(args.clientId, args.id),
     adminProjectTicketing: (_p: unknown, args: { clientId: string; id: string }) => getProjectTicketing(args.clientId, args.id),
     adminProjectCrm: (_p: unknown, args: { clientId: string; id: string }) => getProjectCrm(args.clientId, args.id),

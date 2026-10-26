@@ -15,9 +15,10 @@ import type { AdminUserRow } from "./user-management";
 import { checkUserConflict, getAvailableExistingUsers } from "./user-management";
 import { OrganizationSettingsView } from "@/features/organization/OrganizationSettingsView";
 import { ProjectsListView } from "@/features/projects/ProjectsListView";
+import { ConnectionHubCatalogView } from "@/features/connection-hub/ConnectionHubCatalogView";
 import { StudioConnectorsView } from "@/features/connectors/StudioConnectorsView";
 
-export type AdminSettingsTab = "organization" | "projects" | "connectors" | "users" | "roles";
+export type AdminSettingsTab = "organization" | "projects" | "connectors" | "connection-hub" | "users" | "roles";
 export type LegacySection = "email" | "ai" | "knowledge-base";
 export type Section = AdminSettingsTab | LegacySection;
 type Permission = {
@@ -315,7 +316,8 @@ const blankPermissions = () =>
 const ADMIN_TABS: Array<{ id: AdminSettingsTab; label: string; icon: string }> = [
   { id: "organization", label: "Organization", icon: "building-2" },
   { id: "projects", label: "Projects", icon: "folder" },
-  { id: "connectors", label: "Connectors", icon: "link" },
+  { id: "connection-hub", label: "Connection Hub", icon: "link" },
+  { id: "connectors", label: "Native Connectors", icon: "layers" },
   { id: "users", label: "Users", icon: "users" },
   { id: "roles", label: "Roles", icon: "shield" }
 ];
@@ -329,7 +331,7 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
     if (sec === "email" || sec === "ai" || sec === "knowledge-base") {
       return "connectors";
     }
-    if (sec === "projects" || sec === "connectors" || sec === "users" || sec === "roles") {
+    if (sec === "projects" || sec === "connection-hub" || sec === "connectors" || sec === "users" || sec === "roles") {
       return sec;
     }
     return "organization";
@@ -415,6 +417,7 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
         <div className="pt-1">
           {activeSection === "organization" && <OrganizationSettingsView embedded />}
           {activeSection === "projects" && <ProjectsListView embedded />}
+          {activeSection === "connection-hub" && <ConnectionHubCatalogView />}
           {activeSection === "connectors" && <StudioConnectorsView embedded />}
           {activeSection === "users" && (
             loading ? (

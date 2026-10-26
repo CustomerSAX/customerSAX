@@ -11,7 +11,7 @@ const port = Number(process.env.PORT ?? process.env.ADMIN_PORT ?? 4370);
 
 type AdminContext = { clientId?: string; projectKey?: string; userRole?: string; userEmail?: string };
 
-const securedResolvers = secureAdminResolvers(resolvers);
+const securedResolvers = { ...resolvers, ...secureAdminResolvers({ Query: resolvers.Query, Mutation: resolvers.Mutation }) };
 
 await startSubgraph({
   serviceName: "admin",

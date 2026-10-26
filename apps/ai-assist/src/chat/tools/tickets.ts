@@ -27,6 +27,21 @@ export function withSlaTiming<T>(ticket: T, now = Date.now()): T {
 
 // ─── Read tools (no approval gate needed) ────────────────────────────────────
 
+export const searchZendeskPluginTool = tool({
+  description: "Search tickets in the project's connected Zendesk plugin. Use when the user explicitly asks about Zendesk, including projects using CSA Native Ticketing. This is a separate read-only plugin: it does not change or update native tickets. If not connected, ask an administrator to connect Zendesk in the assistant's Plugins menu. Report ticket numbers and subjects as text; these are external Zendesk records, not native ticket links.",
+  inputSchema: z.object({ query: z.string().trim().min(1).max(300).describe("Zendesk search terms, e.g. status:open or a customer's email"), limit: z.number().int().min(1).max(20).default(10) }),
+  execute: async ({ query, limit }) => {
+    const ctx = getSystemPromptContext();
+    if (!ctx.clientId || !ctx.canViewTickets) return { error: "Ticket access and an active project are required." };
+    try {
+      const data = await bffQuery<{ zendeskPluginTickets: unknown }>(`query ZendeskPluginTickets($query: String!, $limit: Int) { zendeskPluginTickets(query: $query, limit: $limit) { results { id subject status priority } count total } }`, { query, limit });
+      return data.zendeskPluginTickets;
+    } catch {
+      return { error: "Zendesk search failed. Ask an administrator to check the Zendesk plugin connection for this project. Do not fall back to native tickets for this Zendesk request." };
+    }
+  }
+});
+
 export const searchTicketsTool = tool({
   description:
     "Search support tickets by keyword, customer email, customer ID, status, priority, or assignee, optionally ordered by SLA deadline. " +
@@ -426,6 +441,7 @@ export function buildTicketTools(approvalGate?: { pending: boolean }) {
   });
 
   return instrumentTools({
+    search_zendesk_tickets: searchZendeskPluginTool,
     search_tickets: searchTicketsTool,
     get_ticket: getTicketTool,
     create_ticket: createTicketTool,

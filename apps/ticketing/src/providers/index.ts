@@ -1,3 +1,4 @@
+import { connectionHubZendesk } from "../zendesk/connection-hub.js";
 import { withNotifications } from "../notifications/provider.js";
 import { resolveProjectTicketing, nativeTicketLegacyAccess, projectFreshdeskCredentials } from "@csa/mongodb";
 import { projectZendeskClient } from "../zendesk/project-client.js";
@@ -48,6 +49,23 @@ export async function resolveTicketing(projectKey: string, clientId?: string) {
     return { name: ticketingProviderName(), provider: ticketingProvider(projectKey) };
   }
   const settings = await resolveProjectTicketing(clientId, projectKey);
+  const hub = settings.provider === "zendesk"
+    ? await connectionHubZendesk.forProject({ clientId, projectKey })
+    : undefined;
+  if (hub) {
+    const connection = {
+      subdomain: hub.subdomain,
+      api: async <T>(path: string, method = "GET", body?: unknown): Promise<T> => {
+        if (method === "GET") return hub.api<T>(path, method, body);
+        const saved = await resolveProjectTicketing(clientId, projectKey);
+        if (saved.provider !== "zendesk") throw new Error("Configure the project Zendesk connection before writing tickets");
+        const direct = projectZendeskClient(clientId, projectKey, saved);
+        if (direct.subdomain !== hub.subdomain) throw new Error("Zendesk write account differs from the Connection Hub binding");
+        return direct.api<T>(path, method, body);
+      }
+    };
+    return { name: "zendesk", provider: withNotifications(zendeskProvider(projectKey, connection), clientId) };
+  }
   if (settings.provider === "internal") return {
     name: "internal", provider: withNotifications(nativeProvider(projectKey, { clientId, includeLegacy: await nativeTicketLegacyAccess(clientId, projectKey) }, settings.sla?.targets), clientId)
   };
