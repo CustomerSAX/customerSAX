@@ -22,6 +22,7 @@ import { getProviderLogo } from "@/features/onboarding/components/ProviderLogo";
 import type { OnboardingState } from "@/features/onboarding/types";
 import { CrmConnectorModal } from "@/features/crm/CrmConnectorModal";
 import { activeConnectorId } from "./connector-status";
+import { NativeSlaTargetsModal } from "./NativeSlaTargetsModal";
 
 const SAVE_PRODUCTS = gql`
   mutation ConnectorProducts($clientId: ID!, $id: ID!, $input: AdminProjectProductsInput!) {
@@ -63,6 +64,7 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
   const [saving, setSaving] = useState(false);
   // CRM is configured per project with its own form (credentials, test, account reservation).
   const [crmConnectorId, setCrmConnectorId] = useState<string | null>(null);
+  const [slaTargetsOpen, setSlaTargetsOpen] = useState(false);
 
   // Mutations
   const [saveTicketing] = useMutation(ADMIN_SAVE_PROJECT_TICKETING);
@@ -244,6 +246,9 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
     }
   };
 
+  const activeProjectRow: { id: string; projectKey: string; displayName?: string } | undefined =
+    data?.adminProjectsByClient?.find((p: { projectKey: string }) => p.projectKey === user?.activeProjectKey);
+
   const selectNative = (category: ConnectorCategoryKey) => {
     switch (category) {
       case "ticketing": return handleSaveConnector({ ticketing: { provider: "internal" } });
@@ -387,6 +392,12 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
                                   <Icon name="check" size="xs" className="mr-1.5" />
                                   {isNativeActive ? "Active" : saving ? "Saving…" : "Use native"}
                                 </Button>
+                                {category.id === "ticketing" && isNativeActive && isOrgAdmin && activeProjectRow && (
+                                  <Button size="sm" variant="outline" className="mt-2 w-full text-xs" onClick={() => setSlaTargetsOpen(true)}>
+                                    <Icon name="clock" size="xs" className="mr-1.5" />
+                                    SLA targets
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           )}
@@ -490,6 +501,14 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
           initialProjectId={(projectRows.find((p: any) => p.projectKey === user?.activeProjectKey) || projectRows[0])?.id}
           initialProvider={crmConnectorId}
           onSaved={() => void refetch()}
+        />
+      )}
+      {slaTargetsOpen && clientId && activeProjectRow && (
+        <NativeSlaTargetsModal
+          isOpen
+          onClose={() => setSlaTargetsOpen(false)}
+          clientId={clientId}
+          project={{ id: activeProjectRow.id, displayName: activeProjectRow.displayName || activeProjectRow.projectKey }}
         />
       )}
     </>

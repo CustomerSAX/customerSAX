@@ -31,3 +31,16 @@ it("only exposes unowned legacy tickets when ownership is unambiguous", async ()
   expect(await getTicket(ticket.id, projectKey, { clientId: "a", includeLegacy: false })).toBeNull();
   expect((await getTicket(ticket.id, projectKey, { clientId: "a", includeLegacy: true }))?.subject).toBe("Legacy");
 });
+it("matches status and priority filters in any casing or vocabulary", async () => {
+  const projectKey = "filter-vocabulary";
+  const owner = { clientId: "filter-client", includeLegacy: false };
+  await createTicket({ projectKey, subject: "Studio ticket", status: "In Progress", priority: "Medium" }, owner);
+  await createTicket({ projectKey, subject: "Waiting ticket", status: "Pending", priority: "High" }, owner);
+  const subjects = async (args: Record<string, string>) => (await listTickets({ projectKey, ...args }, owner)).results.map(t => t.subject).sort();
+  expect(await subjects({ status: "in progress" })).toEqual(["Studio ticket"]);
+  expect(await subjects({ status: "in_progress" })).toEqual(["Studio ticket"]);
+  expect(await subjects({ status: "waiting" })).toEqual(["Waiting ticket"]);
+  expect(await subjects({ priority: "normal" })).toEqual(["Studio ticket"]);
+  expect(await subjects({ priority: "high" })).toEqual(["Waiting ticket"]);
+  expect(await subjects({ status: "open" })).toEqual([]);
+});

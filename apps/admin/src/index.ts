@@ -93,7 +93,7 @@ const clientScopedAdminFields = new Set([
   // Client-scoped project & commerce management (Org Admin ownership)
   "adminCreateProject", "adminUpdateProject", "adminDeleteProject",
   "adminTestProjectCredentials", "adminTestProjectConnection",
-  "adminSaveProjectTicketing", "adminTestProjectTicketing",
+  "adminSaveProjectTicketing", "adminSaveProjectTicketingSla", "adminTestProjectTicketing",
   // Client-scoped user/role management
   "adminAssignClientUser", "adminCreateClientUser", "adminUpdateClientUser",
   "adminRemoveUserFromClient", "adminRemoveUserFromProject", "adminUpdateClientContact",

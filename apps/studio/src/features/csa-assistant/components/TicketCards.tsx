@@ -18,6 +18,9 @@ import {
   TableRow
 } from "@csa/ui";
 import { TICKET_QUERY } from "@/features/tickets/api/queries";
+import { SlaBadge } from "@/features/tickets/components/TicketSla";
+import { useNow } from "@/features/tickets/sla";
+import type { TicketSla } from "@/features/tickets/types/ticket-types";
 import { formatDate } from "@/lib/format-date";
 import type { TicketCardArgs } from "../types";
 
@@ -31,6 +34,7 @@ interface LiveTicket {
   assignee?: string | null;
   orderNumber?: string | null;
   lastModifiedAt?: string | null;
+  sla?: TicketSla | null;
 }
 
 const CLOSED = new Set(["resolved", "closed", "solved"]);
@@ -215,11 +219,12 @@ function TicketTableRow({
   isLoading: boolean;
 }) {
   const { ticket, loading, error } = useLiveTicket(ticketId, isLoading);
+  const now = useNow();
 
   if (!ticket) {
     return (
       <TableRow>
-        <TableCell colSpan={7} className="text-m-text-muted">
+        <TableCell colSpan={8} className="text-m-text-muted">
           {loading ? "Loading ticket…" : error ? `Unable to load this ticket (${error.message}).` : "This ticket could not be found."}
         </TableCell>
       </TableRow>
@@ -236,6 +241,7 @@ function TicketTableRow({
         <TableCell className="max-w-[220px] truncate" title={ticket.subject ?? undefined}>{ticket.subject || "—"}</TableCell>
         <TableCell>{ticket.status ? <Badge variant={statusVariant(ticket.status)} size="sm">{ticket.status}</Badge> : "—"}</TableCell>
         <TableCell>{ticket.priority ? <Badge variant={priorityVariant(ticket.priority)} size="sm">{ticket.priority}</Badge> : "—"}</TableCell>
+        <TableCell className="whitespace-nowrap"><SlaBadge sla={ticket.sla} now={now} /></TableCell>
         <TableCell className="max-w-[140px] truncate" title={ticket.assignee ?? undefined}>{ticket.assignee || "Unassigned"}</TableCell>
         <TableCell className="whitespace-nowrap">{ticket.lastModifiedAt ? formatDate(ticket.lastModifiedAt) : "—"}</TableCell>
         <TableCell className="text-right">
@@ -252,7 +258,7 @@ function TicketTableRow({
       </TableRow>
       {expanded && (
         <TableRow>
-          <TableCell colSpan={7} className="bg-m-surface-2/40">
+          <TableCell colSpan={8} className="bg-m-surface-2/40">
             <TicketActions ticket={ticket} onSuggest={onSuggest} isLoading={isLoading} />
           </TableCell>
         </TableRow>
@@ -287,6 +293,7 @@ export function TicketSummaryTable({
             <TableHead>Subject</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Priority</TableHead>
+            <TableHead>SLA</TableHead>
             <TableHead>Assignee</TableHead>
             <TableHead>Updated</TableHead>
             <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>

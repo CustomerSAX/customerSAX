@@ -3,7 +3,17 @@ import { ObjectId } from "mongodb";
 import { getProjectsCollection, getTicketingAccountsCollection } from "../admin/db.js";
 import { encrypt, decrypt } from "../encrypt.js";
 
+export const SLA_PRIORITIES = ["urgent", "high", "normal", "low"] as const;
+export type SlaPriority = (typeof SLA_PRIORITIES)[number];
+/** Minutes of 24/7 time; null = no target for that clock. */
+export type SlaTarget = { firstResponseMinutes: number | null; resolutionMinutes: number | null };
+export type SlaTargets = Partial<Record<SlaPriority, SlaTarget>>;
+/** Native-ticket SLA policy; external providers own their own SLA rules. */
+export type ProjectTicketingSla = { targets: SlaTargets; updatedAt: Date };
+export type SlaTargetInput = { priority: string; firstResponseMinutes?: number | null; resolutionMinutes?: number | null };
+
 export type ProjectTicketing = {
+  sla?: ProjectTicketingSla;
   provider: "internal" | "zendesk" | "freshdesk";
   freshdeskDomain?: string;
   freshdeskApiKeyEncrypted?: string;
@@ -49,8 +59,51 @@ export function ticketingSettingsView(settings?: ProjectTicketing) {
     clientId: settings?.clientId ?? "",
     freshdeskDomain: settings?.freshdeskDomain ?? "",
     freshdeskApiKeySet: !!settings?.freshdeskApiKeyEncrypted,
-    secretSet: !!settings?.secretEncrypted
+    secretSet: !!settings?.secretEncrypted,
+    slaTargets: SLA_PRIORITIES.map((priority) => ({
+      priority,
+      firstResponseMinutes: settings?.sla?.targets[priority]?.firstResponseMinutes ?? null,
+      resolutionMinutes: settings?.sla?.targets[priority]?.resolutionMinutes ?? null
+    }))
   };
+}
+
+const MAX_SLA_MINUTES = 365 * 24 * 60;
+/** Validates admin input; priorities with no targets at all are dropped. */
+export function prepareSlaTargets(input: SlaTargetInput[]): SlaTargets {
+  const targets: SlaTargets = {};
+  for (const row of input) {
+    const priority = row.priority.trim().toLowerCase() as SlaPriority;
+    if (!SLA_PRIORITIES.includes(priority)) throw new Error(`Unsupported SLA priority: ${row.priority}`);
+    if (targets[priority]) throw new Error(`Duplicate SLA priority: ${row.priority}`);
+    const minutes = (value: number | null | undefined, label: string) => {
+      if (value == null) return null;
+      if (!Number.isInteger(value) || value < 1 || value > MAX_SLA_MINUTES)
+        throw new Error(`${label} target for ${priority} must be between 1 minute and 365 days`);
+      return value;
+    };
+    const target = {
+      firstResponseMinutes: minutes(row.firstResponseMinutes, "First response"),
+      resolutionMinutes: minutes(row.resolutionMinutes, "Resolution")
+    };
+    if (target.firstResponseMinutes != null || target.resolutionMinutes != null) targets[priority] = target;
+  }
+  return targets;
+}
+
+/** Saves native SLA targets without touching the provider or its credentials. */
+export async function saveProjectTicketingSla(clientId: string, id: string, input: SlaTargetInput[]) {
+  const existing = await project(clientId, id);
+  const targets = prepareSlaTargets(input);
+  const current: ProjectTicketing = existing.ticketing ?? { provider: "internal" };
+  const { sla: _previous, ...rest } = current;
+  const settings: ProjectTicketing = Object.keys(targets).length ? { ...rest, sla: { targets, updatedAt: new Date() } } : rest;
+  const result = await (await getProjectsCollection()).updateOne(
+    { _id: existing._id, clientId },
+    { $set: { ticketing: settings, updatedAt: new Date() } }
+  );
+  if (!result.matchedCount) throw new Error("Project no longer exists");
+  return ticketingSettingsView(settings);
 }
 async function project(clientId: string, id: string) {
   if (!ObjectId.isValid(id)) throw new Error("Project not found for this client");

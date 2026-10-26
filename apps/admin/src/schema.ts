@@ -3,7 +3,7 @@ import { projectProductsConfiguration } from "./products/configuration.js";
 
 import {
   getProjectProducts, saveProjectProducts, testProjectProducts,
-  getProjectTicketing, saveProjectTicketing, testProjectTicketing,
+  getProjectTicketing, saveProjectTicketing, saveProjectTicketingSla, testProjectTicketing,
   getProjectCrm, saveProjectCrm, testProjectCrm,
   clientsRepo,
   parseClientSsoConfigInput,
@@ -15,7 +15,7 @@ import {
   testSmtpProfile,
   usersRepo,
 } from "@csa/mongodb";
-import type { ClientSsoConfigStored, CrmInput, CsaUser, TicketingInput, ProductsInput } from "@csa/mongodb";
+import type { ClientSsoConfigStored, CrmInput, CsaUser, TicketingInput, ProductsInput, SlaTargetInput } from "@csa/mongodb";
 import { del as cacheDel, ctProjectConfig } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
@@ -324,7 +324,10 @@ export const typeDefs = gql`
   type AdminAiSettings { clientId: ID!, enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKeySet: Boolean!, updatedBy: String, updatedAt: String }
   input AdminAiSettingsInput { enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKey: String }
 
-  type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean!, freshdeskDomain: String!, freshdeskApiKeySet: Boolean! }
+  "Native-ticket SLA target in minutes of 24/7 time; null = no target."
+  type AdminTicketingSlaTarget { priority: String!, firstResponseMinutes: Int, resolutionMinutes: Int }
+  input AdminTicketingSlaTargetInput { priority: String!, firstResponseMinutes: Int, resolutionMinutes: Int }
+  type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean!, freshdeskDomain: String!, freshdeskApiKeySet: Boolean!, slaTargets: [AdminTicketingSlaTarget!]! }
   type ProjectProductsConfiguration { provider: String!, appId: String, indexName: String, searchApiKey: String }
   type AdminProjectProducts { configured: Boolean!, provider: String!, appId: String!, indexName: String!, searchApiKeySet: Boolean! }
   input AdminProjectProductsInput { provider: String!, appId: String, indexName: String, searchApiKey: String }
@@ -353,6 +356,7 @@ export const typeDefs = gql`
     adminSaveProjectProducts(clientId: ID!, id: ID!, input: AdminProjectProductsInput!): AdminProjectProducts!
     adminTestProjectProducts(clientId: ID!, id: ID!, input: AdminProjectProductsInput!): AdminTicketingTest!
     adminSaveProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminProjectTicketing!
+    adminSaveProjectTicketingSla(clientId: ID!, id: ID!, targets: [AdminTicketingSlaTargetInput!]!): AdminProjectTicketing!
     adminTestProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminTicketingTest!
     adminSaveProjectCrm(clientId: ID!, id: ID!, input: AdminProjectCrmInput!): AdminProjectCrm!
     adminTestProjectCrm(clientId: ID!, id: ID!, input: AdminProjectCrmInput!): AdminCrmTest!
@@ -452,6 +456,7 @@ export const resolvers = {
     adminSaveProjectProducts: (_p: unknown, args: { clientId: string; id: string; input: ProductsInput }) => saveProjectProducts(args.clientId, args.id, args.input),
     adminTestProjectProducts: (_p: unknown, args: { clientId: string; id: string; input: ProductsInput }) => testProjectProducts(args.clientId, args.id, args.input),
     adminSaveProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => saveProjectTicketing(args.clientId, args.id, args.input),
+    adminSaveProjectTicketingSla: (_p: unknown, args: { clientId: string; id: string; targets: SlaTargetInput[] }) => saveProjectTicketingSla(args.clientId, args.id, args.targets),
     adminTestProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => testProjectTicketing(args.clientId, args.id, args.input),
     adminSaveProjectCrm: (_p: unknown, args: { clientId: string; id: string; input: CrmInput }) => saveProjectCrm(args.clientId, args.id, args.input),
     adminTestProjectCrm: (_p: unknown, args: { clientId: string; id: string; input: CrmInput }) => testProjectCrm(args.clientId, args.id, args.input),

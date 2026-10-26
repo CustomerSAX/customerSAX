@@ -5,6 +5,7 @@ import { resolvers, typeDefs } from "./schema.js";
 import { assertTicketStoreConfigured } from "./tickets/repository.js";
 
 import { ticketingProviderName } from "./providers/index.js";
+import { startSlaAlerts } from "./notifications/sla-alerts.js";
 
 const port = Number(process.env.PORT ?? process.env.TICKETING_PORT ?? 4350);
 
@@ -18,3 +19,5 @@ await startSubgraph({
   schema: buildSubgraphSchema([{ resolvers, typeDefs }]),
   port,
 });
+
+startSlaAlerts();

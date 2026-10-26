@@ -37,7 +37,26 @@ export interface TicketHistoryEntry {
   timeSpent?: string;
 }
 
+/** As reported by the ticket provider; only "running" depends on the current time. */
+export type SlaStage = "running" | "paused" | "met" | "missed" | "completed" | "unknown";
+
+export interface SlaMetric {
+  key: string;
+  label: string;
+  stage: SlaStage;
+  dueAt?: string | null;
+  completedAt?: string | null;
+}
+
+/** null on a ticket = the provider exposes no SLA data; empty metrics = no SLA policy applies. */
+export interface TicketSla {
+  source: string;
+  nextDueAt?: string | null;
+  metrics: SlaMetric[];
+}
+
 export interface Ticket {
+  sla?: TicketSla | null;
   aiStatus?: string;
   id: string;
   ticketNumber: string;
