@@ -214,14 +214,14 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
                       <span>{isConfigured ? "Edit Platform" : "Configure Platform"}</span>
                     </Button>
 
-                    <Link href={`/admin-settings/connectors`}>
+                    <Link href="/admin-settings/connection-hub">
                       <Button
                         size="sm"
                         variant="outline"
                         className="flex items-center gap-1.5"
                       >
                         <Icon name="link" size="xs" />
-                        <span>Connectors</span>
+                        <span>Connection Hub</span>
                       </Button>
                     </Link>
 
