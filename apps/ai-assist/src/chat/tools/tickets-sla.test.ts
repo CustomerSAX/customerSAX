@@ -7,7 +7,7 @@ vi.mock("../system-prompt.js", () => ({ getSystemPromptContext: () => ctx }));
 
 const { searchTicketsTool, withSlaTiming } = await import("./tickets.js");
 const run = (args: Record<string, unknown>) =>
-  (searchTicketsTool.execute as (a: Record<string, unknown>, o: unknown) => Promise<Record<string, unknown>>)({ limit: 10, ...args }, {});
+  (searchTicketsTool.execute as unknown as (a: Record<string, unknown>, o: unknown) => Promise<Record<string, unknown>>)({ limit: 10, ...args }, {});
 
 beforeEach(() => {
   bffQuery.mockReset();
