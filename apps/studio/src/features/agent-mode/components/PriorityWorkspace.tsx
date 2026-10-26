@@ -87,6 +87,8 @@ interface PriorityWorkspaceProps {
   selectedTask: AgentTask | null;
   onSelectTask: (task: AgentTask | null) => void;
   isInvestigating?: boolean;
+  onClose?: () => void;
+  onTasksLoaded?: (tasks: AgentTask[]) => void;
 }
 
 export function PriorityWorkspace({
@@ -94,6 +96,8 @@ export function PriorityWorkspace({
   selectedTask,
   onSelectTask,
   isInvestigating = false,
+  onClose,
+  onTasksLoaded,
 }: PriorityWorkspaceProps) {
   const [filterTab, setFilterTab] = useState<QueueFilterTab>("all");
   const [tickets, setTickets] = useState<AgentTask[]>([]);
@@ -264,6 +268,10 @@ export function PriorityWorkspace({
     });
   }, [tickets, orders, quotes]);
 
+  useEffect(() => {
+    onTasksLoaded?.(allTasks);
+  }, [allTasks, onTasksLoaded]);
+
   const filteredTasks = useMemo(() => {
     if (filterTab === "all") return allTasks;
     if (filterTab === "tickets") return allTasks.filter((t) => t.type === "ticket");
@@ -281,6 +289,7 @@ export function PriorityWorkspace({
         onBack={() => onSelectTask(null)}
         onInvestigateWithAI={onAnalyzeTask}
         isAssistantLoading={isInvestigating}
+        onClose={onClose}
       />
     );
   }
@@ -297,25 +306,38 @@ export function PriorityWorkspace({
           </span>
         </div>
 
-        {/* Tab Filters */}
-        <div className="flex items-center gap-1 rounded-lg border border-m-border bg-m-surface-2 p-0.5 text-xs">
-          {(["all", "tickets", "orders", "quotes"] as QueueFilterTab[]).map((tab) => (
+        <div className="flex items-center gap-2">
+          {/* Tab Filters */}
+          <div className="flex items-center gap-1 rounded-lg border border-m-border bg-m-surface-2 p-0.5 text-xs">
+            {(["all", "tickets", "orders", "quotes"] as QueueFilterTab[]).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => {
+                  setFilterTab(tab);
+                  onSelectTask(null);
+                }}
+                className={`px-2.5 py-1 rounded capitalize font-medium transition cursor-pointer ${
+                  filterTab === tab
+                    ? "bg-m-surface text-m-text shadow-sm"
+                    : "text-m-text-muted hover:text-m-text"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {onClose && (
             <button
-              key={tab}
               type="button"
-              onClick={() => {
-                setFilterTab(tab);
-                onSelectTask(null);
-              }}
-              className={`px-2.5 py-1 rounded capitalize font-medium transition cursor-pointer ${
-                filterTab === tab
-                  ? "bg-m-surface text-m-text shadow-sm"
-                  : "text-m-text-muted hover:text-m-text"
-              }`}
+              onClick={onClose}
+              title="Close workspace"
+              className="p-1 rounded text-m-text-muted hover:text-m-text hover:bg-m-surface-2 transition cursor-pointer"
             >
-              {tab}
+              <Icon name="x" size="xs" />
             </button>
-          ))}
+          )}
         </div>
       </div>
 

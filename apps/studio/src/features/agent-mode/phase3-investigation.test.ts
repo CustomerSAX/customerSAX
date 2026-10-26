@@ -249,4 +249,74 @@ describe("Phase 3: AI-Driven Ticket Investigation & Resolution Workflow", () => 
 
     expect(staleResult).toBeNull(); // Server-side concurrency guard rejects stale update!
   });
+
+  // ── 9. Contact update where phone number already matches record ────────────
+  it("Case 9: Contact update where requested phone number is already set (alreadyFulfilled)", () => {
+    const ticket = {
+      id: "ticket-contact-already-set",
+      ticketNumber: "CSA-308",
+      subject: "Update contact details for Newmarket address to 7448122377",
+      customerName: "Barry Allen",
+      customerEmail: "barry@centralcity.gov",
+      customerId: "cust-103",
+    };
+
+    const customerData = {
+      id: "cust-103",
+      email: "barry@centralcity.gov",
+      version: 5,
+      targets: [
+        { id: "addr-nm", label: "12 Newmarket Road, Central City, US", phone: "7448122377" },
+      ],
+    };
+
+    const result = investigateTicket(ticket, customerData);
+
+    expect(result.intent).toBe("contact_update");
+    expect(result.alreadyFulfilled).toBe(true);
+    expect(result.proposedChanges.length).toBe(0); // Zero redundant mutations!
+    expect(result.availableInfo.some((info) => info.includes("already matches"))).toBe(true);
+    expect(result.summary).toContain("already current");
+    expect(result.customerDraft).toContain("already set to 7448122377");
+    expect(result.internalWorklog).toContain("No backend update needed");
+  });
+
+  // ── 10. Already resolved or closed ticket ──────────────────────────────────
+  it("Case 10: Ticket is already resolved/closed (alreadyFulfilled)", () => {
+    const ticket = {
+      id: "ticket-already-resolved",
+      ticketNumber: "CSA-309",
+      subject: "Update phone number to 555-9999",
+      status: "Resolved",
+      customerName: "Hal Jordan",
+      customerEmail: "hal@ferrisair.com",
+    };
+
+    const result = investigateTicket(ticket, null);
+
+    expect(result.alreadyFulfilled).toBe(true);
+    expect(result.confidence).toBe(1.0);
+    expect(result.proposedChanges.length).toBe(0);
+    expect(result.requiredTools.length).toBe(0);
+    expect(result.summary).toContain("already Resolved");
+    expect(result.internalWorklog).toContain("No additional mutations required");
+  });
+
+  // ── 11. Customer email dispatch honesty ───────────────────────────────────
+  it("Case 11: Grounded drafts clearly indicate customer response without claiming email dispatched", () => {
+    const ticket = {
+      id: "ticket-email-honesty",
+      ticketNumber: "CSA-310",
+      subject: "Inquiry about warranty policy",
+      customerName: "Iris West",
+      customerEmail: "iris@citizen.com",
+    };
+
+    const result = investigateTicket(ticket, null);
+
+    // Customer draft provides response text grounded in customer support, does not claim email was sent
+    expect(result.customerDraft).toContain("Dear Iris West");
+    expect(result.customerDraft).not.toContain("Email sent to customer");
+    expect(result.internalWorklog).toContain("No commerce record mutation required");
+  });
 });

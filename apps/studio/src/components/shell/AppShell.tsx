@@ -506,6 +506,7 @@ const navigationModuleById: Record<string, string | string[] | undefined> = {
   reports: "reports",
   knowledgebase: "knowledgebase",
   "csa-assistant": "assistant",
+  "agent-mode": "assistant",
   "audit-log": "audit",
   "admin-settings": undefined,
   "admin-projects": undefined,
@@ -529,6 +530,7 @@ const commandPermissionById: Record<
   reports: { module: "reports", action: "view" },
   knowledgebase: { module: "knowledgebase", action: "view" },
   assistant: { module: "assistant", action: "view" },
+  "agent-mode": { module: "assistant", action: "view" },
   "create-customer": { module: "customers", action: "create" },
   "create-ticket": { module: "tickets", action: "create" }
 };

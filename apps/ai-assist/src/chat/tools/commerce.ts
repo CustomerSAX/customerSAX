@@ -198,6 +198,82 @@ export const findB2bCustomerTool = tool({
   }
 });
 
+// ─── get_customer_contact_targets ─────────────────────────────────────────────
+
+export const getCustomerContactTargetsTool = tool({
+  description:
+    "Retrieve address records, contact targets, and current phone numbers for a customer in the commerce platform. " +
+    "Use when investigating customer profile, address, or contact detail inquiries.",
+  inputSchema: z.object({
+    customerId: z.string().describe("Customer's platform UUID")
+  }),
+  execute: async ({ customerId }) => {
+    try {
+      const data = await bffQuery<{
+        customerContactTargets: {
+          id: string;
+          email: string;
+          version: number;
+          targets: Array<{ id: string; label: string; phone: string }>;
+        } | null;
+      }>(
+        `query ReviewCustomerContact($id: ID!) {
+          customerContactTargets(id: $id)
+        }`,
+        { id: customerId }
+      );
+      if (!data.customerContactTargets) {
+        return { error: "Customer not found or has no recorded addresses." };
+      }
+      return data.customerContactTargets;
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
+// ─── update_customer_contact_number ───────────────────────────────────────────
+
+export const updateCustomerContactNumberTool = tool({
+  description:
+    "Update the contact phone number for a customer's specific address in the commerce platform. " +
+    "ALWAYS present action_approval first (see the UPDATE CUSTOMER playbook) and call this only after the rep approves. " +
+    "Version-bound: expectedVersion must match the customer's current version to prevent concurrent overwrite.",
+  inputSchema: z.object({
+    customerId: z.string().describe("Customer's platform UUID"),
+    addressId: z.string().describe("Address ID to update"),
+    expectedVersion: z.number().describe("Expected current version of the customer record"),
+    phone: z.string().describe("New contact phone number")
+  }),
+  execute: async ({ customerId, addressId, expectedVersion, phone }) => {
+    try {
+      const data = await bffQuery<{
+        updateCustomerContactNumber: { id: string; version: number; addressId: string; phone: string } | null;
+      }>(
+        `mutation UpdateCustomerContactNumber($id: ID!, $addressId: ID!, $expectedVersion: Int!, $phone: String!) {
+          updateCustomerContactNumber(id: $id, addressId: $addressId, expectedVersion: $expectedVersion, phone: $phone)
+        }`,
+        {
+          id: customerId,
+          addressId,
+          expectedVersion,
+          phone
+        }
+      );
+      if (!data.updateCustomerContactNumber) {
+        return { error: "Commerce service did not confirm the contact number update." };
+      }
+      return {
+        success: true,
+        customer: data.updateCustomerContactNumber,
+        message: `Updated phone number for address ${addressId} to ${data.updateCustomerContactNumber.phone}`
+      };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
 // ─── get_order ────────────────────────────────────────────────────────────────
 
 /**
@@ -1221,7 +1297,7 @@ export const listRegionsTool = tool({
 //    start_return for the order it names, nothing else.
 // Draft cart operations need permission but no approval, as the prompt says.
 
-type WritePermission = "canCreateCarts" | "canUpdateCarts" | "canCreateOrders" | "canUpdateOrders";
+type WritePermission = "canCreateCarts" | "canUpdateCarts" | "canCreateOrders" | "canUpdateOrders" | "canUpdateCustomers";
 type WriteRule = { permission: WritePermission; approval: "none" | "approval_card" | "approval_card_or_return_confirm" };
 
 const WRITE_RULES: Record<string, WriteRule> = {
@@ -1233,10 +1309,11 @@ const WRITE_RULES: Record<string, WriteRule> = {
   place_order: { permission: "canCreateOrders", approval: "approval_card" },
   cancel_order: { permission: "canUpdateOrders", approval: "approval_card" },
   start_return: { permission: "canUpdateOrders", approval: "approval_card_or_return_confirm" },
-  update_order: { permission: "canUpdateOrders", approval: "approval_card" }
+  update_order: { permission: "canUpdateOrders", approval: "approval_card" },
+  update_customer_contact_number: { permission: "canUpdateCustomers", approval: "approval_card" }
 };
 
-const COMMERCE_WRITE_DENIED =
+export const COMMERCE_WRITE_DENIED =
   "PERMISSION DENIED: your role can't make this change. Please reach out to the admin to perform write or update actions.";
 
 const COMMERCE_APPROVAL_GATE_ERROR =
@@ -1246,7 +1323,7 @@ const COMMERCE_APPROVAL_GATE_ERROR =
 
 function approvalRequiredError(toolName: string) {
   return (
-    `APPROVAL_REQUIRED: ${toolName} changes a real order and needs the rep's approval first, and the rep's current message is not an approval. ` +
+    `APPROVAL_REQUIRED: ${toolName} changes a real record and needs the rep's approval first, and the rep's current message is not an approval. ` +
     "Present an action_approval card describing exactly what will change, then stop. Run it only after the rep's next message is an [approved-action]."
   );
 }
@@ -1316,6 +1393,8 @@ export function buildCommerceTools(approvalGate?: { pending: boolean }) {
   return instrumentTools({
     find_customer: findCustomerTool,
     find_b2b_customer: findB2bCustomerTool,
+    get_customer_contact_targets: getCustomerContactTargetsTool,
+    update_customer_contact_number: guarded("update_customer_contact_number", updateCustomerContactNumberTool),
     get_order: getOrderTool,
     b2b_orders: b2bOrdersTool,
     view_cart: viewCartTool,

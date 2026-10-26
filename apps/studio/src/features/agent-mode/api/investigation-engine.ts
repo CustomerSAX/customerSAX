@@ -138,6 +138,35 @@ export function investigateTicket(
   const text = cleanText(combinedText);
   const custName = ticket.customerName || ticket.customerEmail || "Customer";
 
+  // ── 0. Check if ticket is already resolved or closed ────────────────────
+  const isAlreadyClosed =
+    ticket.status?.toLowerCase() === "resolved" ||
+    ticket.status?.toLowerCase() === "closed";
+
+  if (isAlreadyClosed) {
+    return {
+      intent: "general_support",
+      intentLabel: "Already Resolved Ticket",
+      confidence: 1.0,
+      summary: `Ticket #${ticket.ticketNumber} is already ${ticket.status}. Verified that no additional actions or mutations are required.`,
+      requiredInfo: ["Current Ticket Status"],
+      availableInfo: [`Ticket status is ${ticket.status}`],
+      missingInfo: [],
+      canResolveWithAvailableInfo: true,
+      clarificationNeeded: null,
+      requiredTools: [],
+      entities: {},
+      proposedChanges: [],
+      planSteps: [
+        { step: 1, label: `Verified ticket #${ticket.ticketNumber} is already ${ticket.status}`, completed: true },
+      ],
+      customerDraft: `Dear ${custName},\n\nWe have verified that your request has already been addressed and resolved. Please let us know if you have any additional questions.\n\nBest regards,\nCustomer Success Team`,
+      internalWorklog: `Investigation: Verified ticket is already marked ${ticket.status}. No additional mutations required.`,
+      proposedStatus: ticket.status || "Resolved",
+      alreadyFulfilled: true,
+    };
+  }
+
   // ── 1. Intent Detection ──────────────────────────────────────────────────
   let intent: TicketIntent = "general_support";
   let confidence = 0.85;
@@ -254,9 +283,16 @@ export function investigateTicket(
       clarificationNeeded = "Customer has multiple addresses on file but did not specify which one to update.";
     }
 
-    canResolve = Boolean(matchedTarget && phone && availableInfo.length >= 2 && missingInfo.length === 0);
+    const isAlreadyMatching = Boolean(
+      matchedTarget &&
+      phone &&
+      matchedTarget.phone &&
+      matchedTarget.phone.replace(/[\s\-\(\)\+]/g, "") === phone.replace(/[\s\-\(\)\+]/g, "")
+    );
 
-    if (matchedTarget && phone) {
+    if (isAlreadyMatching) {
+      availableInfo.push(`Contact number on file already matches requested number: ${phone}`);
+    } else if (matchedTarget && phone) {
       proposedChanges.push({
         field: "Address Phone Number",
         target: matchedTarget.label,
@@ -265,23 +301,35 @@ export function investigateTicket(
       });
     }
 
+    canResolve = Boolean(matchedTarget && phone && availableInfo.length >= 2 && missingInfo.length === 0);
+
     planSteps.push(
       { step: 1, label: "Verify customer account and profile in commerce store", completed: Boolean(customerData) },
       { step: 2, label: `Locate address matching "${addressKeyword || "target"}"`, completed: Boolean(matchedTarget) },
-      {
-        step: 3,
-        label: "Execute approved contact phone update on commerce backend",
-        completed: false,
-        requiredTool: "updateCustomerContactNumber",
-      },
+      isAlreadyMatching
+        ? {
+            step: 3,
+            label: `Verify contact phone number (already matches ${phone})`,
+            completed: true,
+          }
+        : {
+            step: 3,
+            label: "Execute approved contact phone update on commerce backend",
+            completed: false,
+            requiredTool: "updateCustomerContactNumber",
+          },
       { step: 4, label: "Record internal worklog and mark ticket Resolved", completed: false }
     );
 
-    const customerDraft = canResolve
+    const customerDraft = isAlreadyMatching
+      ? `Dear ${custName},\n\nWe checked your account and confirmed that your contact phone number for your ${matchedTarget?.label} address is already set to ${phone} as requested.\n\nPlease let us know if there is anything else we can assist you with.\n\nBest regards,\nCustomer Success Team`
+      : canResolve
       ? `Dear ${custName},\n\nWe have updated your contact phone number for your ${matchedTarget?.label} address to ${phone} as requested.\n\nPlease let us know if you need any additional changes to your account.\n\nBest regards,\nCustomer Success Team`
       : `Dear ${custName},\n\nThank you for contacting Customer Support regarding your contact details. ${clarificationNeeded ?? "Could you please confirm your address details?"}\n\nBest regards,\nCustomer Success Team`;
 
-    const internalWorklog = canResolve
+    const internalWorklog = isAlreadyMatching
+      ? `Contact Update: Verified customer record. Phone number for ${matchedTarget?.label} is already set to ${phone}. No backend update needed.`
+      : canResolve
       ? `Contact Update: Verified request to update ${matchedTarget?.label} phone to ${phone}. Prepared mutation for agent approval.`
       : `Contact Update Incomplete: ${clarificationNeeded ?? "Missing required address clarification"}.`;
 
@@ -289,13 +337,15 @@ export function investigateTicket(
       intent,
       intentLabel: "Contact Detail Update",
       confidence,
-      summary: `Customer requested update of contact details${addressKeyword ? ` for ${addressKeyword} address` : ""}${phone ? ` to ${phone}` : ""}.`,
+      summary: isAlreadyMatching
+        ? `Customer requested update of contact phone to ${phone}, which is already current on ${matchedTarget?.label}.`
+        : `Customer requested update of contact details${addressKeyword ? ` for ${addressKeyword} address` : ""}${phone ? ` to ${phone}` : ""}.`,
       requiredInfo,
       availableInfo,
       missingInfo,
       canResolveWithAvailableInfo: canResolve,
       clarificationNeeded,
-      requiredTools: ["customerContactTargets", "updateCustomerContactNumber"],
+      requiredTools: isAlreadyMatching ? [] : ["customerContactTargets", "updateCustomerContactNumber"],
       entities: { phone: phone ?? undefined, addressKeyword: addressKeyword ?? undefined },
       matchedContactTarget: matchedTarget,
       ambiguousContactTargets: ambiguousTargets,
@@ -304,6 +354,7 @@ export function investigateTicket(
       customerDraft,
       internalWorklog,
       proposedStatus: canResolve ? "Resolved" : "Pending",
+      alreadyFulfilled: isAlreadyMatching,
     };
   }
 

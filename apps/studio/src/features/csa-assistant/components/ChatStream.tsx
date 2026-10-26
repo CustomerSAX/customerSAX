@@ -177,6 +177,8 @@ function isFullyInternalMessage(message: UIMessage): boolean {
 interface ChatStreamProps {
   chat: CsaChat;
   sessionCustomerName?: string;
+  hideHeader?: boolean;
+  emptyState?: React.ReactNode;
 }
 
 declare global {
@@ -708,7 +710,7 @@ function VoiceModeStrip({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
+export function ChatStream({ chat, sessionCustomerName, hideHeader, emptyState }: ChatStreamProps) {
   const {
     messages,
     input,
@@ -781,124 +783,128 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
     // conversation gets longer, breaking the page layout.
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, backgroundColor: "var(--color-surface-1)", borderRadius: 0 }}>
       {/* ── Workspace Header ── */}
-      <div
-        style={{
-          height: '56px',
-          borderBottom: '1px solid var(--color-border)',
-          backgroundColor: 'var(--color-surface-1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 20px',
-          flexShrink: 0,
-          boxShadow: 'var(--shadow-xs)',
-        }}
-      >
-        {/* Left: Customer name + ticket subject + ticket number + status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
-          <span
-            style={{
-              fontSize: '15px', fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.01em',
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}
-          >
-            {activeTicket
-              ? `${acCustomer ? acCustomer + ' — ' : ''}${activeTicket.subject || ''} (#${activeTicket.ticketNumber || activeTicket.id})`
-              : sessionCustomerName || 'New conversation'}
-          </span>
-          {activeTicket?.status && (
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: 'var(--color-primary)', backgroundColor: 'var(--color-primary-light)',
-              border: '1px solid var(--color-primary-border)', padding: '2px 10px', borderRadius: '9999px',
-              textTransform: 'capitalize', letterSpacing: '0.02em', flexShrink: 0,
-            }}>
-              {activeTicket.status}
+      {!hideHeader && (
+        <div
+          style={{
+            height: '56px',
+            borderBottom: '1px solid var(--color-border)',
+            backgroundColor: 'var(--color-surface-1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 20px',
+            flexShrink: 0,
+            boxShadow: 'var(--shadow-xs)',
+          }}
+        >
+          {/* Left: Customer name + ticket subject + ticket number + status */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
+            <span
+              style={{
+                fontSize: '15px', fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.01em',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}
+            >
+              {activeTicket
+                ? `${acCustomer ? acCustomer + ' — ' : ''}${activeTicket.subject || ''} (#${activeTicket.ticketNumber || activeTicket.id})`
+                : sessionCustomerName || 'New conversation'}
             </span>
-          )}
-          {isLoading && (
-            <Badge variant="info" size="sm" className="animate-pulse">
-              Thinking…
-            </Badge>
-          )}
-        </div>
+            {activeTicket?.status && (
+              <span style={{
+                fontSize: '11px', fontWeight: 700, color: 'var(--color-primary)', backgroundColor: 'var(--color-primary-light)',
+                border: '1px solid var(--color-primary-border)', padding: '2px 10px', borderRadius: '9999px',
+                textTransform: 'capitalize', letterSpacing: '0.02em', flexShrink: 0,
+              }}>
+                {activeTicket.status}
+              </span>
+            )}
+            {isLoading && (
+              <Badge variant="info" size="sm" className="animate-pulse">
+                Thinking…
+              </Badge>
+            )}
+          </div>
 
-        {/* Right: Cart pill + History icon & Toggle Right Panel icon */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {showCartPill && (
+          {/* Right: Cart pill + History icon & Toggle Right Panel icon */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {showCartPill && (
+              <button
+                type="button"
+                title="View the order you're building"
+                onClick={openCart}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '8px',
+                  padding: '5px 12px 5px 10px', borderRadius: '9999px',
+                  border: '1px solid var(--color-primary-border)', background: 'var(--color-primary-light)', color: 'var(--color-primary)',
+                  fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                  transition: 'background 0.14s ease, border-color 0.14s ease',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-primary-border)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-primary-light)'; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+                </svg>
+                <span>{cartItemCount} {cartItemCount === 1 ? 'item' : 'items'}</span>
+                {cartTotalLabel && <span style={{ opacity: 0.7 }}>·</span>}
+                {cartTotalLabel && <span>{cartTotalLabel}</span>}
+              </button>
+            )}
             <button
               type="button"
-              title="View the order you're building"
-              onClick={openCart}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '8px',
-                padding: '5px 12px 5px 10px', borderRadius: '9999px',
-                border: '1px solid var(--color-primary-border)', background: 'var(--color-primary-light)', color: 'var(--color-primary)',
-                fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-                transition: 'background 0.14s ease, border-color 0.14s ease',
+              title="Past conversations"
+              onClick={() => {
+                setRightPanelOpen(true);
+                setRightPanelTab('chatHistory');
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-primary-border)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-primary-light)'; }}
+              style={{
+                width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent',
+                color: 'var(--color-text-subtle)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-3)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
-                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 106 5.3L3 8" /><path d="M12 7v5l4 2" />
               </svg>
-              <span>{cartItemCount} {cartItemCount === 1 ? 'item' : 'items'}</span>
-              {cartTotalLabel && <span style={{ opacity: 0.7 }}>·</span>}
-              {cartTotalLabel && <span>{cartTotalLabel}</span>}
             </button>
-          )}
-          <button
-            type="button"
-            title="Past conversations"
-            onClick={() => {
-              setRightPanelOpen(true);
-              setRightPanelTab('chatHistory');
-            }}
-            style={{
-              width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent',
-              color: 'var(--color-text-subtle)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-3)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 106 5.3L3 8" /><path d="M12 7v5l4 2" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            title={rightPanelOpen ? 'Hide context panel' : 'Show context panel'}
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            style={{
-              width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent',
-              color: rightPanelOpen ? 'var(--color-primary)' : 'var(--color-text-subtle)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'background 0.15s ease, color 0.15s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-3)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="16" rx="2" />
-              <line x1="15" y1="4" x2="15" y2="20" />
-            </svg>
-          </button>
+            <button
+              type="button"
+              title={rightPanelOpen ? 'Hide context panel' : 'Show context panel'}
+              onClick={() => setRightPanelOpen(!rightPanelOpen)}
+              style={{
+                width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent',
+                color: rightPanelOpen ? 'var(--color-primary)' : 'var(--color-text-subtle)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background 0.15s ease, color 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-3)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <line x1="15" y1="4" x2="15" y2="20" />
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <div className="w-12 h-12 rounded-full bg-m-primary/10 flex items-center justify-center mb-4">
-              <Icon name="cpu" size="lg" className="text-m-primary" />
+          emptyState ?? (
+            <div className="flex flex-col items-center justify-center h-full text-center py-12">
+              <div className="w-12 h-12 rounded-full bg-m-primary/10 flex items-center justify-center mb-4">
+                <Icon name="cpu" size="lg" className="text-m-primary" />
+              </div>
+              <p className="text-sm font-semibold text-m-text mb-1">CSA Assistant</p>
+              <p className="text-xs text-m-text-muted max-w-xs">
+                Ask me to look up a customer, check an order, manage tickets, or help place an order.
+              </p>
             </div>
-            <p className="text-sm font-semibold text-m-text mb-1">CSA Assistant</p>
-            <p className="text-xs text-m-text-muted max-w-xs">
-              Ask me to look up a customer, check an order, manage tickets, or help place an order.
-            </p>
-          </div>
+          )
         )}
 
         {messages.map((message: UIMessage, index) =>

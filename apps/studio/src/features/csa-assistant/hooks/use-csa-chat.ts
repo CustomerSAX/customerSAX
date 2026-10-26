@@ -40,6 +40,8 @@ function getOrCreateSessionId(): string {
 export function useCsaChat(sessionContext: SessionContext) {
   const [input, setInput] = useState("");
 
+  const [currentSessionId, setCurrentSessionId] = useState<string>("");
+
   // Session ID is stable for the life of the current conversation.
   // We use a ref so the transport useMemo can reference it without re-creating.
   const sessionIdRef = useRef<string>("");
@@ -47,7 +49,9 @@ export function useCsaChat(sessionContext: SessionContext) {
   // Initialise once on client mount (SSR-safe: localStorage isn't available during SSR)
   useEffect(() => {
     if (!sessionIdRef.current) {
-      sessionIdRef.current = getOrCreateSessionId();
+      const id = getOrCreateSessionId();
+      sessionIdRef.current = id;
+      setCurrentSessionId(id);
     }
   }, []);
 
@@ -131,6 +135,7 @@ export function useCsaChat(sessionContext: SessionContext) {
   const clearSession = useCallback(() => {
     const newId = crypto.randomUUID();
     sessionIdRef.current = newId;
+    setCurrentSessionId(newId);
     try { localStorage.setItem(SESSION_ID_KEY, newId); } catch { /* ignore */ }
     return newId;
   }, []);
@@ -141,6 +146,7 @@ export function useCsaChat(sessionContext: SessionContext) {
    */
   const restoreSession = useCallback((sessionId: string) => {
     sessionIdRef.current = sessionId;
+    setCurrentSessionId(sessionId);
     try { localStorage.setItem(SESSION_ID_KEY, sessionId); } catch { /* ignore */ }
   }, []);
 
@@ -158,6 +164,7 @@ export function useCsaChat(sessionContext: SessionContext) {
     handleInputChange,
     handleSubmit,
     isLoading,
+    sessionId: currentSessionId,
 
     // Custom helpers
     approveAction,

@@ -7,7 +7,14 @@ import { config } from "../config.js";
 import { buildDynamicPrompt, STATIC_SYSTEM_PROMPT, contextStorage } from "../chat/system-prompt.js";
 import { buildChatTools } from "../chat/tools/index.js";
 import type { SystemPromptContext } from "../chat/system-prompt.js";
-import { loadOrCreateSession, appendSessionMessages, getSessionMessages, listSessions } from "../db/mongo-chat.js";
+import {
+  loadOrCreateSession,
+  appendSessionMessages,
+  getSessionMessages,
+  listSessions,
+  renameSession,
+  deleteSession,
+} from "../db/mongo-chat.js";
 import type { StoredMessage } from "../db/mongo-chat.js";
 import { getWorkingMemory, setWorkingMemory, formatWorkingMemoryForPrompt } from "../memory/working-memory.js";
 import { getEpisodicMemory, getCustomerMemory } from "../memory/episodic-memory.js";
@@ -207,11 +214,34 @@ chatRouter.post("/chat", async (request, response, next) => {
         sessionId,
         userEmail,
         projectKey,
+        sessionCtx.clientId,
         sessionCtx.pageContext
       );
       sessionId = session.sessionId; // use what the store returned (same UUID)
+
+      // Persist the user's incoming message immediately so that server restarts,
+      // client disconnects, or stream cancellations do not lose the user turn.
+      const uiMessages = messages as UIMessage[];
+      const lastUserMsg = [...uiMessages].reverse().find((m) => m.role === "user");
+      if (lastUserMsg) {
+        const userText = extractText(lastUserMsg);
+        if (userText) {
+          await appendSessionMessages(
+            sessionId,
+            [
+              {
+                id: lastUserMsg.id ?? crypto.randomUUID(),
+                role: "user",
+                content: userText,
+                createdAt: new Date().toISOString(),
+              },
+            ],
+            sessionCtx.clientId
+          );
+        }
+      }
     } catch (err) {
-      log.error("session load/create failed (non-fatal)", err);
+      log.error("session load/create or initial user message save failed (non-fatal)", err);
     }
 
     // ── Working memory — inject previous turn's context ────────────────────
@@ -275,8 +305,26 @@ chatRouter.post("/chat", async (request, response, next) => {
           },
         ],
         temperature: config.llm.chatTemperature,
-        onError: (event) => {
+        onError: async (event) => {
           log.error("streamText error", event.error);
+          try {
+            if (session) {
+              await appendSessionMessages(
+                session.sessionId,
+                [
+                  {
+                    id: crypto.randomUUID(),
+                    role: "assistant",
+                    content: "An interruption occurred while generating this response. You can continue or retry your prompt.",
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+                sessionCtx.clientId
+              );
+            }
+          } catch {
+            // non-fatal
+          }
         },
         onFinish: async ({ steps }) => {
           // Persist this turn to MongoDB so the History panel can display it.
@@ -308,30 +356,35 @@ chatRouter.post("/chat", async (request, response, next) => {
             log.warn("working memory persist failed (non-fatal)", { reason: (err as Error).message });
           }
 
-          // ── Session persistence — append messages to MongoDB ───────────
+          // ── Session persistence — append assistant response & tool outcomes ──
           if (!session) return;
 
           try {
             const newMessages: StoredMessage[] = [];
 
-            // User turn — the last message in the incoming array
-            const uiMessages = messages as UIMessage[];
-            const lastUserMsg = [...uiMessages].reverse().find((m) => m.role === "user");
-            if (lastUserMsg) {
-              newMessages.push({
-                id: lastUserMsg.id ?? crypto.randomUUID(),
-                role: "user",
-                content: extractText(lastUserMsg),
-                createdAt: new Date().toISOString(),
-              });
-            }
-
             // Assistant turn — concatenate text from all steps
-            const assistantText = steps
+            let assistantText = steps
               .map((s) => s.text ?? "")
               .filter(Boolean)
               .join(" ")
               .trim();
+
+            // If assistantText is empty but tool calls took place (e.g. action_approval),
+            // construct a readable summary so the conversation history reflects what occurred.
+            if (!assistantText) {
+              const allToolCalls = steps.flatMap((s) => s.toolCalls ?? []);
+              const approvalCall = allToolCalls.find((tc) => tc.toolName === "action_approval") as
+                | { args?: { actionTitle?: string; description?: string } }
+                | undefined;
+              if (approvalCall?.args) {
+                const title = approvalCall.args.actionTitle || "Action proposed";
+                const desc = approvalCall.args.description || "";
+                assistantText = `[Proposed Action: ${title}] ${desc}`.trim();
+              } else if (allToolCalls.length > 0) {
+                const names = allToolCalls.map((tc) => tc.toolName).join(", ");
+                assistantText = `Processed operations: ${names}`;
+              }
+            }
 
             if (assistantText) {
               newMessages.push({
@@ -343,7 +396,7 @@ chatRouter.post("/chat", async (request, response, next) => {
             }
 
             if (newMessages.length > 0) {
-              await appendSessionMessages(session!.sessionId, newMessages);
+              await appendSessionMessages(session.sessionId, newMessages, sessionCtx.clientId);
             }
           } catch (err) {
             log.error("onFinish persistence failed (non-fatal)", err);
@@ -383,18 +436,17 @@ chatRouter.post("/chat", async (request, response, next) => {
 chatRouter.get("/chat", async (request, response, next) => {
   try {
     const sessionId = (request.query.sessionId as string | undefined)?.trim();
-    // IDOR fix: userEmail is derived from the TRUSTED x-csa-user-email header
-    // (set by the studio proxy after validating the session), NOT a
-    // client-supplied query param. A caller can no longer read another user's
-    // transcript by passing ?userEmail=victim@x.com.
-    const userEmail = readCsaContext(request).userEmail?.trim() ?? "";
+    // IDOR fix: userEmail & clientId derived from TRUSTED x-csa-* headers
+    const trusted = readCsaContext(request);
+    const userEmail = trusted.userEmail?.trim() ?? "";
+    const clientId = trusted.clientId?.trim() || undefined;
 
     if (!sessionId || !userEmail) {
       response.status(400).json({ error: "sessionId and authenticated identity are required" });
       return;
     }
 
-    const messages = await getSessionMessages(sessionId, userEmail);
+    const messages = await getSessionMessages(sessionId, userEmail, clientId);
     response.json({ messages });
   } catch (error) {
     next(error);
@@ -408,12 +460,12 @@ chatRouter.get("/chat", async (request, response, next) => {
 chatRouter.get("/sessions", async (request, response, next) => {
   try {
     // IDOR fix: identity comes from the TRUSTED x-csa-* headers set by the
-    // studio proxy, not client-supplied query params. A caller cannot list
-    // another user's sessions by passing ?userEmail=victim@x.com.
+    // studio proxy, not client-supplied query params.
     const trusted = readCsaContext(request);
     const userEmail = trusted.userEmail?.trim() ?? "";
     const projectKey = trusted.projectKey?.trim() ?? "";
-    const limit = Math.min(Number(request.query.limit ?? 20), 100);
+    const clientId = trusted.clientId?.trim() || undefined;
+    const limit = Math.min(Number(request.query.limit ?? 30), 100);
     const skip = Math.max(Number(request.query.skip ?? 0), 0);
 
     if (!userEmail) {
@@ -421,8 +473,67 @@ chatRouter.get("/sessions", async (request, response, next) => {
       return;
     }
 
-    const result = await listSessions(userEmail, projectKey, limit, skip);
+    const result = await listSessions(userEmail, projectKey, clientId, limit, skip);
     response.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /sessions — rename a session with ownership and tenant validation
+// ---------------------------------------------------------------------------
+
+chatRouter.patch("/sessions", async (request, response, next) => {
+  try {
+    const trusted = readCsaContext(request);
+    const userEmail = trusted.userEmail?.trim() ?? "";
+    const clientId = trusted.clientId?.trim() || undefined;
+    const sessionId =
+      (request.query.sessionId as string | undefined)?.trim() ||
+      (request.body as { sessionId?: string })?.sessionId?.trim();
+    const title = (request.body as { title?: string })?.title?.trim();
+
+    if (!sessionId || !title || !userEmail) {
+      response.status(400).json({ error: "sessionId, title, and authenticated identity are required" });
+      return;
+    }
+
+    const ok = await renameSession(sessionId, userEmail, clientId, title);
+    if (!ok) {
+      response.status(404).json({ error: "Session not found or unauthorized" });
+      return;
+    }
+    response.json({ success: true, sessionId, title });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /sessions — delete a session with ownership and tenant validation
+// ---------------------------------------------------------------------------
+
+chatRouter.delete("/sessions", async (request, response, next) => {
+  try {
+    const trusted = readCsaContext(request);
+    const userEmail = trusted.userEmail?.trim() ?? "";
+    const clientId = trusted.clientId?.trim() || undefined;
+    const sessionId =
+      (request.query.sessionId as string | undefined)?.trim() ||
+      (request.body as { sessionId?: string })?.sessionId?.trim();
+
+    if (!sessionId || !userEmail) {
+      response.status(400).json({ error: "sessionId and authenticated identity are required" });
+      return;
+    }
+
+    const ok = await deleteSession(sessionId, userEmail, clientId);
+    if (!ok) {
+      response.status(404).json({ error: "Session not found or unauthorized" });
+      return;
+    }
+    response.json({ success: true, sessionId });
   } catch (error) {
     next(error);
   }

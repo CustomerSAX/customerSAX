@@ -77,4 +77,5 @@ export interface InvestigationResult {
   internalWorklog: string;
   proposedStatus: string;
   isHighRiskFinancial?: boolean;
+  alreadyFulfilled?: boolean;
 }

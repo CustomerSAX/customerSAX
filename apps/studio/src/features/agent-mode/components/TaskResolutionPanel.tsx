@@ -58,6 +58,7 @@ interface TaskResolutionPanelProps {
   onBack: () => void;
   onInvestigateWithAI: (task: AgentTask) => void;
   isAssistantLoading?: boolean;
+  onClose?: () => void;
 }
 
 export function TaskResolutionPanel({
@@ -65,6 +66,7 @@ export function TaskResolutionPanel({
   onBack,
   onInvestigateWithAI,
   isAssistantLoading = false,
+  onClose,
 }: TaskResolutionPanelProps) {
   const apolloClient = useApolloClient();
   const { user } = useCurrentUser();
@@ -377,6 +379,45 @@ export function TaskResolutionPanel({
         setExecutionResults([...currentResults]);
       }
 
+      // Step E: Post-Execution Authoritative Read-Back Verification
+      try {
+        const verifyTicket = await apolloClient.query<{ ticket: TicketDetailResult }>({
+          query: TICKET_QUERY,
+          variables: { id: ticketDetail.id },
+          fetchPolicy: "network-only",
+        });
+        if (verifyTicket.data?.ticket?.status === proposedStatus) {
+          currentResults.push(
+            `Verified: Ticket #${ticketDetail.ticketNumber} status confirmed '${proposedStatus}' in database`
+          );
+        }
+        if (recordedContact && customerContact) {
+          const verifyContact = await apolloClient.query<{
+            customerContactTargets?: { targets?: ContactTarget[] } | ContactTarget[];
+          }>({
+            query: GET_CUSTOMER_CONTACT_TARGETS,
+            variables: { id: customerContact.id },
+            fetchPolicy: "network-only",
+          });
+          const raw = verifyContact.data?.customerContactTargets;
+          const list: ContactTarget[] =
+            raw && "targets" in raw && Array.isArray(raw.targets)
+              ? raw.targets
+              : Array.isArray(raw)
+              ? raw
+              : [];
+          const matched = list.find((t) => t.id === investigation?.matchedContactTarget?.id);
+          if (matched && matched.phone === investigation?.entities.phone) {
+            currentResults.push(
+              `Verified: Confirmed updated phone '${matched.phone}' persisted on '${matched.label}' in commerce store`
+            );
+          }
+        }
+        setExecutionResults([...currentResults]);
+      } catch {
+        // Best-effort read-back verification log
+      }
+
       setIsExecuted(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Execution failed";
@@ -446,9 +487,21 @@ export function TaskResolutionPanel({
           <span>AI Dynamic Ticket Investigation</span>
         </span>
 
-        <span className="text-[11px] font-mono text-m-primary bg-m-primary/10 px-2 py-0.5 rounded font-semibold">
-          {task.referenceNumber}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono text-m-primary bg-m-primary/10 px-2 py-0.5 rounded font-semibold">
+            {task.referenceNumber}
+          </span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              title="Close panel"
+              className="p-1 rounded text-m-text-muted hover:text-m-text hover:bg-m-surface-2 transition cursor-pointer"
+            >
+              <Icon name="x" size="xs" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Scrollable Body ── */}
@@ -727,18 +780,15 @@ export function TaskResolutionPanel({
                           {change.target}
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-[11px]">
-                        <div className="p-2 rounded bg-white border border-red-200 text-red-800 font-mono">
-                          <span className="text-[9px] uppercase block text-red-600 font-semibold">
-                            Current Value:
-                          </span>
-                          {change.previousValue}
+                      <div className="flex items-center justify-between text-xs py-2 px-3 rounded-lg bg-m-surface-2 border border-m-border">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] text-m-text-muted uppercase font-semibold block">Current</span>
+                          <span className="font-mono text-m-text-muted line-through text-[11px]">{change.previousValue}</span>
                         </div>
-                        <div className="p-2 rounded bg-white border border-emerald-200 text-emerald-800 font-mono">
-                          <span className="text-[9px] uppercase block text-emerald-600 font-semibold">
-                            Proposed Value:
-                          </span>
-                          {change.proposedValue}
+                        <Icon name="arrow-right" size="xs" className="text-m-text-muted mx-2 shrink-0" />
+                        <div className="space-y-0.5 text-right">
+                          <span className="text-[10px] text-emerald-600 uppercase font-semibold block">Updated</span>
+                          <span className="font-mono text-emerald-700 font-semibold text-[11px]">{change.proposedValue}</span>
                         </div>
                       </div>
                     </div>
