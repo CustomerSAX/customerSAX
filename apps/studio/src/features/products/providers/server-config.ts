@@ -71,26 +71,13 @@ export async function currentProductsConfiguration() {
   if (payload.errors?.length || payload.data?.projectProductsConfiguration === undefined)
     throw new Error("Unable to load Products configuration");
   const settings = payload.data.projectProductsConfiguration;
-  if (
-    settings?.provider === "algolia" &&
-    (!settings.appId || !settings.indexName || !settings.searchApiKey)
-  )
-    throw new Error("Project Algolia configuration is incomplete");
-  const provider = productsProvider(settings?.provider);
+  const provider = productsProvider(
+    settings?.provider === "algolia" ? undefined : settings?.provider
+  );
   return {
     key: `${user.activeClientId}:${user.activeProjectKey}:${provider}`,
     provider,
     connectionHubEnabled: false,
-    searchConfig:
-      settings?.provider === "algolia"
-        ? {
-            enabled: true,
-            provider: "algolia",
-            appId: settings.appId,
-            indexName: settings.indexName,
-            searchApiKey: settings.searchApiKey,
-            sortOptions: [{ label: "Relevance", value: settings.indexName! }]
-          }
-        : undefined
+    searchConfig: undefined
   };
 }
