@@ -8,20 +8,47 @@ import { personas } from "./data";
 import { useDemo } from "./demo-state";
 
 const navigation = [
-  { href: "/today", label: "Today", icon: "layout-dashboard" },
-  { href: "/accounts/summit", label: "Account brief", icon: "building-2" },
+  { href: "/today", label: "Priorities", icon: "layout-dashboard" },
+  { href: "/accounts", label: "Accounts", icon: "building-2" },
   { href: "/commitments", label: "Commitments", icon: "list-checks" },
-  { href: "/service", label: "Customer care", icon: "headset" },
-  { href: "/manager", label: "Back office", icon: "sliders-horizontal" },
-  { href: "/demo-flow", label: "Demo flow", icon: "route" }
+  { href: "/quotes", label: "Quotes & Approvals", icon: "badge-dollar-sign" },
+  { href: "/service", label: "Service Watch", icon: "shield-alert" },
+  { href: "/manager", label: "Back office", icon: "sliders-horizontal" }
 ];
 export function Workspace({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [menu, setMenu] = useState(false);
   const [notifications, setNotifications] = useState(false);
   const demo = useDemo();
-  const persona = personas[pathname === "/service" ? 1 : pathname === "/manager" ? 2 : 0];
+
+  const isManager = demo.activePersonaId === "manager";
+
+  const salesNavigation = [
+    { href: "/today", label: "Priorities", icon: "layout-dashboard", count: 5 },
+    { href: "/accounts", label: "Accounts", icon: "building-2" },
+    { href: "/commitments", label: "Commitments", icon: "list-checks", count: 6 },
+    { href: "/quotes", label: "Quotes & Approvals", icon: "badge-dollar-sign", count: 1 },
+    { href: "/service", label: "Service Watch", icon: "shield-alert", count: 1 }
+  ];
+
+  const managerNavigation = [
+    { href: "/manager", label: "Back Office (Manager Desk)", icon: "sliders-horizontal", count: 1 },
+    { href: "/quotes", label: "Pipeline & Approvals", icon: "badge-dollar-sign", count: 1 },
+    { href: "/accounts", label: "Territory Accounts", icon: "building-2" },
+    { href: "/commitments", label: "Team Commitments", icon: "list-checks", count: 6 },
+    { href: "/service", label: "Service Watch", icon: "shield-alert", count: 1 }
+  ];
+
+  const currentNav = isManager ? managerNavigation : salesNavigation;
+  const currentPersona = isManager ? personas[2] : personas[0];
   const landing = pathname === "/";
+
+  const handleTogglePersona = () => {
+    const nextPersona = isManager ? "sales" : "manager";
+    demo.setActivePersonaId(nextPersona);
+    window.location.href = nextPersona === "manager" ? "/manager" : "/today";
+  };
+
   return (
     <div className={`workspace ${landing ? "landing-shell" : ""}`}>
       <a className="skip-link" href="#main-content">
@@ -34,12 +61,16 @@ export function Workspace({ children }: { children: ReactNode }) {
               R<span>↗</span>
             </span>
             <span>
-              RepMotion<small>Sales workspace</small>
+              RepMotion<small>{isManager ? "Management workspace" : "Sales workspace"}</small>
             </span>
           </Link>
-          <div className="nav-label">WORKSPACE</div>
+
+          <div className="nav-label">
+            {isManager ? "BRANCH MANAGEMENT DESK" : "FIELD SALES WORKSPACE"}
+          </div>
+
           <nav aria-label="Workspace navigation">
-            {navigation.map((item) => (
+            {currentNav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -48,30 +79,45 @@ export function Workspace({ children }: { children: ReactNode }) {
               >
                 <Icon name={item.icon} size="sm" />
                 <span>{item.label}</span>
-                {item.href === "/today" && <span className="nav-count">5</span>}
+                {item.count && <span className="nav-count">{item.count}</span>}
               </Link>
             ))}
           </nav>
+
           <div className="sidebar-note">
             <Icon name="sparkles" size="md" />
-            <strong>Context. Clarity. Action.</strong>
-            <p>The right conversation starts with the full picture.</p>
+            <strong>{isManager ? "Supervise. Approve. Protect." : "Context. Clarity. Action."}</strong>
+            <p>{isManager ? "Enforce gross margin floors and safeguard customer commitments." : "The right conversation starts with the full picture."}</p>
           </div>
-          <div className="sidebar-footer">
+
+          <div className="sidebar-footer space-y-2">
             <div className="person">
-              <span className="avatar">{persona.initials}</span>
+              <span className="avatar">{isManager ? "DK" : "AM"}</span>
               <div>
-                <strong>{persona.name}</strong>
-                <small>{persona.role}</small>
+                <strong>{isManager ? "David Kim" : "Alex Miller"}</strong>
+                <small>{isManager ? "Branch Sales Director" : "Outside AM · White Cap"}</small>
               </div>
             </div>
-            <Link href="/" className="switch-role">
-              <Icon name="repeat-2" size="sm" />
-              Switch demo persona
-            </Link>
+
+            {/* Explicit Demo Simulation Pill */}
+            <div className="pt-2 border-t border-border/60">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between py-1.5 px-2.5 rounded-lg border border-dashed border-border/80 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+                onClick={handleTogglePersona}
+                title="Simulation tool to preview how the Branch Director views approvals"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span>🧪</span>
+                  <span>{isManager ? "Viewing Manager Desk" : "Demo: Preview Manager View"}</span>
+                </span>
+                <span className="text-[10px] font-semibold text-primary">Switch</span>
+              </button>
+            </div>
           </div>
         </aside>
       )}
+
       <div className="workspace-body">
         <header className="topbar">
           <div className="topbar-left">
@@ -91,22 +137,32 @@ export function Workspace({ children }: { children: ReactNode }) {
                   R<span>↗</span>
                 </span>
                 <span>
-                  RepMotion<small>White Cap POC</small>
+                  RepMotion<small>Sales Workspace</small>
                 </span>
               </Link>
             ) : (
               <div>
-                <span className="topbar-eyebrow">WHITE CAP · MIDWEST</span>
+                <span className="topbar-eyebrow">
+                  {isManager ? "BRANCH LEADERSHIP · COMMERCIAL SALES DIRECTOR" : "COMMERCIAL SALES · FIELD ACCOUNT EXECUTIVE"}
+                </span>
                 <strong>
-                  {navigation.find((item) => item.href === pathname)?.label ||
-                    "Sales workspace"}
+                  {currentNav.find((item) => item.href === pathname)?.label ||
+                    (isManager ? "Branch Management Desk" : "Sales Workspace")}
                 </strong>
               </div>
             )}
           </div>
           <div className="topbar-actions">
-            <span className="sample-date">Tuesday, October 6, 2026</span>
-            <Badge variant="neutral">Demo workspace</Badge>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="text-xs hidden sm:inline-flex items-center gap-1.5 font-medium"
+              onClick={handleTogglePersona}
+              leftIcon={<Icon name="repeat-2" size="xs" />}
+            >
+              Role: <strong>{isManager ? "Sales Manager" : "Sales Rep"}</strong>
+            </Button>
+            <Badge variant="neutral">Enterprise SaaS</Badge>
             {!landing && (
               <>
                 <Button
@@ -117,8 +173,8 @@ export function Workspace({ children }: { children: ReactNode }) {
                 >
                   {demo.notifications.length}
                 </Button>
-                <span className="avatar top-avatar" title={persona.name}>
-                  {persona.initials}
+                <span className="avatar top-avatar" title={currentPersona.name}>
+                  {currentPersona.initials}
                 </span>
               </>
             )}
@@ -126,9 +182,7 @@ export function Workspace({ children }: { children: ReactNode }) {
         </header>
         <div className="demo-banner">
           <span className="demo-dot" />
-          Illustrative POC<span className="banner-separator">·</span>Fictional accounts
-          and sample data<span className="banner-separator">·</span>No live White Cap
-          connection
+          Connected Enterprise Platform<span className="banner-separator">·</span>Multi-Tenant Business Intelligence<span className="banner-separator">·</span>Real-Time Commercial Signals
         </div>
         <main id="main-content" tabIndex={-1} className="page-content">
           {children}

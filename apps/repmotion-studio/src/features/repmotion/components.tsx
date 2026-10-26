@@ -24,6 +24,7 @@ import {
 } from "@csa/ui";
 import { useDemo } from "./demo-state";
 import { sources, targets } from "./data";
+import { accountsDirectory } from "../accounts/data";
 
 export function Status({ children }: { children: string }) {
   const variant = [
@@ -202,8 +203,10 @@ export function CommitmentCapture({
             <label className="field">
               Account
               <select name="account" defaultValue={account}>
-                {targets.map((target) => (
-                  <option key={target.id}>{target.name}</option>
+                {Object.values(accountsDirectory).map((acc) => (
+                  <option key={acc.id} value={acc.name}>
+                    {acc.name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -255,20 +258,57 @@ export function CommitmentCapture({
   );
 }
 export function CommitmentTable({ account }: { account?: string }) {
-  const { commitments } = useDemo();
+  const { commitments, updateCommitmentStatus } = useDemo();
   return (
     <DataTable
       label="Customer commitments"
-      columns={["Commitment", "Account", "Owner", "Due", "Dependency", "Status"]}
+      columns={["Commitment", "Account", "Owner", "Due", "Dependency", "Status", "Quick Action"]}
       rows={commitments
         .filter((item) => !account || item.account === account)
         .map((item) => [
-          <strong key="title">{item.title}</strong>,
-          item.account,
+          <strong key="title" className="text-foreground">{item.title}</strong>,
+          <span key="account" className="font-medium">{item.account}</span>,
           item.owner,
           item.due,
           item.dependency,
-          <Status key="status">{item.status}</Status>
+          <Badge
+            key="status"
+            variant={
+              item.status === "Fulfilled" || item.status === "Complete"
+                ? "success"
+                : item.status === "In Progress"
+                ? "primary"
+                : item.status === "Blocked"
+                ? "error"
+                : "warning"
+            }
+            dot
+          >
+            {item.status}
+          </Badge>,
+          <div key="action" className="flex items-center gap-1.5">
+            {item.status !== "Fulfilled" && item.status !== "Complete" ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 text-[11px] py-1 px-2.5 h-auto font-medium"
+                onClick={() => updateCommitmentStatus(item.id, "Fulfilled")}
+                leftIcon={<Icon name="check" size="xs" />}
+              >
+                Mark Fulfilled
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="text-muted-foreground text-[11px] py-1 px-2 h-auto"
+                onClick={() => updateCommitmentStatus(item.id, "Open")}
+                leftIcon={<Icon name="rotate-ccw" size="xs" />}
+              >
+                Reopen
+              </Button>
+            )}
+          </div>
         ])}
     />
   );
