@@ -6,6 +6,8 @@ import { Badge, Button, Card, Icon, Input } from "@csa/ui";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { getProviderLogo } from "@/features/onboarding/components/ProviderLogo";
 import type { HubCatalogConnector } from "@/lib/connection-hub-catalog";
+import { ZendeskPluginDialog } from "@/features/csa-assistant/components/ZendeskPluginDialog";
+import { RemoveConnectorDialog, type RemovalTarget } from "./RemoveConnectorDialog";
 
 import {
   AlgoliaPluginDialog,
@@ -16,6 +18,13 @@ export function ConnectionHubCatalogView() {
   const { user } = useCurrentUser();
   const [search, setSearch] = useState("");
   const [algoliaOpen, setAlgoliaOpen] = useState(false);
+  const [zendeskOpen, setZendeskOpen] = useState(false);
+  const [removal, setRemoval] = useState<RemovalTarget | null>(null);
+  const [notice, setNotice] = useState<{
+    clientId: string;
+    projectKey: string;
+    text: string;
+  } | null>(null);
   const allowed = user?.role === "admin" || user?.role === "superadmin";
   const algolia = useAlgoliaPluginStatus(
     user?.activeClientId,
@@ -134,10 +143,16 @@ export function ConnectionHubCatalogView() {
       ) : (
         <>
           <p className="text-xs text-m-text-muted">
-            Connect Algolia here to use it for Products and assistant product searches.
-            Removing Algolia restores the saved native provider. Native capabilities
-            are listed in the Native Connectors tab.
+            Remove any enabled connector from this project using its card. Enabled badges
+            show configured actions, not credential health. Native capabilities are listed
+            in the Native Connectors tab.
           </p>
+          {notice?.clientId === user?.activeClientId &&
+            notice?.projectKey === user?.activeProjectKey && (
+              <p role="status" className="text-sm text-m-text">
+                {notice?.text}
+              </p>
+            )}
           {projectStatus.isError && (
             <p role="alert" className="text-sm text-m-text-muted">
               Project status is unavailable. The catalog below is still available; click
@@ -166,13 +181,16 @@ export function ConnectionHubCatalogView() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {visible.map((item) => {
                 const bindings = (projectStatus.data ?? []).filter(
-                  (binding) =>
-                    binding.connectorId === item.id &&
-                    item.actions.some((action) => action.id === binding.operation)
+                  (binding) => binding.connectorId === item.id
                 );
+                const selected = bindings.some((binding) => binding.enabled);
                 const enabled = new Set(
                   bindings
-                    .filter((binding) => binding.enabled)
+                    .filter(
+                      (binding) =>
+                        binding.enabled &&
+                        item.actions.some((action) => action.id === binding.operation)
+                    )
                     .map((binding) => binding.operation)
                 );
                 const known = projectStatus.isSuccess && !projectStatus.isError;
@@ -185,7 +203,7 @@ export function ConnectionHubCatalogView() {
                         ? "Status unavailable"
                         : !known
                           ? "Checking status…"
-                          : enabled.size > 0
+                          : selected
                             ? "Enabled"
                             : bindings.length > 0
                               ? "Disabled"
@@ -209,7 +227,7 @@ export function ConnectionHubCatalogView() {
                       </div>
                       <Badge
                         variant={
-                          known && enabled.size > 0
+                          known && selected
                             ? "success"
                             : projectStatus.isError || (known && bindings.length > 0)
                               ? "warning"
@@ -236,14 +254,50 @@ export function ConnectionHubCatalogView() {
                         {item.authenticationType.replace(/_/g, " ")}
                       </Badge>
                     </div>
-                    {item.id === "algolia" && (
-                      <Button
-                        variant="outline"
-                        disabled={!user?.activeClientId || !user.activeProjectKey}
-                        onClick={() => setAlgoliaOpen(true)}
-                      >
-                        {algolia.data?.selected ? "Manage Algolia" : "Connect Algolia"}
-                      </Button>
+                    {(item.id === "algolia" ||
+                      item.id === "zendesk" ||
+                      (known && selected)) && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        {item.id === "algolia" && (
+                          <Button
+                            variant="outline"
+                            disabled={!user?.activeClientId || !user.activeProjectKey}
+                            onClick={() => setAlgoliaOpen(true)}
+                          >
+                            {algolia.data?.selected
+                              ? "Manage Algolia"
+                              : "Connect Algolia"}
+                          </Button>
+                        )}
+                        {item.id === "zendesk" && (
+                          <Button
+                            variant="outline"
+                            disabled={!user?.activeClientId || !user.activeProjectKey}
+                            onClick={() => setZendeskOpen(true)}
+                          >
+                            Manage Zendesk
+                          </Button>
+                        )}
+                        {known && selected && (
+                          <Button
+                            variant="outline"
+                            aria-label={`Remove ${item.name} connector`}
+                            onClick={() => {
+                              if (!user?.activeClientId || !user.activeProjectKey) return;
+                              setNotice(null);
+                              setRemoval({
+                                connectorId: item.id,
+                                name: item.name,
+                                clientId: user.activeClientId,
+                                projectKey: user.activeProjectKey
+                              });
+                            }}
+                          >
+                            <Icon name="trash-2" size="xs" className="mr-2" />
+                            Remove connector
+                          </Button>
+                        )}
+                      </div>
                     )}
                     <details className="border-t border-m-border pt-3">
                       <summary className="cursor-pointer text-sm font-medium text-m-primary">
@@ -291,6 +345,33 @@ export function ConnectionHubCatalogView() {
           onClose={() => setAlgoliaOpen(false)}
         />
       )}
+      {zendeskOpen && user?.activeClientId && user.activeProjectKey && (
+        <ZendeskPluginDialog
+          key={`zendesk:${user.activeClientId}:${user.activeProjectKey}`}
+          clientId={user.activeClientId}
+          projectKey={user.activeProjectKey}
+          admin={allowed}
+          projectWide
+          onClose={() => setZendeskOpen(false)}
+        />
+      )}
+      {removal &&
+        removal.clientId === user?.activeClientId &&
+        removal.projectKey === user?.activeProjectKey && (
+          <RemoveConnectorDialog
+            key={`${removal.clientId}:${removal.projectKey}:${removal.connectorId}`}
+            target={removal}
+            onClose={() => setRemoval(null)}
+            onRemoved={(text) => {
+              setNotice({
+                clientId: removal.clientId,
+                projectKey: removal.projectKey,
+                text
+              });
+              setRemoval(null);
+            }}
+          />
+        )}
     </section>
   );
 }

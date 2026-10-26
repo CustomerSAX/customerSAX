@@ -25,6 +25,53 @@ implemented; replace the plugin connection when its token expires.
 5. Open CSA Assistant → Plugins → Zendesk. Enter the account details and click
    **Connect Zendesk**, then **Try in chat** and send the suggested prompt.
 
+## Remove any connector from the Connection Hub catalog
+
+Every connector with enabled project actions has a **Remove connector** button
+on its card in **Admin Settings → Connection Hub**. The confirmation names the
+connector and selected project. Confirming disables all its enabled actions in
+that project, including actions not shown by the current catalog release.
+Shared credentials, other projects and provider tokens remain active.
+
+The generic `DELETE /api/connection-hub/connectors/:connectorId` route requires
+an administrator and a matching client/project session. It resolves binding
+targets server-side, checks revisions, and verifies all actions are disabled
+before returning success. The form refreshes catalog and plugin status on both
+success and failure; partial failures remain retryable. This supports every
+connector without a provider-specific removal implementation.
+
+## Manage Zendesk from the Connection Hub catalog
+
+In **Admin Settings → Connection Hub → Zendesk → Manage Zendesk**, administrators
+can enter a replacement OAuth access token or remove Zendesk from the selected
+project. The account subdomain is prefilled and stays fixed during credential
+updates. Hub validates and encrypts the replacement token before any project
+binding changes. Saved tokens are never returned to the browser.
+
+This project-wide form uses `/api/connection-hub/zendesk/connector`. Credential
+updates move all existing Zendesk bindings, including Tickets' `zendesk-read`
+and Assistant's `zendesk-find-tickets`, to the new encrypted connection. Each
+action keeps its approved release and enabled state. A new or fully removed
+connector enables only these two read actions when connected; disabled write
+actions stay disabled. It does not change the project's selected ticketing
+provider or its separate OAuth client settings for ticket writes.
+
+**Remove connector → Remove from project** disables every enabled Zendesk action
+in the current project after confirmation. Other projects and shared Hub accounts
+stay active; this does not revoke the OAuth token at Zendesk. A project using
+Zendesk for ticketing must reconnect it or select another ticketing provider to
+load tickets after removal. The catalog's Enabled badge reflects configured
+bindings, not a live credential health check.
+
+Mutations require an administrator and the same client/project as the current
+session. Binding revisions prevent overwriting concurrent changes. Hub updates
+bindings individually, so a failure can leave a partial update. The form refreshes
+status after errors and allows retry; it never reports success until the resulting
+bindings have been verified. Old encrypted connections remain in Hub for separate
+review/revocation because they may be shared with other projects.
+
+The existing Assistant plugin dialog continues to manage Assistant search only.
+
 ## Execution and isolation
 
 Studio's authenticated `/api/connection-hub/zendesk` endpoint supports status,

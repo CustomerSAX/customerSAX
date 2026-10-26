@@ -253,3 +253,5 @@ async function disconnect(input: unknown) {
   };
 }
 export const zendeskPlugin = { status, connect, disconnect };
+// Shared server-only transport; project-wide management has its own endpoint.
+export const zendeskHub = { authorize, request };
