@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { gql, useMutation, useQuery } from "@apollo/client";
 import { Button, Input, Modal, ModalBody, ModalFooter, ModalHeader } from "@csa/ui";
 
-const SLA_FIELDS = "slaTargets { priority firstResponseMinutes resolutionMinutes }";
+const SLA_FIELDS = "priority firstResponseMinutes resolutionMinutes";
 const PROJECT_SLA = gql`
   query ConnectorTicketingSla($clientId: ID!, $id: ID!) {
-    adminProjectTicketing(clientId: $clientId, id: $id) { ${SLA_FIELDS} }
+    adminProjectTicketingSla(clientId: $clientId, id: $id) { ${SLA_FIELDS} }
   }
 `;
 const SAVE_SLA = gql`
@@ -62,7 +62,7 @@ export function NativeSlaTargetsModal({
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const rows: SlaTargetRow[] = data?.adminProjectTicketing?.slaTargets ?? [];
+    const rows: SlaTargetRow[] = data?.adminProjectTicketingSla ?? [];
     setDraft(Object.fromEntries(rows.map((row) => [row.priority, { firstResponse: toHours(row.firstResponseMinutes), resolution: toHours(row.resolutionMinutes) }])));
   }, [data]);
 

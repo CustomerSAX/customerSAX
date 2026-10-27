@@ -1,5 +1,7 @@
 # CSA Assistant Zendesk plugin
 
+External ticketing, CRM and search now follow the [Hub-only routing contract](CONNECTION-HUB-MIGRATION.md). Commerce remains separately configured.
+
 The assistant's Plugins → Zendesk entry opens a project-scoped connection form.
 Administrators supply a Zendesk subdomain and existing OAuth access token with
 ticket read permission. Hub validates the token and stores it encrypted using
@@ -58,9 +60,7 @@ provider or its separate OAuth client settings for ticket writes.
 
 **Remove connector → Remove from project** disables every enabled Zendesk action
 in the current project after confirmation. Other projects and shared Hub accounts
-stay active; this does not revoke the OAuth token at Zendesk. A project using
-Zendesk for ticketing must reconnect it or select another ticketing provider to
-load tickets after removal. The catalog's Enabled badge reflects configured
+stay active; this does not revoke the OAuth token at Zendesk. Removing Zendesk restores native tickets for this project. The catalog's Enabled badge reflects configured
 bindings, not a live credential health check.
 
 Mutations require an administrator and the same client/project as the current
@@ -100,9 +100,9 @@ production URL/execution key and tenant mapping, matching the assistant path.
 Reads validate live execution metadata against the selected binding and account.
 Native and Freshdesk projects retain their selected provider.
 
-Create/update/note operations continue using the project's existing direct
-Zendesk OAuth client settings, with the same account required as the Hub read
-binding. The assistant's read-only token does not enable ticket writes. The
+Create/update/note operations require an enabled Zendesk Custom API Call binding
+in Hub for the same account. The service never uses separately saved Zendesk OAuth
+client credentials. The assistant's read-only token does not enable ticket writes. The
 current `rc_b2b_shop_july_2023` project has both read bindings configured against
 its existing `royalcyber-21430` Hub connection.
 

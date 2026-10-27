@@ -1,13 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@apollo/client";
+import { gql, useQuery } from "@apollo/client";
 import { Button, Card, Icon } from "@csa/ui";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { ADMIN_CLIENT_QUERY } from "@/features/superadmin/api/queries";
 import { NativeSlaTargetsModal } from "./NativeSlaTargetsModal";
 
-type ProjectRow = { id: string; projectKey: string; displayName?: string | null; ticketingProvider?: string | null };
+type ProjectRow = { id: string; projectKey: string; displayName?: string | null };
+
+// The project list's ticketingProvider is the retired stored setting; Connection Hub decides now.
+const PROJECT_TICKETING_PROVIDER = gql`
+  query ConnectorTicketingProvider($clientId: ID!, $id: ID!) {
+    adminProjectTicketing(clientId: $clientId, id: $id) { provider }
+  }
+`;
 
 /**
  * Entry point to the active project's native-ticket SLA targets. Shown only
@@ -19,7 +26,8 @@ export function NativeSlaTargetsCard() {
   const { data } = useQuery(ADMIN_CLIENT_QUERY, { variables: { id: clientId }, skip: !clientId, fetchPolicy: "cache-and-network" });
   const [open, setOpen] = useState(false);
   const project = (data?.adminProjectsByClient as ProjectRow[] | undefined)?.find((p) => p.projectKey === user?.activeProjectKey);
-  if (!clientId || !project || (project.ticketingProvider ?? "internal") !== "internal") return null;
+  const ticketing = useQuery(PROJECT_TICKETING_PROVIDER, { variables: { clientId, id: project?.id }, skip: !clientId || !project, fetchPolicy: "cache-and-network" });
+  if (!clientId || !project || ticketing.data?.adminProjectTicketing?.provider !== "internal") return null;
   const displayName = project.displayName || project.projectKey;
 
   return (

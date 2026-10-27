@@ -8,7 +8,8 @@ import {
   resolveProjectTicketing,
   ticketingSettingsView,
   issueZendeskServiceToken,
-  prepareSlaTargets
+  prepareSlaTargets,
+  slaTargetsView
 } from "./ticketing.js";
 const db = vi.hoisted(() => ({
   findOne: vi.fn(),
@@ -62,8 +63,7 @@ it("encrypts secrets, omits them from views, and retains them on blank updates",
     provider: "zendesk",
     subdomain: "acme",
     clientId: "oauth",
-    secretSet: true, freshdeskDomain: "", freshdeskApiKeySet: false,
-    slaTargets: expect.any(Array)
+    secretSet: true, freshdeskDomain: "", freshdeskApiKeySet: false
   });
   expect(prepareTicketing({ ...input, clientSecret: "" }, saved).secretEncrypted).toBe(
     saved.secretEncrypted
@@ -190,8 +190,8 @@ it("validates native SLA targets and drops priorities with no target", () => {
   expect(() => prepareSlaTargets([{ priority: "high", resolutionMinutes: 60 }, { priority: "HIGH", resolutionMinutes: 90 }])).toThrow("Duplicate");
 });
 
-it("shows every priority's SLA targets in the settings view", () => {
-  expect(ticketingSettingsView({ provider: "internal", sla: { targets: { high: { firstResponseMinutes: 60, resolutionMinutes: null } }, updatedAt: new Date() } }).slaTargets).toEqual([
+it("shows every priority's SLA targets", () => {
+  expect(slaTargetsView({ targets: { high: { firstResponseMinutes: 60, resolutionMinutes: null } }, updatedAt: new Date() })).toEqual([
     { priority: "urgent", firstResponseMinutes: null, resolutionMinutes: null },
     { priority: "high", firstResponseMinutes: 60, resolutionMinutes: null },
     { priority: "normal", firstResponseMinutes: null, resolutionMinutes: null },

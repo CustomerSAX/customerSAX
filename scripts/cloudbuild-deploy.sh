@@ -24,6 +24,15 @@ while IFS= read -r line; do
   [ -n "${line}" ] && SERVICES+=("${line}")
 done < /workspace/services_to_deploy.txt
 
+for SVC in "${SERVICES[@]}"; do
+  case "${SVC}" in
+    admin|ticketing|crm)
+      export PROJECT_ID REGION NAME_PREFIX
+      bash scripts/prepare-hub-runtime.sh
+      break ;;
+  esac
+done
+
 echo "============================================================"
 echo "🚀 Deploy to Cloud Run — customerSAX"
 echo "   Environment: ${ENVIRONMENT}"
@@ -67,11 +76,9 @@ deploy_service() {
       SECRETS="AI_GATEWAY_API_KEY=${NAME_PREFIX}-ai-gateway-api-key:latest,MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     commerce-commercetools)
       SECRETS="COMMERCETOOLS_CLIENT_ID=${NAME_PREFIX}-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=${NAME_PREFIX}-commercetools-client-secret:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
-    admin|crm)
-      # crm reads each project's CRM settings from the admin DB and decrypts
-      # their stored credentials, exactly like admin.
+    admin)
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
-    ticketing|subscriptions|auth)
+    ticketing|crm|subscriptions|auth)
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     *)
       SECRETS="" ;;
@@ -79,6 +86,10 @@ deploy_service() {
 
   # ── Per-service env vars ───────────────────────────────────────────────────
   SVC_ENV="NODE_ENV=production,SERVICE_NAME=${SVC},ENVIRONMENT=${ENVIRONMENT}"
+  case "${SVC}" in
+    admin|ticketing|crm)
+      SECRETS="${SECRETS},CONNECTION_HUB_PLATFORM_CONFIG=${NAME_PREFIX}-hub-platform-config:latest" ;;
+  esac
 
   case "${SVC}" in
     admin)
@@ -86,9 +97,7 @@ deploy_service() {
     ai-assist)
       SVC_ENV="${SVC_ENV},DEFAULT_LLM_PROVIDER=openai,AI_COMMERCE_PLATFORM=commercetools" ;;
     crm)
-      # The CRM is chosen per project in Superadmin; CRM_PROVIDER=none disables
-      # the single-account env fallback that exists only for local development.
-      SVC_ENV="${SVC_ENV},MONGO_ADMIN_DB=csa-admin,MONGO_PROJECTS_COLLECTION=csa_projects,CRM_PROVIDER=none" ;;
+      SVC_ENV="${SVC_ENV},MONGO_ADMIN_DB=csa-admin,MONGO_PROJECTS_COLLECTION=csa_projects" ;;
     commerce-commercetools)
       SVC_ENV="${SVC_ENV},COMMERCETOOLS_AUTH_URL=https://auth.us-central1.gcp.commercetools.com"
       SVC_ENV="${SVC_ENV},COMMERCETOOLS_API_URL=https://api.us-central1.gcp.commercetools.com" ;;

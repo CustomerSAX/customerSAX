@@ -59,13 +59,17 @@ export function ticketingSettingsView(settings?: ProjectTicketing) {
     clientId: settings?.clientId ?? "",
     freshdeskDomain: settings?.freshdeskDomain ?? "",
     freshdeskApiKeySet: !!settings?.freshdeskApiKeyEncrypted,
-    secretSet: !!settings?.secretEncrypted,
-    slaTargets: SLA_PRIORITIES.map((priority) => ({
-      priority,
-      firstResponseMinutes: settings?.sla?.targets[priority]?.firstResponseMinutes ?? null,
-      resolutionMinutes: settings?.sla?.targets[priority]?.resolutionMinutes ?? null
-    }))
+    secretSet: !!settings?.secretEncrypted
   };
+}
+
+/** Every priority's targets, null where none is set. */
+export function slaTargetsView(sla?: ProjectTicketingSla) {
+  return SLA_PRIORITIES.map((priority) => ({
+    priority,
+    firstResponseMinutes: sla?.targets[priority]?.firstResponseMinutes ?? null,
+    resolutionMinutes: sla?.targets[priority]?.resolutionMinutes ?? null
+  }));
 }
 
 const MAX_SLA_MINUTES = 365 * 24 * 60;
@@ -91,19 +95,33 @@ export function prepareSlaTargets(input: SlaTargetInput[]): SlaTargets {
   return targets;
 }
 
-/** Saves native SLA targets without touching the provider or its credentials. */
+/**
+ * Native-ticket SLA targets live at `ticketing.sla` on the project. They are
+ * a native capability, independent of the retired connector settings stored
+ * beside them, so only that path is ever written.
+ */
+export async function getProjectTicketingSla(clientId: string, id: string) {
+  return slaTargetsView((await project(clientId, id)).ticketing?.sla);
+}
+
+/** Saves native SLA targets; an empty set removes the policy. */
 export async function saveProjectTicketingSla(clientId: string, id: string, input: SlaTargetInput[]) {
   const existing = await project(clientId, id);
   const targets = prepareSlaTargets(input);
-  const current: ProjectTicketing = existing.ticketing ?? { provider: "internal" };
-  const { sla: _previous, ...rest } = current;
-  const settings: ProjectTicketing = Object.keys(targets).length ? { ...rest, sla: { targets, updatedAt: new Date() } } : rest;
+  const sla: ProjectTicketingSla | undefined = Object.keys(targets).length ? { targets, updatedAt: new Date() } : undefined;
   const result = await (await getProjectsCollection()).updateOne(
     { _id: existing._id, clientId },
-    { $set: { ticketing: settings, updatedAt: new Date() } }
+    sla ? { $set: { "ticketing.sla": sla, updatedAt: new Date() } } : { $unset: { "ticketing.sla": "" }, $set: { updatedAt: new Date() } }
   );
   if (!result.matchedCount) throw new Error("Project no longer exists");
-  return ticketingSettingsView(settings);
+  return slaTargetsView(sla);
+}
+
+/** Targets new native tickets in this project copy at creation; undefined when none are set. */
+export async function getProjectSlaTargets(clientId: string, projectKey: string): Promise<SlaTargets | undefined> {
+  const doc = await (await getProjectsCollection()).findOne({ clientId, projectKey }, { projection: { "ticketing.sla": 1 } });
+  const targets = doc?.ticketing?.sla?.targets as SlaTargets | undefined;
+  return targets && Object.keys(targets).length ? targets : undefined;
 }
 async function project(clientId: string, id: string) {
   if (!ObjectId.isValid(id)) throw new Error("Project not found for this client");

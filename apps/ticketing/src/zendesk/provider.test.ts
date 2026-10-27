@@ -19,19 +19,18 @@ const ticket = {
   requester_id: 1
 };
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   vi.stubEnv("ZENDESK_SUBDOMAIN", "acme");
   vi.stubEnv("TICKETING_PROJECT_KEY", "test");
   vi.stubEnv("ZENDESK_FIELD_MAPPINGS", "{}");
 });
 afterEach(() => vi.unstubAllEnvs());
 
-it("uses the active session project with no env key and ahead of the local fallback", async () => {
+it("does not activate legacy Zendesk from environment defaults", async () => {
   vi.stubEnv("TICKETING_PROVIDER", "zendesk");
   const schema = buildSubgraphSchema([{ typeDefs, resolvers }]);
   for (const fallback of ["", "different-local-project"]) {
     vi.stubEnv("TICKETING_PROJECT_KEY", fallback);
-    vi.mocked(api).mockResolvedValueOnce({ results: [ticket], count: 1 }).mockResolvedValueOnce({ tickets: [] });
     const result = await graphql({
       schema,
       contextValue: { projectKey: "b2c-csa" },
@@ -39,7 +38,7 @@ it("uses the active session project with no env key and ahead of the local fallb
     });
     expect(result.errors).toBeUndefined();
     expect(result.data?.ticketPage).toMatchObject({
-      results: [{ projectKey: "b2c-csa" }]
+      results: []
     });
   }
 });
@@ -166,42 +165,88 @@ it("handles offsets spanning two search pages", async () => {
 it("saves editable custom fields with the timestamp shown to the agent", async () => {
   vi.mocked(api)
     .mockResolvedValueOnce({ ticket })
-    .mockResolvedValueOnce({ ticket_fields: [{ id: 9, title: "Environment", type: "tagger", active: true, agent_can_edit: true, custom_field_options: [{ name: "Production", value: "production" }] }] })
-    .mockResolvedValueOnce({ ticket: { ...ticket, custom_fields: [{ id: 9, value: "production" }] } })
+    .mockResolvedValueOnce({
+      ticket_fields: [
+        {
+          id: 9,
+          title: "Environment",
+          type: "tagger",
+          active: true,
+          agent_can_edit: true,
+          custom_field_options: [{ name: "Production", value: "production" }]
+        }
+      ]
+    })
+    .mockResolvedValueOnce({
+      ticket: { ...ticket, custom_fields: [{ id: 9, value: "production" }] }
+    })
     .mockResolvedValueOnce({ ticket_fields: [] });
-  await zendeskProvider("test").updateFields!("42", ticket.updated_at, [{ id: "9", value: '"production"' }]);
+  await zendeskProvider("test").updateFields!("42", ticket.updated_at, [
+    { id: "9", value: '"production"' }
+  ]);
   expect(api).toHaveBeenCalledWith("tickets/42.json", "PUT", {
-    ticket: { custom_fields: [{ id: 9, value: "production" }], safe_update: true, updated_stamp: ticket.updated_at }
+    ticket: {
+      custom_fields: [{ id: 9, value: "production" }],
+      safe_update: true,
+      updated_stamp: ticket.updated_at
+    }
   });
 });
 
 it("rejects outdated field edits before writing anything", async () => {
   vi.mocked(api).mockResolvedValueOnce({ ticket });
-  await expect(zendeskProvider("test").updateFields!("42", "old timestamp", [{ id: "type", value: '"task"' }])).rejects.toThrow("ticket changed");
+  await expect(
+    zendeskProvider("test").updateFields!("42", "old timestamp", [
+      { id: "type", value: '"task"' }
+    ])
+  ).rejects.toThrow("ticket changed");
   expect(api).toHaveBeenCalledTimes(1);
 });
 
 it("resolves approved AI reviews with private notes and a conditional update", async () => {
-  vi.mocked(api).mockResolvedValueOnce({ ticket }).mockResolvedValueOnce({ ticket: { ...ticket, status: "solved" } });
-  const resolved = await zendeskProvider("test").closeIfUnchanged!("42", ticket.updated_at, "Confirmed resolution");
+  vi.mocked(api)
+    .mockResolvedValueOnce({ ticket })
+    .mockResolvedValueOnce({ ticket: { ...ticket, status: "solved" } });
+  const resolved = await zendeskProvider("test").closeIfUnchanged!(
+    "42",
+    ticket.updated_at,
+    "Confirmed resolution"
+  );
   expect(resolved?.status).toBe("Resolved");
   expect(api).toHaveBeenLastCalledWith("tickets/42.json", "PUT", {
-    ticket: { status: "solved", comment: { body: "Confirmed resolution", public: false }, safe_update: true, updated_stamp: ticket.updated_at }
+    ticket: {
+      status: "solved",
+      comment: { body: "Confirmed resolution", public: false },
+      safe_update: true,
+      updated_stamp: ticket.updated_at
+    }
   });
 });
 
 it("does not resolve a ticket changed since the AI review", async () => {
   vi.mocked(api).mockResolvedValueOnce({ ticket });
-  expect(await zendeskProvider("test").closeIfUnchanged!("42", "old timestamp", "Resolution")).toBeNull();
+  expect(
+    await zendeskProvider("test").closeIfUnchanged!("42", "old timestamp", "Resolution")
+  ).toBeNull();
   expect(api).toHaveBeenCalledTimes(1);
 });
 
 it("maps completion here to solved in Zendesk and saves private resolution notes", async () => {
-  vi.mocked(api).mockResolvedValueOnce({ ticket }).mockResolvedValueOnce({ ticket: { ...ticket, status: "solved" } });
-  const completed = await zendeskProvider("test").updateTicket("42", { status: "Closed", solution: " Updated the customer phone number. " });
+  vi.mocked(api)
+    .mockResolvedValueOnce({ ticket })
+    .mockResolvedValueOnce({ ticket: { ...ticket, status: "solved" } });
+  const completed = await zendeskProvider("test").updateTicket("42", {
+    status: "Closed",
+    solution: " Updated the customer phone number. "
+  });
   expect(completed?.status).toBe("Resolved");
   expect(api).toHaveBeenLastCalledWith("tickets/42.json", "PUT", {
-    ticket: { status: "solved", comment: { body: "Updated the customer phone number.", public: false }, safe_update: true, updated_stamp: ticket.updated_at }
+    ticket: {
+      status: "solved",
+      comment: { body: "Updated the customer phone number.", public: false },
+      safe_update: true,
+      updated_stamp: ticket.updated_at
+    }
   });
 });
 

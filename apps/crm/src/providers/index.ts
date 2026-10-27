@@ -1,45 +1,16 @@
-import { isZohoRegion, normalizeSalesforceInstanceUrl, projectHubspotCredentials, resolveProjectCrm } from "@csa/mongodb";
-import { hubspotProvider } from "../hubspot/provider.js";
-import { projectSalesforceClient, salesforceClient } from "../salesforce/project-client.js";
+import { assertProjectScope } from "@csa/mongodb";
+import { hubRuntime, HubRuntimeError } from "@csa/connection-hub";
+import { createHubspotProvider } from "../hubspot/provider.js";
 import { salesforceProvider } from "../salesforce/provider.js";
-import { projectZohoClient, zohoClient } from "../zoho/project-client.js";
 import { zohoProvider } from "../zoho/provider.js";
 import type { CrmProvider } from "./types.js";
 
 export type CrmProviderName = "none" | "salesforce" | "hubspot" | "zoho";
-
 export function crmProviderName(): CrmProviderName {
-  const value = process.env.CRM_PROVIDER?.trim() || "none";
-  if (value !== "none" && value !== "salesforce" && value !== "hubspot" && value !== "zoho")
-    throw new Error("CRM_PROVIDER must be none, salesforce, hubspot or zoho");
-  return value;
+  return "none";
 }
-
-/** Local development only: requests without client context use env credentials. */
 export function crmProvider(): CrmProvider | null {
-  const name = crmProviderName();
-  if (name === "hubspot") {
-    const accessToken = process.env.HUBSPOT_ACCESS_TOKEN?.trim();
-    if (!accessToken) throw new Error("Set HUBSPOT_ACCESS_TOKEN");
-    return hubspotProvider({ accessToken, portalId: process.env.HUBSPOT_PORTAL_ID?.trim() || null });
-  }
-  if (name === "zoho") {
-    const region = process.env.ZOHO_REGION?.trim() ?? "";
-    const clientId = process.env.ZOHO_CLIENT_ID?.trim();
-    const clientSecret = process.env.ZOHO_CLIENT_SECRET?.trim();
-    const refreshToken = process.env.ZOHO_REFRESH_TOKEN?.trim();
-    if (!isZohoRegion(region) || !clientId || !clientSecret || !refreshToken)
-      throw new Error("Set ZOHO_REGION, ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET and ZOHO_REFRESH_TOKEN");
-    return zohoProvider(
-      zohoClient(JSON.stringify(["env", region, clientId]), { region, clientId, clientSecret, refreshToken, orgDomain: process.env.ZOHO_ORG_DOMAIN?.trim() || null })
-    );
-  }
-  if (name !== "salesforce") return null;
-  const clientId = process.env.SALESFORCE_CLIENT_ID?.trim();
-  const clientSecret = process.env.SALESFORCE_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) throw new Error("Set SALESFORCE_CLIENT_ID and SALESFORCE_CLIENT_SECRET");
-  const instanceUrl = normalizeSalesforceInstanceUrl(process.env.SALESFORCE_INSTANCE_URL ?? "");
-  return salesforceProvider(salesforceClient(JSON.stringify(["env", instanceUrl, clientId]), { instanceUrl, clientId, clientSecret }));
+  return null;
 }
 
 export async function resolveCrm(
@@ -47,15 +18,65 @@ export async function resolveCrm(
   clientId?: string
 ): Promise<{ name: CrmProviderName; provider: CrmProvider | null }> {
   if (!clientId) {
-    if (process.env.NODE_ENV === "production") throw new Error("An authenticated client is required for CRM");
-    return { name: crmProviderName(), provider: crmProvider() };
+    if (process.env.NODE_ENV === "production")
+      throw new Error("An authenticated client is required for CRM");
+    return { name: "none", provider: null };
   }
-  const settings = await resolveProjectCrm(clientId, projectKey);
-  if (settings.provider === "none") return { name: "none", provider: null };
-  if (settings.provider === "hubspot")
-    return { name: "hubspot", provider: hubspotProvider(projectHubspotCredentials(settings)) };
-  if (settings.provider === "zoho")
-    return { name: "zoho", provider: zohoProvider(projectZohoClient(clientId, projectKey, settings)) };
-  if (settings.provider !== "salesforce") throw new Error("Unsupported saved CRM provider");
-  return { name: "salesforce", provider: salesforceProvider(projectSalesforceClient(clientId, projectKey, settings)) };
+  await assertProjectScope({ clientId, projectKey });
+  const scope = await hubRuntime.project(clientId, projectKey);
+  if (!scope) return { name: "none", provider: null };
+  const enabled = scope.bindings.filter(
+    (item) =>
+      item.enabled && ["salesforce", "hubspot", "zoho-crm"].includes(item.connectorId)
+  );
+  const providers = new Set(enabled.map((item) => item.connectorId));
+  if (!providers.size) return { name: "none", provider: null };
+  if (providers.size > 1)
+    throw new HubRuntimeError(
+      "Multiple CRM connectors are enabled. Select one CRM in Connection Hub.",
+      409
+    );
+  const connectorId = enabled[0].connectorId;
+  const binding = enabled.find(
+    (item) => item.canonicalAction === `${connectorId}-custom-api-call`
+  );
+  if (!binding)
+    throw new HubRuntimeError(
+      "Enable Custom API Call on the selected Connection Hub CRM to use the CRM workspace.",
+      409
+    );
+  if (enabled.some((item) => item.connectionId !== binding.connectionId))
+    throw new HubRuntimeError(
+      "CRM actions use different accounts. Reconnect the CRM in Connection Hub.",
+      409
+    );
+  const api = <T>(path: string, method = "GET", body?: unknown) =>
+    hubRuntime.api<T>(scope, binding, path, method, body);
+  if (connectorId === "hubspot")
+    return {
+      name: "hubspot",
+      provider: createHubspotProvider(<T>(path: string, method = "GET", body?: unknown) =>
+        api<T>(`/${path}`, method, body)
+      )
+    };
+  if (connectorId === "zoho-crm")
+    return {
+      name: "zoho",
+      provider: zohoProvider({
+        api: <T>(path: string, method = "GET", body?: unknown) =>
+          api<T>(`/crm/v8/${path}`, method, body),
+        recordBase: null
+      })
+    };
+  const origin = new URL(binding.allowedIndex).origin;
+  if (!origin.startsWith("https://") || !origin.endsWith(".salesforce.com"))
+    throw new HubRuntimeError("Invalid Salesforce account in Connection Hub", 502);
+  return {
+    name: "salesforce",
+    provider: salesforceProvider({
+      instanceUrl: async () => origin,
+      api: <T>(path: string, method = "GET", body?: unknown) =>
+        api<T>(`/services/data/v56.0/${path}`, method, body)
+    })
+  };
 }

@@ -1,11 +1,12 @@
+import { projectHubSettings } from "./products/hub-status.js";
 import { gql } from "graphql-tag";
-import { projectConnectionHubProducts, connectionHubProductRecord } from "./products/connection-hub.js";
+import {
+  projectConnectionHubProducts,
+  connectionHubProductRecord
+} from "./products/connection-hub.js";
 import { projectProductsConfiguration } from "./products/configuration.js";
 
 import {
-  getProjectProducts, saveProjectProducts, testProjectProducts,
-  getProjectTicketing, saveProjectTicketing, saveProjectTicketingSla, testProjectTicketing,
-  getProjectCrm, saveProjectCrm, testProjectCrm,
   clientsRepo,
   parseClientSsoConfigInput,
   projectsRepo,
@@ -15,8 +16,10 @@ import {
   smtpRepo,
   testSmtpProfile,
   usersRepo,
+  getProjectTicketingSla,
+  saveProjectTicketingSla
 } from "@csa/mongodb";
-import type { ClientSsoConfigStored, CrmInput, CsaUser, TicketingInput, ProductsInput, SlaTargetInput } from "@csa/mongodb";
+import type { ClientSsoConfigStored, CsaUser, SlaTargetInput } from "@csa/mongodb";
 import { del as cacheDel, ctProjectConfig } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
@@ -41,7 +44,7 @@ function clientUserView(user: CsaUser, clientId: string) {
     id: _id.toHexString(),
     createdAt: iso(user.createdAt),
     updatedAt: iso(user.updatedAt),
-    clientProjects: usersRepo.clientProjectsForUser(user, clientId),
+    clientProjects: usersRepo.clientProjectsForUser(user, clientId)
   };
 }
 
@@ -275,7 +278,9 @@ export const typeDefs = gql`
     clientId: String
   }
 
-  """A user as seen from one client's Users tab — only this client's project memberships."""
+  """
+  A user as seen from one client's Users tab — only this client's project memberships.
+  """
   type AdminClientUser {
     id: ID!
     email: String!
@@ -316,34 +321,149 @@ export const typeDefs = gql`
     projects: [AdminUserProjectInput!]
   }
 
-  type AdminPermission { module: String!, view: Boolean!, create: Boolean!, update: Boolean!, delete: Boolean! }
-  input AdminPermissionInput { module: String!, view: Boolean!, create: Boolean!, update: Boolean!, delete: Boolean! }
-  type AdminRole { id: ID!, clientId: ID!, projectKey: String!, key: String!, label: String!, description: String!, system: Boolean!, permissions: [AdminPermission!]! }
-  input AdminRoleInput { key: String!, label: String!, description: String!, permissions: [AdminPermissionInput!]! }
-  input AdminRoleUpdateInput { key: String, label: String, description: String, permissions: [AdminPermissionInput!] }
+  type AdminPermission {
+    module: String!
+    view: Boolean!
+    create: Boolean!
+    update: Boolean!
+    delete: Boolean!
+  }
+  input AdminPermissionInput {
+    module: String!
+    view: Boolean!
+    create: Boolean!
+    update: Boolean!
+    delete: Boolean!
+  }
+  type AdminRole {
+    id: ID!
+    clientId: ID!
+    projectKey: String!
+    key: String!
+    label: String!
+    description: String!
+    system: Boolean!
+    permissions: [AdminPermission!]!
+  }
+  input AdminRoleInput {
+    key: String!
+    label: String!
+    description: String!
+    permissions: [AdminPermissionInput!]!
+  }
+  input AdminRoleUpdateInput {
+    key: String
+    label: String
+    description: String
+    permissions: [AdminPermissionInput!]
+  }
 
-  type AdminAiSettings { clientId: ID!, enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKeySet: Boolean!, updatedBy: String, updatedAt: String }
-  input AdminAiSettingsInput { enabled: Boolean!, provider: String!, displayName: String!, model: String!, baseUrl: String, apiKey: String }
+  type AdminAiSettings {
+    clientId: ID!
+    enabled: Boolean!
+    provider: String!
+    displayName: String!
+    model: String!
+    baseUrl: String
+    apiKeySet: Boolean!
+    updatedBy: String
+    updatedAt: String
+  }
+  input AdminAiSettingsInput {
+    enabled: Boolean!
+    provider: String!
+    displayName: String!
+    model: String!
+    baseUrl: String
+    apiKey: String
+  }
 
   "Native-ticket SLA target in minutes of 24/7 time; null = no target."
   type AdminTicketingSlaTarget { priority: String!, firstResponseMinutes: Int, resolutionMinutes: Int }
   input AdminTicketingSlaTargetInput { priority: String!, firstResponseMinutes: Int, resolutionMinutes: Int }
-  type AdminProjectTicketing { provider: String!, subdomain: String!, clientId: String!, secretSet: Boolean!, freshdeskDomain: String!, freshdeskApiKeySet: Boolean!, slaTargets: [AdminTicketingSlaTarget!]! }
+  type AdminProjectTicketing {
+    provider: String!
+    subdomain: String!
+    clientId: String!
+    secretSet: Boolean!
+    freshdeskDomain: String!
+    freshdeskApiKeySet: Boolean!
+  }
   scalar ConnectionHubProductRecord
-  type ConnectionHubProductPage { selected: Boolean!, results: [ConnectionHubProductRecord!]!, total: Int }
-  type ProjectProductsConfiguration { provider: String!, appId: String, indexName: String, searchApiKey: String }
-  type AdminProjectProducts { configured: Boolean!, provider: String!, appId: String!, indexName: String!, searchApiKeySet: Boolean! }
-  input AdminProjectProductsInput { provider: String!, appId: String, indexName: String, searchApiKey: String }
-  input AdminProjectTicketingInput { provider: String!, subdomain: String, clientId: String, clientSecret: String, freshdeskDomain: String, freshdeskApiKey: String }
-  type AdminTicketingTest { success: Boolean!, message: String! }
-  type AdminProjectCrm { provider: String!, salesforceInstanceUrl: String!, salesforceClientId: String!, salesforceSecretSet: Boolean!, hubspotPortalId: String!, hubspotTokenSet: Boolean!, zohoRegion: String!, zohoClientId: String!, zohoSecretSet: Boolean!, zohoConnected: Boolean!, zohoOrgId: String! }
-  input AdminProjectCrmInput { provider: String!, salesforceInstanceUrl: String, salesforceClientId: String, salesforceClientSecret: String, hubspotAccessToken: String, zohoRegion: String, zohoClientId: String, zohoClientSecret: String, zohoGrantCode: String }
-  type AdminCrmTest { success: Boolean!, message: String! }
+  type ConnectionHubProductPage {
+    selected: Boolean!
+    results: [ConnectionHubProductRecord!]!
+    total: Int
+  }
+  type ProjectProductsConfiguration {
+    provider: String!
+    appId: String
+    indexName: String
+    searchApiKey: String
+  }
+  type AdminProjectProducts {
+    configured: Boolean!
+    provider: String!
+    appId: String!
+    indexName: String!
+    searchApiKeySet: Boolean!
+  }
+  input AdminProjectProductsInput {
+    provider: String!
+    appId: String
+    indexName: String
+    searchApiKey: String
+  }
+  input AdminProjectTicketingInput {
+    provider: String!
+    subdomain: String
+    clientId: String
+    clientSecret: String
+    freshdeskDomain: String
+    freshdeskApiKey: String
+  }
+  type AdminTicketingTest {
+    success: Boolean!
+    message: String!
+  }
+  type AdminProjectCrm {
+    provider: String!
+    salesforceInstanceUrl: String!
+    salesforceClientId: String!
+    salesforceSecretSet: Boolean!
+    hubspotPortalId: String!
+    hubspotTokenSet: Boolean!
+    zohoRegion: String!
+    zohoClientId: String!
+    zohoSecretSet: Boolean!
+    zohoConnected: Boolean!
+    zohoOrgId: String!
+  }
+  input AdminProjectCrmInput {
+    provider: String!
+    salesforceInstanceUrl: String
+    salesforceClientId: String
+    salesforceClientSecret: String
+    hubspotAccessToken: String
+    zohoRegion: String
+    zohoClientId: String
+    zohoClientSecret: String
+    zohoGrantCode: String
+  }
+  type AdminCrmTest {
+    success: Boolean!
+    message: String!
+  }
   extend type Query {
-    projectConnectionHubProducts(query: String = "", limit: Int = 20): ConnectionHubProductPage!
+    projectConnectionHubProducts(
+      query: String = ""
+      limit: Int = 20
+    ): ConnectionHubProductPage!
     projectProductsConfiguration: ProjectProductsConfiguration
     adminProjectProducts(clientId: ID!, id: ID!): AdminProjectProducts!
     adminProjectTicketing(clientId: ID!, id: ID!): AdminProjectTicketing!
+    "Native-ticket SLA targets for every priority."
+    adminProjectTicketingSla(clientId: ID!, id: ID!): [AdminTicketingSlaTarget!]!
     adminProjectCrm(clientId: ID!, id: ID!): AdminProjectCrm!
 
     adminClients: [AdminClient!]!
@@ -357,41 +477,122 @@ export const typeDefs = gql`
   }
 
   extend type Mutation {
-    adminSaveProjectProducts(clientId: ID!, id: ID!, input: AdminProjectProductsInput!): AdminProjectProducts!
-    adminTestProjectProducts(clientId: ID!, id: ID!, input: AdminProjectProductsInput!): AdminTicketingTest!
-    adminSaveProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminProjectTicketing!
-    adminSaveProjectTicketingSla(clientId: ID!, id: ID!, targets: [AdminTicketingSlaTargetInput!]!): AdminProjectTicketing!
-    adminTestProjectTicketing(clientId: ID!, id: ID!, input: AdminProjectTicketingInput!): AdminTicketingTest!
-    adminSaveProjectCrm(clientId: ID!, id: ID!, input: AdminProjectCrmInput!): AdminProjectCrm!
-    adminTestProjectCrm(clientId: ID!, id: ID!, input: AdminProjectCrmInput!): AdminCrmTest!
+    adminSaveProjectProducts(
+      clientId: ID!
+      id: ID!
+      input: AdminProjectProductsInput!
+    ): AdminProjectProducts!
+    adminTestProjectProducts(
+      clientId: ID!
+      id: ID!
+      input: AdminProjectProductsInput!
+    ): AdminTicketingTest!
+    adminSaveProjectTicketing(
+      clientId: ID!
+      id: ID!
+      input: AdminProjectTicketingInput!
+    ): AdminProjectTicketing!
+    adminSaveProjectTicketingSla(
+      clientId: ID!
+      id: ID!
+      targets: [AdminTicketingSlaTargetInput!]!
+    ): [AdminTicketingSlaTarget!]!
+    adminTestProjectTicketing(
+      clientId: ID!
+      id: ID!
+      input: AdminProjectTicketingInput!
+    ): AdminTicketingTest!
+    adminSaveProjectCrm(
+      clientId: ID!
+      id: ID!
+      input: AdminProjectCrmInput!
+    ): AdminProjectCrm!
+    adminTestProjectCrm(
+      clientId: ID!
+      id: ID!
+      input: AdminProjectCrmInput!
+    ): AdminCrmTest!
 
-    adminCreateClient(name: String!, contactEmail: String!, slug: String, uiTheme: String): AdminClient!
-    adminUpdateClient(id: ID!, name: String, contactEmail: String, uiTheme: String, ssoConfig: AdminSsoConfigInput): AdminClient!
+    adminCreateClient(
+      name: String!
+      contactEmail: String!
+      slug: String
+      uiTheme: String
+    ): AdminClient!
+    adminUpdateClient(
+      id: ID!
+      name: String
+      contactEmail: String
+      uiTheme: String
+      ssoConfig: AdminSsoConfigInput
+    ): AdminClient!
     adminSetClientStatus(id: ID!, status: String!): AdminClient!
     adminDeleteClient(id: ID!): Boolean!
 
-    adminCreateProject(clientId: ID!, input: AdminProjectInput!, createdBy: String!): AdminProject!
+    adminCreateProject(
+      clientId: ID!
+      input: AdminProjectInput!
+      createdBy: String!
+    ): AdminProject!
     adminUpdateProject(id: ID!, input: AdminProjectUpdateInput!): AdminProject!
     adminDeleteProject(id: ID!): Boolean!
     adminTestProjectConnection(id: ID!): AdminConnectionTestResult!
-    adminTestProjectCredentials(input: AdminTestCredentialsInput!): AdminConnectionTestResult!
+    adminTestProjectCredentials(
+      input: AdminTestCredentialsInput!
+    ): AdminConnectionTestResult!
 
-    adminCreateSmtpProfile(clientId: ID!, input: AdminSmtpProfileInput!): AdminSmtpProfile!
-    adminUpdateSmtpProfile(id: ID!, clientId: ID!, input: AdminSmtpProfileUpdateInput!): AdminSmtpProfile!
+    adminCreateSmtpProfile(
+      clientId: ID!
+      input: AdminSmtpProfileInput!
+    ): AdminSmtpProfile!
+    adminUpdateSmtpProfile(
+      id: ID!
+      clientId: ID!
+      input: AdminSmtpProfileUpdateInput!
+    ): AdminSmtpProfile!
     adminDeleteSmtpProfile(id: ID!, clientId: ID!): Boolean!
     adminTestSmtpProfile(id: ID!, clientId: ID!, to: String): AdminEmailTestResult!
 
-    adminCreateClientUser(clientId: ID!, input: AdminCreateUserInput!, grantedBy: String!): AdminClientUser!
-    adminAssignClientUser(clientId: ID!, input: AdminAssignUserInput!, grantedBy: String!): AdminClientUser!
-    adminUpdateClientUser(clientId: ID!, input: AdminUpdateClientUserInput!, grantedBy: String!): AdminClientUser!
-    adminRemoveUserFromProject(clientId: ID!, email: String!, projectKey: String!): Boolean!
+    adminCreateClientUser(
+      clientId: ID!
+      input: AdminCreateUserInput!
+      grantedBy: String!
+    ): AdminClientUser!
+    adminAssignClientUser(
+      clientId: ID!
+      input: AdminAssignUserInput!
+      grantedBy: String!
+    ): AdminClientUser!
+    adminUpdateClientUser(
+      clientId: ID!
+      input: AdminUpdateClientUserInput!
+      grantedBy: String!
+    ): AdminClientUser!
+    adminRemoveUserFromProject(
+      clientId: ID!
+      email: String!
+      projectKey: String!
+    ): Boolean!
     adminRemoveUserFromClient(clientId: ID!, email: String!): Boolean!
     adminUpdateClientContact(clientId: ID!, contactEmail: String!): AdminClient!
-    adminCreateRole(clientId: ID!, projectKey: String!, input: AdminRoleInput!): AdminRole!
-    adminUpdateRole(id: ID!, clientId: ID!, projectKey: String!, input: AdminRoleUpdateInput!): AdminRole
+    adminCreateRole(
+      clientId: ID!
+      projectKey: String!
+      input: AdminRoleInput!
+    ): AdminRole!
+    adminUpdateRole(
+      id: ID!
+      clientId: ID!
+      projectKey: String!
+      input: AdminRoleUpdateInput!
+    ): AdminRole
     adminDeleteRole(id: ID!, clientId: ID!, projectKey: String!): Boolean!
     adminUpdateAiSettings(clientId: ID!, input: AdminAiSettingsInput!): AdminAiSettings!
-    adminSetProjectSmtp(clientId: ID!, projectKey: String!, smtpProfileId: String): Boolean!
+    adminSetProjectSmtp(
+      clientId: ID!
+      projectKey: String!
+      smtpProfileId: String
+    ): Boolean!
   }
 `;
 
@@ -404,9 +605,14 @@ export const resolvers = {
   Query: {
     projectProductsConfiguration,
     projectConnectionHubProducts,
-    adminProjectProducts: (_p: unknown, args: { clientId: string; id: string }) => getProjectProducts(args.clientId, args.id),
-    adminProjectTicketing: (_p: unknown, args: { clientId: string; id: string }) => getProjectTicketing(args.clientId, args.id),
-    adminProjectCrm: (_p: unknown, args: { clientId: string; id: string }) => getProjectCrm(args.clientId, args.id),
+    adminProjectProducts: async (_p: unknown, args: { clientId: string; id: string }) =>
+      (await projectHubSettings(args.clientId, args.id)).products,
+    adminProjectTicketingSla: (_p: unknown, args: { clientId: string; id: string }) =>
+      getProjectTicketingSla(args.clientId, args.id),
+    adminProjectTicketing: async (_p: unknown, args: { clientId: string; id: string }) =>
+      (await projectHubSettings(args.clientId, args.id)).ticketing,
+    adminProjectCrm: async (_p: unknown, args: { clientId: string; id: string }) =>
+      (await projectHubSettings(args.clientId, args.id)).crm,
     adminClients: async () => {
       const clients = await clientsRepo.listClients();
       return Promise.all(
@@ -414,7 +620,7 @@ export const resolvers = {
           const id = c._id.toHexString();
           const [projectCount, userCount] = await Promise.all([
             projectsRepo.countProjectsByClient(id),
-            usersRepo.countUsersByClient(id),
+            usersRepo.countUsersByClient(id)
           ]);
           return { ...clientViewIso(c), projectCount, userCount };
         })
@@ -427,7 +633,7 @@ export const resolvers = {
       const id = c._id.toHexString();
       const [projectCount, userCount] = await Promise.all([
         projectsRepo.countProjectsByClient(id),
-        usersRepo.countUsersByClient(id),
+        usersRepo.countUsersByClient(id)
       ]);
       return { ...clientViewIso(c), projectCount, userCount };
     },
@@ -454,20 +660,51 @@ export const resolvers = {
       const docs = await smtpRepo.listSmtpProfilesByClient(args.clientId);
       return docs.map(smtpViewIso);
     },
-    adminRoles: (_p: unknown, args: { clientId: string; projectKey: string }) => rolesRepo.listRoles(args.clientId, args.projectKey),
-    adminAiSettings: (_p: unknown, args: { clientId: string }) => aiSettingsRepo.getAiSettings(args.clientId),
+    adminRoles: (_p: unknown, args: { clientId: string; projectKey: string }) =>
+      rolesRepo.listRoles(args.clientId, args.projectKey),
+    adminAiSettings: (_p: unknown, args: { clientId: string }) =>
+      aiSettingsRepo.getAiSettings(args.clientId)
   },
 
   Mutation: {
-    adminSaveProjectProducts: (_p: unknown, args: { clientId: string; id: string; input: ProductsInput }) => saveProjectProducts(args.clientId, args.id, args.input),
-    adminTestProjectProducts: (_p: unknown, args: { clientId: string; id: string; input: ProductsInput }) => testProjectProducts(args.clientId, args.id, args.input),
-    adminSaveProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => saveProjectTicketing(args.clientId, args.id, args.input),
-    adminSaveProjectTicketingSla: (_p: unknown, args: { clientId: string; id: string; targets: SlaTargetInput[] }) => saveProjectTicketingSla(args.clientId, args.id, args.targets),
-    adminTestProjectTicketing: (_p: unknown, args: { clientId: string; id: string; input: TicketingInput }) => testProjectTicketing(args.clientId, args.id, args.input),
-    adminSaveProjectCrm: (_p: unknown, args: { clientId: string; id: string; input: CrmInput }) => saveProjectCrm(args.clientId, args.id, args.input),
-    adminTestProjectCrm: (_p: unknown, args: { clientId: string; id: string; input: CrmInput }) => testProjectCrm(args.clientId, args.id, args.input),
+    adminSaveProjectProducts: () => {
+      throw new Error(
+        "Legacy connector configuration has been retired. Manage this project’s external connectors in Connection Hub."
+      );
+    },
+    adminTestProjectProducts: () => {
+      throw new Error(
+        "Legacy connector configuration has been retired. Manage this project’s external connectors in Connection Hub."
+      );
+    },
+    adminSaveProjectTicketing: () => {
+      throw new Error(
+        "Legacy connector configuration has been retired. Manage this project’s external connectors in Connection Hub."
+      );
+    },
+    // Native SLA targets are a built-in capability, not a retired external connector.
+    adminSaveProjectTicketingSla: (_p: unknown, args: { clientId: string; id: string; targets: SlaTargetInput[] }) =>
+      saveProjectTicketingSla(args.clientId, args.id, args.targets),
+    adminTestProjectTicketing: () => {
+      throw new Error(
+        "Legacy connector configuration has been retired. Manage this project’s external connectors in Connection Hub."
+      );
+    },
+    adminSaveProjectCrm: () => {
+      throw new Error(
+        "Legacy connector configuration has been retired. Manage this project’s external connectors in Connection Hub."
+      );
+    },
+    adminTestProjectCrm: () => {
+      throw new Error(
+        "Legacy connector configuration has been retired. Manage this project’s external connectors in Connection Hub."
+      );
+    },
     // ── Clients ──────────────────────────────────────────────────────────
-    adminCreateClient: async (_p: unknown, args: { name: string; contactEmail: string; slug?: string; uiTheme?: string }) => {
+    adminCreateClient: async (
+      _p: unknown,
+      args: { name: string; contactEmail: string; slug?: string; uiTheme?: string }
+    ) => {
       const slug =
         args.slug?.trim().toLowerCase() ||
         args.name
@@ -484,16 +721,27 @@ export const resolvers = {
         contactEmail: args.contactEmail,
         slug,
         uiTheme: args.uiTheme,
-        createdBy: "superadmin",
+        createdBy: "superadmin"
       });
       return { ...clientViewIso(client), projectCount: 0, userCount: 0 };
     },
 
     adminUpdateClient: async (
       _p: unknown,
-      args: { id: string; name?: string; contactEmail?: string; uiTheme?: string; ssoConfig?: unknown }
+      args: {
+        id: string;
+        name?: string;
+        contactEmail?: string;
+        uiTheme?: string;
+        ssoConfig?: unknown;
+      }
     ) => {
-      const patch: { name?: string; contactEmail?: string; uiTheme?: string; ssoConfig?: ClientSsoConfigStored } = {};
+      const patch: {
+        name?: string;
+        contactEmail?: string;
+        uiTheme?: string;
+        ssoConfig?: ClientSsoConfigStored;
+      } = {};
       if (args.name !== undefined) patch.name = args.name;
       if (args.contactEmail !== undefined) patch.contactEmail = args.contactEmail;
       if (args.uiTheme !== undefined) patch.uiTheme = args.uiTheme;
@@ -512,7 +760,7 @@ export const resolvers = {
       const id = client._id.toHexString();
       const [projectCount, userCount] = await Promise.all([
         projectsRepo.countProjectsByClient(id),
-        usersRepo.countUsersByClient(id),
+        usersRepo.countUsersByClient(id)
       ]);
       return { ...clientViewIso(client), projectCount, userCount };
     },
@@ -527,7 +775,7 @@ export const resolvers = {
       const id = client._id.toHexString();
       const [projectCount, userCount] = await Promise.all([
         projectsRepo.countProjectsByClient(id),
-        usersRepo.countUsersByClient(id),
+        usersRepo.countUsersByClient(id)
       ]);
       return { ...clientViewIso(client), projectCount, userCount };
     },
@@ -568,13 +816,21 @@ export const resolvers = {
       }
     ) => {
       const client = await requireClient(args.clientId);
-      if (client.status === "blocked") throw new Error("Cannot add projects to a blocked client");
+      if (client.status === "blocked")
+        throw new Error("Cannot add projects to a blocked client");
 
       const modeCheck = normalizeExclusiveProjectShellFlags({
-        standaloneB2cEnabled: args.input.standaloneB2cEnabled !== undefined ? args.input.standaloneB2cEnabled : true,
-        standaloneB2bEnabled: args.input.standaloneB2bEnabled !== undefined ? args.input.standaloneB2bEnabled : false,
+        standaloneB2cEnabled:
+          args.input.standaloneB2cEnabled !== undefined
+            ? args.input.standaloneB2cEnabled
+            : true,
+        standaloneB2bEnabled:
+          args.input.standaloneB2bEnabled !== undefined
+            ? args.input.standaloneB2bEnabled
+            : false
       });
-      if (!modeCheck) throw new Error("Select either the B2C shell or the B2B shell for this project.");
+      if (!modeCheck)
+        throw new Error("Select either the B2C shell or the B2B shell for this project.");
 
       const project = await projectsRepo.createProject({
         clientId: args.clientId,
@@ -594,7 +850,7 @@ export const resolvers = {
         bigcommerceAccessToken: args.input.bigcommerceAccessToken,
         createdBy: args.createdBy,
         standaloneB2cEnabled: modeCheck.standaloneB2cEnabled,
-        standaloneB2bEnabled: modeCheck.standaloneB2bEnabled,
+        standaloneB2bEnabled: modeCheck.standaloneB2bEnabled
       });
 
       // If the project was created by an admin of this client (or if there are org admins with 0 projects),
@@ -602,15 +858,18 @@ export const resolvers = {
       try {
         const orgUsers = await usersRepo.listUsersByClient(args.clientId);
         for (const user of orgUsers) {
-          const isCreator = args.createdBy && user.email.toLowerCase() === args.createdBy.toLowerCase();
+          const isCreator =
+            args.createdBy && user.email.toLowerCase() === args.createdBy.toLowerCase();
           const hasNoProjects = !user.projects || user.projects.length === 0;
           if (isCreator || (user.role === "admin" && hasNoProjects)) {
-            await usersRepo.assignUserToClient({
-              email: user.email,
-              clientId: args.clientId,
-              projects: [{ projectKey: args.input.projectKey, role: "admin" }],
-              grantedBy: args.createdBy || "system",
-            }).catch(() => {});
+            await usersRepo
+              .assignUserToClient({
+                email: user.email,
+                clientId: args.clientId,
+                projects: [{ projectKey: args.input.projectKey, role: "admin" }],
+                grantedBy: args.createdBy || "system"
+              })
+              .catch(() => {});
           }
         }
       } catch (err) {
@@ -649,21 +908,35 @@ export const resolvers = {
 
       const input = args.input;
 
-      const shellTouched = input.standaloneB2cEnabled !== undefined || input.standaloneB2bEnabled !== undefined;
-      let exclusiveShellFlags: { standaloneB2cEnabled: boolean; standaloneB2bEnabled: boolean } | null = null;
+      const shellTouched =
+        input.standaloneB2cEnabled !== undefined ||
+        input.standaloneB2bEnabled !== undefined;
+      let exclusiveShellFlags: {
+        standaloneB2cEnabled: boolean;
+        standaloneB2bEnabled: boolean;
+      } | null = null;
 
       if (shellTouched) {
         exclusiveShellFlags = normalizeExclusiveProjectShellFlags({
-          standaloneB2cEnabled: input.standaloneB2cEnabled !== undefined ? input.standaloneB2cEnabled : existing.standaloneB2cEnabled,
-          standaloneB2bEnabled: input.standaloneB2bEnabled !== undefined ? input.standaloneB2bEnabled : existing.standaloneB2bEnabled,
+          standaloneB2cEnabled:
+            input.standaloneB2cEnabled !== undefined
+              ? input.standaloneB2cEnabled
+              : existing.standaloneB2cEnabled,
+          standaloneB2bEnabled:
+            input.standaloneB2bEnabled !== undefined
+              ? input.standaloneB2bEnabled
+              : existing.standaloneB2bEnabled
         });
-        if (!exclusiveShellFlags) throw new Error("Select either the B2C shell or the B2B shell for this project.");
+        if (!exclusiveShellFlags)
+          throw new Error(
+            "Select either the B2C shell or the B2B shell for this project."
+          );
       }
 
       const ok = await projectsRepo.updateProject(args.id, {
         ...input,
         standaloneB2cEnabled: exclusiveShellFlags?.standaloneB2cEnabled,
-        standaloneB2bEnabled: exclusiveShellFlags?.standaloneB2bEnabled,
+        standaloneB2bEnabled: exclusiveShellFlags?.standaloneB2bEnabled
       });
       if (!ok) throw new Error("Failed to update project");
 
@@ -737,7 +1010,7 @@ export const resolvers = {
         smtpUser: args.input.smtpUser,
         smtpPassword: args.input.smtpPassword,
         emailFrom: args.input.emailFrom,
-        isDefault,
+        isDefault
       });
       return smtpViewIso(profile);
     },
@@ -765,11 +1038,17 @@ export const resolvers = {
       return updated ? smtpViewIso(updated) : null;
     },
 
-    adminDeleteSmtpProfile: async (_p: unknown, args: { id: string; clientId: string }) => {
+    adminDeleteSmtpProfile: async (
+      _p: unknown,
+      args: { id: string; clientId: string }
+    ) => {
       return smtpRepo.deleteSmtpProfile(args.id, args.clientId);
     },
 
-    adminTestSmtpProfile: async (_p: unknown, args: { id: string; clientId: string; to?: string }) => {
+    adminTestSmtpProfile: async (
+      _p: unknown,
+      args: { id: string; clientId: string; to?: string }
+    ) => {
       return testSmtpProfile(args.id, args.clientId, args.to ?? "", log);
     },
 
@@ -790,12 +1069,18 @@ export const resolvers = {
       }
     ) => {
       const client = await requireClient(args.clientId);
-      if (client.status === "blocked") throw new Error("Cannot add users to a blocked client");
-      if (args.input.password.length < 8) throw new Error("Password must be at least 8 characters");
+      if (client.status === "blocked")
+        throw new Error("Cannot add users to a blocked client");
+      if (args.input.password.length < 8)
+        throw new Error("Password must be at least 8 characters");
 
       const projectsToAssign = args.input.projects ?? [];
       if (projectsToAssign.length > 0) {
-        const clientProjectKeys = new Set((await projectsRepo.listProjectsByClient(args.clientId)).map((p) => p.projectKey));
+        const clientProjectKeys = new Set(
+          (await projectsRepo.listProjectsByClient(args.clientId)).map(
+            (p) => p.projectKey
+          )
+        );
         for (const p of projectsToAssign) {
           if (!clientProjectKeys.has(p.projectKey)) {
             throw new Error(`Project '${p.projectKey}' does not belong to this client`);
@@ -811,22 +1096,29 @@ export const resolvers = {
         role: args.input.role ?? "admin",
         clientId: args.clientId,
         projects: projectsToAssign,
-        grantedBy: args.grantedBy,
+        grantedBy: args.grantedBy
       });
       return clientUserView(user, args.clientId);
     },
 
     adminAssignClientUser: async (
       _p: unknown,
-      args: { clientId: string; grantedBy: string; input: { email: string; projects: { projectKey: string; role: string }[] } }
+      args: {
+        clientId: string;
+        grantedBy: string;
+        input: { email: string; projects: { projectKey: string; role: string }[] };
+      }
     ) => {
       const client = await requireClient(args.clientId);
-      if (client.status === "blocked") throw new Error("Cannot add users to a blocked client");
+      if (client.status === "blocked")
+        throw new Error("Cannot add users to a blocked client");
       if (!args.input.projects || args.input.projects.length === 0) {
         throw new Error("Select at least one project");
       }
 
-      const clientProjectKeys = new Set((await projectsRepo.listProjectsByClient(args.clientId)).map((p) => p.projectKey));
+      const clientProjectKeys = new Set(
+        (await projectsRepo.listProjectsByClient(args.clientId)).map((p) => p.projectKey)
+      );
       for (const p of args.input.projects) {
         if (!clientProjectKeys.has(p.projectKey)) {
           throw new Error(`Project '${p.projectKey}' does not belong to this client`);
@@ -837,7 +1129,7 @@ export const resolvers = {
         email: args.input.email,
         clientId: args.clientId,
         projects: args.input.projects,
-        grantedBy: args.grantedBy,
+        grantedBy: args.grantedBy
       });
       if (!result) throw new Error(`No user found with email ${args.input.email}`);
       return clientUserView(result.user, args.clientId);
@@ -861,20 +1153,41 @@ export const resolvers = {
 
       const existingUser = await usersRepo.findUserByEmail(args.input.email);
       if (existingUser && args.input.projects) {
-        for (const membership of existingUser.projects.filter((item) => item.clientId === args.clientId && item.role === "admin")) {
-          const replacement = args.input.projects.find((item) => item.projectKey === membership.projectKey);
-          if ((!replacement || replacement.role !== "admin") && await usersRepo.countUsersByProjectRole(args.clientId, membership.projectKey, "admin") <= 1) {
-            throw new Error(`Cannot remove the last administrator from '${membership.projectKey}'`);
+        for (const membership of existingUser.projects.filter(
+          (item) => item.clientId === args.clientId && item.role === "admin"
+        )) {
+          const replacement = args.input.projects.find(
+            (item) => item.projectKey === membership.projectKey
+          );
+          if (
+            (!replacement || replacement.role !== "admin") &&
+            (await usersRepo.countUsersByProjectRole(
+              args.clientId,
+              membership.projectKey,
+              "admin"
+            )) <= 1
+          ) {
+            throw new Error(
+              `Cannot remove the last administrator from '${membership.projectKey}'`
+            );
           }
         }
       }
 
-      if (args.input.password && args.input.password.trim() && args.input.password.length < 8) {
+      if (
+        args.input.password &&
+        args.input.password.trim() &&
+        args.input.password.length < 8
+      ) {
         throw new Error("Password must be at least 8 characters");
       }
 
       if (args.input.projects !== undefined) {
-        const clientProjectKeys = new Set((await projectsRepo.listProjectsByClient(args.clientId)).map((p) => p.projectKey));
+        const clientProjectKeys = new Set(
+          (await projectsRepo.listProjectsByClient(args.clientId)).map(
+            (p) => p.projectKey
+          )
+        );
         for (const p of args.input.projects) {
           if (!clientProjectKeys.has(p.projectKey)) {
             throw new Error(`Project '${p.projectKey}' does not belong to this client`);
@@ -889,68 +1202,155 @@ export const resolvers = {
         lastName: args.input.lastName,
         password: args.input.password,
         projects: args.input.projects,
-        grantedBy: args.grantedBy,
+        grantedBy: args.grantedBy
       });
       if (!updated) throw new Error(`No user found with email ${args.input.email}`);
       return clientUserView(updated, args.clientId);
     },
 
-    adminRemoveUserFromProject: async (_p: unknown, args: { clientId: string; email: string; projectKey: string }) => {
+    adminRemoveUserFromProject: async (
+      _p: unknown,
+      args: { clientId: string; email: string; projectKey: string }
+    ) => {
       return usersRepo.removeUserFromProject(args.email, args.clientId, args.projectKey);
     },
 
-    adminRemoveUserFromClient: async (_p: unknown, args: { clientId: string; email: string }) => {
+    adminRemoveUserFromClient: async (
+      _p: unknown,
+      args: { clientId: string; email: string }
+    ) => {
       return usersRepo.removeUserFromClient(args.email, args.clientId);
     },
-    adminUpdateClientContact: async (_p: unknown, args: { clientId: string; contactEmail: string }) => {
-      await clientsRepo.updateClient(args.clientId, { contactEmail: args.contactEmail.trim() });
+    adminUpdateClientContact: async (
+      _p: unknown,
+      args: { clientId: string; contactEmail: string }
+    ) => {
+      await clientsRepo.updateClient(args.clientId, {
+        contactEmail: args.contactEmail.trim()
+      });
       const client = await requireClient(args.clientId);
-      return { ...clientViewIso(client), projectCount: await projectsRepo.countProjectsByClient(args.clientId), userCount: await usersRepo.countUsersByClient(args.clientId) };
+      return {
+        ...clientViewIso(client),
+        projectCount: await projectsRepo.countProjectsByClient(args.clientId),
+        userCount: await usersRepo.countUsersByClient(args.clientId)
+      };
     },
-    adminCreateRole: (_p: unknown, args: { clientId: string; projectKey: string; input: { key: string; label: string; description: string; permissions: rolesRepo.Permission[] } }) => rolesRepo.createRole(args.clientId, args.projectKey, args.input),
+    adminCreateRole: (
+      _p: unknown,
+      args: {
+        clientId: string;
+        projectKey: string;
+        input: {
+          key: string;
+          label: string;
+          description: string;
+          permissions: rolesRepo.Permission[];
+        };
+      }
+    ) => rolesRepo.createRole(args.clientId, args.projectKey, args.input),
     adminUpdateRole: async (
       _p: unknown,
       args: {
         id: string;
         clientId: string;
         projectKey: string;
-        input: { key?: string; label?: string; description?: string; permissions?: rolesRepo.Permission[] };
+        input: {
+          key?: string;
+          label?: string;
+          description?: string;
+          permissions?: rolesRepo.Permission[];
+        };
       }
     ) => {
-      const existing = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.id === args.id);
+      const existing = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find(
+        (item) => item.id === args.id
+      );
       if (!existing) throw new Error("Role not found");
 
       let newKey: string | undefined = undefined;
       if (args.input.key !== undefined) {
-        newKey = args.input.key.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+        newKey = args.input.key
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9_]+/g, "_")
+          .replace(/^_+|_+$/g, "");
         if (!newKey) throw new Error("Role name/slug cannot be empty");
         if (newKey !== existing.key) {
           if (existing.system) throw new Error("System role name cannot be modified");
-          const conflict = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.key === newKey && item.id !== args.id);
+          const conflict = (
+            await rolesRepo.listRoles(args.clientId, args.projectKey)
+          ).find((item) => item.key === newKey && item.id !== args.id);
           if (conflict) throw new Error("A role with this slug already exists");
-          await usersRepo.reassignRole(args.clientId, args.projectKey, existing.key, newKey);
+          await usersRepo.reassignRole(
+            args.clientId,
+            args.projectKey,
+            existing.key,
+            newKey
+          );
         }
       }
 
       return rolesRepo.updateRole(args.id, args.clientId, args.projectKey, {
         ...(newKey !== undefined ? { key: newKey } : {}),
         ...(args.input.label !== undefined ? { label: args.input.label.trim() } : {}),
-        ...(args.input.description !== undefined ? { description: args.input.description.trim() } : {}),
-        ...(args.input.permissions !== undefined ? { permissions: args.input.permissions } : {}),
+        ...(args.input.description !== undefined
+          ? { description: args.input.description.trim() }
+          : {}),
+        ...(args.input.permissions !== undefined
+          ? { permissions: args.input.permissions }
+          : {})
       });
     },
-    adminDeleteRole: async (_p: unknown, args: { id: string; clientId: string; projectKey: string }) => {
-      const role = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find((item) => item.id === args.id);
+    adminDeleteRole: async (
+      _p: unknown,
+      args: { id: string; clientId: string; projectKey: string }
+    ) => {
+      const role = (await rolesRepo.listRoles(args.clientId, args.projectKey)).find(
+        (item) => item.id === args.id
+      );
       if (!role) return false;
       if (role.system) throw new Error("System roles cannot be deleted");
-      if (await usersRepo.countUsersAssignedRole(args.clientId, args.projectKey, role.key) > 0) throw new Error("Role is assigned to one or more users");
+      if (
+        (await usersRepo.countUsersAssignedRole(
+          args.clientId,
+          args.projectKey,
+          role.key
+        )) > 0
+      )
+        throw new Error("Role is assigned to one or more users");
       return rolesRepo.deleteRole(args.id, args.clientId, args.projectKey);
     },
-    adminUpdateAiSettings: (_p: unknown, args: { clientId: string; input: { enabled: boolean; provider: string; displayName: string; model: string; baseUrl?: string; apiKey?: string } }, context: unknown) => aiSettingsRepo.updateAiSettings(args.clientId, args.input, (context as { userEmail?: string } | undefined)?.userEmail ?? "unknown"),
-    adminSetProjectSmtp: async (_p: unknown, args: { clientId: string; projectKey: string; smtpProfileId?: string | null }) => {
-      const project = (await projectsRepo.listProjectsByClient(args.clientId)).find((item) => item.projectKey === args.projectKey);
+    adminUpdateAiSettings: (
+      _p: unknown,
+      args: {
+        clientId: string;
+        input: {
+          enabled: boolean;
+          provider: string;
+          displayName: string;
+          model: string;
+          baseUrl?: string;
+          apiKey?: string;
+        };
+      },
+      context: unknown
+    ) =>
+      aiSettingsRepo.updateAiSettings(
+        args.clientId,
+        args.input,
+        (context as { userEmail?: string } | undefined)?.userEmail ?? "unknown"
+      ),
+    adminSetProjectSmtp: async (
+      _p: unknown,
+      args: { clientId: string; projectKey: string; smtpProfileId?: string | null }
+    ) => {
+      const project = (await projectsRepo.listProjectsByClient(args.clientId)).find(
+        (item) => item.projectKey === args.projectKey
+      );
       if (!project) throw new Error("Project not found in this organisation");
-      return projectsRepo.updateProject(project._id.toHexString(), { smtpProfileId: args.smtpProfileId ?? null });
-    },
-  },
+      return projectsRepo.updateProject(project._id.toHexString(), {
+        smtpProfileId: args.smtpProfileId ?? null
+      });
+    }
+  }
 };

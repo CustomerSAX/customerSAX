@@ -282,9 +282,8 @@ export function ZendeskPluginDialog({
                   {projectWide && (
                     <p className={styles.muted}>
                       Updating credentials keeps the same account and enabled actions.
-                      Reconnecting a removed connector enables ticket reads and assistant
-                      search. If Zendesk is your ticketing provider, removal stops Hub
-                      ticket access; choose another provider to continue loading tickets.
+                      Reconnecting enables ticket reads and assistant search. Removing
+                      Zendesk restores native tickets for this project.
                     </p>
                   )}
                   <div className={styles.dialogActions}>

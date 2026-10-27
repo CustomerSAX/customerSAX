@@ -91,11 +91,15 @@ it("saves settings using both the project and client identity", async () => {
     }
   );
 });
-it("returns a fallback signal only for unconfigured projects and resolves the selected project's search key", async () => {
+it("uses native commerce without decrypting or returning legacy Algolia keys", async () => {
   db.findOne.mockResolvedValue({});
-  expect(await resolveProjectProducts("client", "store")).toBeNull();
+  expect(await resolveProjectProducts("client", "store")).toEqual({
+    provider: "commercetools"
+  });
   db.findOne.mockResolvedValue({ products: prepareProducts(input) });
-  expect(await resolveProjectProducts("client", "store")).toEqual(input);
+  expect(await resolveProjectProducts("client", "store")).toEqual({
+    provider: "commercetools"
+  });
   expect(db.findOne).toHaveBeenLastCalledWith({
     clientId: "client",
     projectKey: "store"

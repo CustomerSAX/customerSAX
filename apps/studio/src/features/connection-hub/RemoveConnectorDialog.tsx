@@ -122,8 +122,8 @@ export function RemoveConnectorDialog({
           )}
           {target.connectorId === "zendesk" && (
             <p className={styles.muted}>
-              If Zendesk is your ticketing provider, reconnect it or select another
-              provider to continue loading tickets.
+              The Tickets workspace will use native tickets after removal. Existing
+              Zendesk tickets remain in Zendesk.
             </p>
           )}
           {error && (

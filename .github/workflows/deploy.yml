@@ -232,6 +232,10 @@ jobs:
             "projects/${{ env.PROJECT_ID }}/secrets/${PREFIX}-commercetools-client-secret" \
             "${PREFIX}-commercetools-client-secret"
 
+          import_secret_if_exists 'google_secret_manager_secret.hub_platform_config' \
+            "projects/${{ env.PROJECT_ID }}/secrets/${PREFIX}-hub-platform-config" \
+            "${PREFIX}-hub-platform-config"
+
           import_secret_if_exists 'google_secret_manager_secret.ticketing["ticketing_mongo_uri"]' \
             "projects/${{ env.PROJECT_ID }}/secrets/${PREFIX}-ticketing-mongo-uri" \
             "${PREFIX}-ticketing-mongo-uri"
