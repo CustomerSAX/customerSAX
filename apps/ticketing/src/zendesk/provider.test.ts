@@ -142,7 +142,8 @@ it("handles offsets spanning two search pages", async () => {
     .mockResolvedValueOnce({
       results: Array.from({ length: 20 }, (_, i) => ({ ...ticket, id: i + 101 })),
       count: 120
-    });
+    })
+    .mockResolvedValueOnce({ tickets: [] });
   const result = await zendeskProvider("test").listTickets({ offset: 95, limit: 10 });
   expect(result.results.map((t) => t.ticketNumber)).toEqual([
     "96",
@@ -247,4 +248,61 @@ it("maps completion here to solved in Zendesk and saves private resolution notes
       updated_stamp: ticket.updated_at
     }
   });
+});
+
+it("maps SLA policy metrics without guessing whether an achieved one was met", async () => {
+  vi.mocked(api)
+    .mockResolvedValueOnce({ results: [ticket, { ...ticket, id: 43 }], count: 2 })
+    .mockResolvedValueOnce({
+      tickets: [
+        {
+          ...ticket,
+          slas: {
+            policy_metrics: [
+              { metric: "first_reply_time", stage: "achieved", breach_at: null },
+              { metric: "next_reply_time", stage: "active", breach_at: "2026-01-03T10:00:00Z" },
+              { metric: "agent_work_time", stage: "paused", breach_at: null }
+            ]
+          }
+        },
+        { ...ticket, id: 43, slas: { policy_metrics: [] } }
+      ]
+    });
+  const { results } = await zendeskProvider("test").listTickets({});
+  expect(api).toHaveBeenLastCalledWith("tickets/show_many.json?ids=42,43&include=slas");
+  expect(results[0].sla).toEqual({
+    source: "zendesk",
+    nextDueAt: "2026-01-03T10:00:00Z",
+    metrics: [
+      { key: "first_reply_time", label: "First reply", stage: "completed", dueAt: null },
+      { key: "next_reply_time", label: "Next reply", stage: "running", dueAt: "2026-01-03T10:00:00Z" },
+      { key: "agent_work_time", label: "Agent work time", stage: "paused", dueAt: null }
+    ]
+  });
+  expect(results[1].sla).toEqual({ source: "zendesk", nextDueAt: null, metrics: [] });
+});
+
+it("reports no SLA data when Zendesk returns none for the account", async () => {
+  vi.mocked(api).mockResolvedValueOnce({ results: [ticket], count: 1 }).mockResolvedValueOnce({ tickets: [ticket] });
+  const { results } = await zendeskProvider("test").listTickets({});
+  expect(results[0].sla).toBeUndefined();
+});
+
+it("sorts unsolved tickets by soonest SLA deadline across every search page", async () => {
+  const metric = (breach_at: string) => ({ policy_metrics: [{ metric: "first_reply_time", stage: "active", breach_at }] });
+  vi.mocked(api)
+    .mockResolvedValueOnce({ results: Array.from({ length: 100 }, (_, i) => ({ ...ticket, id: i + 1 })), count: 102 })
+    .mockResolvedValueOnce({ results: [{ ...ticket, id: 101 }, { ...ticket, id: 102 }], count: 102 })
+    .mockResolvedValueOnce({ tickets: [{ ...ticket, id: 50, slas: metric("2026-01-05T00:00:00Z") }] })
+    .mockResolvedValueOnce({ tickets: [{ ...ticket, id: 102, slas: metric("2026-01-04T00:00:00Z") }] });
+  const page = await zendeskProvider("test").listTickets({ sortKey: "slaDueAt", limit: 3 });
+  expect(page.total).toBe(102);
+  expect(page.results.map((t) => t.ticketNumber)).toEqual(["102", "50", "1"]);
+  const query = new URLSearchParams(String(vi.mocked(api).mock.calls[0][0]).split("?")[1]).get("query");
+  expect(query).toContain("status<solved");
+});
+
+it("refuses an SLA sort it cannot complete instead of returning a partial order", async () => {
+  vi.mocked(api).mockResolvedValueOnce({ results: [ticket], count: 1001 });
+  await expect(zendeskProvider("test").listTickets({ sortKey: "slaDueAt" })).rejects.toThrow("1,000");
 });

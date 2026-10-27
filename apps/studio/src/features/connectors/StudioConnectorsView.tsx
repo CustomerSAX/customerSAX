@@ -5,6 +5,7 @@ import { Icon } from "@csa/ui";
 import { AppShell } from "@/components/shell/AppShell";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { NativeConnectorsGrid } from "./NativeConnectorsGrid";
+import { NativeSlaTargetsCard } from "./NativeSlaTargetsCard";
 
 export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) {
   const { user, loading } = useCurrentUser();
@@ -39,7 +40,10 @@ export function StudioConnectorsView({ embedded }: { embedded?: boolean } = {}) 
       ) : !allowed ? (
         <p>Administrator access is required.</p>
       ) : (
-        <NativeConnectorsGrid />
+        <>
+          <NativeConnectorsGrid />
+          <NativeSlaTargetsCard />
+        </>
       )}
     </section>
   );

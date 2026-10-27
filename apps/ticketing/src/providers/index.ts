@@ -1,9 +1,10 @@
 import { connectionHubZendesk } from "../zendesk/connection-hub.js";
 import { withNotifications } from "../notifications/provider.js";
-import { assertProjectScope, nativeTicketLegacyAccess } from "@csa/mongodb";
+import { assertProjectScope, getProjectSlaTargets, nativeTicketLegacyAccess } from "@csa/mongodb";
 import * as native from "../tickets/repository.js";
 import { zendeskProvider } from "../zendesk/provider.js";
 import type { TicketingProvider } from "./types.js";
+import type { SlaTarget } from "../tickets/native-sla.js";
 import {
   aiFollowupEnabled,
   requestTicketInformation
@@ -19,9 +20,14 @@ export function ticketingProvider(projectKey: string): TicketingProvider {
   return nativeProvider(projectKey);
 }
 
+/**
+ * @param slaTargets Loads the project's native SLA targets; read only when a
+ * ticket is created, since each new ticket copies the targets in force then.
+ */
 function nativeProvider(
   projectKey: string,
-  scope?: native.NativeTicketScope
+  scope?: native.NativeTicketScope,
+  slaTargets?: () => Promise<Partial<Record<string, SlaTarget>> | undefined>
 ): TicketingProvider {
   return {
     requestInformation: (id, expected, questions) => {
@@ -35,7 +41,7 @@ function nativeProvider(
     listTickets: (args) => native.listTickets({ ...args, projectKey }, scope),
     createTicket: async (draft) => {
       const emailConfig = localEmailConfig(projectKey);
-      const ticket = await native.createTicket({ ...draft, projectKey }, scope);
+      const ticket = await native.createTicket({ ...draft, projectKey }, scope, await slaTargets?.());
       if (!aiFollowupEnabled()) await sendTicketCreated(ticket, emailConfig);
       return ticket;
     },
@@ -60,10 +66,14 @@ export async function resolveTicketing(projectKey: string, clientId?: string) {
   return {
     name: "internal",
     provider: withNotifications(
-      nativeProvider(projectKey, {
-        clientId,
-        includeLegacy: await nativeTicketLegacyAccess(clientId, projectKey)
-      }),
+      nativeProvider(
+        projectKey,
+        {
+          clientId,
+          includeLegacy: await nativeTicketLegacyAccess(clientId, projectKey)
+        },
+        () => getProjectSlaTargets(clientId, projectKey)
+      ),
       clientId
     )
   };

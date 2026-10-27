@@ -89,11 +89,11 @@ const clientScopedAdminFields = new Set([
   // Reads scoped to the caller's own client
   "adminClient", "adminProject", "adminProjectsByClient", "adminUsersByClient",
   "adminRoles", "adminAiSettings", "adminSmtpProfilesByClient",
-  "adminProjectTicketing",
+  "adminProjectTicketing", "adminProjectTicketingSla",
   // Client-scoped project & commerce management (Org Admin ownership)
   "adminCreateProject", "adminUpdateProject", "adminDeleteProject",
   "adminTestProjectCredentials", "adminTestProjectConnection",
-  "adminSaveProjectTicketing", "adminTestProjectTicketing",
+  "adminSaveProjectTicketing", "adminSaveProjectTicketingSla", "adminTestProjectTicketing",
   // Client-scoped user/role management
   "adminAssignClientUser", "adminCreateClientUser", "adminUpdateClientUser",
   "adminRemoveUserFromClient", "adminRemoveUserFromProject", "adminUpdateClientContact",

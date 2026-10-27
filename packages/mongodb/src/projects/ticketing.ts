@@ -3,7 +3,17 @@ import { ObjectId } from "mongodb";
 import { getProjectsCollection, getTicketingAccountsCollection } from "../admin/db.js";
 import { encrypt, decrypt } from "../encrypt.js";
 
+export const SLA_PRIORITIES = ["urgent", "high", "normal", "low"] as const;
+export type SlaPriority = (typeof SLA_PRIORITIES)[number];
+/** Minutes of 24/7 time; null = no target for that clock. */
+export type SlaTarget = { firstResponseMinutes: number | null; resolutionMinutes: number | null };
+export type SlaTargets = Partial<Record<SlaPriority, SlaTarget>>;
+/** Native-ticket SLA policy; external providers own their own SLA rules. */
+export type ProjectTicketingSla = { targets: SlaTargets; updatedAt: Date };
+export type SlaTargetInput = { priority: string; firstResponseMinutes?: number | null; resolutionMinutes?: number | null };
+
 export type ProjectTicketing = {
+  sla?: ProjectTicketingSla;
   provider: "internal" | "zendesk" | "freshdesk";
   freshdeskDomain?: string;
   freshdeskApiKeyEncrypted?: string;
@@ -51,6 +61,67 @@ export function ticketingSettingsView(settings?: ProjectTicketing) {
     freshdeskApiKeySet: !!settings?.freshdeskApiKeyEncrypted,
     secretSet: !!settings?.secretEncrypted
   };
+}
+
+/** Every priority's targets, null where none is set. */
+export function slaTargetsView(sla?: ProjectTicketingSla) {
+  return SLA_PRIORITIES.map((priority) => ({
+    priority,
+    firstResponseMinutes: sla?.targets[priority]?.firstResponseMinutes ?? null,
+    resolutionMinutes: sla?.targets[priority]?.resolutionMinutes ?? null
+  }));
+}
+
+const MAX_SLA_MINUTES = 365 * 24 * 60;
+/** Validates admin input; priorities with no targets at all are dropped. */
+export function prepareSlaTargets(input: SlaTargetInput[]): SlaTargets {
+  const targets: SlaTargets = {};
+  for (const row of input) {
+    const priority = row.priority.trim().toLowerCase() as SlaPriority;
+    if (!SLA_PRIORITIES.includes(priority)) throw new Error(`Unsupported SLA priority: ${row.priority}`);
+    if (targets[priority]) throw new Error(`Duplicate SLA priority: ${row.priority}`);
+    const minutes = (value: number | null | undefined, label: string) => {
+      if (value == null) return null;
+      if (!Number.isInteger(value) || value < 1 || value > MAX_SLA_MINUTES)
+        throw new Error(`${label} target for ${priority} must be between 1 minute and 365 days`);
+      return value;
+    };
+    const target = {
+      firstResponseMinutes: minutes(row.firstResponseMinutes, "First response"),
+      resolutionMinutes: minutes(row.resolutionMinutes, "Resolution")
+    };
+    if (target.firstResponseMinutes != null || target.resolutionMinutes != null) targets[priority] = target;
+  }
+  return targets;
+}
+
+/**
+ * Native-ticket SLA targets live at `ticketing.sla` on the project. They are
+ * a native capability, independent of the retired connector settings stored
+ * beside them, so only that path is ever written.
+ */
+export async function getProjectTicketingSla(clientId: string, id: string) {
+  return slaTargetsView((await project(clientId, id)).ticketing?.sla);
+}
+
+/** Saves native SLA targets; an empty set removes the policy. */
+export async function saveProjectTicketingSla(clientId: string, id: string, input: SlaTargetInput[]) {
+  const existing = await project(clientId, id);
+  const targets = prepareSlaTargets(input);
+  const sla: ProjectTicketingSla | undefined = Object.keys(targets).length ? { targets, updatedAt: new Date() } : undefined;
+  const result = await (await getProjectsCollection()).updateOne(
+    { _id: existing._id, clientId },
+    sla ? { $set: { "ticketing.sla": sla, updatedAt: new Date() } } : { $unset: { "ticketing.sla": "" }, $set: { updatedAt: new Date() } }
+  );
+  if (!result.matchedCount) throw new Error("Project no longer exists");
+  return slaTargetsView(sla);
+}
+
+/** Targets new native tickets in this project copy at creation; undefined when none are set. */
+export async function getProjectSlaTargets(clientId: string, projectKey: string): Promise<SlaTargets | undefined> {
+  const doc = await (await getProjectsCollection()).findOne({ clientId, projectKey }, { projection: { "ticketing.sla": 1 } });
+  const targets = doc?.ticketing?.sla?.targets as SlaTargets | undefined;
+  return targets && Object.keys(targets).length ? targets : undefined;
 }
 async function project(clientId: string, id: string) {
   if (!ObjectId.isValid(id)) throw new Error("Project not found for this client");

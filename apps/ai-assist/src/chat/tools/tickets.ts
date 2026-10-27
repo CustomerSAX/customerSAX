@@ -8,10 +8,22 @@ import { instrumentTools } from "./instrument.js";
 
 const log = createLogger("ai-assist").child({ module: "tools/tickets" });
 
+// sla: null = this ticket system provides no SLA data. state/focus are resolved
+// against the current time by the ticketing service (see TicketSla in its schema).
 const TICKET_FIELDS = `
   id ticketNumber projectKey customerName customerEmail customerId source status priority category subject assignee
   contactType orderNumber message createdAt lastModifiedAt
+  sla { state nextDueAt focus { key label state dueAt } metrics { key label stage state dueAt completedAt } }
 `;
+
+type SlaFocus = { dueAt?: string | null; minutesFromNow?: number };
+/** Adds `sla.focus.minutesFromNow` (negative = overdue) so the model never does time arithmetic itself. */
+export function withSlaTiming<T>(ticket: T, now = Date.now()): T {
+  const focus = (ticket as { sla?: { focus?: SlaFocus | null } | null } | null)?.sla?.focus;
+  const due = focus?.dueAt ? Date.parse(focus.dueAt) : Number.NaN;
+  if (focus && !Number.isNaN(due)) focus.minutesFromNow = Math.round((due - now) / 60_000);
+  return ticket;
+}
 
 // ─── Read tools (no approval gate needed) ────────────────────────────────────
 
@@ -31,7 +43,9 @@ export const searchZendeskPluginTool = tool({
 });
 
 export const searchTicketsTool = tool({
-  description: "Search support tickets by keyword, customer email, customer ID, status, or priority. Use for finding existing tickets.",
+  description:
+    "Search support tickets by keyword, customer email, customer ID, status, priority, or assignee, optionally ordered by SLA deadline. " +
+    "Each ticket includes its real SLA status (`sla`). Use for finding existing tickets and for 'what should I work on next'.",
   inputSchema: z.object({
     query: z.string().optional().describe("Keyword search within ticket subject or body"),
     customerEmail: z.string().optional().describe("Filter by customer email"),
@@ -44,6 +58,14 @@ export const searchTicketsTool = tool({
       .enum(["any", "low", "normal", "high", "urgent"])
       .optional()
       .describe("Filter by priority; 'any' (no filter) unless the rep explicitly asked for a priority"),
+    assignee: z
+      .string()
+      .optional()
+      .describe("'me' = the logged-in rep, 'unassigned' = the queue, or an agent's email; omit for everyone"),
+    sortBy: z
+      .enum(["recent", "sla"])
+      .optional()
+      .describe("'sla' = soonest SLA deadline first (breached, then at risk); default 'recent' = last updated first"),
     limit: z.number().optional().default(10)
   }),
   execute: async (args) => {
@@ -56,24 +78,31 @@ export const searchTicketsTool = tool({
     const customerId = opt(args.customerId);
     const status = opt(args.status);
     const priority = opt(args.priority);
+    const requested = opt(args.assignee);
+    const me = getSystemPromptContext().userEmail;
+    if (requested?.toLowerCase() === "me" && (!me.includes("@") || me === "unknown@csa.local"))
+      return { error: "The logged-in rep's email isn't known in this session, so tickets assigned to them can't be found." };
+    const assignee = requested?.toLowerCase() === "me" ? me : requested?.toLowerCase() === "unassigned" ? "Queue" : requested;
+    const sort = args.sortBy === "sla" ? { sortKey: "slaDueAt", sortOrder: "asc" } : {};
     const limit = args.limit;
     try {
       const data = await bffQuery<{ ticketPage: { results: unknown[]; total: number } }>(
-        `query SearchTickets($search: String, $customerEmail: String, $customerId: String, $status: String, $priority: String, $limit: Int) {
-          ticketPage(search: $search, customerEmail: $customerEmail, customerId: $customerId, status: $status, priority: $priority, limit: $limit) {
+        `query SearchTickets($search: String, $customerEmail: String, $customerId: String, $status: String, $priority: String, $assignee: String, $sortKey: String, $sortOrder: String, $limit: Int) {
+          ticketPage(search: $search, customerEmail: $customerEmail, customerId: $customerId, status: $status, priority: $priority, assignee: $assignee, sortKey: $sortKey, sortOrder: $sortOrder, limit: $limit) {
             results { ${TICKET_FIELDS} }
             total
           }
         }`,
-        { search: query, customerEmail, customerId, status, priority, limit }
+        { search: query, customerEmail, customerId, status, priority, assignee, ...sort, limit }
       );
+      data.ticketPage?.results?.forEach((ticket) => withSlaTiming(ticket));
       // The studio renders these results itself as a ticket table with
       // per-row actions, straight from this output.
       return data.ticketPage?.results?.length
         ? {
             ...data.ticketPage,
             displayed:
-              "These tickets are now shown to the rep as a table (number, subject, status, priority, assignee, last update) with an Actions button on every row. " +
+              "These tickets are now shown to the rep as a table (number, subject, status, priority, SLA, assignee, last update) with an Actions button on every row. " +
               "Do NOT list them as text or bullets and do not restate their fields. Reply with ONE short line, e.g. '5 open tickets — 2 are urgent.'"
           }
         : data.ticketPage;
@@ -97,7 +126,7 @@ export const getTicketTool = tool({
         }`,
         { id }
       );
-      return data.ticket ?? { error: "Ticket not found" };
+      return data.ticket ? withSlaTiming(data.ticket) : { error: "Ticket not found" };
     } catch (err) {
       return { error: String(err) };
     }

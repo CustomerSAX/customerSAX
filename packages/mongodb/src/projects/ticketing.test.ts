@@ -7,7 +7,9 @@ import {
   saveProjectTicketing,
   resolveProjectTicketing,
   ticketingSettingsView,
-  issueZendeskServiceToken
+  issueZendeskServiceToken,
+  prepareSlaTargets,
+  slaTargetsView
 } from "./ticketing.js";
 const db = vi.hoisted(() => ({
   findOne: vi.fn(),
@@ -171,4 +173,28 @@ it("tolerates already removed indexes but does not hide migration failures", asy
   await expect(saveProjectTicketing("client", id.toHexString(), input)).resolves.toMatchObject({ provider: "zendesk" });
   db.dropIndex.mockRejectedValue(new Error("not authorized to drop index"));
   await expect(saveProjectTicketing("client", id.toHexString(), input)).rejects.toThrow("not authorized");
+});
+
+it("validates native SLA targets and drops priorities with no target", () => {
+  expect(prepareSlaTargets([
+    { priority: "Urgent", firstResponseMinutes: 15, resolutionMinutes: 240 },
+    { priority: "normal", firstResponseMinutes: null, resolutionMinutes: 1440 },
+    { priority: "low", firstResponseMinutes: null, resolutionMinutes: null }
+  ])).toEqual({
+    urgent: { firstResponseMinutes: 15, resolutionMinutes: 240 },
+    normal: { firstResponseMinutes: null, resolutionMinutes: 1440 }
+  });
+  expect(() => prepareSlaTargets([{ priority: "critical", resolutionMinutes: 60 }])).toThrow("Unsupported SLA priority");
+  expect(() => prepareSlaTargets([{ priority: "high", firstResponseMinutes: 0 }])).toThrow("between 1 minute and 365 days");
+  expect(() => prepareSlaTargets([{ priority: "high", resolutionMinutes: 1.5 }])).toThrow("between 1 minute and 365 days");
+  expect(() => prepareSlaTargets([{ priority: "high", resolutionMinutes: 60 }, { priority: "HIGH", resolutionMinutes: 90 }])).toThrow("Duplicate");
+});
+
+it("shows every priority's SLA targets", () => {
+  expect(slaTargetsView({ targets: { high: { firstResponseMinutes: 60, resolutionMinutes: null } }, updatedAt: new Date() })).toEqual([
+    { priority: "urgent", firstResponseMinutes: null, resolutionMinutes: null },
+    { priority: "high", firstResponseMinutes: 60, resolutionMinutes: null },
+    { priority: "normal", firstResponseMinutes: null, resolutionMinutes: null },
+    { priority: "low", firstResponseMinutes: null, resolutionMinutes: null }
+  ]);
 });

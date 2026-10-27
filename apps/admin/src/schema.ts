@@ -15,9 +15,11 @@ import {
   testCredentials,
   smtpRepo,
   testSmtpProfile,
-  usersRepo
+  usersRepo,
+  getProjectTicketingSla,
+  saveProjectTicketingSla
 } from "@csa/mongodb";
-import type { ClientSsoConfigStored, CsaUser } from "@csa/mongodb";
+import type { ClientSsoConfigStored, CsaUser, SlaTargetInput } from "@csa/mongodb";
 import { del as cacheDel, ctProjectConfig } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
@@ -376,6 +378,9 @@ export const typeDefs = gql`
     apiKey: String
   }
 
+  "Native-ticket SLA target in minutes of 24/7 time; null = no target."
+  type AdminTicketingSlaTarget { priority: String!, firstResponseMinutes: Int, resolutionMinutes: Int }
+  input AdminTicketingSlaTargetInput { priority: String!, firstResponseMinutes: Int, resolutionMinutes: Int }
   type AdminProjectTicketing {
     provider: String!
     subdomain: String!
@@ -457,6 +462,8 @@ export const typeDefs = gql`
     projectProductsConfiguration: ProjectProductsConfiguration
     adminProjectProducts(clientId: ID!, id: ID!): AdminProjectProducts!
     adminProjectTicketing(clientId: ID!, id: ID!): AdminProjectTicketing!
+    "Native-ticket SLA targets for every priority."
+    adminProjectTicketingSla(clientId: ID!, id: ID!): [AdminTicketingSlaTarget!]!
     adminProjectCrm(clientId: ID!, id: ID!): AdminProjectCrm!
 
     adminClients: [AdminClient!]!
@@ -485,6 +492,11 @@ export const typeDefs = gql`
       id: ID!
       input: AdminProjectTicketingInput!
     ): AdminProjectTicketing!
+    adminSaveProjectTicketingSla(
+      clientId: ID!
+      id: ID!
+      targets: [AdminTicketingSlaTargetInput!]!
+    ): [AdminTicketingSlaTarget!]!
     adminTestProjectTicketing(
       clientId: ID!
       id: ID!
@@ -595,6 +607,8 @@ export const resolvers = {
     projectConnectionHubProducts,
     adminProjectProducts: async (_p: unknown, args: { clientId: string; id: string }) =>
       (await projectHubSettings(args.clientId, args.id)).products,
+    adminProjectTicketingSla: (_p: unknown, args: { clientId: string; id: string }) =>
+      getProjectTicketingSla(args.clientId, args.id),
     adminProjectTicketing: async (_p: unknown, args: { clientId: string; id: string }) =>
       (await projectHubSettings(args.clientId, args.id)).ticketing,
     adminProjectCrm: async (_p: unknown, args: { clientId: string; id: string }) =>
@@ -668,6 +682,9 @@ export const resolvers = {
         "Legacy connector configuration has been retired. Manage this project’s external connectors in Connection Hub."
       );
     },
+    // Native SLA targets are a built-in capability, not a retired external connector.
+    adminSaveProjectTicketingSla: (_p: unknown, args: { clientId: string; id: string; targets: SlaTargetInput[] }) =>
+      saveProjectTicketingSla(args.clientId, args.id, args.targets),
     adminTestProjectTicketing: () => {
       throw new Error(
         "Legacy connector configuration has been retired. Manage this project’s external connectors in Connection Hub."

@@ -237,6 +237,31 @@
       "general_inquiry": "General Inquiry",
       "technical_support": "Technical Support",
       "account_management": "Account Management"
+    },
+    "sla": {
+      "column": "SLA",
+      "allSla": "All SLA States",
+      "state": {
+        "on_track": "On track",
+        "at_risk": "At risk",
+        "breached": "Breached",
+        "paused": "Paused",
+        "met": "Met",
+        "missed": "Missed",
+        "completed": "Completed",
+        "unknown": "Unknown"
+      },
+      "dueIn": "Due in {time}",
+      "overdue": "Breached {time} ago",
+      "dueAt": "Due {date}",
+      "noDueTime": "No due time while paused",
+      "completedAt": "Completed {date}",
+      "none": "No SLA policy",
+      "nothingDue": "Nothing due",
+      "noneDetail": "No SLA policy applies to this ticket.",
+      "unavailable": "Not available",
+      "unavailableDetail": "This ticket system doesn't provide SLA data.",
+      "soonestNote": "Sorted by soonest SLA deadline: showing the {shown} soonest of {total} tickets."
     }
   },
   "Companies": {

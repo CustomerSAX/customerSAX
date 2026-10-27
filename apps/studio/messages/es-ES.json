@@ -237,6 +237,31 @@
       "general_inquiry": "Consulta general",
       "technical_support": "Soporte técnico",
       "account_management": "Gestión de cuentas"
+    },
+    "sla": {
+      "column": "SLA",
+      "allSla": "Todos los estados SLA",
+      "state": {
+        "on_track": "En plazo",
+        "at_risk": "En riesgo",
+        "breached": "Incumplido",
+        "paused": "En pausa",
+        "met": "Cumplido",
+        "missed": "No cumplido",
+        "completed": "Completado",
+        "unknown": "Desconocido"
+      },
+      "dueIn": "Vence en {time}",
+      "overdue": "Incumplido hace {time}",
+      "dueAt": "Vence {date}",
+      "noDueTime": "Sin vencimiento mientras está en pausa",
+      "completedAt": "Completado {date}",
+      "none": "Sin política SLA",
+      "nothingDue": "Nada pendiente",
+      "noneDetail": "No se aplica ninguna política SLA a este ticket.",
+      "unavailable": "No disponible",
+      "unavailableDetail": "Este sistema de tickets no proporciona datos de SLA.",
+      "soonestNote": "Ordenado por vencimiento SLA más próximo: se muestran los {shown} más próximos de {total} tickets."
     }
   },
   "Companies": {

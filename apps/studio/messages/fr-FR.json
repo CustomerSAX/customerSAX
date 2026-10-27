@@ -237,6 +237,31 @@
       "general_inquiry": "Demande générale",
       "technical_support": "Assistance technique",
       "account_management": "Gestion du compte"
+    },
+    "sla": {
+      "column": "SLA",
+      "allSla": "Tous les statuts SLA",
+      "state": {
+        "on_track": "Dans les délais",
+        "at_risk": "À risque",
+        "breached": "Dépassé",
+        "paused": "En pause",
+        "met": "Respecté",
+        "missed": "Non respecté",
+        "completed": "Terminé",
+        "unknown": "Inconnu"
+      },
+      "dueIn": "Échéance dans {time}",
+      "overdue": "Dépassé depuis {time}",
+      "dueAt": "Échéance {date}",
+      "noDueTime": "Pas d'échéance pendant la pause",
+      "completedAt": "Terminé {date}",
+      "none": "Aucune politique SLA",
+      "nothingDue": "Rien à échéance",
+      "noneDetail": "Aucune politique SLA ne s'applique à ce ticket.",
+      "unavailable": "Non disponible",
+      "unavailableDetail": "Ce système de tickets ne fournit pas de données SLA.",
+      "soonestNote": "Trié par échéance SLA la plus proche : affichage des {shown} plus proches sur {total} tickets."
     }
   },
   "Companies": {

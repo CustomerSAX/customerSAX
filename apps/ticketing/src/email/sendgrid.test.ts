@@ -7,7 +7,8 @@ import { assertProjectScope } from "@csa/mongodb";
 vi.mock("@csa/mongodb", async original => ({
   ...(await original<typeof import("@csa/mongodb")>()),
   assertProjectScope: vi.fn(async () => undefined),
-  nativeTicketLegacyAccess: vi.fn(async () => false)
+  nativeTicketLegacyAccess: vi.fn(async () => false),
+  getProjectSlaTargets: vi.fn(async () => undefined)
 }));
 
 const fetchMock = vi.fn();
