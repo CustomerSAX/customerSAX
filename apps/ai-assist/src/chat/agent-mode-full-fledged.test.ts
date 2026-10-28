@@ -2,17 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   queryOrdersTool,
   getOrderTool,
-  updateOrderStatusTool,
-  updateCustomerAddressTool,
   buildCommerceTools,
   COMMERCE_WRITE_DENIED,
 } from "./tools/commerce.js";
 import {
-  searchTicketsTool,
   getTicketTool,
 } from "./tools/tickets.js";
 import {
-  TOOL_REGISTRY,
   formatToolRegistryForPrompt,
 } from "./tools/registry.js";
 import {
@@ -54,7 +50,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
       },
     });
 
-    const execute = getOrderTool.execute as (args: { orderNumber: string }) => Promise<{
+    const execute = getOrderTool.execute as unknown as (args: { orderNumber: string }) => Promise<{
       order: Record<string, unknown> | null;
     }>;
     const result = await execute({ orderNumber: "RC-123" });
@@ -106,7 +102,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
       },
     });
 
-    const execute = queryOrdersTool.execute as (args: { relativeDate: string }) => Promise<{
+    const execute = queryOrdersTool.execute as unknown as (args: { relativeDate: string }) => Promise<{
       total: number;
       count: number;
       orders: Array<{ orderNumber: string; expectedDeliveryDate?: string }>;
@@ -137,7 +133,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
       },
     });
 
-    const getTicket = getTicketTool.execute as (args: { id: string }) => Promise<{
+    const getTicket = getTicketTool.execute as unknown as (args: { id: string }) => Promise<{
       id: string;
       orderNumber?: string;
       customerEmail?: string;
@@ -162,7 +158,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
       },
     });
 
-    const getOrder = getOrderTool.execute as (args: { orderNumber: string }) => Promise<{
+    const getOrder = getOrderTool.execute as unknown as (args: { orderNumber: string }) => Promise<{
       order: { orderNumber: string; shipmentState?: string; delayReason?: string };
     }>;
     const orderResult = await getOrder({ orderNumber: ticketResult.orderNumber! });
@@ -190,8 +186,10 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
       },
     });
 
-    const execute = bffModule.bffQuery;
-    const res = await execute({ query: "customer(id: $id) { id email firstName lastName }", variables: { id: delayedOrders[0].customerId } });
+    const res = await bffModule.bffQuery<{ customer: { id: string; email: string; firstName: string; lastName: string } }>(
+      "query customer($id: ID!) { customer(id: $id) { id email firstName lastName } }",
+      { id: delayedOrders[0].customerId }
+    );
 
     expect(res.customer.email).toBe("alice@acme.com");
   });
@@ -215,7 +213,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
       },
     });
 
-    const execute = queryOrdersTool.execute as (args: { shipmentState: string }) => Promise<{
+    const execute = queryOrdersTool.execute as unknown as (args: { shipmentState: string }) => Promise<{
       total: number;
       orders: Array<{ customerId?: string; customerEmail?: string }>;
       analytics?: { repeatDelayedCustomers?: Array<{ customerId: string; customerEmail: string; count: number }> };
@@ -240,7 +238,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
   it("7. Graceful failure handling: tool errors return honest plain notices without hallucinations", async () => {
     vi.spyOn(bffModule, "bffQuery").mockRejectedValueOnce(new Error("Connection timeout to commerce backend"));
 
-    const execute = queryOrdersTool.execute as (args: Record<string, unknown>) => Promise<{
+    const execute = queryOrdersTool.execute as unknown as (args: Record<string, unknown>) => Promise<{
       error: string;
       total: number;
       orders: unknown[];
@@ -274,7 +272,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
 
     const commerceTools = buildCommerceTools();
     const result = await contextStorage.run(authContext, async () => {
-      const execute = commerceTools.update_order_status.execute as (args: {
+      const execute = commerceTools.update_order_status.execute as unknown as (args: {
         orderIds: string[];
         shipmentState?: string;
       }) => Promise<{ success: boolean; updatedCount: number }>;
@@ -299,7 +297,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
 
     const commerceTools = buildCommerceTools();
     const result = await contextStorage.run(unauthContext, async () => {
-      const execute = commerceTools.update_order_status.execute as (args: {
+      const execute = commerceTools.update_order_status.execute as unknown as (args: {
         orderIds: string[];
         orderState?: string;
       }) => Promise<{ error: string }>;
@@ -324,7 +322,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
 
     const commerceTools = buildCommerceTools();
     const result = await contextStorage.run(unapprovedContext, async () => {
-      const execute = commerceTools.update_order_status.execute as (args: {
+      const execute = commerceTools.update_order_status.execute as unknown as (args: {
         orderIds: string[];
         orderState?: string;
       }) => Promise<{ error: string }>;
@@ -356,7 +354,7 @@ describe("CustomerX Agent Mode — Full-Fledged AI Assistant Verification Suite"
       },
     });
 
-    const execute = queryOrdersTool.execute as (args: {
+    const execute = queryOrdersTool.execute as unknown as (args: {
       limit: number;
       offset: number;
     }) => Promise<{

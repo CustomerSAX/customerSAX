@@ -794,7 +794,7 @@ export const updateOrderStatusTool = tool({
     paymentState: z.enum(["Paid", "Pending", "Failed"]).optional().describe("New payment state"),
     reason: z.string().optional().describe("Reason for status change"),
   }),
-  execute: async ({ orderIds, orderState, shipmentState, paymentState, reason }) => {
+  execute: async ({ orderIds, orderState, shipmentState, paymentState, reason: _reason }) => {
     try {
       const results: Array<{ orderId: string; success: boolean; error?: string }> = [];
 
