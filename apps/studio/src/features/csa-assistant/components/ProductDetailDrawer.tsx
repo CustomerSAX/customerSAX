@@ -47,7 +47,8 @@ export function ProductDetailDrawer({
   isOpen: boolean;
   onClose: () => void;
   product: ProductCardArgs;
-  onAddToCart?: () => void;
+  /** Tells the AI to add the product; `sku` is the selected variant when it differs from the product's. */
+  onAddToCart?: (sku?: string) => void;
 }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -213,6 +214,14 @@ export function ProductDetailDrawer({
   };
 
   const handleAddToCart = () => {
+    // No customer identified yet: hand the add to the AI (which confirms whose
+    // cart it is) instead of creating a cart with no customer. With a known
+    // customer the existing instant add below is unchanged.
+    if (!customer?.id && onAddToCart) {
+      onAddToCart(activeSku);
+      handleClose();
+      return;
+    }
     void runCartAction('add', () =>
       useCartStore.getState().addItem({
         sku: activeSku,

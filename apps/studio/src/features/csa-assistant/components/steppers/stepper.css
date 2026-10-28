@@ -581,6 +581,42 @@
   cursor: pointer;
   font-size: 11px;
 }
+/* In-cart quantity stepper — same look as the product grid's .qty-btn, sized for a row */
+.create-order-stepper-container .cart-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 8px;
+  flex-shrink: 0;
+}
+.create-order-stepper-container .cart-qty-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid var(--gray-200);
+  background: var(--color-surface-1);
+  color: var(--navy-800);
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.create-order-stepper-container .cart-qty-btn:hover:not(:disabled) {
+  background: var(--gray-100);
+}
+.create-order-stepper-container .cart-qty-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.create-order-stepper-container .cart-qty-value {
+  min-width: 18px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+}
 .create-order-stepper-container .cart-summary-row {
   display: flex;
   justify-content: space-between;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, Badge, Button, Icon, Input } from "@csa/ui";
 import type { UIMessage } from "ai";
 import { useCurrentUser } from "@/lib/use-current-user";
@@ -31,6 +31,11 @@ import {
 } from "./ToolCards";
 import { CrmContactCard, CrmPendingFollowups } from "./CrmCards";
 import { TicketCard, TicketSummaryTable } from "./TicketCards";
+import { AddressBookCard, addressBookFromToolOutput } from "./AddressCards";
+import { RefundStatusCard, ReturnRequestCard, ordersFromGetOrder, refundStatusFromOutput, returnFormFromOutput } from "./OrderCards";
+import { TeamStatsCard, teamStatsFromOutput } from "./StatsCards";
+import { CustomerOverviewCard, customerOverviewFromOutput } from "./CustomerCards";
+import type { AddressBook } from "./AddressCards";
 import { ActionApproval } from "./ActionApproval";
 import { SuggestedActions } from "./SuggestedActions";
 import { Markdown } from "./Markdown";
@@ -128,6 +133,14 @@ function hasVisibleContent(message: UIMessage): boolean {
         VISIBLE_TOOLS.has(p.name) ||
         (p.name === "search_tickets" && p.state === "output-available" && Boolean((p.output as { results?: unknown[] } | undefined)?.results?.length)) ||
         ((p.name === "list_products" || p.name === "search_products") && p.state === "output-available" && catalogProductsToCards(p.output).length > 0) ||
+        (p.state === "output-available" && addressBookFromToolOutput(p.name, p.output) !== null) ||
+        (p.name === "view_cart" && p.state === "output-available" && cartsFromViewCart(p.output).length > 0) ||
+        ((p.name === "get_order" || p.name === "get_latest_orders") && p.state === "output-available" && ordersFromGetOrder(p.output).length > 0) ||
+        (p.name === "get_refund_status" && p.state === "output-available" && refundStatusFromOutput(p.output) !== null) ||
+        (p.name === "check_return_eligibility" && p.state === "output-available" && returnFormFromOutput(p.output) !== null) ||
+        ((p.name === "get_team_stats" || p.name === "get_my_day") && p.state === "output-available" && teamStatsFromOutput(p.output) !== null) ||
+        (p.name === "get_customer_overview" && p.state === "output-available" && customerOverviewFromOutput(p.output) !== null) ||
+        (p.name === "list_shipping_methods" && p.state === "output-available" && shippingMethodsFromOutput(p.output) !== null) ||
         (p.name === "get_crm_contact_details" && p.state === "output-available" && Boolean((p.output as { contact?: { id?: string } } | undefined)?.contact?.id))
     )
   );
@@ -196,7 +209,8 @@ function ToolCallCard({
   onRefundConfirm,
   isLoading,
   resolution,
-  isLatest
+  isLatest,
+  checkoutCartIds
 }: {
   toolName: string;
   args: unknown;
@@ -207,6 +221,8 @@ function ToolCallCard({
   isLoading: boolean;
   resolution: ApprovalResolution;
   isLatest: boolean;
+  /** Carts the rep has started checking out — their cards are read-only. */
+  checkoutCartIds: ReadonlySet<string>;
 }) {
   // Skip UI-state calls — they're invisible
   if (toolName === "update_ui_state" || toolName === "get_resolution_reasons") return null;
@@ -217,7 +233,15 @@ function ToolCallCard({
     case "order_confirmation":
       return <OrderConfirmationCard args={args as OrderConfirmationArgs} />;
     case "cart_summary":
-      return <CartSummaryCard args={args as CartSummaryArgs} />;
+      return (
+        <CartSummaryCard
+          args={args as CartSummaryArgs}
+          onSuggest={onSuggest}
+          isLoading={isLoading}
+          editable={isLatest}
+          checkoutStarted={checkoutCartIds.has((args as CartSummaryArgs).cartId)}
+        />
+      );
     case "crm_contact_card":
       // Pending follow-ups with actions sit in the reply, above the profile card.
       return (
@@ -231,7 +255,7 @@ function ToolCallCard({
     case "ticket_card":
       return <TicketCard args={args as TicketCardArgs} onSuggest={onSuggest} isLoading={isLoading} />;
     case "draft_email":
-      return <DraftEmailCard args={args as DraftEmailArgs} />;
+      return <DraftEmailCard args={args as DraftEmailArgs} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} />;
     case "action_approval":
       return (
         <ActionApproval
@@ -276,7 +300,9 @@ function MessageBubble({
   onRefundConfirm,
   isLoading,
   resolution,
-  isLatest
+  isLatest,
+  checkoutCartIds,
+  stepperReturn = false
 }: {
   message: UIMessage;
   onApprove: (cmd: string) => void;
@@ -286,6 +312,10 @@ function MessageBubble({
   isLoading: boolean;
   resolution: ApprovalResolution;
   isLatest: boolean;
+  /** Carts the rep has started checking out — their cards are read-only. */
+  checkoutCartIds: ReadonlySet<string>;
+  /** Reply to the Return stepper's order pick — the stepper collects items and reason, so no return card here. */
+  stepperReturn?: boolean;
 }) {
   const isUser = message.role === "user";
   const { user } = useCurrentUser();
@@ -334,6 +364,51 @@ function MessageBubble({
   }
 
   const hasProductCards = productCards.length > 0;
+
+  // Saved addresses: the latest address result in this reply (every address
+  // tool returns the re-read list, so the last one is the current state).
+  const addressBook = (message.parts ?? []).reduce<AddressBook | null>((latest, part) => {
+    const p = part as { type: string; toolName?: string; state?: string; output?: unknown };
+    if (p.state !== "output-available") return latest;
+    const name = p.type === "dynamic-tool" ? (p.toolName ?? "") : p.type.startsWith("tool-") ? p.type.slice(5) : "";
+    return addressBookFromToolOutput(name, p.output) ?? latest;
+  }, null);
+
+  // Cart lookups (view_cart) render as cart cards from the real cart data. A
+  // lookup is skipped when a later step in this reply changes or summarises
+  // the same cart — that later card is the current state.
+  const replyParts = (message.parts ?? []).map((part) => {
+    const p = part as { type: string; toolName?: string; state?: string; input?: unknown; output?: unknown };
+    const name = p.type === "dynamic-tool" ? (p.toolName ?? "") : p.type.startsWith("tool-") ? p.type.slice(5) : "";
+    return { name, state: p.state, cartId: (p.input as { cartId?: unknown } | undefined)?.cartId, output: p.output };
+  });
+  // Cart changes return the real updated cart too, so the last one in a reply
+  // is shown as the cart card when the assistant didn't summarise it itself.
+  const lookedUpCarts = replyParts.flatMap((p, partIdx) => {
+    if (p.state !== "output-available") return [];
+    const source =
+      p.name === "view_cart" ? p.output
+      : CART_SNAPSHOT_PARTS.has(p.name) ? ((p.output as { cart?: unknown } | null)?.cart ?? p.output)
+      : null;
+    if (!source) return [];
+    return cartsFromViewCart(source)
+      .filter((cart) => isCurrentCart(source, cart.cartId))
+      .filter((cart) => !replyParts.some((later, j) => j > partIdx && (later.cartId === cart.cartId || cartIdOf(later.output) === cart.cartId) && CART_CHANGING_PARTS.has(later.name)))
+      .map((args) => ({ args, key: `${message.id}-cart-${partIdx}-${args.cartId}` }));
+  });
+  // Latest shipping-method lookup in this reply (null when there was none).
+  const shippingMethods = replyParts.reduce<ShippingMethod[] | null>(
+    (latest, p) => (p.name === "list_shipping_methods" && p.state === "output-available" ? shippingMethodsFromOutput(p.output) ?? latest : latest),
+    null
+  );
+  // The customer's other active carts (older duplicates / empty carts).
+  const olderCarts = [
+    ...new Map(
+      replyParts
+        .flatMap((p) => (p.name === "view_cart" && p.state === "output-available" ? olderCartsFromViewCart(p.output) : []))
+        .map((c) => [c.cartId, c] as const)
+    ).values()
+  ];
 
   // Same for tickets: two or more ticket cards become one table.
   const ticketParts = (message.parts ?? []).flatMap((part, partIdx) => {
@@ -391,6 +466,47 @@ function MessageBubble({
   const tableOrders = orderParts.length > 1
     ? orderParts.filter((o, i) => orderParts.findIndex((x) => x.args.orderId === o.args.orderId) === i).map((o) => o.args)
     : [];
+  // Orders looked up with get_order render from the real result (a card for
+  // one, the table for several). The model's order_summary for the same
+  // orders is then skipped; replies without a get_order result are unchanged.
+  const lookedUpOrders = (message.parts ?? []).flatMap((part) => {
+    const p = part as { type: string; toolName?: string; state?: string; output?: unknown };
+    const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+    return (name === "get_order" || name === "get_latest_orders") && p.state === "output-available" ? ordersFromGetOrder(p.output) : [];
+  });
+  // The assistant still chooses WHICH orders to show (e.g. only active ones),
+  // but every value on the card comes from the real get_order data for that
+  // order. When it looked orders up without showing any, the real result is
+  // drawn anyway so a card is never missing.
+  const realOrderFor = (a: OrderSummaryArgs): OrderSummaryArgs =>
+    lookedUpOrders.find((r) => r.orderId === a.orderId || (!!a.orderNumber && r.orderNumber === a.orderNumber)) ?? a;
+  const orderBlock = lookedUpOrders.length > 0 && orderParts.length === 0
+    ? lookedUpOrders.filter((o, i, all) => all.findIndex((x) => x.orderId === o.orderId) === i)
+    : null;
+  const refundStatus = (message.parts ?? []).reduce<ReturnType<typeof refundStatusFromOutput>>((latest, part) => {
+    const p = part as { type: string; toolName?: string; state?: string; output?: unknown };
+    const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+    return name === "get_refund_status" && p.state === "output-available" ? refundStatusFromOutput(p.output) ?? latest : latest;
+  }, null);
+  const returnForm = stepperReturn
+    ? null
+    : (message.parts ?? []).reduce<ReturnType<typeof returnFormFromOutput>>((latest, part) => {
+        const p = part as { type: string; toolName?: string; state?: string; output?: unknown };
+        const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+        return name === "check_return_eligibility" && p.state === "output-available" ? returnFormFromOutput(p.output) ?? latest : latest;
+      }, null);
+  const teamStats = (message.parts ?? []).flatMap((part, partIdx) => {
+    const p = part as { type: string; toolName?: string; state?: string; output?: unknown };
+    const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+    const stats = (name === "get_team_stats" || name === "get_my_day") && p.state === "output-available" ? teamStatsFromOutput(p.output) : null;
+    return stats ? [{ stats, key: `${message.id}-stats-${partIdx}` }] : [];
+  });
+  const customerOverviews = (message.parts ?? []).flatMap((part, partIdx) => {
+    const p = part as { type: string; toolName?: string; state?: string; output?: unknown };
+    const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+    const result = name === "get_customer_overview" && p.state === "output-available" ? customerOverviewFromOutput(p.output) : null;
+    return result ? [{ result, key: `${message.id}-customer-${partIdx}` }] : [];
+  });
 
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -410,7 +526,7 @@ function MessageBubble({
       {/* Constrained to 78% (product cards scroll within it); replies with a table take the full chat width so every column fits. */}
       <div
         className={`flex flex-col gap-1 ${
-          !isUser && (tableTicketIds.length > 0 || searchTable || tableOrders.length > 0) ? "min-w-0 flex-1" : "max-w-[78%]"
+          !isUser && (tableTicketIds.length > 0 || searchTable || tableOrders.length > 0 || (orderBlock?.length ?? 0) > 1 || teamStats.length > 0) ? "min-w-0 flex-1" : "max-w-[78%]"
         } ${isUser ? "items-end" : "items-start"}`}
       >
         {/* Text bubble — in ai@6+, text is in parts, not message.content */}
@@ -495,7 +611,7 @@ function MessageBubble({
             return (
               <OrderSummaryTable
                 key={`${message.id}-orders`}
-                orders={tableOrders}
+                orders={tableOrders.map(realOrderFor)}
                 onSuggest={onSuggest}
                 isLoading={isLoading}
               />
@@ -506,7 +622,7 @@ function MessageBubble({
             <ToolCallCard
               key={`${message.id}-part-${partIdx}`}
               toolName={toolName}
-              args={args}
+              args={toolName === "order_summary" ? realOrderFor(args as OrderSummaryArgs) : args}
               onApprove={onApprove}
               onDecline={onDecline}
               onSuggest={onSuggest}
@@ -514,9 +630,41 @@ function MessageBubble({
               isLoading={isLoading}
               resolution={resolution}
               isLatest={isLatest}
+              checkoutCartIds={checkoutCartIds}
             />
           );
         })}
+
+        {orderBlock && (orderBlock.length > 1
+          ? <OrderSummaryTable orders={orderBlock} onSuggest={onSuggest} isLoading={isLoading} />
+          : <OrderSummaryCard args={orderBlock[0]} onSuggest={onSuggest} isLoading={isLoading} />)}
+
+        {refundStatus && <RefundStatusCard status={refundStatus} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} />}
+
+        {customerOverviews.map(({ result, key }) => (
+          <CustomerOverviewCard key={key} result={result} onSuggest={onSuggest} isLoading={isLoading} />
+        ))}
+
+        {teamStats.map(({ stats, key }) => (
+          <TeamStatsCard key={key} stats={stats} onSuggest={onSuggest} isLoading={isLoading} />
+        ))}
+
+        {returnForm && <ReturnRequestCard key={returnForm.orderId} form={returnForm} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} />}
+
+        {lookedUpCarts.map(({ args, key }) => (
+          <CartSummaryCard key={key} args={args} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} checkoutStarted={checkoutCartIds.has(args.cartId)} />
+        ))}
+        {olderCarts.length > 0 && (
+          <OlderCartsCard carts={olderCarts} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} />
+        )}
+
+        {addressBook && (
+          <AddressBookCard book={addressBook} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} checkoutCartId={[...checkoutCartIds].at(-1) ?? null} />
+        )}
+
+        {shippingMethods && (
+          <ShippingMethodsCard methods={shippingMethods} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} cartId={[...checkoutCartIds].at(-1) ?? null} />
+        )}
 
         {/* ── Horizontal product card scroll row with ← → arrows ── */}
         {hasProductCards && (
@@ -629,6 +777,202 @@ function ThinkingIndicator() {
         <span className="w-1.5 h-1.5 rounded-full bg-m-text-muted animate-bounce [animation-delay:150ms]" />
         <span className="w-1.5 h-1.5 rounded-full bg-m-text-muted animate-bounce [animation-delay:300ms]" />
       </div>
+    </div>
+  );
+}
+
+// ─── Cart lookups → cart cards ────────────────────────────────────────────────
+
+/** A later part of the same reply that changes or re-summarises a cart supersedes a lookup of it. */
+const CART_CHANGING_PARTS = new Set([
+  "cart_summary", "add_to_cart", "remove_from_cart", "change_cart_quantity", "update_cart_address",
+  "update_cart_shipping_method", "apply_discount_code", "remove_discount_code", "place_order"
+]);
+
+/** Cart changes whose result is the updated cart (apply/remove discount nest it under `cart`). */
+const CART_SNAPSHOT_PARTS = new Set([
+  "create_cart", "add_to_cart", "remove_from_cart", "change_cart_quantity", "update_cart_address",
+  "update_cart_shipping_method", "apply_discount_code", "remove_discount_code"
+]);
+
+/** The cart id a tool result is about (create_cart has no cartId input, only its result). */
+function cartIdOf(output: unknown): string | undefined {
+  const o = output as { id?: unknown; cart?: { id?: unknown } } | null;
+  const id = o?.cart?.id ?? o?.id;
+  return typeof id === "string" ? id : undefined;
+}
+
+type RawMoney = { centAmount?: number; currencyCode?: string; fractionDigits?: number } | null | undefined;
+
+function formatCartMoney(m: RawMoney): string {
+  if (!m || typeof m.centAmount !== "number" || !m.currencyCode) return "";
+  const digits = m.fractionDigits ?? 2;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: m.currencyCode }).format(m.centAmount / 10 ** digits);
+}
+
+/**
+ * Maps a view_cart result (one cart, or `{ results }` from a search) to cart
+ * card args. Every value is the cart's own; nothing is computed or invented.
+ */
+function cartsFromViewCart(output: unknown): CartSummaryArgs[] {
+  const o = output as { id?: unknown; results?: unknown } | null;
+  const list = Array.isArray(o?.results) ? o!.results : o && typeof o.id === "string" ? [o] : [];
+  return (list as Array<Record<string, unknown>>).flatMap((c) => {
+    if (typeof c.id !== "string") return [];
+    const lines = (c.lineItems as Array<{ sku?: string; name?: string; quantity?: number; totalPrice?: RawMoney }> | undefined) ?? [];
+    const total = formatCartMoney(c.totalPrice as RawMoney);
+    const email = typeof c.customerEmail === "string" ? c.customerEmail : "";
+    return [{
+      cartId: c.id,
+      customer: email ? { name: email, email } : undefined,
+      itemCount: lines.reduce((n, l) => n + (l.quantity ?? 0), 0),
+      items: lines.map((l) => ({ sku: l.sku ?? "", name: l.name ?? l.sku ?? "Item", quantity: l.quantity ?? 0, lineTotal: formatCartMoney(l.totalPrice) })),
+      subtotal: total,
+      discount: formatCartMoney(c.totalDiscount as RawMoney),
+      discountCodes: ((c.discountCodeStates as Array<{ code?: string; state?: string }> | undefined) ?? [])
+        .filter((d) => d.code)
+        .map((d) => ({ code: d.code as string, applies: d.state === "MatchesCart" })),
+      total
+    }];
+  });
+}
+
+/** True for the customer's current cart in a search result (or for any single-cart lookup). */
+function isCurrentCart(output: unknown, cartId: string): boolean {
+  const current = (output as { currentCartId?: unknown } | null)?.currentCartId;
+  return typeof current !== "string" || current === cartId;
+}
+
+type OlderCart = { cartId: string; itemCount: number; total: string; updated: string };
+
+/** Active carts in a customer search other than the current one — real values only. */
+function olderCartsFromViewCart(output: unknown): OlderCart[] {
+  const o = output as { currentCartId?: unknown; results?: unknown } | null;
+  if (typeof o?.currentCartId !== "string" || !Array.isArray(o.results)) return [];
+  return (o.results as Array<Record<string, unknown>>)
+    .filter((c) => typeof c.id === "string" && c.id !== o.currentCartId)
+    .map((c) => {
+      const lines = (c.lineItems as Array<{ quantity?: number }> | undefined) ?? [];
+      const updated = typeof c.lastModifiedAt === "string" ? new Date(c.lastModifiedAt) : null;
+      return {
+        cartId: c.id as string,
+        itemCount: lines.reduce((n, l) => n + (l.quantity ?? 0), 0),
+        total: formatCartMoney(c.totalPrice as RawMoney),
+        updated: updated && !Number.isNaN(updated.getTime()) ? updated.toLocaleDateString(undefined, { day: "numeric", month: "short" }) : ""
+      };
+    });
+}
+
+/** Compact list of a customer's other active carts, each deletable through an approval card. */
+function OlderCartsCard({
+  carts,
+  onSuggest,
+  isLoading,
+  editable
+}: {
+  carts: OlderCart[];
+  onSuggest: (prompt: string) => void;
+  isLoading: boolean;
+  editable: boolean;
+}) {
+  return (
+    <div className="my-2 w-full max-w-md rounded-m-lg border border-m-border bg-m-surface px-4 py-3">
+      <p className="text-xs font-semibold text-m-text mb-0.5">Older carts ({carts.length})</p>
+      <p className="text-[11px] text-m-text-muted mb-2">New items go into the current cart above.</p>
+      <ul className="divide-y divide-m-border">
+        {carts.map((c) => (
+          <li key={c.cartId} className="flex items-center gap-2 py-1.5 text-xs">
+            <span className="min-w-0 flex-1 text-m-text">
+              {c.itemCount > 0 ? `${c.itemCount} item${c.itemCount === 1 ? "" : "s"} · ${c.total}` : <span className="text-m-text-muted">Empty</span>}
+              {c.updated && <span className="text-m-text-muted"> · updated {c.updated}</span>}
+            </span>
+            {editable && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={isLoading}
+                leftIcon={<Icon name="trash-2" size="xs" />}
+                aria-label={`Delete cart (${c.itemCount} items)`}
+                onClick={() => onSuggest(`[hidden-action] ${JSON.stringify({ type: "order.delete_cart", cartId: c.cartId })}`)}
+              >
+                Delete
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+type ShippingMethod = { id: string; name: string };
+
+/** Methods from a list_shipping_methods result (an empty list is a real answer); null if not one. */
+function shippingMethodsFromOutput(output: unknown): ShippingMethod[] | null {
+  const methods = (output as { methods?: unknown } | null)?.methods;
+  if (!Array.isArray(methods)) return null;
+  return methods.filter((m): m is ShippingMethod => typeof m?.id === "string" && typeof m?.name === "string");
+}
+
+/**
+ * Shipping-method picker built from the real methods in the store. When the
+ * store has none, it says so plainly and offers a ticket — the checkout never
+ * ends on a question with nothing to click.
+ */
+function ShippingMethodsCard({
+  methods,
+  onSuggest,
+  isLoading,
+  editable,
+  cartId
+}: {
+  methods: ShippingMethod[];
+  onSuggest: (prompt: string) => void;
+  isLoading: boolean;
+  editable: boolean;
+  cartId: string | null;
+}) {
+  return (
+    <div className="my-2 w-full max-w-md rounded-m-lg border border-m-border bg-m-surface px-4 py-3">
+      <p className="text-xs font-semibold text-m-text mb-2 flex items-center gap-1.5">
+        <Icon name="truck" size="xs" className="text-m-primary" /> Shipping method
+      </p>
+      {methods.length === 0 ? (
+        <>
+          <p className="text-xs text-m-text-muted mb-2">
+            This store has no shipping methods set up, so the order can't be placed until one is added in the commerce admin.
+          </p>
+          {editable && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="w-full"
+              disabled={isLoading}
+              leftIcon={<Icon name="ticket" size="xs" />}
+              onClick={() => onSuggest("Create a support ticket for this order: it can't be placed because the store has no shipping methods set up.")}
+            >
+              Create a ticket for this order
+            </Button>
+          )}
+        </>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {methods.map((m) => (
+            <Button
+              key={m.id}
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!editable || isLoading}
+              onClick={() => onSuggest(`[hidden-action] ${JSON.stringify({ type: "order.set_shipping_method", id: m.id, name: m.name, ...(cartId ? { cartId } : {}) })}`)}
+            >
+              {m.name}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -761,6 +1105,24 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   useActionNotifications(messages, isLoading);
 
   const locale = useLocale();
+  // Carts the rep clicked Checkout on: from then on their cards are read-only
+  // summaries (the rep can still ask the assistant in text to change them).
+  const checkoutCartIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const m of messages) {
+      if (m.role !== "user") continue;
+      const match = messageText(m).match(/^\[hidden-action\]\s*(\{[\s\S]*\})$/);
+      if (!match) continue;
+      try {
+        const action = JSON.parse(match[1]) as { type?: unknown; cartId?: unknown };
+        if (action.type === "order.checkout" && typeof action.cartId === "string") ids.add(action.cartId);
+      } catch {
+        // not a JSON action — ignore
+      }
+    }
+    return ids;
+  }, [messages]);
+
   const voice = useVoiceChat({ messages, isLoading, input, setInput, sendText: sendSuggestion, lang: locale });
 
   function handleRefundConfirm(args: RenderRefundActionArgs) {
@@ -913,6 +1275,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               isLoading={isLoading}
               resolution={message.role === "assistant" ? approvalResolution(messages, index) : null}
               isLatest={index === messages.length - 1}
+              checkoutCartIds={checkoutCartIds}
+              stepperReturn={index > 0 && /^\[hidden-action\]\s*\{\s*"type"\s*:\s*"return\.select_order"/.test(messageText(messages[index - 1]))}
             />
           )
         )}

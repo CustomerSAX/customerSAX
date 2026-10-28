@@ -156,11 +156,10 @@ export function ReturnStepper({
       reason: localDraft.reason,
       // Pass real lineItemIds from the eligibility check result so the AI
       // can call start_return directly without a redundant eligibility re-check.
-      lineItems: lineItems.map((li) => ({
-        lineItemId: li.lineItemId,
-        quantity: li.quantity,
-        name: li.name,
-      })),
+      // Everything still returnable — units covered by earlier returns are left out.
+      lineItems: lineItems
+        .map((li) => ({ lineItemId: li.lineItemId, quantity: li.returnableQuantity ?? li.quantity, name: li.name }))
+        .filter((li) => li.quantity > 0),
     });
     // isSubmitting is cleared once the assistant either completes the return/
     // refund (workflow.completed appears — the auto-advance effect above

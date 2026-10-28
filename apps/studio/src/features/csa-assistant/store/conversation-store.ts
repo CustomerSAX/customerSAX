@@ -67,7 +67,7 @@ export interface ReturnWorkflowSnapshot {
     orderNumber?: string;
     customerName?: string;
     total?: string;
-    lineItems: Array<{ lineItemId?: string; name?: string; quantity: number; price?: string }>;
+    lineItems: Array<{ lineItemId?: string; name?: string; quantity: number; returnableQuantity?: number; price?: string }>;
   } | null;
   eligibility: { eligible: boolean; reason?: string } | null;
   pendingApproval: { action?: string; summary?: string } | null;

@@ -22,6 +22,7 @@ import { useCartStore } from "../store/cart-store";
 import { useConversationStore } from "../store/conversation-store";
 import { CrmBriefingStrip } from "./CrmCards";
 import { LiveTicketActions } from "./TicketCards";
+import { notify } from "@/features/notifications/notification-store";
 import type {
   CartSummaryArgs,
   CaseBriefingArgs,
@@ -68,7 +69,9 @@ interface OrderCardLive {
 }
 
 // commercetools ShipmentState values that mean goods actually left the warehouse.
-const SHIPPED_STATES = new Set(["Shipped", "Partial"]);
+// "Delivered" is a real commercetools ShipmentState too — a delivered order
+// has certainly shipped (it used to be treated as "nothing shipped yet").
+const SHIPPED_STATES = new Set(["Shipped", "Partial", "Delivered"]);
 
 /** Why cancel / return are unavailable for this order, or null when allowed. */
 function orderActionBlocks(live: OrderCardLive) {
@@ -176,10 +179,28 @@ function OrderActionButtons({
         <Button
           size="sm"
           variant="outline"
+          onClick={() => send("order.refund_status")}
+          disabled={isLoading}
+          leftIcon={<Icon name="receipt" size="xs" />}
+        >
+          Payment & refunds
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => send("order.draft_update")}
+          disabled={isLoading}
+          leftIcon={<Icon name="mail" size="xs" />}
+        >
+          Draft update
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
           onClick={() => {
             useConversationStore.getState().setActiveStepper("ticket");
             useConversationStore.getState().setTicketWorkflow(null);
-            onSuggest(`Create a support ticket for ${args.customer.name} — order ${orderNumber}`);
+            onSuggest(`Create a support ticket for ${args.customer?.name || "this customer"} — order ${orderNumber}`);
           }}
           disabled={isLoading}
           leftIcon={<Icon name="ticket" size="xs" />}
@@ -252,7 +273,10 @@ export function OrderSummaryCard({
         {args.shipment?.trackingNumber && (
           <div className="flex justify-between text-xs">
             <span className="text-m-text-muted">Tracking</span>
-            <span className="font-mono text-xs">{args.shipment.trackingNumber}</span>
+            <span className="font-mono text-xs">
+              {args.shipment.carrier ? `${args.shipment.carrier} · ` : ""}
+              {args.shipment.trackingNumber}
+            </span>
           </div>
         )}
         <div className="pt-2.5 mt-1 border-t border-m-border">
@@ -407,31 +431,153 @@ export function OrderConfirmationCard({ args }: { args: OrderConfirmationArgs })
 
 // ─── Cart Summary Card ────────────────────────────────────────────────────────
 
-export function CartSummaryCard({ args }: { args: CartSummaryArgs }) {
+export function CartSummaryCard({
+  args,
+  onSuggest,
+  isLoading = false,
+  editable = false,
+  checkoutStarted = false,
+}: {
+  args: CartSummaryArgs;
+  /** Sends a message / hidden action through the chat — the AI runs the real cart update. */
+  onSuggest?: (prompt: string) => void;
+  isLoading?: boolean;
+  /**
+   * Only the newest cart card is editable: older cards are snapshots of an
+   * earlier cart, and a +/− computed from their quantities would be wrong.
+   */
+  editable?: boolean;
+  /** The rep clicked Checkout for this cart: show it as a read-only summary. */
+  checkoutStarted?: boolean;
+}) {
+  const canAct = editable && !checkoutStarted && !!onSuggest;
+  const [promo, setPromo] = useState("");
+  const codes = (args.discountCodes ?? []).filter((c) => c.code?.trim());
+  // A saving of zero is not a saving — never show a "$0.00" discount line.
+  const savings = args.discount?.trim() && /[1-9]/.test(args.discount) ? args.discount.trim() : "";
+  // Same hidden actions as the Create Order stepper, so both stay in sync.
+  const send = (action: Record<string, unknown>) => onSuggest?.(`[hidden-action] ${JSON.stringify(action)}`);
+
   return (
     <Card variant="default" className="my-2 max-w-md">
       <CardHeader className="px-4 pt-4 pb-2">
         <CardTitle className="text-sm font-semibold">Cart Summary</CardTitle>
-        <p className="text-xs text-m-text-muted">{args.customer.name}</p>
+        {args.customer?.name && <p className="text-xs text-m-text-muted">{args.customer.name}</p>}
+        {checkoutStarted && (
+          <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-m-primary">
+            <Icon name="lock" size="xs" /> Checkout in progress — items can't be changed here
+          </p>
+        )}
       </CardHeader>
       <CardContent className="px-4 pb-4 space-y-2">
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {args.items.map((item, i) => (
-            <div key={i} className="flex justify-between text-xs">
-              <span className="text-m-text">
-                {item.name} <span className="text-m-text-muted">×{item.quantity}</span>
+            <div key={item.sku || i} className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-m-text min-w-0 flex-1 truncate" title={item.name}>
+                {item.name}
+                {!canAct && <span className="text-m-text-muted"> ×{item.quantity}</span>}
               </span>
-              <span className="font-medium">{item.lineTotal}</span>
+              {canAct && (
+                <span className="flex items-center gap-1 shrink-0" role="group" aria-label={`Quantity of ${item.name}`}>
+                  <button
+                    type="button"
+                    aria-label={`Decrease ${item.name}`}
+                    disabled={isLoading || item.quantity <= 1}
+                    onClick={() => send({ type: "order.change_quantity", sku: item.sku, quantity: item.quantity - 1 })}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded-m-sm border border-m-border text-m-text hover:bg-m-surface-2 disabled:opacity-40 disabled:cursor-default"
+                  >
+                    <Icon name="minus" size="xs" />
+                  </button>
+                  <span className="min-w-[1.25rem] text-center font-medium tabular-nums">{item.quantity}</span>
+                  <button
+                    type="button"
+                    aria-label={`Increase ${item.name}`}
+                    disabled={isLoading}
+                    onClick={() => send({ type: "order.change_quantity", sku: item.sku, quantity: item.quantity + 1 })}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded-m-sm border border-m-border text-m-text hover:bg-m-surface-2 disabled:opacity-40 disabled:cursor-default"
+                  >
+                    <Icon name="plus" size="xs" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${item.name}`}
+                    title="Remove"
+                    disabled={isLoading}
+                    onClick={() => send({ type: "order.remove_item", sku: item.sku })}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded-m-sm text-m-text-muted hover:text-m-error hover:bg-m-error-light disabled:opacity-40 disabled:cursor-default"
+                  >
+                    <Icon name="trash-2" size="xs" />
+                  </button>
+                </span>
+              )}
+              <span className="font-medium shrink-0 tabular-nums">{item.lineTotal}</span>
             </div>
           ))}
         </div>
+        {(codes.length > 0 || canAct) && (
+          <div className="pt-2 border-t border-m-border space-y-2">
+            {codes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5" aria-label="Discount codes on this cart">
+                {codes.map((c) => (
+                  <span
+                    key={c.code}
+                    title={c.applies ? "This code is discounting the cart" : "This code is on the cart but isn't discounting anything — the assistant explains why"}
+                    className={`inline-flex items-center gap-1 rounded-m-full px-2 py-0.5 text-[11px] font-medium ${
+                      c.applies ? "bg-m-success-light text-m-success-dark" : "bg-m-warning-light text-m-warning-dark"
+                    }`}
+                  >
+                    <Icon name={c.applies ? "tag" : "alert-triangle"} size="xs" />
+                    {c.code}
+                    {!c.applies && <span className="font-normal">· not applied</span>}
+                    {canAct && (
+                      <button
+                        type="button"
+                        aria-label={`Remove discount code ${c.code}`}
+                        disabled={isLoading}
+                        onClick={() => send({ type: "order.remove_discount", cartId: args.cartId, code: c.code })}
+                        className="ml-0.5 rounded-m-full opacity-70 hover:opacity-100 disabled:opacity-40"
+                      >
+                        <Icon name="x" size="xs" />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+            {canAct && (
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const code = promo.trim();
+                  if (!code || isLoading) return;
+                  send({ type: "order.apply_discount", cartId: args.cartId, code });
+                  setPromo("");
+                }}
+              >
+                <input
+                  value={promo}
+                  onChange={(e) => setPromo(e.target.value)}
+                  placeholder="Promo code"
+                  aria-label="Promo code"
+                  maxLength={60}
+                  disabled={isLoading}
+                  className="min-w-0 flex-1 rounded-m-sm border border-m-border bg-m-surface px-2 py-1 text-xs text-m-text placeholder:text-m-text-muted disabled:opacity-50"
+                />
+                <Button type="submit" variant="secondary" size="sm" disabled={isLoading || !promo.trim()}>
+                  Apply
+                </Button>
+              </form>
+            )}
+          </div>
+        )}
         <div className="pt-2 border-t border-m-border space-y-1">
           <div className="flex justify-between text-xs text-m-text-muted">
             <span>Subtotal</span><span>{args.subtotal}</span>
           </div>
-          {args.discount && (
-            <div className="flex justify-between text-xs text-m-success">
-              <span>Discount</span><span>-{args.discount}</span>
+          {savings && (
+            <div className="flex justify-between text-xs text-m-success" title="Already included in the item prices above">
+              <span>Savings <span className="text-m-text-muted">(included)</span></span><span>{savings}</span>
             </div>
           )}
           {args.shipping && (
@@ -443,6 +589,47 @@ export function CartSummaryCard({ args }: { args: CartSummaryArgs }) {
             <span>Total</span><span>{args.total}</span>
           </div>
         </div>
+        {canAct && (
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="flex-1"
+              leftIcon={<Icon name="plus" size="xs" />}
+              disabled={isLoading}
+              onClick={() => send({ type: "order.browse_products", cartId: args.cartId })}
+            >
+              Add items
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="flex-1"
+              leftIcon={<Icon name="credit-card" size="xs" />}
+              disabled={isLoading || args.items.length === 0}
+              onClick={() => send({ type: "order.checkout", cartId: args.cartId })}
+            >
+              Checkout
+            </Button>
+          </div>
+        )}
+        {checkoutStarted && editable && onSuggest && (
+          // Items are locked during checkout, but the rep can always move it forward:
+          // the assistant picks up at the next missing step (address, shipping, approval).
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            className="w-full mt-2"
+            leftIcon={<Icon name="arrow-right" size="xs" />}
+            disabled={isLoading}
+            onClick={() => send({ type: "order.checkout", cartId: args.cartId })}
+          >
+            Continue checkout
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
@@ -481,8 +668,19 @@ export function ProductCard({
     : "success";
   const stockLabel = !stockText ? "Stock unknown" : stockIsOut ? "Out of stock" : "In stock";
 
+  // No price in this currency → commercetools can't put it in the cart, so don't offer it.
+  const notPriced = !args.price?.trim();
+
   const handleAdd = async () => {
-    if (addBusy || stockIsOut) return;
+    if (addBusy || stockIsOut || notPriced) return;
+    // No customer identified yet: don't put the item into a cart with no
+    // customer. Only the AI is told, and it confirms whose cart this is
+    // before adding (PLACE ORDER gate 1). With a known customer, the existing
+    // instant add below is unchanged.
+    if (!customer?.id && onAddToCart) {
+      onAddToCart(args);
+      return;
+    }
     setAddBusy(true);
     const result = await useCartStore.getState().addItem({
       sku: args.sku,
@@ -495,6 +693,8 @@ export function ProductCard({
       setAddDone(true);
       setTimeout(() => setAddDone(false), 2000);
       onAddToCart?.(args); // also tell the AI
+    } else {
+      notify({ variant: "error", title: `Couldn't add ${args.name}`, description: result.error });
     }
   };
 
@@ -547,10 +747,11 @@ export function ProductCard({
               variant="primary"
               size="sm"
               className="flex-1 text-xs w-full"
-              disabled={addBusy || stockIsOut}
+              disabled={addBusy || stockIsOut || notPriced}
+              title={notPriced ? "This product has no price in this currency, so it can't be added to the cart" : undefined}
               onClick={() => void handleAdd()}
             >
-              {addDone ? "✓ Added" : addBusy ? "…" : "Add to Cart"}
+              {addDone ? "✓ Added" : addBusy ? "…" : notPriced ? "Not priced" : "Add to Cart"}
             </Button>
           )}
         </div>
@@ -560,7 +761,7 @@ export function ProductCard({
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         product={args}
-        onAddToCart={onAddToCart ? () => onAddToCart(args) : undefined}
+        onAddToCart={onAddToCart ? (sku) => onAddToCart(sku && sku !== args.sku ? { ...args, sku } : args) : undefined}
       />
     </>
   );
@@ -620,19 +821,88 @@ export function CaseBriefingCard({
 
 // ─── Draft Email Card ─────────────────────────────────────────────────────────
 
-export function DraftEmailCard({ args }: { args: DraftEmailArgs }) {
+export function DraftEmailCard({
+  args,
+  onSuggest,
+  isLoading = false,
+  editable = false
+}: {
+  args: DraftEmailArgs;
+  onSuggest?: (prompt: string) => void;
+  isLoading?: boolean;
+  /** Only the newest draft can be edited and rewritten; older ones are snapshots. */
+  editable?: boolean;
+}) {
+  const [subject, setSubject] = useState(args.suggestedSubject);
+  // Plain-text email: drop any markdown emphasis the model slipped in.
+  const [body, setBody] = useState(() => args.draftContent.replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1"));
+  const [copied, setCopied] = useState(false);
+  const to = args.to?.trim() || "";
+  const canRewrite = editable && !!onSuggest && !isLoading;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked (permissions / insecure context) — the text stays selectable.
+    }
+  };
+  const rewrite = (how: string) =>
+    onSuggest!(`Rewrite this customer email ${how}. Keep every fact, date and number exactly as they are; don't add new ones.\n\nSubject: ${subject}\n\n${body}`);
+
   return (
-    <Card variant="default" className="my-2 border-l-4 border-l-m-info">
+    <Card variant="default" className="my-2 w-full max-w-xl border-l-4 border-l-m-info">
       <CardHeader className="px-4 pt-4 pb-2">
         <div className="flex items-center gap-2">
           <Icon name="mail" size="sm" className="text-m-info" />
-          <CardTitle className="text-sm font-semibold">Draft Email</CardTitle>
+          <CardTitle className="text-sm font-semibold">Draft email</CardTitle>
+          {to && <span className="text-xs text-m-text-muted truncate">to {to}</span>}
         </div>
-        <p className="text-xs text-m-text-muted mt-0.5">Subject: {args.suggestedSubject}</p>
       </CardHeader>
-      <CardContent className="px-4 pb-4">
-        <div className="text-xs text-m-text bg-m-surface-2 rounded-m-md p-3 whitespace-pre-wrap max-h-48 overflow-y-auto">
-          {args.draftContent}
+      <CardContent className="px-4 pb-4 space-y-2 text-xs">
+        {editable ? (
+          <>
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              aria-label="Subject"
+              className="w-full rounded-m-md border border-m-border bg-m-surface px-2 py-1.5 text-m-text focus:outline-none focus:ring-1 focus:ring-m-primary"
+            />
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              aria-label="Email body"
+              rows={Math.min(14, Math.max(6, body.split("\n").length + 1))}
+              className="w-full rounded-m-md border border-m-border bg-m-surface px-2 py-1.5 text-m-text whitespace-pre-wrap focus:outline-none focus:ring-1 focus:ring-m-primary"
+            />
+          </>
+        ) : (
+          <>
+            <p className="text-m-text-muted">Subject: {subject}</p>
+            <div className="text-m-text bg-m-surface-2 rounded-m-md p-3 whitespace-pre-wrap max-h-48 overflow-y-auto">{body}</div>
+          </>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="primary" onClick={copy} leftIcon={<Icon name={copied ? "check" : "copy"} size="xs" />}>
+            {copied ? "Copied" : "Copy"}
+          </Button>
+          {to && (
+            <a
+              href={`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
+              className="inline-flex items-center gap-1 rounded-m-md border border-m-border px-2.5 py-1 text-m-text hover:bg-m-surface-2"
+            >
+              <Icon name="external-link" size="xs" /> Open in mail app
+            </a>
+          )}
+          {canRewrite && (
+            <>
+              <Button size="sm" variant="ghost" onClick={() => rewrite("shorter")}>Shorter</Button>
+              <Button size="sm" variant="ghost" onClick={() => rewrite("friendlier and warmer")}>Friendlier</Button>
+              <Button size="sm" variant="ghost" onClick={() => rewrite("more formal")}>More formal</Button>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>

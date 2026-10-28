@@ -238,6 +238,11 @@ export function CreateOrderStepper({
     onAction({ type: 'order.remove_item', sku });
   };
 
+  /** Sets a cart line's TOTAL quantity in place (no remove + re-add). */
+  const changeCartQuantity = (sku: string, quantity: number) => {
+    onAction({ type: 'order.change_quantity', sku, quantity });
+  };
+
   const continueToDiscount = () => setStep('discount');
 
   const continueToAddress = () => setStep('address');
@@ -434,7 +439,24 @@ export function CreateOrderStepper({
               ) : (
                 cartItems.map((it) => (
                   <div key={it.sku} className="cart-row">
-                    <span className="name">{it.name} &times; {it.quantity}</span>
+                    <span className="name">{it.name}</span>
+                    <span className="cart-qty" role="group" aria-label={`Quantity of ${it.name}`}>
+                      <button
+                        type="button"
+                        className="cart-qty-btn"
+                        aria-label={`Decrease ${it.name}`}
+                        disabled={isLoading || (it.quantity ?? 0) <= 1}
+                        onClick={() => changeCartQuantity(it.sku!, (it.quantity ?? 1) - 1)}
+                      >&minus;</button>
+                      <span className="cart-qty-value">{it.quantity}</span>
+                      <button
+                        type="button"
+                        className="cart-qty-btn"
+                        aria-label={`Increase ${it.name}`}
+                        disabled={isLoading}
+                        onClick={() => changeCartQuantity(it.sku!, (it.quantity ?? 0) + 1)}
+                      >+</button>
+                    </span>
                     <span>{it.price || ''}</span>
                     <button type="button" className="cart-remove" onClick={() => removeFromCart(it.sku!)}>Remove</button>
                   </div>
