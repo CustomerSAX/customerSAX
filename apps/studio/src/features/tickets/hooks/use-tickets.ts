@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "@apollo/client";
 import { useCallback, useMemo } from "react";
 import { ADD_WORKLOG, CREATE_TICKET, TICKETS_QUERY, TICKET_QUERY, UPDATE_TICKET } from "../api/queries";
-import type { Ticket, TicketCategoryKey, TicketPriority, TicketStatus, WorklogComment } from "../types/ticket-types";
+import type { Ticket, TicketCategoryKey, TicketPriority, TicketSla, TicketStatus, WorklogComment } from "../types/ticket-types";
 
 export const TICKET_CATEGORIES: Record<TicketCategoryKey, string> = {
   order_inquiry: "Order Inquiry", payment_methods: "Payment Methods", returns_refunds: "Returns & Refunds",
@@ -38,13 +38,20 @@ type ServerTicket = Partial<{
   comments: WorklogComment[];
   attachments: Ticket["attachments"];
   history: ServerTicket[];
+  sla: TicketSla | null;
 }>;
 type NewTicket = Omit<Ticket, "id" | "ticketNumber" | "createdAt" | "comments" | "history"> & { comments?: WorklogComment[] };
 
-export function useTicketStore(detailId?: string) {
-  const list = useQuery(TICKETS_QUERY, { skip: detailId !== undefined, fetchPolicy: "cache-first", variables: { limit: 100, offset: 0 } });
+/** Server-side ordering for the list; only the first 100 tickets in this order are loaded. */
+export type TicketListSort = { sortKey: string; sortOrder: "asc" | "desc" };
+
+export function useTicketStore(detailId?: string, listSort?: TicketListSort) {
+  const list = useQuery(TICKETS_QUERY, { skip: detailId !== undefined, fetchPolicy: "cache-first", variables: { limit: 100, offset: 0, ...listSort } });
   const detail = useQuery(TICKET_QUERY, { skip: detailId === undefined, fetchPolicy: "cache-first", variables: { id: detailId } });
-  const { data, loading, error, refetch } = detailId === undefined ? list : detail;
+  const { loading, error, refetch } = detailId === undefined ? list : detail;
+  // Keep the previous rows on screen while a new list ordering loads.
+  const data = detailId === undefined ? list.data ?? list.previousData : detail.data;
+  const total: number | undefined = detailId === undefined ? data?.ticketPage.total : undefined;
   const [createMutation] = useMutation(CREATE_TICKET);
   const [updateMutation] = useMutation(UPDATE_TICKET);
   const [worklogMutation] = useMutation(ADD_WORKLOG);
@@ -102,7 +109,7 @@ export function useTicketStore(detailId?: string) {
     await refetch();
   }, [refetch, worklogMutation]);
 
-  return { tickets, getTicketById, addTicket, updateTicket, addWorklog, loading, error, refetch };
+  return { tickets, total, getTicketById, addTicket, updateTicket, addWorklog, loading, error, refetch };
 }
 
 function mapTicket(ticket: ServerTicket): Ticket {
@@ -116,6 +123,7 @@ function mapTicket(ticket: ServerTicket): Ticket {
     solution: ticket.solution ?? undefined, timeSpentOnTicket: ticket.timeSpentOnTicket ?? undefined,
     createdAt: ticket.createdAt ?? new Date(0).toISOString(), lastModifiedAt: ticket.lastModifiedAt ?? undefined,
     resolutionDate: ticket.resolutionDate ?? undefined, comments: ticket.comments ?? [], attachments: ticket.attachments ?? [],
+    sla: ticket.sla ?? null,
     history: (ticket.history ?? []).map((entry: ServerTicket) => ({
       id: entry.id ?? `history-${ticket.id ?? ticket.ticketNumber ?? "ticket"}`,
       ticketNumber: entry.ticketNumber ?? ticket.ticketNumber ?? "",

@@ -2,19 +2,20 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ticketingProvider } from "../providers/index.js";
 import { localEmailConfig } from "./config.js";
 import { resolvers } from "../schema.js";
-import { resolveProjectTicketing } from "@csa/mongodb";
+import { assertProjectScope } from "@csa/mongodb";
 
 vi.mock("@csa/mongodb", async original => ({
   ...(await original<typeof import("@csa/mongodb")>()),
-  resolveProjectTicketing: vi.fn(async () => ({ provider: "internal" })),
-  nativeTicketLegacyAccess: vi.fn(async () => false)
+  assertProjectScope: vi.fn(async () => undefined),
+  nativeTicketLegacyAccess: vi.fn(async () => false),
+  getProjectSlaTargets: vi.fn(async () => undefined)
 }));
 
 const fetchMock = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset().mockResolvedValue(new Response(null, { status: 202 }));
-  vi.mocked(resolveProjectTicketing).mockClear();
+  vi.mocked(assertProjectScope).mockClear();
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("MONGO_URI", "");
   vi.stubEnv("TICKETING_PROVIDER", "internal");
@@ -66,8 +67,8 @@ it("follows the active session project/client when switching projects, ignoring 
   const second = await resolvers.Mutation.createTicket(null, { draft }, secondContext);
   expect(first.projectKey).toBe("dropdown-one");
   expect(second.projectKey).toBe("dropdown-two");
-  expect(resolveProjectTicketing).toHaveBeenCalledWith("client-one", "dropdown-one");
-  expect(resolveProjectTicketing).toHaveBeenCalledWith("client-two", "dropdown-two");
+  expect(assertProjectScope).toHaveBeenCalledWith({ clientId: "client-one", projectKey: "dropdown-one" });
+  expect(assertProjectScope).toHaveBeenCalledWith({ clientId: "client-two", projectKey: "dropdown-two" });
   expect(fetchMock).toHaveBeenCalledTimes(2);
   expect(await resolvers.Query.ticket(null, { id: first.id }, secondContext)).toBeNull();
   expect(await resolvers.Query.ticket(null, { id: first.id }, { ...firstContext, clientId: "client-two" })).toBeNull();

@@ -7,13 +7,14 @@ export const TICKET_FIELDS = gql`
     comments { id comment createdAt status author }
     attachments { name url size }
     history { id ticketNumber operationDate reason solution status priority assignedTo worklog timeSpent }
+    sla { source nextDueAt metrics { key label stage dueAt completedAt } }
   }
 `;
 
 export const TICKETS_QUERY = gql`
   ${TICKET_FIELDS}
-  query TicketsPage($limit: Int!, $offset: Int!) {
-    ticketPage(limit: $limit, offset: $offset, sortKey: "lastModifiedAt", sortOrder: "desc") {
+  query TicketsPage($limit: Int!, $offset: Int!, $sortKey: String = "lastModifiedAt", $sortOrder: String = "desc") {
+    ticketPage(limit: $limit, offset: $offset, sortKey: $sortKey, sortOrder: $sortOrder) {
       total results { ...TicketFields }
     }
   }

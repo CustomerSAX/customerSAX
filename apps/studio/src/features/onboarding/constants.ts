@@ -29,9 +29,9 @@ export const STEPS: StepMetadata[] = [
   },
   {
     id: 4,
-    title: "Connectors & Integrations",
+    title: "Native Connectors",
     navLabel: "Connectors",
-    description: "Manage product search, ticketing, AI, and third-party platform connectors.",
+    description: "Review native capabilities; configure external connectors through Connection Hub.",
     icon: "cpu",
     required: false
   },

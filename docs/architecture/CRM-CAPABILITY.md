@@ -20,7 +20,7 @@ and activity through one provider-neutral API. CSA does not hold CRM data; it re
 | Validate / encrypt / save | `prepareTicketing`, `saveProjectTicketing` | `prepareCrm`, `saveProjectCrm` |
 | Connection test | `testProjectTicketing` (read-only calls) | `testProjectCrm` (read-only Contact/Account/Task queries) |
 | Per-request resolution | `resolveProjectTicketing` → `resolveTicketing()` | `resolveProjectCrm` → `resolveCrm()` |
-| One account per project | unique index on `ticketing.subdomain` / `freshdeskDomain` | unique index on `crm.salesforceInstanceUrl` / `hubspotPortalId` / `zohoOrgId` (released on disconnect) |
+| Account ownership | Zendesk/Freshdesk accounts may be shared by projects in the same client; client ownership is reserved in `csa_ticketing_accounts`. Old project-unique indexes are removed on save. | unique index on `crm.salesforceInstanceUrl` / `hubspotPortalId` / `zohoOrgId` (released on disconnect) |
 | Service | `apps/ticketing` (:4350): `providers/`, `zendesk/`, `freshdesk/` | `apps/crm` (:4390): `providers/`, `salesforce/`, `hubspot/`, `zoho/` |
 | Port | `TicketingProvider` | `CrmProvider` |
 | OAuth token cache | `zendesk/project-client.ts` | `salesforce/project-client.ts` |

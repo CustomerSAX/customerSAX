@@ -3,7 +3,9 @@ import { listNotifications, markNotificationsRead } from "./notifications/store.
 import { analyzeCreatedTicket } from "./email/analyze-created.js";
 import { gql } from "graphql-tag";
 import { resolveTicketing } from "./providers/index.js";
-import type { Ticket, TicketDraft, TicketListArgs, TicketUpdate, WorklogComment } from "./tickets/types.js";
+import { searchZendeskPlugin } from "./zendesk/plugin.js";
+import type { SlaMetric, Ticket, TicketDraft, TicketListArgs, TicketSla, TicketUpdate, WorklogComment } from "./tickets/types.js";
+import { metricState, slaFocus, ticketSlaState } from "./tickets/sla.js";
 
 type TicketingContext = { clientId?: string; projectKey?: string; userEmail?: string; userRole?: string };
 
@@ -27,13 +29,27 @@ async function notificationScope(context: unknown, expected: { clientId: string;
 }
 
 export const typeDefs = gql`
+  type ZendeskPluginTicket { id: ID!, subject: String!, status: String!, priority: String }
+  type ZendeskPluginTicketPage { results: [ZendeskPluginTicket!]!, count: Int!, total: Int! }
   type TicketNotification { id: ID!, ticketId: ID!, ticketNumber: String!, title: String!, subject: String!, createdAt: String!, read: Boolean! }
   type TicketNotificationFeed { items: [TicketNotification!]!, unreadCount: Int!, asOf: String! }
   type TicketInformationRequest { status: String!, recipient: String!, subject: String!, text: String!, createdAt: String!, messageId: String }
   type TicketProviderFieldOption { label: String!, value: String! }
   type TicketProviderField { id: ID!, label: String!, type: String!, value: String, editable: Boolean, rawValue: String, options: [TicketProviderFieldOption!] }
   input TicketProviderFieldUpdate { id: ID!, value: String! }
+  """
+  stage: running | paused | met | missed | completed | unknown (as recorded).
+  state: stage resolved against the current time — a running clock is on_track, at_risk (1 hour or less left) or breached.
+  """
+  type TicketSlaMetric { key: String!, label: String!, stage: String!, state: String!, dueAt: String, completedAt: String }
+  """
+  Null on a ticket when its provider exposes no SLA data; empty metrics when no SLA policy applies.
+  state: the focus clock's state, or none (no policy) / done (every clock finished needing nothing).
+  focus: the clock needing attention soonest, if any.
+  """
+  type TicketSla { source: String!, nextDueAt: String, state: String!, focus: TicketSlaMetric, metrics: [TicketSlaMetric!]! }
   type Ticket @key(fields: "id") {
+    sla: TicketSla
     aiStatus: String!
     informationRequest: TicketInformationRequest
     id: ID!
@@ -117,6 +133,7 @@ export const typeDefs = gql`
   }
 
   extend type Query {
+    zendeskPluginTickets(query: String!, limit: Int = 10): ZendeskPluginTicketPage!
     ticketNotifications(clientId: ID!, projectKey: String!): TicketNotificationFeed!
     ticketingProvider: String!
     ticketProviderFields(id: ID!): [TicketProviderField!]!
@@ -163,10 +180,19 @@ function detail(ticket: Ticket & { zendeskDetailsLoaded?: boolean }, context: un
 }
 
 export const resolvers = {
+  TicketSla: {
+    state: (sla: TicketSla) => ticketSlaState(sla, Date.now()),
+    focus: (sla: TicketSla) => slaFocus(sla, Date.now())?.metric ?? null
+  },
+  TicketSlaMetric: {
+    state: (metric: SlaMetric) => metricState(metric, Date.now())
+  },
   Ticket: {
     aiStatus: (ticket: Ticket, _args: unknown, context: unknown) => loadAIStatus(ticket, context),
     comments: async (ticket: Ticket, _args: unknown, context: unknown) => (await detail(ticket, context))?.comments || [],
     attachments: async (ticket: Ticket, _args: unknown, context: unknown) => (await detail(ticket, context))?.attachments || [],
+    // Zendesk tickets returned by writes carry no SLA sideload; read it from the shared detail fetch.
+    sla: async (ticket: Ticket, _args: unknown, context: unknown) => ticket.sla !== undefined ? ticket.sla : (await detail(ticket, context))?.sla ?? null,
   },
   Mutation: {
     updateTicketProviderFields: async (_: unknown, args: { id: string; expectedLastModifiedAt: string; fields: Array<{ id: string; value: string }> }, context: unknown) => {
@@ -205,6 +231,7 @@ export const resolvers = {
       (await selectedProvider(context)).addWorklog(args.id, args.comment)
   },
   Query: {
+    zendeskPluginTickets: (_: unknown, args: { query: string; limit?: number }, context: unknown) => searchZendeskPlugin(context as TicketingContext, args.query, args.limit),
     ticketNotifications: async (_: unknown, args: { clientId: string; projectKey: string }, context: unknown) => listNotifications(await notificationScope(context, args)),
     ticketingProvider: async (_parent: unknown, _args: unknown, context: unknown) =>
       (await resolveTicketing(selectedProject(context), (context as TicketingContext | undefined)?.clientId)).name,

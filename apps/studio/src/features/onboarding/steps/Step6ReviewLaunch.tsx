@@ -3,7 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@apollo/client";
-import { Badge, Button, Card, Icon, LoadingSpinner, Modal, ModalBody, ModalFooter, ModalHeader } from "@csa/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Icon,
+  LoadingSpinner,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader
+} from "@csa/ui";
 import {
   ADMIN_ASSIGN_CLIENT_USER,
   ADMIN_CREATE_CLIENT,
@@ -11,7 +21,6 @@ import {
   ADMIN_CREATE_PROJECT,
   ADMIN_CREATE_SMTP_PROFILE,
   ADMIN_DELETE_PROJECT,
-  ADMIN_SAVE_PROJECT_TICKETING,
   ADMIN_UPDATE_AI_SETTINGS,
   ADMIN_UPDATE_CLIENT,
   ADMIN_UPDATE_PROJECT,
@@ -50,7 +59,6 @@ export function Step6ReviewLaunch({
   const [createProject] = useMutation(ADMIN_CREATE_PROJECT);
   const [updateProject] = useMutation(ADMIN_UPDATE_PROJECT);
   const [deleteProject] = useMutation(ADMIN_DELETE_PROJECT);
-  const [saveProjectTicketing] = useMutation(ADMIN_SAVE_PROJECT_TICKETING);
   const [updateAiSettings] = useMutation(ADMIN_UPDATE_AI_SETTINGS);
   const [createSmtpProfile] = useMutation(ADMIN_CREATE_SMTP_PROFILE);
   const [updateSmtpProfile] = useMutation(ADMIN_UPDATE_SMTP_PROFILE);
@@ -60,25 +68,43 @@ export function Step6ReviewLaunch({
   const [isLaunching, setIsLaunching] = useState(false);
   const [launchStepMessage, setLaunchStepMessage] = useState("");
   const [launchError, setLaunchError] = useState<string | null>(null);
-  const [createdClientId, setCreatedClientId] = useState<string | null>(organizationId || null);
+  const [createdClientId, setCreatedClientId] = useState<string | null>(
+    organizationId || null
+  );
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
 
   // Validation Checks
   const validationErrors: Array<{ stepId: StepId; label: string; issue: string }> = [];
 
   if (!state.name.trim()) {
-    validationErrors.push({ stepId: 1, label: "Organization Details", issue: "Organization Name is required." });
+    validationErrors.push({
+      stepId: 1,
+      label: "Organization Details",
+      issue: "Organization Name is required."
+    });
   }
   if (!state.slug.trim()) {
-    validationErrors.push({ stepId: 1, label: "Organization Details", issue: "Organization Slug is required." });
+    validationErrors.push({
+      stepId: 1,
+      label: "Organization Details",
+      issue: "Organization Slug is required."
+    });
   }
   if (!state.contactEmail.trim()) {
-    validationErrors.push({ stepId: 1, label: "Organization Details", issue: "Administrative Contact Email is required." });
+    validationErrors.push({
+      stepId: 1,
+      label: "Organization Details",
+      issue: "Administrative Contact Email is required."
+    });
   }
 
   const validProjects = state.projects.filter((p) => Boolean(p.projectKey.trim()));
   if (validProjects.length === 0) {
-    validationErrors.push({ stepId: 3, label: "Projects & Commerce", issue: "At least one project with a valid Project Key is required." });
+    validationErrors.push({
+      stepId: 3,
+      label: "Projects & Commerce",
+      issue: "At least one project with a valid Project Key is required."
+    });
   }
 
   for (const proj of validProjects) {
@@ -86,19 +112,28 @@ export function Step6ReviewLaunch({
       // Existing project credentials are already verified and stored securely in backend
       continue;
     }
-    if (proj.platform === "commercetools" && (!proj.ctClientId?.trim() || !proj.ctClientSecret?.trim())) {
+    if (
+      proj.platform === "commercetools" &&
+      (!proj.ctClientId?.trim() || !proj.ctClientSecret?.trim())
+    ) {
       validationErrors.push({
         stepId: 3,
         label: `Project: ${proj.displayName || proj.projectKey}`,
         issue: "Commercetools Client ID and Secret are required."
       });
-    } else if (proj.platform === "shopify" && (!proj.shopifyStoreDomain?.trim() || !proj.shopifyAdminAccessToken?.trim())) {
+    } else if (
+      proj.platform === "shopify" &&
+      (!proj.shopifyStoreDomain?.trim() || !proj.shopifyAdminAccessToken?.trim())
+    ) {
       validationErrors.push({
         stepId: 3,
         label: `Project: ${proj.displayName || proj.projectKey}`,
         issue: "Shopify Store Domain and Admin Access Token are required."
       });
-    } else if (proj.platform === "bigcommerce" && (!proj.bigcommerceStoreHash?.trim() || !proj.bigcommerceAccessToken?.trim())) {
+    } else if (
+      proj.platform === "bigcommerce" &&
+      (!proj.bigcommerceStoreHash?.trim() || !proj.bigcommerceAccessToken?.trim())
+    ) {
       validationErrors.push({
         stepId: 3,
         label: `Project: ${proj.displayName || proj.projectKey}`,
@@ -127,7 +162,9 @@ export function Step6ReviewLaunch({
             contactEmail: state.contactEmail.trim(),
             uiTheme: state.uiTheme || "csa-custom",
             ssoConfig:
-              state.ssoConfig && state.ssoConfig.provider && state.ssoConfig.provider !== "none"
+              state.ssoConfig &&
+              state.ssoConfig.provider &&
+              state.ssoConfig.provider !== "none"
                 ? {
                     provider: state.ssoConfig.provider,
                     issuer: state.ssoConfig.issuer || undefined,
@@ -162,13 +199,18 @@ export function Step6ReviewLaunch({
 
         for (let i = 0; i < validProjects.length; i++) {
           const proj = validProjects[i];
-          setLaunchStepMessage(`Step 2/5: Synchronizing project ${i + 1} of ${validProjects.length} (${proj.displayName})...`);
+          setLaunchStepMessage(
+            `Step 2/5: Synchronizing project ${i + 1} of ${validProjects.length} (${proj.displayName})...`
+          );
 
           const shellFlags = {
             standaloneB2cEnabled: proj.shellMode === "b2c",
             standaloneB2bEnabled: proj.shellMode === "b2b"
           };
-          const cleanScope = (proj.scopes?.trim() && proj.scopes.trim() !== "manage_project:") ? proj.scopes.trim() : undefined;
+          const cleanScope =
+            proj.scopes?.trim() && proj.scopes.trim() !== "manage_project:"
+              ? proj.scopes.trim()
+              : undefined;
 
           if (proj.isExisting && proj.id && !proj.id.startsWith("proj_")) {
             retainedProjectIds.add(proj.id);
@@ -183,16 +225,20 @@ export function Step6ReviewLaunch({
               updatePayload.ctApiUrl = proj.ctApiUrl?.trim();
               updatePayload.ctAuthUrl = proj.ctAuthUrl?.trim();
               updatePayload.ctClientId = proj.ctClientId?.trim();
-              if (proj.ctClientSecret?.trim()) updatePayload.ctClientSecret = proj.ctClientSecret.trim();
+              if (proj.ctClientSecret?.trim())
+                updatePayload.ctClientSecret = proj.ctClientSecret.trim();
               updatePayload.scopes = cleanScope;
             } else if (proj.platform === "shopify") {
               updatePayload.shopifyStoreDomain = proj.shopifyStoreDomain?.trim();
-              if (proj.shopifyAdminAccessToken?.trim()) updatePayload.shopifyAdminAccessToken = proj.shopifyAdminAccessToken.trim();
+              if (proj.shopifyAdminAccessToken?.trim())
+                updatePayload.shopifyAdminAccessToken =
+                  proj.shopifyAdminAccessToken.trim();
               updatePayload.shopifyApiVersion = proj.shopifyApiVersion || "2024-01";
             } else if (proj.platform === "bigcommerce") {
               updatePayload.bigcommerceStoreHash = proj.bigcommerceStoreHash?.trim();
               updatePayload.bigcommerceClientId = proj.bigcommerceClientId?.trim();
-              if (proj.bigcommerceAccessToken?.trim()) updatePayload.bigcommerceAccessToken = proj.bigcommerceAccessToken.trim();
+              if (proj.bigcommerceAccessToken?.trim())
+                updatePayload.bigcommerceAccessToken = proj.bigcommerceAccessToken.trim();
             }
 
             await updateProject({
@@ -247,29 +293,6 @@ export function Step6ReviewLaunch({
             if (createdProjId) {
               retainedProjectIds.add(createdProjId);
               projectMap[proj.projectKey.trim()] = createdProjId;
-            }
-          }
-
-          // 3. Configure Ticketing
-          const targetProjId = projectMap[proj.projectKey.trim()] || proj.id;
-          if (targetProjId && state.ticketing.provider) {
-            try {
-              await saveProjectTicketing({
-                variables: {
-                  clientId: organizationId,
-                  id: targetProjId,
-                  input: {
-                    provider: state.ticketing.provider,
-                    subdomain: state.ticketing.subdomain || undefined,
-                    clientId: state.ticketing.clientId || undefined,
-                    clientSecret: state.ticketing.clientSecret || undefined,
-                    freshdeskDomain: state.ticketing.freshdeskDomain || undefined,
-                    freshdeskApiKey: state.ticketing.freshdeskApiKey || undefined
-                  }
-                }
-              });
-            } catch (err) {
-              console.warn("Failed to set ticketing provider:", err);
             }
           }
         }
@@ -353,8 +376,12 @@ export function Step6ReviewLaunch({
         const newMembersToProvision = state.teamMembers.filter((m) => !m.isExisting);
         if (
           draftMember?.email?.trim() &&
-          !newMembersToProvision.some((m) => m.email.toLowerCase() === draftMember.email!.trim().toLowerCase()) &&
-          !state.teamMembers.some((m) => m.email.toLowerCase() === draftMember.email!.trim().toLowerCase())
+          !newMembersToProvision.some(
+            (m) => m.email.toLowerCase() === draftMember.email!.trim().toLowerCase()
+          ) &&
+          !state.teamMembers.some(
+            (m) => m.email.toLowerCase() === draftMember.email!.trim().toLowerCase()
+          )
         ) {
           newMembersToProvision.push({
             id: `user_draft_${Date.now()}`,
@@ -374,7 +401,8 @@ export function Step6ReviewLaunch({
             const validKeys = member.projectKeys.filter(
               (k) => projectMap[k] || validProjects.some((p) => p.projectKey === k)
             );
-            const keysToUse = validKeys.length > 0 ? validKeys : validProjects.map((p) => p.projectKey);
+            const keysToUse =
+              validKeys.length > 0 ? validKeys : validProjects.map((p) => p.projectKey);
             const userProjects = keysToUse.map((k) => ({
               projectKey: k,
               role: member.role
@@ -398,8 +426,12 @@ export function Step6ReviewLaunch({
                     }
                   });
                 } catch (createErr: unknown) {
-                  const errMsg = createErr instanceof Error ? createErr.message : String(createErr);
-                  if (errMsg.toLowerCase().includes("already exists") || errMsg.toLowerCase().includes("duplicate")) {
+                  const errMsg =
+                    createErr instanceof Error ? createErr.message : String(createErr);
+                  if (
+                    errMsg.toLowerCase().includes("already exists") ||
+                    errMsg.toLowerCase().includes("duplicate")
+                  ) {
                     await assignClientUser({
                       variables: {
                         clientId: organizationId,
@@ -427,8 +459,13 @@ export function Step6ReviewLaunch({
                     }
                   });
                 } catch (assignErr: unknown) {
-                  const errMsg = assignErr instanceof Error ? assignErr.message : String(assignErr);
-                  if (member.password && (errMsg.toLowerCase().includes("not found") || errMsg.toLowerCase().includes("does not exist"))) {
+                  const errMsg =
+                    assignErr instanceof Error ? assignErr.message : String(assignErr);
+                  if (
+                    member.password &&
+                    (errMsg.toLowerCase().includes("not found") ||
+                      errMsg.toLowerCase().includes("does not exist"))
+                  ) {
                     await createClientUser({
                       variables: {
                         clientId: organizationId,
@@ -456,7 +493,10 @@ export function Step6ReviewLaunch({
         // Persist search settings in localStorage for this organization
         if (typeof window !== "undefined" && state.search) {
           try {
-            localStorage.setItem(`csa_org_search_${organizationId}`, JSON.stringify(state.search));
+            localStorage.setItem(
+              `csa_org_search_${organizationId}`,
+              JSON.stringify(state.search)
+            );
           } catch {
             // ignore
           }
@@ -492,226 +532,166 @@ export function Step6ReviewLaunch({
           }
         }
 
-      // 2. Provision Projects
-      const createdProjectMap: Record<string, string> = {}; // key -> id
-      for (let i = 0; i < validProjects.length; i++) {
-        const proj = validProjects[i];
-        setLaunchStepMessage(`Step 2/5: Connecting project ${i + 1} of ${validProjects.length} (${proj.displayName})...`);
-
-        const shellFlags = {
-          standaloneB2cEnabled: proj.shellMode === "b2c",
-          standaloneB2bEnabled: proj.shellMode === "b2b"
-        };
-
-        const inputPayload =
-          proj.platform === "shopify"
-            ? {
-                platform: "shopify",
-                projectKey: proj.projectKey.trim(),
-                displayName: proj.displayName.trim() || proj.projectKey.trim(),
-                shopifyStoreDomain: proj.shopifyStoreDomain?.trim(),
-                shopifyAdminAccessToken: proj.shopifyAdminAccessToken?.trim(),
-                shopifyApiVersion: proj.shopifyApiVersion || "2024-01",
-                ...shellFlags
-              }
-            : proj.platform === "bigcommerce"
-              ? {
-                  platform: "bigcommerce",
-                  projectKey: proj.projectKey.trim(),
-                  displayName: proj.displayName.trim() || proj.projectKey.trim(),
-                  bigcommerceStoreHash: proj.bigcommerceStoreHash?.trim(),
-                  bigcommerceClientId: proj.bigcommerceClientId?.trim(),
-                  bigcommerceAccessToken: proj.bigcommerceAccessToken?.trim(),
-                  ...shellFlags
-                }
-              : {
-                  platform: "commercetools",
-                  projectKey: proj.projectKey.trim(),
-                  displayName: proj.displayName.trim() || proj.projectKey.trim(),
-                  ctApiUrl: proj.ctApiUrl?.trim(),
-                  ctAuthUrl: proj.ctAuthUrl?.trim(),
-                  ctClientId: proj.ctClientId?.trim(),
-                  ctClientSecret: proj.ctClientSecret?.trim(),
-                  scopes: (proj.scopes?.trim() && proj.scopes.trim() !== "manage_project:") ? proj.scopes.trim() : undefined,
-                  ...shellFlags
-                };
-
-        const projRes = await createProject({
-          variables: {
-            clientId: newClientId,
-            input: inputPayload,
-            createdBy: authorEmail
-          }
-        });
-
-        const createdProjId = projRes.data?.adminCreateProject?.id;
-        if (createdProjId) {
-          createdProjectMap[proj.projectKey.trim()] = createdProjId;
-
-          // 3. Configure Ticketing on this project (if non-native or explicitly set)
-          if (state.ticketing.provider && state.ticketing.provider !== "internal") {
-            setLaunchStepMessage(`Step 3/5: Setting up ${state.ticketing.provider} ticketing connector...`);
-            try {
-              await saveProjectTicketing({
-                variables: {
-                  clientId: newClientId,
-                  id: createdProjId,
-                  input: {
-                    provider: state.ticketing.provider,
-                    subdomain: state.ticketing.subdomain || undefined,
-                    clientId: state.ticketing.clientId || undefined,
-                    clientSecret: state.ticketing.clientSecret || undefined,
-                    freshdeskDomain: state.ticketing.freshdeskDomain || undefined,
-                    freshdeskApiKey: state.ticketing.freshdeskApiKey || undefined
-                  }
-                }
-              });
-            } catch (err) {
-              console.warn("Failed to set ticketing provider, falling back to native:", err);
-            }
-          }
-        }
-      }
-
-      // 4. Configure AI Assistant (if enabled)
-      if (state.aiSettings.enabled && state.aiSettings.apiKey?.trim()) {
-        setLaunchStepMessage("Step 4/5: Configuring AI Assistant & SMTP Services...");
-        try {
-          await updateAiSettings({
-            variables: {
-              clientId: newClientId,
-              input: {
-                enabled: true,
-                provider: state.aiSettings.provider,
-                displayName: state.aiSettings.displayName || "CSA Assistant",
-                model: state.aiSettings.model || "gpt-4o-mini",
-                apiKey: state.aiSettings.apiKey.trim()
-              }
-            }
-          });
-        } catch (err) {
-          console.warn("Failed to save AI settings:", err);
-        }
-      }
-
-      // Configure SMTP Profile (if enabled)
-      if (state.smtpProfile.enabled && state.smtpProfile.smtpHost?.trim()) {
-        try {
-          await createSmtpProfile({
-            variables: {
-              clientId: newClientId,
-              input: {
-                name: state.smtpProfile.name || "Default SMTP",
-                smtpHost: state.smtpProfile.smtpHost.trim(),
-                smtpPort: state.smtpProfile.smtpPort || 587,
-                smtpSecure: state.smtpProfile.smtpSecure,
-                smtpUser: state.smtpProfile.smtpUser?.trim() || undefined,
-                smtpPassword: state.smtpProfile.smtpPassword?.trim() || undefined,
-                emailFrom: state.smtpProfile.emailFrom?.trim() || "support@csa.local",
-                isDefault: true
-              }
-            }
-          });
-        } catch (err) {
-          console.warn("Failed to save SMTP profile:", err);
-        }
-      }
-
-      // 5. Provision Team Members
-      const draftMember = state.draftUser;
-      const allMembersToProvision: typeof state.teamMembers = [...state.teamMembers];
-      if (
-        draftMember?.email?.trim() &&
-        !allMembersToProvision.some((m) => m.email.toLowerCase() === draftMember.email!.trim().toLowerCase())
-      ) {
-        const draftEmail = draftMember.email.trim().toLowerCase();
-        const draftMode = draftMember.mode || "create";
-        const draftProjectKeys =
-          draftMember.projectKeys && draftMember.projectKeys.length > 0
-            ? draftMember.projectKeys
-            : validProjects.map((p) => p.projectKey);
-        if (draftMode === "assign" || (draftMode === "create" && draftMember.password && draftMember.password.length >= 8)) {
-          allMembersToProvision.push({
-            id: `user_draft_${Date.now()}`,
-            mode: draftMode,
-            email: draftEmail,
-            firstName: draftMember.firstName?.trim() || undefined,
-            lastName: draftMember.lastName?.trim() || undefined,
-            password: draftMember.password || undefined,
-            role: draftMember.role || "admin",
-            projectKeys: draftProjectKeys
-          });
-        }
-      }
-
-      if (allMembersToProvision.length > 0) {
-        setLaunchStepMessage("Step 5/5: Provisioning Team Access...");
-        for (const member of allMembersToProvision) {
-          const validKeys = member.projectKeys.filter(
-            (k) => createdProjectMap[k] || validProjects.some((p) => p.projectKey === k)
+        // 2. Provision Projects
+        const createdProjectMap: Record<string, string> = {}; // key -> id
+        for (let i = 0; i < validProjects.length; i++) {
+          const proj = validProjects[i];
+          setLaunchStepMessage(
+            `Step 2/5: Connecting project ${i + 1} of ${validProjects.length} (${proj.displayName})...`
           );
-          const keysToUse =
-            validKeys.length > 0
-              ? validKeys
-              : validProjects.map((p) => p.projectKey);
 
-          const userProjects = keysToUse.map((k) => ({
-            projectKey: k,
-            role: member.role
-          }));
+          const shellFlags = {
+            standaloneB2cEnabled: proj.shellMode === "b2c",
+            standaloneB2bEnabled: proj.shellMode === "b2b"
+          };
 
-          const memberEmail = member.email.trim().toLowerCase();
-
-          try {
-            if (member.mode === "create" && member.password) {
-              try {
-                await createClientUser({
-                  variables: {
-                    clientId: newClientId,
-                    grantedBy: authorEmail,
-                    input: {
-                      email: memberEmail,
-                      password: member.password,
-                      firstName: member.firstName?.trim() || undefined,
-                      lastName: member.lastName?.trim() || undefined,
-                      projects: userProjects
-                    }
+          const inputPayload =
+            proj.platform === "shopify"
+              ? {
+                  platform: "shopify",
+                  projectKey: proj.projectKey.trim(),
+                  displayName: proj.displayName.trim() || proj.projectKey.trim(),
+                  shopifyStoreDomain: proj.shopifyStoreDomain?.trim(),
+                  shopifyAdminAccessToken: proj.shopifyAdminAccessToken?.trim(),
+                  shopifyApiVersion: proj.shopifyApiVersion || "2024-01",
+                  ...shellFlags
+                }
+              : proj.platform === "bigcommerce"
+                ? {
+                    platform: "bigcommerce",
+                    projectKey: proj.projectKey.trim(),
+                    displayName: proj.displayName.trim() || proj.projectKey.trim(),
+                    bigcommerceStoreHash: proj.bigcommerceStoreHash?.trim(),
+                    bigcommerceClientId: proj.bigcommerceClientId?.trim(),
+                    bigcommerceAccessToken: proj.bigcommerceAccessToken?.trim(),
+                    ...shellFlags
                   }
-                });
-              } catch (createErr: unknown) {
-                const errMsg = createErr instanceof Error ? createErr.message : String(createErr);
-                if (errMsg.toLowerCase().includes("already exists") || errMsg.toLowerCase().includes("duplicate")) {
-                  console.info(`User ${memberEmail} already exists; assigning to projects...`);
-                  await assignClientUser({
-                    variables: {
-                      clientId: newClientId,
-                      grantedBy: authorEmail,
-                      input: {
-                        email: memberEmail,
-                        projects: userProjects
-                      }
-                    }
-                  });
-                } else {
-                  throw createErr;
+                : {
+                    platform: "commercetools",
+                    projectKey: proj.projectKey.trim(),
+                    displayName: proj.displayName.trim() || proj.projectKey.trim(),
+                    ctApiUrl: proj.ctApiUrl?.trim(),
+                    ctAuthUrl: proj.ctAuthUrl?.trim(),
+                    ctClientId: proj.ctClientId?.trim(),
+                    ctClientSecret: proj.ctClientSecret?.trim(),
+                    scopes:
+                      proj.scopes?.trim() && proj.scopes.trim() !== "manage_project:"
+                        ? proj.scopes.trim()
+                        : undefined,
+                    ...shellFlags
+                  };
+
+          const projRes = await createProject({
+            variables: {
+              clientId: newClientId,
+              input: inputPayload,
+              createdBy: authorEmail
+            }
+          });
+
+          const createdProjId = projRes.data?.adminCreateProject?.id;
+          if (createdProjId) {
+            createdProjectMap[proj.projectKey.trim()] = createdProjId;
+          }
+        }
+
+        // 4. Configure AI Assistant (if enabled)
+        if (state.aiSettings.enabled && state.aiSettings.apiKey?.trim()) {
+          setLaunchStepMessage("Step 4/5: Configuring AI Assistant & SMTP Services...");
+          try {
+            await updateAiSettings({
+              variables: {
+                clientId: newClientId,
+                input: {
+                  enabled: true,
+                  provider: state.aiSettings.provider,
+                  displayName: state.aiSettings.displayName || "CSA Assistant",
+                  model: state.aiSettings.model || "gpt-4o-mini",
+                  apiKey: state.aiSettings.apiKey.trim()
                 }
               }
-            } else {
-              try {
-                await assignClientUser({
-                  variables: {
-                    clientId: newClientId,
-                    grantedBy: authorEmail,
-                    input: {
-                      email: memberEmail,
-                      projects: userProjects
-                    }
-                  }
-                });
-              } catch (assignErr: unknown) {
-                const errMsg = assignErr instanceof Error ? assignErr.message : String(assignErr);
-                if (member.password && (errMsg.toLowerCase().includes("not found") || errMsg.toLowerCase().includes("does not exist"))) {
-                  console.info(`User ${memberEmail} not found; creating account...`);
+            });
+          } catch (err) {
+            console.warn("Failed to save AI settings:", err);
+          }
+        }
+
+        // Configure SMTP Profile (if enabled)
+        if (state.smtpProfile.enabled && state.smtpProfile.smtpHost?.trim()) {
+          try {
+            await createSmtpProfile({
+              variables: {
+                clientId: newClientId,
+                input: {
+                  name: state.smtpProfile.name || "Default SMTP",
+                  smtpHost: state.smtpProfile.smtpHost.trim(),
+                  smtpPort: state.smtpProfile.smtpPort || 587,
+                  smtpSecure: state.smtpProfile.smtpSecure,
+                  smtpUser: state.smtpProfile.smtpUser?.trim() || undefined,
+                  smtpPassword: state.smtpProfile.smtpPassword?.trim() || undefined,
+                  emailFrom: state.smtpProfile.emailFrom?.trim() || "support@csa.local",
+                  isDefault: true
+                }
+              }
+            });
+          } catch (err) {
+            console.warn("Failed to save SMTP profile:", err);
+          }
+        }
+
+        // 5. Provision Team Members
+        const draftMember = state.draftUser;
+        const allMembersToProvision: typeof state.teamMembers = [...state.teamMembers];
+        if (
+          draftMember?.email?.trim() &&
+          !allMembersToProvision.some(
+            (m) => m.email.toLowerCase() === draftMember.email!.trim().toLowerCase()
+          )
+        ) {
+          const draftEmail = draftMember.email.trim().toLowerCase();
+          const draftMode = draftMember.mode || "create";
+          const draftProjectKeys =
+            draftMember.projectKeys && draftMember.projectKeys.length > 0
+              ? draftMember.projectKeys
+              : validProjects.map((p) => p.projectKey);
+          if (
+            draftMode === "assign" ||
+            (draftMode === "create" &&
+              draftMember.password &&
+              draftMember.password.length >= 8)
+          ) {
+            allMembersToProvision.push({
+              id: `user_draft_${Date.now()}`,
+              mode: draftMode,
+              email: draftEmail,
+              firstName: draftMember.firstName?.trim() || undefined,
+              lastName: draftMember.lastName?.trim() || undefined,
+              password: draftMember.password || undefined,
+              role: draftMember.role || "admin",
+              projectKeys: draftProjectKeys
+            });
+          }
+        }
+
+        if (allMembersToProvision.length > 0) {
+          setLaunchStepMessage("Step 5/5: Provisioning Team Access...");
+          for (const member of allMembersToProvision) {
+            const validKeys = member.projectKeys.filter(
+              (k) => createdProjectMap[k] || validProjects.some((p) => p.projectKey === k)
+            );
+            const keysToUse =
+              validKeys.length > 0 ? validKeys : validProjects.map((p) => p.projectKey);
+
+            const userProjects = keysToUse.map((k) => ({
+              projectKey: k,
+              role: member.role
+            }));
+
+            const memberEmail = member.email.trim().toLowerCase();
+
+            try {
+              if (member.mode === "create" && member.password) {
+                try {
                   await createClientUser({
                     variables: {
                       clientId: newClientId,
@@ -725,24 +705,82 @@ export function Step6ReviewLaunch({
                       }
                     }
                   });
-                } else {
-                  throw assignErr;
+                } catch (createErr: unknown) {
+                  const errMsg =
+                    createErr instanceof Error ? createErr.message : String(createErr);
+                  if (
+                    errMsg.toLowerCase().includes("already exists") ||
+                    errMsg.toLowerCase().includes("duplicate")
+                  ) {
+                    console.info(
+                      `User ${memberEmail} already exists; assigning to projects...`
+                    );
+                    await assignClientUser({
+                      variables: {
+                        clientId: newClientId,
+                        grantedBy: authorEmail,
+                        input: {
+                          email: memberEmail,
+                          projects: userProjects
+                        }
+                      }
+                    });
+                  } else {
+                    throw createErr;
+                  }
+                }
+              } else {
+                try {
+                  await assignClientUser({
+                    variables: {
+                      clientId: newClientId,
+                      grantedBy: authorEmail,
+                      input: {
+                        email: memberEmail,
+                        projects: userProjects
+                      }
+                    }
+                  });
+                } catch (assignErr: unknown) {
+                  const errMsg =
+                    assignErr instanceof Error ? assignErr.message : String(assignErr);
+                  if (
+                    member.password &&
+                    (errMsg.toLowerCase().includes("not found") ||
+                      errMsg.toLowerCase().includes("does not exist"))
+                  ) {
+                    console.info(`User ${memberEmail} not found; creating account...`);
+                    await createClientUser({
+                      variables: {
+                        clientId: newClientId,
+                        grantedBy: authorEmail,
+                        input: {
+                          email: memberEmail,
+                          password: member.password,
+                          firstName: member.firstName?.trim() || undefined,
+                          lastName: member.lastName?.trim() || undefined,
+                          projects: userProjects
+                        }
+                      }
+                    });
+                  } else {
+                    throw assignErr;
+                  }
                 }
               }
+            } catch (err) {
+              console.error(`Could not provision team member ${member.email}:`, err);
             }
-          } catch (err) {
-            console.error(`Could not provision team member ${member.email}:`, err);
           }
         }
-      }
 
-      // Clear local draft upon successful launch
-      if (typeof window !== "undefined") {
-        localStorage.removeItem(ONBOARDING_DRAFT_STORAGE_KEY);
-      }
+        // Clear local draft upon successful launch
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(ONBOARDING_DRAFT_STORAGE_KEY);
+        }
 
-      setCreatedClientId(newClientId);
-      setIsSuccessOpen(true);
+        setCreatedClientId(newClientId);
+        setIsSuccessOpen(true);
       }
     } catch (e) {
       setLaunchError(e instanceof Error ? e.message : "Failed to launch organization");
@@ -751,7 +789,8 @@ export function Step6ReviewLaunch({
     }
   };
 
-  const selectedThemeMeta = UI_THEME_OPTIONS.find((t) => t.id === state.uiTheme) || UI_THEME_OPTIONS[0];
+  const selectedThemeMeta =
+    UI_THEME_OPTIONS.find((t) => t.id === state.uiTheme) || UI_THEME_OPTIONS[0];
 
   return (
     <OnboardingStepShell
@@ -830,7 +869,9 @@ export function Step6ReviewLaunch({
               <div className="flex justify-between">
                 <span className="text-m-text-muted">Status:</span>
                 <span className="text-m-text-muted">
-                  {state.uiTheme === "csa-custom" ? "Native Default" : "Custom Adapter Selected"}
+                  {state.uiTheme === "csa-custom"
+                    ? "Native Default"
+                    : "Custom Adapter Selected"}
                 </span>
               </div>
             </div>
@@ -850,7 +891,10 @@ export function Step6ReviewLaunch({
               </div>
               <div className="space-y-1.5 pt-1 border-t border-m-border/40">
                 {validProjects.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between font-mono text-[11px]">
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between font-mono text-[11px]"
+                  >
                     <span className="font-semibold text-m-primary">{p.projectKey}</span>
                     <span className="rounded bg-m-neutral-100 px-1.5 py-0.5 uppercase tracking-wider text-[10px] text-m-text">
                       {p.platform} · {p.shellMode}
@@ -928,7 +972,8 @@ export function Step6ReviewLaunch({
             const hasDraft =
               Boolean(state.draftUser?.email?.trim()) &&
               (state.draftUser?.mode === "assign" ||
-                (Boolean(state.draftUser?.password) && (state.draftUser?.password?.length ?? 0) >= 8));
+                (Boolean(state.draftUser?.password) &&
+                  (state.draftUser?.password?.length ?? 0) >= 8));
             const totalUsers = state.teamMembers.length + (hasDraft ? 1 : 0);
             return (
               <ReviewSectionCard
@@ -944,16 +989,19 @@ export function Step6ReviewLaunch({
                   </div>
                   {hasDraft && (
                     <p className="text-[11px] text-m-warning-dark font-medium">
-                      ⚠ 1 user entered but not queued — will still be provisioned on launch.
+                      ⚠ 1 user entered but not queued — will still be provisioned on
+                      launch.
                     </p>
                   )}
                   {totalUsers > 0 ? (
                     <p className="text-[11px] text-m-text-muted">
-                      Users will be provisioned and assigned to their respective project keys immediately upon launch.
+                      Users will be provisioned and assigned to their respective project
+                      keys immediately upon launch.
                     </p>
                   ) : (
                     <p className="text-[11px] text-m-text-muted">
-                      No users queued. You can invite team members later from the Users tab.
+                      No users queued. You can invite team members later from the Users
+                      tab.
                     </p>
                   )}
                 </div>
@@ -986,14 +1034,22 @@ export function Step6ReviewLaunch({
             type="button"
             variant="primary"
             size="md"
-            rightIcon={isLaunching ? <LoadingSpinner size="sm" /> : <Icon name={isEdit ? "save" : "rocket"} size="sm" />}
+            rightIcon={
+              isLaunching ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <Icon name={isEdit ? "save" : "rocket"} size="sm" />
+              )
+            }
             onClick={handleLaunch}
             disabled={!canLaunch}
             className="w-full sm:w-auto shrink-0 shadow-m-sm"
           >
             {isLaunching
-              ? (launchStepMessage || (isEdit ? "Saving Changes..." : "Provisioning..."))
-              : (isEdit ? "Save & Update Organization" : "Launch Organization")}
+              ? launchStepMessage || (isEdit ? "Saving Changes..." : "Provisioning...")
+              : isEdit
+                ? "Save & Update Organization"
+                : "Launch Organization"}
           </Button>
         </Card>
       </div>
@@ -1006,7 +1062,11 @@ export function Step6ReviewLaunch({
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-m-success-light text-m-success">
                 <Icon name="check-circle-2" size="sm" />
               </div>
-              <span>{isEdit ? "Organization Successfully Updated!" : "Organization Successfully Launched!"}</span>
+              <span>
+                {isEdit
+                  ? "Organization Successfully Updated!"
+                  : "Organization Successfully Launched!"}
+              </span>
             </div>
           }
           subtitle={
@@ -1034,7 +1094,9 @@ export function Step6ReviewLaunch({
               <div className="flex justify-between">
                 <span className="text-m-text-muted">Product Search:</span>
                 <span className="font-bold">
-                  {state.search?.provider === "algolia" ? "Algolia InstantSearch" : "Native Commerce Search"}
+                  {state.search?.provider === "algolia"
+                    ? "Algolia InstantSearch"
+                    : "Native Commerce Search"}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -1106,10 +1168,26 @@ function ReviewSectionCard({
   children: React.ReactNode;
 }) {
   const statusBadge = {
-    configured: <Badge variant="success" size="sm">Configured</Badge>,
-    default: <Badge variant="neutral" appearance="subtle" size="sm">Native Default</Badge>,
-    optional: <Badge variant="neutral" appearance="subtle" size="sm">Not Configured</Badge>,
-    error: <Badge variant="error" size="sm">Missing Info</Badge>
+    configured: (
+      <Badge variant="success" size="sm">
+        Configured
+      </Badge>
+    ),
+    default: (
+      <Badge variant="neutral" appearance="subtle" size="sm">
+        Native Default
+      </Badge>
+    ),
+    optional: (
+      <Badge variant="neutral" appearance="subtle" size="sm">
+        Not Configured
+      </Badge>
+    ),
+    error: (
+      <Badge variant="error" size="sm">
+        Missing Info
+      </Badge>
+    )
   }[status];
 
   return (

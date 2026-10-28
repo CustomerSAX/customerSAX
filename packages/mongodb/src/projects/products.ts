@@ -85,18 +85,8 @@ export async function saveProjectProducts(
 export async function resolveProjectProducts(clientId: string, projectKey: string) {
   const doc = await (await getProjectsCollection()).findOne({ clientId, projectKey });
   if (!doc) throw new Error("Active project does not belong to this client");
-  const settings = doc.products as ProjectProducts | undefined;
-  if (!settings) return null;
-  if (settings.provider === "commercetools")
-    return { provider: "commercetools" as const };
-  if (!settings.appId || !settings.indexName || !settings.searchApiKeyEncrypted)
-    throw new Error("Project Algolia configuration is incomplete");
-  return {
-    provider: "algolia" as const,
-    appId: settings.appId,
-    indexName: settings.indexName,
-    searchApiKey: decrypt(settings.searchApiKeyEncrypted)
-  };
+  // External search is selected by Hub bindings; never return legacy provider keys.
+  return { provider: "commercetools" as const };
 }
 export async function testProjectProducts(
   clientId: string,
@@ -142,4 +132,24 @@ export async function testProjectProducts(
       message: "Could not reach Algolia. Check the application ID and try again."
     };
   }
+}
+
+export async function assertProjectScope({
+  clientId,
+  projectKey
+}: {
+  clientId: string;
+  projectKey: string;
+}) {
+  const doc = await (
+    await getProjectsCollection()
+  ).findOne({ clientId, projectKey }, { projection: { _id: 1 } });
+  if (!doc) throw new Error("Active project does not belong to this client");
+}
+
+export const assertProjectProductsScope = assertProjectScope;
+
+export async function projectHubIdentity(clientId: string, id: string) {
+  const doc = await project(clientId, id);
+  return { clientId, projectKey: doc.projectKey };
 }

@@ -6,6 +6,7 @@ import { initialCommitments, type Commitment } from "./data";
 type Notice = { id: string; title: string; description: string; time: string };
 function useDemoState() {
   const [approved, setApproved] = useState(false);
+  const [activePersonaId, setActivePersonaId] = useState<"sales" | "manager">("sales");
   const [resolutionReady, setResolutionReady] = useState(false);
   const [customerNotified, setCustomerNotified] = useState(false);
   const [ownerNotified, setOwnerNotified] = useState(false);
@@ -72,6 +73,8 @@ function useDemoState() {
   return {
     approved,
     approve,
+    activePersonaId,
+    setActivePersonaId,
     resolutionReady,
     setResolutionReady,
     customerNotified,
@@ -82,6 +85,15 @@ function useDemoState() {
     setPolicy,
     commitments,
     capture,
+    updateCommitmentStatus: (id: string, status: "Open" | "In Progress" | "Fulfilled" | "Blocked") => {
+      setCommitments((previous) =>
+        previous.map((c) => (c.id === id ? { ...c, status } : c))
+      );
+      notify(
+        `Commitment status updated`,
+        `Commitment marked as ${status}.`
+      );
+    },
     refreshTime,
     refresh,
     message,

@@ -10,7 +10,18 @@ export type InformationRequest = {
   messageId?: string;
 };
 
+/**
+ * Where an SLA clock stands, as reported by the provider. Only "running" is
+ * time-relative (on track / at risk / breached is derived from dueAt and the
+ * current time by the reader); every other stage is a settled fact.
+ */
+export type SlaStage = "running" | "paused" | "met" | "missed" | "completed" | "unknown";
+export type SlaMetric = { key: string; label: string; stage: SlaStage; dueAt?: string | null; completedAt?: string | null };
+/** null on a ticket = the provider exposes no SLA data; empty metrics = no SLA policy applies. */
+export type TicketSla = { source: "native" | "freshdesk" | "zendesk"; nextDueAt: string | null; metrics: SlaMetric[] };
+
 export type Ticket = {
+  sla?: TicketSla | null;
   informationRequest?: InformationRequest | null;
   assignee?: string | null;
   category?: string | null;

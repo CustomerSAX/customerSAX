@@ -1,9 +1,19 @@
 import { normalizeFreshdeskDomain, projectFreshdeskCredentials, freshdeskClient } from "./freshdesk.js";
 import { ObjectId } from "mongodb";
-import { getProjectsCollection } from "../admin/db.js";
+import { getProjectsCollection, getTicketingAccountsCollection } from "../admin/db.js";
 import { encrypt, decrypt } from "../encrypt.js";
 
+export const SLA_PRIORITIES = ["urgent", "high", "normal", "low"] as const;
+export type SlaPriority = (typeof SLA_PRIORITIES)[number];
+/** Minutes of 24/7 time; null = no target for that clock. */
+export type SlaTarget = { firstResponseMinutes: number | null; resolutionMinutes: number | null };
+export type SlaTargets = Partial<Record<SlaPriority, SlaTarget>>;
+/** Native-ticket SLA policy; external providers own their own SLA rules. */
+export type ProjectTicketingSla = { targets: SlaTargets; updatedAt: Date };
+export type SlaTargetInput = { priority: string; firstResponseMinutes?: number | null; resolutionMinutes?: number | null };
+
 export type ProjectTicketing = {
+  sla?: ProjectTicketingSla;
   provider: "internal" | "zendesk" | "freshdesk";
   freshdeskDomain?: string;
   freshdeskApiKeyEncrypted?: string;
@@ -52,6 +62,67 @@ export function ticketingSettingsView(settings?: ProjectTicketing) {
     secretSet: !!settings?.secretEncrypted
   };
 }
+
+/** Every priority's targets, null where none is set. */
+export function slaTargetsView(sla?: ProjectTicketingSla) {
+  return SLA_PRIORITIES.map((priority) => ({
+    priority,
+    firstResponseMinutes: sla?.targets[priority]?.firstResponseMinutes ?? null,
+    resolutionMinutes: sla?.targets[priority]?.resolutionMinutes ?? null
+  }));
+}
+
+const MAX_SLA_MINUTES = 365 * 24 * 60;
+/** Validates admin input; priorities with no targets at all are dropped. */
+export function prepareSlaTargets(input: SlaTargetInput[]): SlaTargets {
+  const targets: SlaTargets = {};
+  for (const row of input) {
+    const priority = row.priority.trim().toLowerCase() as SlaPriority;
+    if (!SLA_PRIORITIES.includes(priority)) throw new Error(`Unsupported SLA priority: ${row.priority}`);
+    if (targets[priority]) throw new Error(`Duplicate SLA priority: ${row.priority}`);
+    const minutes = (value: number | null | undefined, label: string) => {
+      if (value == null) return null;
+      if (!Number.isInteger(value) || value < 1 || value > MAX_SLA_MINUTES)
+        throw new Error(`${label} target for ${priority} must be between 1 minute and 365 days`);
+      return value;
+    };
+    const target = {
+      firstResponseMinutes: minutes(row.firstResponseMinutes, "First response"),
+      resolutionMinutes: minutes(row.resolutionMinutes, "Resolution")
+    };
+    if (target.firstResponseMinutes != null || target.resolutionMinutes != null) targets[priority] = target;
+  }
+  return targets;
+}
+
+/**
+ * Native-ticket SLA targets live at `ticketing.sla` on the project. They are
+ * a native capability, independent of the retired connector settings stored
+ * beside them, so only that path is ever written.
+ */
+export async function getProjectTicketingSla(clientId: string, id: string) {
+  return slaTargetsView((await project(clientId, id)).ticketing?.sla);
+}
+
+/** Saves native SLA targets; an empty set removes the policy. */
+export async function saveProjectTicketingSla(clientId: string, id: string, input: SlaTargetInput[]) {
+  const existing = await project(clientId, id);
+  const targets = prepareSlaTargets(input);
+  const sla: ProjectTicketingSla | undefined = Object.keys(targets).length ? { targets, updatedAt: new Date() } : undefined;
+  const result = await (await getProjectsCollection()).updateOne(
+    { _id: existing._id, clientId },
+    sla ? { $set: { "ticketing.sla": sla, updatedAt: new Date() } } : { $unset: { "ticketing.sla": "" }, $set: { updatedAt: new Date() } }
+  );
+  if (!result.matchedCount) throw new Error("Project no longer exists");
+  return slaTargetsView(sla);
+}
+
+/** Targets new native tickets in this project copy at creation; undefined when none are set. */
+export async function getProjectSlaTargets(clientId: string, projectKey: string): Promise<SlaTargets | undefined> {
+  const doc = await (await getProjectsCollection()).findOne({ clientId, projectKey }, { projection: { "ticketing.sla": 1 } });
+  const targets = doc?.ticketing?.sla?.targets as SlaTargets | undefined;
+  return targets && Object.keys(targets).length ? targets : undefined;
+}
 async function project(clientId: string, id: string) {
   if (!ObjectId.isValid(id)) throw new Error("Project not found for this client");
   const doc = await (
@@ -97,19 +168,33 @@ export async function saveProjectTicketing(
   const existing = await project(clientId, id);
   const settings = prepareTicketing(input, existing.ticketing);
   const collection = await getProjectsCollection();
-  // Atomic uniqueness protects against two admins assigning one account concurrently.
-  // Keep the reservation even while native is selected, preserving account ownership.
-  await collection.createIndex(
-    { "ticketing.subdomain": 1 },
-    {
-      unique: true,
-      partialFilterExpression: { "ticketing.subdomain": { $type: "string" } },
-      name: "unique_ticketing_zendesk_account"
+  // Reserve accounts for a client, rather than for an individual project.
+  // Check legacy rows before removing the old indexes so existing ownership
+  // remains protected; the registry's unique _id arbitrates concurrent claims.
+  for (const [provider, field, account] of [
+    ["zendesk", "ticketing.subdomain", settings.subdomain],
+    ["freshdesk", "ticketing.freshdeskDomain", settings.freshdeskDomain]
+  ]) {
+    if (!account) continue;
+    if (await collection.findOne({ [field!]: account, clientId: { $ne: clientId } }))
+      throw new Error("This ticketing account belongs to another client");
+    try {
+      await (await getTicketingAccountsCollection()).updateOne(
+        { _id: `${provider}:${account}`, clientId },
+        { $setOnInsert: { clientId } },
+        { upsert: true }
+      );
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) throw new Error("This ticketing account belongs to another client");
+      throw error;
     }
-  );
-  await collection.createIndex({ "ticketing.freshdeskDomain": 1 }, {
-    unique: true, partialFilterExpression: { "ticketing.freshdeskDomain": { $type: "string" } }, name: "unique_ticketing_freshdesk_account"
-  });
+  }
+  // Existing installations already have these project-unique indexes. Remove
+  // them on save; ignoring only IndexNotFound makes this migration idempotent.
+  for (const name of ["unique_ticketing_zendesk_account", "unique_ticketing_freshdesk_account"]) {
+    try { await collection.dropIndex(name); }
+    catch (error) { if ((error as { code?: number }).code !== 27) throw error; }
+  }
   try {
     const result = await collection.updateOne(
       { _id: existing._id, clientId },
@@ -118,7 +203,7 @@ export async function saveProjectTicketing(
     if (!result.matchedCount) throw new Error("Project no longer exists");
   } catch (e) {
     if ((e as { code?: number }).code === 11000)
-      throw new Error("This ticketing account is already assigned to another project");
+      throw new Error("Could not save this shared ticketing account. Retry after the admin deployment completes.");
     throw e;
   }
   return ticketingSettingsView(settings);

@@ -1,3 +1,3 @@
-import { Today } from "../../features/repmotion/today";
+import { PrioritiesView } from "@/features/priorities/PrioritiesView";
 
-export default Today;
+export default PrioritiesView;
