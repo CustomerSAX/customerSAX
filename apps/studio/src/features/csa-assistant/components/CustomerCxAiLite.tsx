@@ -220,15 +220,45 @@ export function CustomerCxAiLite() {
     lang: "en-US",
   });
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isAtBottomRef = useRef(true);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const prevMessagesCountRef = useRef(messages.length);
 
-  // Auto-scroll to bottom of conversation
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+    isAtBottomRef.current = true;
+    setShowScrollBottom(false);
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const isBottom = distanceFromBottom < 80;
+    isAtBottomRef.current = isBottom;
+    setShowScrollBottom(!isBottom);
+  }, []);
+
+  // Auto-scroll to bottom of conversation only if user is pinned to bottom or just sent a message
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!isOpen) return;
+
+    const isNewMessage = messages.length > prevMessagesCountRef.current;
+    prevMessagesCountRef.current = messages.length;
+
+    const lastMsg = messages[messages.length - 1];
+    if (isNewMessage && lastMsg?.role === "user") {
+      scrollToBottom("smooth");
+      return;
     }
-  }, [messages, isOpen, isLoading]);
+
+    if (isAtBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: isLoading ? "auto" : "smooth" });
+    }
+  }, [messages, isOpen, isLoading, scrollToBottom]);
 
   // Focus input on expand
   useEffect(() => {
@@ -395,7 +425,12 @@ export function CustomerCxAiLite() {
           </div>
 
           {/* Scrollable Conversation Pane */}
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3.5 bg-m-surface">
+          <div className="min-h-0 flex-1 relative flex flex-col">
+            <div
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3.5 bg-m-surface"
+            >
             {/* Empty State / Welcome Greeting */}
             {messages.length === 0 && (
               <div className="space-y-4 pt-2">
@@ -601,6 +636,20 @@ export function CustomerCxAiLite() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Floating Scroll to Bottom button */}
+          {showScrollBottom && (
+            <button
+              type="button"
+              onClick={() => scrollToBottom("smooth")}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs font-medium shadow-md hover:bg-blue-700 transition-all duration-150 z-20 cursor-pointer"
+              aria-label="Scroll to bottom"
+            >
+              <ChevronDown size={14} />
+              <span>Scroll to bottom</span>
+            </button>
+          )}
+        </div>
+
           {/* Input & Action Bar */}
           <footer className="border-t border-m-border bg-m-surface-2 p-2.5 space-y-2">
             {/* Dictating / Voice Status preview */}
@@ -633,7 +682,13 @@ export function CustomerCxAiLite() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+            <form
+              onSubmit={(e) => {
+                scrollToBottom("smooth");
+                handleSubmit(e);
+              }}
+              className="flex flex-col gap-2"
+            >
               <div className="relative flex items-center rounded-xl border border-m-border bg-m-surface focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/10">
                 <textarea
                   ref={inputRef}

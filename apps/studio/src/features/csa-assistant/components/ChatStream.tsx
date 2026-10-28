@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Avatar, Badge, Button, Icon, Input } from "@csa/ui";
 import type { UIMessage } from "ai";
 import { useCurrentUser } from "@/lib/use-current-user";
@@ -278,7 +278,8 @@ function MessageBubble({
   onRefundConfirm,
   isLoading,
   resolution,
-  isLatest
+  isLatest,
+  prevUserPrompt = "",
 }: {
   message: UIMessage;
   onApprove: (cmd: string) => void;
@@ -288,6 +289,7 @@ function MessageBubble({
   isLoading: boolean;
   resolution: ApprovalResolution;
   isLatest: boolean;
+  prevUserPrompt?: string;
 }) {
   const isUser = message.role === "user";
   const { user } = useCurrentUser();
@@ -366,9 +368,14 @@ function MessageBubble({
     return found.length ? found[found.length - 1] : null;
   })();
 
-  // A ticket search that found tickets is shown as the same table, straight
-  // from the tool's real results, unless the reply already has ticket cards.
+  const userExplicitlyRequestedTable = Boolean(
+    prevUserPrompt && /\b(table|grid|tabular|list.*(?:table|all)|display.*(?:table|grid)|view.*in.*table)\b/i.test(prevUserPrompt)
+  );
+
+  // A ticket search that found tickets is shown as a table ONLY when the user
+  // explicitly requested a table or tabular format. Natural language text is the default.
   const searchTable = (() => {
+    if (!userExplicitlyRequestedTable) return null;
     if (ticketParts.length > 0) return null;
     const found = (message.parts ?? []).flatMap((part, partIdx) => {
       const p = part as { type: string; toolName?: string; state?: string; output?: unknown };
@@ -727,7 +734,11 @@ export function ChatStream({ chat, sessionCustomerName, hideHeader, emptyState }
   const setRightPanelOpen  = useConversationStore((s) => s.setRightPanelOpen);
   const setRightPanelTab   = useConversationStore((s) => s.setRightPanelTab);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const prevMessagesCountRef = useRef(messages.length);
   const activeTicketId = useConversationStore((s) => s.activeTicketId);
   const setActiveStepper = useConversationStore((s) => s.setActiveStepper);
   const tickets = useConversationStore((s) => s.context.tickets);
@@ -754,10 +765,41 @@ export function ChatStream({ chat, sessionCustomerName, hideHeader, emptyState }
     && orderWorkflow?.cart != null
     && !orderWorkflow?.placedOrder;
 
-  // Auto-scroll to bottom
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    bottomRef.current?.scrollIntoView({ behavior });
+    isAtBottomRef.current = true;
+    setShowScrollBottom(false);
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    // Consider at bottom if within 80px from the bottom
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const isBottom = distanceFromBottom < 80;
+    isAtBottomRef.current = isBottom;
+    setShowScrollBottom(!isBottom);
+  }, []);
+
+  // Smart auto-scroll: only scroll if the user is already at the bottom,
+  // or if a brand-new user message was just sent.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+    const isNewMessage = messages.length > prevMessagesCountRef.current;
+    prevMessagesCountRef.current = messages.length;
+
+    // If the user just sent a message, always snap to bottom
+    const lastMsg = messages[messages.length - 1];
+    if (isNewMessage && lastMsg?.role === "user") {
+      scrollToBottom("smooth");
+      return;
+    }
+
+    // While streaming tokens or receiving updates, ONLY scroll if user is already near bottom.
+    // Use instant scroll ('auto') during streaming to prevent sluggish animation queues.
+    if (isAtBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: isLoading ? "auto" : "smooth" });
+    }
+  }, [messages, isLoading, scrollToBottom]);
 
   useChatToolEffects(messages, isLoading);
   useActionNotifications(messages, isLoading);
@@ -892,54 +934,85 @@ export function ChatStream({ chat, sessionCustomerName, hideHeader, emptyState }
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          emptyState ?? (
-            <div className="flex flex-col items-center justify-center h-full text-center py-12">
-              <div className="w-12 h-12 rounded-full bg-m-primary/10 flex items-center justify-center mb-4">
-                <Icon name="cpu" size="lg" className="text-m-primary" />
+      <div className="flex-1 min-h-0 relative flex flex-col">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-4 space-y-4"
+        >
+          {messages.length === 0 && (
+            emptyState ?? (
+              <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                <div className="w-12 h-12 rounded-full bg-m-primary/10 flex items-center justify-center mb-4">
+                  <Icon name="cpu" size="lg" className="text-m-primary" />
+                </div>
+                <p className="text-sm font-semibold text-m-text mb-1">CSA Assistant</p>
+                <p className="text-xs text-m-text-muted max-w-xs">
+                  Ask me to look up a customer, check an order, manage tickets, or help place an order.
+                </p>
               </div>
-              <p className="text-sm font-semibold text-m-text mb-1">CSA Assistant</p>
-              <p className="text-xs text-m-text-muted max-w-xs">
-                Ask me to look up a customer, check an order, manage tickets, or help place an order.
-              </p>
+            )
+          )}
+
+          {messages.map((message: UIMessage, index) => {
+            if (isFullyInternalMessage(message)) return null;
+            const prevUserMessage = messages
+              .slice(0, index)
+              .reverse()
+              .find((m) => m.role === "user");
+            const prevUserPrompt =
+              prevUserMessage?.parts
+                ?.filter((p) => p.type === "text")
+                .map((p) => (p as { text: string }).text)
+                .join(" ") ?? "";
+
+            return (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                onApprove={approveAction}
+                onDecline={handleDecline}
+                onSuggest={sendSuggestion}
+                onRefundConfirm={handleRefundConfirm}
+                isLoading={isLoading}
+                resolution={message.role === "assistant" ? approvalResolution(messages, index) : null}
+                isLatest={index === messages.length - 1}
+                prevUserPrompt={prevUserPrompt}
+              />
+            );
+          })}
+
+          {isLoading && <ThinkingIndicator />}
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-m-md bg-m-error-light text-m-error text-xs">
+              <Icon name="alert-circle" size="xs" />
+              <span>Connection error — please try again.</span>
             </div>
-          )
+          )}
+
+          {/* Checkout flow — rendered inline inside the chat scroll list */}
+          <CheckoutFlow
+            onViewOrder={(orderNumber) => {
+              sendSuggestion(`[hidden-action] ${JSON.stringify({ type: 'order.view', orderNumber })}`);
+            }}
+          />
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Floating Scroll to Bottom button */}
+        {showScrollBottom && (
+          <button
+            type="button"
+            onClick={() => scrollToBottom("smooth")}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-m-primary text-white text-xs font-medium shadow-md hover:opacity-95 transition-all duration-150 z-20 cursor-pointer"
+            aria-label="Scroll to bottom"
+          >
+            <Icon name="chevron-down" size="xs" />
+            <span>Scroll to bottom</span>
+          </button>
         )}
-
-        {messages.map((message: UIMessage, index) =>
-          isFullyInternalMessage(message) ? null : (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              onApprove={approveAction}
-              onDecline={handleDecline}
-              onSuggest={sendSuggestion}
-              onRefundConfirm={handleRefundConfirm}
-              isLoading={isLoading}
-              resolution={message.role === "assistant" ? approvalResolution(messages, index) : null}
-              isLatest={index === messages.length - 1}
-            />
-          )
-        )}
-
-        {isLoading && <ThinkingIndicator />}
-
-        {error && (
-          <div className="flex items-center gap-2 p-3 rounded-m-md bg-m-error-light text-m-error text-xs">
-            <Icon name="alert-circle" size="xs" />
-            <span>Connection error — please try again.</span>
-          </div>
-        )}
-
-        {/* Checkout flow — rendered inline inside the chat scroll list */}
-        <CheckoutFlow
-          onViewOrder={(orderNumber) => {
-            sendSuggestion(`[hidden-action] ${JSON.stringify({ type: 'order.view', orderNumber })}`);
-          }}
-        />
-
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
@@ -1084,7 +1157,13 @@ export function ChatStream({ chat, sessionCustomerName, hideHeader, emptyState }
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+        <form
+          onSubmit={(e) => {
+            scrollToBottom("smooth");
+            handleSubmit(e);
+          }}
+          className="flex items-center gap-2"
+        >
           <Input
             placeholder={voice.dictating ? "Listening… speak now" : "Ask me to draft a reply or check order history..."}
             value={input}

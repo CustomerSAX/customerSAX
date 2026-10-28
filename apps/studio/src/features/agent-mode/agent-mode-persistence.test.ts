@@ -10,14 +10,6 @@ describe("Agent Mode - Conversation History Persistence & Lifecycle", () => {
     updatedAt: "2026-10-23T10:05:00Z",
   };
 
-  const mockSession2 = {
-    sessionId: "sess-xyz-222",
-    title: "Daily Briefing",
-    preview: "Start My Day — give me an overview",
-    messageCount: 4,
-    createdAt: "2026-10-23T11:00:00Z",
-    updatedAt: "2026-10-23T11:15:00Z",
-  };
 
   const mockMessagesSess1 = [
     { id: "m1", role: "user", content: "Where is order ORD-9981?", createdAt: "2026-10-23T10:00:00Z" },

@@ -10,7 +10,9 @@ const log = createLogger("ai-assist").child({ module: "tools/tickets" });
 
 const TICKET_FIELDS = `
   id ticketNumber projectKey customerName customerEmail customerId source status priority category subject assignee
-  contactType orderNumber message createdAt lastModifiedAt
+  contactType orderNumber message solution timeSpentOnTicket resolutionDate createdAt lastModifiedAt
+  comments { id comment createdAt status author }
+  history { id ticketNumber operationDate reason solution status priority assignedTo worklog timeSpent }
 `;
 
 // ─── Read tools (no approval gate needed) ────────────────────────────────────
@@ -29,6 +31,7 @@ export const searchTicketsTool = tool({
       .enum(["any", "low", "normal", "high", "urgent"])
       .optional()
       .describe("Filter by priority; 'any' (no filter) unless the rep explicitly asked for a priority"),
+    category: z.string().optional().describe("Filter by category (request, orderInquiry, returns, etc.)"),
     limit: z.number().optional().default(10)
   }),
   execute: async (args) => {
@@ -41,16 +44,17 @@ export const searchTicketsTool = tool({
     const customerId = opt(args.customerId);
     const status = opt(args.status);
     const priority = opt(args.priority);
+    const category = opt(args.category);
     const limit = args.limit;
     try {
       const data = await bffQuery<{ ticketPage: { results: unknown[]; total: number } }>(
-        `query SearchTickets($search: String, $customerEmail: String, $customerId: String, $status: String, $priority: String, $limit: Int) {
-          ticketPage(search: $search, customerEmail: $customerEmail, customerId: $customerId, status: $status, priority: $priority, limit: $limit) {
+        `query SearchTickets($search: String, $customerEmail: String, $customerId: String, $status: String, $priority: String, $category: String, $limit: Int) {
+          ticketPage(search: $search, customerEmail: $customerEmail, customerId: $customerId, status: $status, priority: $priority, category: $category, limit: $limit) {
             results { ${TICKET_FIELDS} }
             total
           }
         }`,
-        { search: query, customerEmail, customerId, status, priority, limit }
+        { search: query, customerEmail, customerId, status, priority, category, limit }
       );
       let page = data.ticketPage;
       // Fallback: if searching by customerId yielded no tickets and no customerEmail was passed,
@@ -66,13 +70,13 @@ export const searchTicketsTool = tool({
           const email = custData.customer?.email?.trim();
           if (email) {
             const fallbackData = await bffQuery<{ ticketPage: { results: unknown[]; total: number } }>(
-              `query SearchTicketsByEmail($search: String, $customerEmail: String, $status: String, $priority: String, $limit: Int) {
-                ticketPage(search: $search, customerEmail: $customerEmail, status: $status, priority: $priority, limit: $limit) {
+              `query SearchTicketsByEmail($search: String, $customerEmail: String, $status: String, $priority: String, $category: String, $limit: Int) {
+                ticketPage(search: $search, customerEmail: $customerEmail, status: $status, priority: $priority, category: $category, limit: $limit) {
                   results { ${TICKET_FIELDS} }
                   total
                 }
               }`,
-              { search: query, customerEmail: email, status, priority, limit }
+              { search: query, customerEmail: email, status, priority, category, limit }
             );
             if (fallbackData.ticketPage?.results?.length) {
               page = fallbackData.ticketPage;
@@ -83,16 +87,10 @@ export const searchTicketsTool = tool({
         }
       }
 
-      // The studio renders these results itself as a ticket table with
-      // per-row actions, straight from this output.
-      return page?.results?.length
-        ? {
-            ...page,
-            displayed:
-              "These tickets are now shown to the rep as a table (number, subject, status, priority, assignee, last update) with an Actions button on every row. " +
-              "Do NOT list them as text or bullets and do not restate their fields. Reply with ONE short line, e.g. '5 open tickets — 2 are urgent.'"
-          }
-        : page;
+      return {
+        ...page,
+        count: page?.results?.length ?? 0
+      };
     } catch (err) {
       return { error: String(err) };
     }
