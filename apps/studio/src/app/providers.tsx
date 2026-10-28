@@ -1,13 +1,15 @@
 "use client";
 
 import { ApolloProvider } from "@apollo/client";
-import { QueryClientProvider } from "@tanstack/react-query";
 import { MeridianProvider, UIProvider, resolveUIConfig } from "@csa/ui";
-import type { ReactNode } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Suspense, type ReactNode } from "react";
+import { ProjectLoading } from "../components/shell/ProjectLoading";
+import { ProjectUrlBoundary } from "../components/shell/ProjectUrlBoundary";
+import { PageContextProvider } from "../features/csa-assistant";
 import { apolloClient } from "../graphql/client";
 import { getQueryClient } from "../lib/query-client";
 import { useCurrentUser } from "../lib/use-current-user";
-import { PageContextProvider } from "../features/csa-assistant";
 
 function AppProvidersInner({ children }: { children: ReactNode }) {
   const { user } = useCurrentUser();
@@ -23,7 +25,11 @@ function AppProvidersInner({ children }: { children: ReactNode }) {
     <MeridianProvider defaultTheme="light">
       <UIProvider config={uiConfig}>
         <ApolloProvider client={apolloClient}>
-          <PageContextProvider>{children}</PageContextProvider>
+          <PageContextProvider>
+            <Suspense fallback={<ProjectLoading />}>
+              <ProjectUrlBoundary>{children}</ProjectUrlBoundary>
+            </Suspense>
+          </PageContextProvider>
         </ApolloProvider>
       </UIProvider>
     </MeridianProvider>

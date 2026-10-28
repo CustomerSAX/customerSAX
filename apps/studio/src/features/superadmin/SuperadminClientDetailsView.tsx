@@ -17,18 +17,19 @@ import {
 } from "@csa/ui";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import {
-  ADMIN_CLIENT_QUERY,
-  ADMIN_SET_CLIENT_STATUS
-} from "./api/queries";
+import { ADMIN_CLIENT_QUERY, ADMIN_SET_CLIENT_STATUS } from "./api/queries";
 
 interface SuperadminClientDetailsViewProps {
   organizationId: string;
 }
 
-export function SuperadminClientDetailsView({ organizationId }: SuperadminClientDetailsViewProps) {
+export function SuperadminClientDetailsView({
+  organizationId
+}: SuperadminClientDetailsViewProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"projects" | "users" | "connectors">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "users" | "connectors">(
+    "projects"
+  );
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
 
   const { data, loading, error, refetch } = useQuery(ADMIN_CLIENT_QUERY, {
@@ -60,7 +61,11 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
           title="Couldn't load client organization"
           description={error?.message || "Organization not found."}
           action={
-            <Button variant="secondary" size="sm" onClick={() => router.push("/superadmin/clients")}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => router.push("/superadmin/clients")}
+            >
               Back to Client Organisations
             </Button>
           }
@@ -83,26 +88,42 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
   const adminUsers = users.filter((u: any) => u.role === "admin");
   const memberUsers = users.filter((u: any) => u.role !== "admin");
 
-  const configuredProjects = projects.filter((p: any) => p.isConfigured !== false && p.status !== "setup_required");
-  const setupRequiredProjects = projects.filter((p: any) => p.isConfigured === false || p.status === "setup_required");
+  const configuredProjects = projects.filter(
+    (p: any) => p.isConfigured !== false && p.status !== "setup_required"
+  );
+  const setupRequiredProjects = projects.filter(
+    (p: any) => p.isConfigured === false || p.status === "setup_required"
+  );
 
   // Determine overall onboarding status
   const overallSetupStatus =
     projects.length === 0
-      ? { label: "Setup Required: No Projects", variant: "warning" as const, desc: "Organization provisioned. Awaiting project creation by Organization Admin." }
+      ? {
+          label: "Setup Required: No Projects",
+          variant: "warning" as const,
+          desc: "Organization provisioned. Awaiting project creation by Organization Admin."
+        }
       : setupRequiredProjects.length > 0
-        ? { label: "Setup Required: Project Configuration", variant: "warning" as const, desc: "Initial project created. Awaiting commerce platform credentials from Organization Admin." }
-        : { label: "Active & Configured", variant: "success" as const, desc: "Organization is fully operational with active commerce projects." };
+        ? {
+            label: "Setup Required: Project Configuration",
+            variant: "warning" as const,
+            desc: "Initial project created. Awaiting commerce platform credentials from Organization Admin."
+          }
+        : {
+            label: "Active & Configured",
+            variant: "success" as const,
+            desc: "Organization is fully operational with active commerce projects."
+          };
 
   // Collect configured platforms
-  const platformsUsed = Array.from(new Set(projects.map((p: any) => p.platform || "commercetools")));
+  const platformsUsed = Array.from(
+    new Set(projects.map((p: any) => p.platform || "commercetools"))
+  );
 
   // Connectors count
   let connectorsCount = 0;
   if (aiSettings?.enabled) connectorsCount++;
   if (smtpProfiles.length > 0) connectorsCount++;
-  const customTicketing = projects.some((p: any) => p.ticketingProvider && p.ticketingProvider !== "internal");
-  if (customTicketing) connectorsCount++;
 
   return (
     <div className="mx-auto max-w-5xl py-6 px-4 space-y-6">
@@ -146,17 +167,27 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
             <div className="text-[11px] font-bold uppercase tracking-widest text-m-primary">
               Client Organisation Details
             </div>
-            <h1 className="text-2xl font-extrabold text-m-text tracking-tight mt-0.5">{client.name}</h1>
+            <h1 className="text-2xl font-extrabold text-m-text tracking-tight mt-0.5">
+              {client.name}
+            </h1>
             <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-m-text-muted">
               <span className="font-mono bg-m-neutral-100 px-2 py-0.5 rounded border border-m-border">
                 {client.slug}
               </span>
               <span>•</span>
-              <span>Contact: <strong className="text-m-text">{client.contactEmail}</strong></span>
+              <span>
+                Contact: <strong className="text-m-text">{client.contactEmail}</strong>
+              </span>
               <span>•</span>
-              <span>Created: {client.createdAt ? new Date(client.createdAt).toLocaleDateString() : "—"}</span>
+              <span>
+                Created:{" "}
+                {client.createdAt ? new Date(client.createdAt).toLocaleDateString() : "—"}
+              </span>
               <span>•</span>
-              <span>Theme: <strong className="text-m-text">{client.uiTheme || "csa-custom"}</strong></span>
+              <span>
+                Theme:{" "}
+                <strong className="text-m-text">{client.uiTheme || "csa-custom"}</strong>
+              </span>
             </div>
           </div>
 
@@ -171,34 +202,47 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
       {/* Metrics Row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="p-4 bg-m-surface border-m-border">
-          <div className="text-[11px] font-bold uppercase text-m-text-muted">Total Projects</div>
+          <div className="text-[11px] font-bold uppercase text-m-text-muted">
+            Total Projects
+          </div>
           <div className="text-2xl font-black text-m-text mt-1">{projects.length}</div>
           <div className="text-[10px] text-m-text-muted mt-0.5">
-            {configuredProjects.length} configured, {setupRequiredProjects.length} setup required
+            {configuredProjects.length} configured, {setupRequiredProjects.length} setup
+            required
           </div>
         </Card>
 
         <Card className="p-4 bg-m-surface border-m-border">
-          <div className="text-[11px] font-bold uppercase text-m-text-muted">Users & Admins</div>
+          <div className="text-[11px] font-bold uppercase text-m-text-muted">
+            Users & Admins
+          </div>
           <div className="text-2xl font-black text-m-text mt-1">{users.length}</div>
           <div className="text-[10px] text-m-text-muted mt-0.5">
-            {adminUsers.length} admin{adminUsers.length === 1 ? "" : "s"}, {memberUsers.length} member{memberUsers.length === 1 ? "" : "s"}
+            {adminUsers.length} admin{adminUsers.length === 1 ? "" : "s"},{" "}
+            {memberUsers.length} member{memberUsers.length === 1 ? "" : "s"}
           </div>
         </Card>
 
         <Card className="p-4 bg-m-surface border-m-border">
-          <div className="text-[11px] font-bold uppercase text-m-text-muted">Commerce Platforms</div>
+          <div className="text-[11px] font-bold uppercase text-m-text-muted">
+            Commerce Platforms
+          </div>
           <div className="text-lg font-bold text-m-text mt-1 capitalize truncate">
             {platformsUsed.length > 0 ? platformsUsed.join(", ") : "None configured"}
           </div>
-          <div className="text-[10px] text-m-text-muted mt-0.5">Managed by customer admin</div>
+          <div className="text-[10px] text-m-text-muted mt-0.5">
+            Managed by customer admin
+          </div>
         </Card>
 
         <Card className="p-4 bg-m-surface border-m-border">
-          <div className="text-[11px] font-bold uppercase text-m-text-muted">Active Connectors</div>
+          <div className="text-[11px] font-bold uppercase text-m-text-muted">
+            Active Connectors
+          </div>
           <div className="text-2xl font-black text-m-text mt-1">{connectorsCount}</div>
           <div className="text-[10px] text-m-text-muted mt-0.5">
-            AI: {aiSettings?.enabled ? "Yes" : "Native"}, SMTP: {smtpProfiles.length > 0 ? "Yes" : "Native"}
+            AI: {aiSettings?.enabled ? "Yes" : "Native"}, SMTP:{" "}
+            {smtpProfiles.length > 0 ? "Yes" : "Native"}
           </div>
         </Card>
       </div>
@@ -208,30 +252,33 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
         <button
           type="button"
           onClick={() => setActiveTab("projects")}
-          className={`pb-3 text-xs font-bold transition-colors border-b-2 ${activeTab === "projects"
+          className={`pb-3 text-xs font-bold transition-colors border-b-2 ${
+            activeTab === "projects"
               ? "border-m-primary text-m-primary"
               : "border-transparent text-m-text-muted hover:text-m-text"
-            }`}
+          }`}
         >
           Commerce Projects ({projects.length})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("users")}
-          className={`pb-3 text-xs font-bold transition-colors border-b-2 ${activeTab === "users"
+          className={`pb-3 text-xs font-bold transition-colors border-b-2 ${
+            activeTab === "users"
               ? "border-m-primary text-m-primary"
               : "border-transparent text-m-text-muted hover:text-m-text"
-            }`}
+          }`}
         >
           Team & Administrators ({users.length})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("connectors")}
-          className={`pb-3 text-xs font-bold transition-colors border-b-2 ${activeTab === "connectors"
+          className={`pb-3 text-xs font-bold transition-colors border-b-2 ${
+            activeTab === "connectors"
               ? "border-m-primary text-m-primary"
               : "border-transparent text-m-text-muted hover:text-m-text"
-            }`}
+          }`}
         >
           Connectors & Integrations Metadata
         </button>
@@ -263,18 +310,28 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
               </TableHeader>
               <TableBody>
                 {projects.map((p: any) => {
-                  const isConfigured = p.isConfigured !== false && p.status !== "setup_required";
+                  const isConfigured =
+                    p.isConfigured !== false && p.status !== "setup_required";
                   return (
                     <TableRow key={p.id}>
-                      <TableCell className="font-bold text-m-text">{p.displayName || p.projectKey}</TableCell>
-                      <TableCell className="font-mono text-[11px] text-m-text-muted">{p.projectKey}</TableCell>
+                      <TableCell className="font-bold text-m-text">
+                        {p.displayName || p.projectKey}
+                      </TableCell>
+                      <TableCell className="font-mono text-[11px] text-m-text-muted">
+                        {p.projectKey}
+                      </TableCell>
                       <TableCell>
                         <span className="capitalize font-medium text-xs text-m-text">
                           {p.platform || "commercetools"}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="neutral" appearance="subtle" size="sm" className="uppercase font-mono text-[10px]">
+                        <Badge
+                          variant="neutral"
+                          appearance="subtle"
+                          size="sm"
+                          className="uppercase font-mono text-[10px]"
+                        >
                           {p.standaloneB2bEnabled ? "B2B" : "B2C"}
                         </Badge>
                       </TableCell>
@@ -331,7 +388,9 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
                     <TableCell className="font-bold text-m-text">
                       {[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}
                     </TableCell>
-                    <TableCell className="font-medium text-xs text-m-text">{u.email}</TableCell>
+                    <TableCell className="font-medium text-xs text-m-text">
+                      {u.email}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant={u.role === "admin" ? "primary" : "neutral"}
@@ -354,7 +413,9 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
                           ))}
                         </div>
                       ) : (
-                        <span className="text-xs text-m-text-muted italic">All (Org Level)</span>
+                        <span className="text-xs text-m-text-muted italic">
+                          All (Org Level)
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -388,7 +449,9 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-m-text">AI Assistant</h3>
-                    <p className="text-[11px] text-m-text-muted">Copilot intelligence provider</p>
+                    <p className="text-[11px] text-m-text-muted">
+                      Copilot intelligence provider
+                    </p>
                   </div>
                 </div>
                 <Badge
@@ -404,15 +467,21 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
               <div className="rounded-m-lg border border-m-border bg-m-neutral-50 p-3 text-xs space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-m-text-muted">Provider:</span>
-                  <span className="font-semibold text-m-text capitalize">{aiSettings?.provider || "Native"}</span>
+                  <span className="font-semibold text-m-text capitalize">
+                    {aiSettings?.provider || "Native"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-m-text-muted">Model:</span>
-                  <span className="font-mono text-m-text">{aiSettings?.model || "default"}</span>
+                  <span className="font-mono text-m-text">
+                    {aiSettings?.model || "default"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-m-text-muted">API Key Stored:</span>
-                  <span className="font-medium text-m-text">{aiSettings?.apiKeySet ? "Yes (Encrypted)" : "No"}</span>
+                  <span className="font-medium text-m-text">
+                    {aiSettings?.apiKeySet ? "Yes (Encrypted)" : "No"}
+                  </span>
                 </div>
               </div>
             </Card>
@@ -426,7 +495,9 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-m-text">SMTP Email Relay</h3>
-                    <p className="text-[11px] text-m-text-muted">Transactional communication relay</p>
+                    <p className="text-[11px] text-m-text-muted">
+                      Transactional communication relay
+                    </p>
                   </div>
                 </div>
                 <Badge
@@ -444,11 +515,15 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
                   <>
                     <div className="flex justify-between">
                       <span className="text-m-text-muted">Host:</span>
-                      <span className="font-mono text-m-text">{smtpProfiles[0].smtpHost}:{smtpProfiles[0].smtpPort}</span>
+                      <span className="font-mono text-m-text">
+                        {smtpProfiles[0].smtpHost}:{smtpProfiles[0].smtpPort}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-m-text-muted">From Email:</span>
-                      <span className="font-medium text-m-text">{smtpProfiles[0].emailFrom}</span>
+                      <span className="font-medium text-m-text">
+                        {smtpProfiles[0].emailFrom}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-m-text-muted">Credentials:</span>
@@ -463,109 +538,21 @@ export function SuperadminClientDetailsView({ organizationId }: SuperadminClient
               </div>
             </Card>
 
-            {/* Ticketing Connectors */}
-            <Card className="p-5 border-m-border bg-m-surface shadow-m-card space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-m-md bg-m-neutral-100 text-m-text">
-                    <Icon name="life-buoy" size="sm" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-m-text">Ticketing System</h3>
-                    <p className="text-[11px] text-m-text-muted">Customer support ticketing bridge</p>
-                  </div>
-                </div>
-                <Badge
-                  variant={customTicketing ? "primary" : "neutral"}
-                  appearance="subtle"
-                  size="sm"
-                >
-                  {customTicketing ? "Third-Party" : "Native CSA Ticketing"}
-                </Badge>
-              </div>
-
-              <div className="rounded-m-lg border border-m-border bg-m-neutral-50 p-3 text-xs space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-m-text-muted">Provider:</span>
-                  <span className="font-semibold text-m-text capitalize">
-                    {projects[0]?.ticketingProvider || "internal (Native)"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-m-text-muted">OAuth Credentials:</span>
-                  <span className="text-m-text">Customer Managed (Studio)</span>
-                </div>
-              </div>
-            </Card>
-
-            {/* CRM Connectors (chosen per project) */}
-            <Card className="p-5 border-m-border bg-m-surface shadow-m-card space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-m-md bg-m-neutral-100 text-m-text">
-                    <Icon name="users" size="sm" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-m-text">CRM</h3>
-                    <p className="text-[11px] text-m-text-muted">Customer relationship platform, per project</p>
-                  </div>
-                </div>
-                <Badge
-                  variant={projects.some((p: any) => p.crmProvider && p.crmProvider !== "none") ? "primary" : "neutral"}
-                  appearance="subtle"
-                  size="sm"
-                >
-                  {projects.some((p: any) => p.crmProvider && p.crmProvider !== "none") ? "Connected" : "No CRM"}
-                </Badge>
-              </div>
-
-              <div className="rounded-m-lg border border-m-border bg-m-neutral-50 p-3 text-xs space-y-1.5">
-                {projects.length === 0 ? (
-                  <span className="text-m-text-muted">No projects yet.</span>
-                ) : (
-                  projects.map((p: any) => (
-                    <div key={p.id} className="flex justify-between gap-3">
-                      <span className="truncate text-m-text-muted">{p.displayName || p.projectKey}:</span>
-                      <span className="font-semibold text-m-text">
-                        {{ salesforce: "Salesforce", hubspot: "HubSpot", zoho: "Zoho CRM" }[p.crmProvider as string] ?? "None"}
-                      </span>
-                    </div>
-                  ))
-                )}
-                <div className="flex justify-between">
-                  <span className="text-m-text-muted">Credentials:</span>
-                  <span className="text-m-text">Customer Managed (Studio Connectors)</span>
-                </div>
-              </div>
-            </Card>
-
-            {/* Search Integration */}
-            <Card className="p-5 border-m-border bg-m-surface shadow-m-card space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-m-md bg-m-neutral-100 text-m-text">
-                    <Icon name="search" size="sm" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-m-text">Product Search</h3>
-                    <p className="text-[11px] text-m-text-muted">Catalog search & discovery engine</p>
-                  </div>
-                </div>
-                <Badge variant="neutral" appearance="subtle" size="sm">
-                  Active
-                </Badge>
-              </div>
-
-              <div className="rounded-m-lg border border-m-border bg-m-neutral-50 p-3 text-xs space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-m-text-muted">Primary Search:</span>
-                  <span className="font-semibold text-m-text">Platform Native & Algolia Connectable</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-m-text-muted">Search API Keys:</span>
-                  <span className="text-m-text">Customer Managed (Studio)</span>
-                </div>
-              </div>
+            <Card className="space-y-3 border-m-border bg-m-surface p-5">
+              <h3 className="text-sm font-bold text-m-text">
+                Connection Hub integrations
+              </h3>
+              <p className="text-sm text-m-text-muted">
+                Ticketing, CRM and external product search are selected through each
+                project’s enabled Connection Hub actions. Provider credentials are managed
+                in Hub.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => router.push("/admin-settings/connection-hub")}
+              >
+                Open Connection Hub
+              </Button>
             </Card>
           </div>
         </div>

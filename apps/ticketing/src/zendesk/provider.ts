@@ -1,6 +1,7 @@
 import { GraphQLError } from "graphql";
 import type { TicketingProvider } from "../providers/types.js";
-import type { Ticket, TicketUpdate } from "../tickets/types.js";
+import type { SlaStage, Ticket, TicketUpdate } from "../tickets/types.js";
+import { SLA_SORT_KEY, sortBySlaDue, ticketSla } from "../tickets/sla.js";
 import { api as localApi, error, zendeskConfig } from "./client.js";
 import { ticketFields, fieldUpdate } from "./fields.js";
 
@@ -23,6 +24,8 @@ type RemoteTicket = {
   assignee_id?: number;
   via?: { channel?: string };
   custom_fields?: Array<{ id: number; value: unknown }>;
+  // Present only when requested with include=slas on an account whose plan has SLA policies.
+  slas?: { policy_metrics?: Array<{ metric: string; stage: string; breach_at?: string | null }> } | null;
 };
 type RemoteComment = {
   id: number;
@@ -87,6 +90,31 @@ function priority(value: string) {
 }
 const literal = (value: string) => `"${value.replace(/[\\"\r\n]/g, " ")}"`;
 
+const slaLabels: Record<string, string> = {
+  first_reply_time: "First reply",
+  next_reply_time: "Next reply",
+  periodic_update_time: "Periodic update",
+  pausable_update_time: "Pausable update",
+  requester_wait_time: "Requester wait time",
+  agent_work_time: "Agent work time",
+  total_resolution_time: "Total resolution time"
+};
+const slaStages: Record<string, SlaStage> = { active: "running", paused: "paused", achieved: "completed" };
+// Zendesk reports an achieved metric without saying whether it was met in time,
+// so it maps to "completed" rather than a guessed met/missed.
+function sla(ticket: RemoteTicket) {
+  if (ticket.slas === undefined) return undefined;
+  return ticketSla(
+    "zendesk",
+    (ticket.slas?.policy_metrics ?? []).map((m) => ({
+      key: m.metric,
+      label: slaLabels[m.metric] ?? m.metric.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
+      stage: slaStages[m.stage] ?? "unknown",
+      dueAt: m.breach_at ?? null
+    }))
+  );
+}
+
 export function zendeskProvider(projectKey: string, connection?: { subdomain: string; api: typeof localApi }): TicketingProvider {
   const config = connection ?? zendeskConfig();
   const api = connection?.api ?? localApi;
@@ -138,13 +166,14 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
       source: field("source") || ticket.via?.channel || "Zendesk",
       comments: [],
       attachments: [],
-      history: []
+      history: [],
+      sla: sla(ticket)
     };
   }
   async function read(id: string) {
     try {
       return await api<{ ticket: RemoteTicket; users?: User[] }>(
-        `tickets/${externalId(id)}.json?include=users`
+        `tickets/${externalId(id)}.json?include=users,slas`
       );
     } catch (e) {
       if (e instanceof GraphQLError && e.extensions.code === "NOT_FOUND") return null;
@@ -240,6 +269,44 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
     if (custom.length) body.custom_fields = custom;
     return body;
   }
+  // Search results never carry SLA data; show_many sideloads it for up to 100 tickets per call.
+  async function withSlas(rows: RemoteTicket[]) {
+    const slas = new Map<number, RemoteTicket["slas"]>();
+    for (let i = 0; i < rows.length; i += 100) {
+      const ids = rows.slice(i, i + 100).map((t) => t.id).join(",");
+      const { tickets } = await api<{ tickets: RemoteTicket[] }>(`tickets/show_many.json?ids=${ids}&include=slas`);
+      for (const t of tickets) slas.set(t.id, t.slas);
+    }
+    return rows.map((t) => (slas.has(t.id) ? { ...t, slas: slas.get(t.id) } : t));
+  }
+  // Zendesk search can't order by SLA deadline, so "breaching soon" reads every
+  // matching ticket (bounded by search's own 1,000-result cap) and sorts here.
+  async function listBySlaDue(terms: string[], offset: number, limit: number, unsolvedOnly: boolean) {
+    const params = new URLSearchParams({
+      query: [...terms, ...(unsolvedOnly ? ["status<solved"] : [])].join(" "),
+      per_page: "100",
+      sort_by: "created_at",
+      sort_order: "asc",
+      include: "tickets(users)"
+    });
+    let rows: RemoteTicket[] = [];
+    let users: User[] = [];
+    for (let page = 1; ; page++) {
+      params.set("page", String(page));
+      const batch = await api<{ results: RemoteTicket[]; count: number; users?: User[] }>(`search.json?${params}`);
+      if (batch.count > 1000)
+        error(
+          "More than 1,000 matching Zendesk tickets; narrow the filters to sort by SLA",
+          "PAGINATION_LIMIT"
+        );
+      rows = rows.concat(batch.results);
+      users = users.concat(batch.users || []);
+      if (!batch.results.length || rows.length >= batch.count) break;
+    }
+    const tickets = sortBySlaDue((await withSlas(rows)).map((t) => map(t, users)));
+    const results = tickets.slice(offset, offset + limit);
+    return { results, total: tickets.length, count: results.length, offset };
+  }
   async function update(id: string, body: Record<string, unknown>) {
     const existing = await read(id);
     if (!existing) return null;
@@ -313,6 +380,7 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
         status: "status",
         ticketNumber: "id"
       };
+      if (args.sortKey === SLA_SORT_KEY) return listBySlaDue(terms, offset, limit, !args.status);
       if (args.sortKey && !sorts[args.sortKey]) error("Unsupported Zendesk sort field");
       const params = new URLSearchParams({
         query: terms.join(" "),
@@ -335,9 +403,8 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
         rows = rows.concat(next.results);
         users = users.concat(next.users || []);
       }
-      const results = rows
-        .slice(offset % 100, (offset % 100) + limit)
-        .map((t) => map(t, users));
+      const page = rows.slice(offset % 100, (offset % 100) + limit);
+      const results = (await withSlas(page)).map((t) => map(t, users));
       return { results, total: first.count, count: results.length, offset };
     },
     createTicket: async (draft) => {

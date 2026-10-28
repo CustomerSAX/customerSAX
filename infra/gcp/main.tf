@@ -40,12 +40,9 @@ locals {
     "subscriptions"          = google_cloud_run_v2_service.subscriptions.uri
   }
 
-  selected_commerce_service_url = (
+  ai_graphql_service_url = (
     var.ai_commerce_service_url != "" ? var.ai_commerce_service_url :
-    var.commerce_platform == "shopify" ? google_cloud_run_v2_service.commerce_shopify.uri :
-    var.commerce_platform == "bigcommerce" ? google_cloud_run_v2_service.commerce_bigcommerce.uri :
-    contains(["salesforce", "sfcc"], var.commerce_platform) ? google_cloud_run_v2_service.commerce_sfcc.uri :
-    google_cloud_run_v2_service.commerce_commercetools.uri
+    "${google_cloud_run_v2_service.bff.uri}/graphql"
   )
 }
 
@@ -364,7 +361,7 @@ resource "google_cloud_run_v2_service" "ai_assist" {
 
       env {
         name  = "AI_COMMERCE_SERVICE_URL"
-        value = local.selected_commerce_service_url
+        value = local.ai_graphql_service_url
       }
 
       env {
@@ -432,6 +429,22 @@ resource "google_cloud_run_v2_service" "admin" {
   }
 
   depends_on = [google_project_service.required]
+}
+
+resource "google_secret_manager_secret" "hub_platform_config" {
+  secret_id = "${local.name_prefix}-hub-platform-config"
+  replication {
+    user_managed {
+      replicas { location = var.region }
+    }
+  }
+  depends_on = [google_project_service.required]
+}
+
+resource "google_secret_manager_secret_iam_member" "hub_platform_runtime" {
+  secret_id = google_secret_manager_secret.hub_platform_config.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${local.compute_sa_email}"
 }
 
 resource "google_cloud_run_v2_service" "ticketing" {

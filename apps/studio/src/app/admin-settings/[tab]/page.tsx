@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 const TAB_MAP: Record<string, AdminSettingsTab> = {
   organization: "organization",
   projects: "projects",
+  "connection-hub": "connection-hub",
   connectors: "connectors",
   users: "users",
   roles: "roles",

@@ -7,16 +7,21 @@ import {
   saveProjectTicketing,
   resolveProjectTicketing,
   ticketingSettingsView,
-  issueZendeskServiceToken
+  issueZendeskServiceToken,
+  prepareSlaTargets,
+  slaTargetsView
 } from "./ticketing.js";
 const db = vi.hoisted(() => ({
   findOne: vi.fn(),
   updateOne: vi.fn(),
-  createIndex: vi.fn()
+  dropIndex: vi.fn()
 }));
-vi.mock("../admin/db.js", () => ({ getProjectsCollection: async () => db }));
+const accounts = vi.hoisted(() => ({ updateOne: vi.fn() }));
+vi.mock("../admin/db.js", () => ({ getProjectsCollection: async () => db, getTicketingAccountsCollection: async () => accounts }));
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  db.dropIndex.mockResolvedValue(undefined);
+  accounts.updateOne.mockResolvedValue({ matchedCount: 1 });
   vi.stubEnv("SUPERADMIN_ENCRYPTION_KEY", "a".repeat(64));
 });
 afterEach(() => {
@@ -93,17 +98,16 @@ it("rejects project access outside the requested client before writing", async (
     "does not belong"
   );
 });
-it("uses an atomic unique account reservation and sanitizes duplicate errors", async () => {
+it("keeps atomic account ownership between clients while allowing projects to share", async () => {
   const _id = new ObjectId();
-  db.findOne.mockResolvedValue({ _id, clientId: "client" });
-  db.updateOne.mockRejectedValue({ code: 11000 });
-  await expect(saveProjectTicketing("client", _id.toHexString(), input)).rejects.toThrow(
-    "already assigned"
+  db.findOne.mockResolvedValueOnce({ _id, clientId: "client" }).mockResolvedValueOnce(null);
+  accounts.updateOne.mockRejectedValue({ code: 11000 });
+  await expect(saveProjectTicketing("client", _id.toHexString(), input)).rejects.toThrow("another client");
+  expect(accounts.updateOne).toHaveBeenCalledWith(
+    { _id: "zendesk:acme", clientId: "client" }, { $setOnInsert: { clientId: "client" } }, { upsert: true }
   );
-  expect(db.createIndex).toHaveBeenCalledWith(
-    { "ticketing.subdomain": 1 },
-    expect.objectContaining({ unique: true })
-  );
+  expect(db.dropIndex).not.toHaveBeenCalled();
+  expect(db.updateOne).not.toHaveBeenCalled();
 });
 it("exchanges confidential client credentials without redirects and suppresses provider error bodies", async () => {
   const fetcher = vi
@@ -134,4 +138,63 @@ it("exchanges confidential client credentials without redirects and suppresses p
       clientSecret: "secret"
     })
   ).rejects.toThrow("HTTP 403");
+});
+
+it.each([
+  input,
+  { provider: "freshdesk", freshdeskDomain: "acme", freshdeskApiKey: "private-api-key" }
+])("allows one client to use a ticketing account in two projects: $provider", async connection => {
+  const first = new ObjectId();
+  const second = new ObjectId();
+  db.findOne.mockImplementation(async query => query._id ? { _id: query._id, clientId: "client" } : null);
+  db.updateOne.mockResolvedValue({ matchedCount: 1 });
+  await saveProjectTicketing("client", first.toHexString(), connection);
+  await saveProjectTicketing("client", second.toHexString(), connection);
+  expect(db.updateOne).toHaveBeenCalledTimes(2);
+  expect(accounts.updateOne).toHaveBeenCalledTimes(2);
+  expect(accounts.updateOne.mock.calls[0][0]).toEqual(accounts.updateOne.mock.calls[1][0]);
+  expect(db.dropIndex).toHaveBeenCalledWith("unique_ticketing_zendesk_account");
+  expect(db.dropIndex).toHaveBeenCalledWith("unique_ticketing_freshdesk_account");
+});
+
+it("protects legacy ownership in another client before dropping old indexes", async () => {
+  const id = new ObjectId();
+  db.findOne.mockResolvedValueOnce({ _id: id, clientId: "client" }).mockResolvedValueOnce({ clientId: "another-client", ticketing: { subdomain: "acme" } });
+  await expect(saveProjectTicketing("client", id.toHexString(), input)).rejects.toThrow("another client");
+  expect(accounts.updateOne).not.toHaveBeenCalled();
+  expect(db.dropIndex).not.toHaveBeenCalled();
+});
+
+it("tolerates already removed indexes but does not hide migration failures", async () => {
+  const id = new ObjectId();
+  db.findOne.mockImplementation(async query => query._id ? { _id: query._id, clientId: "client" } : null);
+  db.updateOne.mockResolvedValue({ matchedCount: 1 });
+  db.dropIndex.mockRejectedValue({ code: 27 });
+  await expect(saveProjectTicketing("client", id.toHexString(), input)).resolves.toMatchObject({ provider: "zendesk" });
+  db.dropIndex.mockRejectedValue(new Error("not authorized to drop index"));
+  await expect(saveProjectTicketing("client", id.toHexString(), input)).rejects.toThrow("not authorized");
+});
+
+it("validates native SLA targets and drops priorities with no target", () => {
+  expect(prepareSlaTargets([
+    { priority: "Urgent", firstResponseMinutes: 15, resolutionMinutes: 240 },
+    { priority: "normal", firstResponseMinutes: null, resolutionMinutes: 1440 },
+    { priority: "low", firstResponseMinutes: null, resolutionMinutes: null }
+  ])).toEqual({
+    urgent: { firstResponseMinutes: 15, resolutionMinutes: 240 },
+    normal: { firstResponseMinutes: null, resolutionMinutes: 1440 }
+  });
+  expect(() => prepareSlaTargets([{ priority: "critical", resolutionMinutes: 60 }])).toThrow("Unsupported SLA priority");
+  expect(() => prepareSlaTargets([{ priority: "high", firstResponseMinutes: 0 }])).toThrow("between 1 minute and 365 days");
+  expect(() => prepareSlaTargets([{ priority: "high", resolutionMinutes: 1.5 }])).toThrow("between 1 minute and 365 days");
+  expect(() => prepareSlaTargets([{ priority: "high", resolutionMinutes: 60 }, { priority: "HIGH", resolutionMinutes: 90 }])).toThrow("Duplicate");
+});
+
+it("shows every priority's SLA targets", () => {
+  expect(slaTargetsView({ targets: { high: { firstResponseMinutes: 60, resolutionMinutes: null } }, updatedAt: new Date() })).toEqual([
+    { priority: "urgent", firstResponseMinutes: null, resolutionMinutes: null },
+    { priority: "high", firstResponseMinutes: 60, resolutionMinutes: null },
+    { priority: "normal", firstResponseMinutes: null, resolutionMinutes: null },
+    { priority: "low", firstResponseMinutes: null, resolutionMinutes: null }
+  ]);
 });

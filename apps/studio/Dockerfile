@@ -17,6 +17,7 @@ COPY pnpm-workspace.yaml pnpm-workspace.yaml
 COPY .npmrc .npmrc
 COPY apps/studio/package.json apps/studio/package.json
 COPY packages/headers/package.json packages/headers/package.json
+COPY packages/connection-hub/package.json packages/connection-hub/package.json
 COPY packages/logger/package.json packages/logger/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY configs/typescript/package.json configs/typescript/package.json
@@ -25,6 +26,7 @@ RUN pnpm install --frozen-lockfile
 # Copy sources and build the Next.js app.
 COPY configs/typescript configs/typescript
 COPY packages/headers packages/headers
+COPY packages/connection-hub packages/connection-hub
 COPY packages/logger packages/logger
 COPY packages/ui packages/ui
 COPY apps/studio apps/studio
@@ -39,6 +41,7 @@ COPY --from=build /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
 COPY --from=build /app/.npmrc /app/.npmrc
 COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/packages/headers /app/packages/headers
+COPY --from=build /app/packages/connection-hub /app/packages/connection-hub
 COPY --from=build /app/packages/logger /app/packages/logger
 COPY --from=build /app/packages/ui /app/packages/ui
 COPY --from=build /app/apps/studio /app/apps/studio

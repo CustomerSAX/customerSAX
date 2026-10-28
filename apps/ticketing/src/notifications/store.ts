@@ -23,9 +23,10 @@ function visible(event: Event, scope: NotificationScope) {
 function filter(scope: NotificationScope) {
   return { clientId: scope.clientId, projectKey: scope.projectKey, recipients: { $in: ["*", normalize(scope.userEmail)] } };
 }
-export async function publishTicketNotification(clientId: string, ticket: Ticket, title: string, previousAssignee?: string | null) {
-  const eventId = title === "Customer information requested" && ticket.informationRequest
-    ? createHash("sha256").update(JSON.stringify([clientId, ticket.projectKey, ticket.id, ticket.informationRequest.createdAt, title])).digest("hex") : randomUUID();
+/** @param dedupeId A deterministic id makes the notification publish at most once (repeats are ignored). */
+export async function publishTicketNotification(clientId: string, ticket: Ticket, title: string, previousAssignee?: string | null, dedupeId?: string) {
+  const eventId = dedupeId ?? (title === "Customer information requested" && ticket.informationRequest
+    ? createHash("sha256").update(JSON.stringify([clientId, ticket.projectKey, ticket.id, ticket.informationRequest.createdAt, title])).digest("hex") : randomUUID());
   const event: Event = { _id: eventId, clientId, projectKey: ticket.projectKey, ticketId: ticket.id, ticketNumber: ticket.ticketNumber,
     title, subject: ticket.subject, createdAt: new Date().toISOString(), recipients: [...new Set([audience(ticket.assignee), ...(previousAssignee ? [audience(previousAssignee)] : [])])], readBy: [] };
   if (inMemory()) { if (!memory.some(item => item._id === event._id)) memory.push(event); return; }

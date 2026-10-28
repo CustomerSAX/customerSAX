@@ -5,14 +5,15 @@
 #
 # Collects all Cloud Run service URLs and injects them into:
 #   (a) bff          — routes all external traffic (needs all URLs, incl. crm)
-#   (b) ai-assist    — needs commerce service URL
-#   (c) ticketing    — needs auth URL (for token validation)
+#   (b) ai-assist    — needs the federated BFF GraphQL URL
+#   (c) ticketing    — needs AI Assist and auth URLs
 #   (d) subscriptions — needs auth URL
 #   (e) admin        — needs auth URL
 # ============================================================
 set -euo pipefail
 
 source /workspace/build_config.sh
+source "$(dirname "${BASH_SOURCE[0]}")/cloudbuild-service-env.sh"
 
 echo ""
 echo "============================================================"
@@ -93,32 +94,23 @@ gcloud run services update "${NAME_PREFIX}-bff" \
   --update-env-vars="^~^${BFF_ENV}" 2>/dev/null || \
   echo "  ⚠️  ${NAME_PREFIX}-bff not yet deployed – will get URLs on next deploy"
 
-# ── (b) ai-assist — needs commerce URL for product/order lookups ─────────────
-AI_ENV="NODE_ENV=production,SERVICE_NAME=ai-assist,ENVIRONMENT=${ENVIRONMENT}"
-if [ -n "${BFF_URL}" ]; then
-  AI_ENV="${AI_ENV},AI_COMMERCE_SERVICE_URL=${BFF_URL}/graphql"
-elif [ -n "${COMMERCE_CT_URL}" ]; then
-  AI_ENV="${AI_ENV},AI_COMMERCE_SERVICE_URL=${COMMERCE_CT_URL}/graphql"
-fi
-[ -n "${AUTH_URL}" ]         && AI_ENV="${AI_ENV},AUTH_SERVICE_URL=${AUTH_URL}"
+# ── (b) ai-assist — federated ticket, admin and commerce operations ──────────
+AI_ENV=$(ai_review_service_env ai-assist)
 
 echo ""
 echo "🔧 Updating ${NAME_PREFIX}-ai-assist..."
 gcloud run services update "${NAME_PREFIX}-ai-assist" \
   --region="${REGION}" --project="${PROJECT_ID}" \
-  --update-env-vars="${AI_ENV}" 2>/dev/null || \
-  echo "  ⚠️  ${NAME_PREFIX}-ai-assist not yet deployed – will get URLs on next deploy"
+  --update-env-vars="${AI_ENV}"
 
-# ── (c) ticketing — needs auth URL for token validation ──────────────────────
-TICKET_ENV="NODE_ENV=production,SERVICE_NAME=ticketing,ENVIRONMENT=${ENVIRONMENT}"
-[ -n "${AUTH_URL}" ] && TICKET_ENV="${TICKET_ENV},AUTH_SERVICE_URL=${AUTH_URL}"
+# ── (c) ticketing — AI review statuses and auth token validation ─────────────
+TICKET_ENV=$(ai_review_service_env ticketing)
 
 echo ""
 echo "🔧 Updating ${NAME_PREFIX}-ticketing..."
 gcloud run services update "${NAME_PREFIX}-ticketing" \
   --region="${REGION}" --project="${PROJECT_ID}" \
-  --update-env-vars="${TICKET_ENV}" 2>/dev/null || \
-  echo "  ⚠️  ${NAME_PREFIX}-ticketing not yet deployed – will get URLs on next deploy"
+  --update-env-vars="${TICKET_ENV}"
 
 # ── (d) subscriptions — needs auth URL ───────────────────────────────────────
 SUBSCRIPTIONS_ENV="NODE_ENV=production,SERVICE_NAME=subscriptions,ENVIRONMENT=${ENVIRONMENT}"

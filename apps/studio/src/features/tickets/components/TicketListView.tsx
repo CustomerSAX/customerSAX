@@ -27,6 +27,8 @@ import { SectionCard } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES } from "../hooks/use-tickets";
 import { useRegisterPageContext } from "@/features/csa-assistant";
 import type { Ticket, TicketStatus, TicketPriority } from "../types/ticket-types";
+import { SlaBadge } from "./TicketSla";
+import { SLA_SORT_KEY, ticketSlaState, useNow } from "../sla";
 import { formatDateTime } from "@/lib/format-date";
 import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 
@@ -36,7 +38,16 @@ export function TicketListView() {
   const t = useTranslations("Tickets");
   const common = useTranslations("Common");
   const paginationLabels = useTablePaginationLabels();
-  const { tickets, loading, error, refetch } = useTicketStore();
+  const now = useNow();
+  const [slaFilter, setSlaFilter] = useState("");
+  const [slaSorted, setSlaSorted] = useState(false);
+  // Only 100 tickets are loaded, so SLA views ask the server for the soonest-due 100 across
+  // all tickets rather than sorting/filtering whichever 100 were modified most recently.
+  const slaView = slaSorted || slaFilter !== "";
+  const { tickets, total, loading, error, refetch } = useTicketStore(
+    undefined,
+    slaView ? { sortKey: SLA_SORT_KEY, sortOrder: "asc" } : undefined
+  );
   useEffect(() => {
     const timer = window.setInterval(() => { if (!document.hidden) void refetch().catch(() => {}); }, 15000);
     return () => window.clearInterval(timer);
@@ -63,6 +74,15 @@ export function TicketListView() {
     })),
   ];
 
+  const slaFilterOptions = [
+    { value: "", label: t("sla.allSla") },
+    ...(["breached", "at_risk", "on_track", "paused"] as const).map((value) => ({
+      value,
+      label: t(`sla.state.${value}`),
+    })),
+  ];
+  const slaAvailable = tickets.some((ticket) => ticket.sla?.metrics.length);
+
   const [searchOption, setSearchOption] = useState<"ticketNumber" | "email" | "subject" | "allFields">("ticketNumber");
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -81,6 +101,10 @@ export function TicketListView() {
 
       // 2. Priority Filter
       if (priorityFilter && t.priority !== priorityFilter) {
+        return false;
+      }
+
+      if (slaFilter && ticketSlaState(t.sla, now) !== slaFilter) {
         return false;
       }
 
@@ -108,7 +132,7 @@ export function TicketListView() {
 
       return true;
     });
-  }, [tickets, statusFilter, priorityFilter, searchText, searchOption]);
+  }, [tickets, statusFilter, priorityFilter, slaFilter, now, searchText, searchOption]);
 
   const {
     page: currentPage,
@@ -125,7 +149,14 @@ export function TicketListView() {
     initialSortKey: "createdAt",
     initialSortDirection: "desc",
     pageSize: 10,
+    // Soonest running deadline first; tickets with no running clock go last.
+    getSortValue: (row, key) =>
+      key === "sla" ? (row.sla?.nextDueAt ? Date.parse(row.sla.nextDueAt) : Number.POSITIVE_INFINITY) : row[key],
   });
+  const sortBy = (key: keyof Ticket) => {
+    setSlaSorted(key === "sla");
+    handleSort(key);
+  };
 
   const visibleTicketRecords = useMemo(
     () =>
@@ -262,7 +293,22 @@ export function TicketListView() {
             options={priorityFilterOptions}
           />
         </div>
+        {(slaAvailable || slaFilter) && (
+          <div className="w-full sm:w-40">
+            <Select
+              value={slaFilter}
+              onChange={(e) => {
+                setSlaFilter(e.target.value);
+                resetPage();
+              }}
+              options={slaFilterOptions}
+            />
+          </div>
+        )}
       </div>
+      {slaView && total !== undefined && total > tickets.length && (
+        <p className="text-xs text-m-text-muted">{t("sla.soonestNote", { shown: tickets.length, total })}</p>
+      )}
 
       {/* Tickets */}
       {loading && tickets.length === 0 ? (
@@ -288,6 +334,7 @@ export function TicketListView() {
                   setSearchText("");
                   setStatusFilter("");
                   setPriorityFilter("");
+                  setSlaFilter("");
                 }}
               >
                 {t("resetFilters")}
@@ -304,25 +351,28 @@ export function TicketListView() {
           >
             <TableHeader>
               <TableRow>
-                <TableHead sortable onSort={() => handleSort("ticketNumber")} sortDirection={sortColumn === "ticketNumber" ? sortDirection : false}>
+                <TableHead sortable onSort={() => sortBy("ticketNumber")} sortDirection={sortColumn === "ticketNumber" ? sortDirection : false}>
                   {t("ticketNumber")}
                 </TableHead>
-                <TableHead sortable onSort={() => handleSort("email")} sortDirection={sortColumn === "email" ? sortDirection : false}>
+                <TableHead sortable onSort={() => sortBy("email")} sortDirection={sortColumn === "email" ? sortDirection : false}>
                   {t("customer")}
                 </TableHead>
-                <TableHead sortable onSort={() => handleSort("createdAt")} sortDirection={sortColumn === "createdAt" ? sortDirection : false}>
+                <TableHead sortable onSort={() => sortBy("createdAt")} sortDirection={sortColumn === "createdAt" ? sortDirection : false}>
                   {common("created")}
                 </TableHead>
-                <TableHead sortable onSort={() => handleSort("lastModifiedAt")} sortDirection={sortColumn === "lastModifiedAt" ? sortDirection : false}>
+                <TableHead sortable onSort={() => sortBy("lastModifiedAt")} sortDirection={sortColumn === "lastModifiedAt" ? sortDirection : false}>
                   {common("modified")}
                 </TableHead>
                 <TableHead>{t("source")}</TableHead>
-                <TableHead sortable onSort={() => handleSort("status")} sortDirection={sortColumn === "status" ? sortDirection : false}>
+                <TableHead sortable onSort={() => sortBy("status")} sortDirection={sortColumn === "status" ? sortDirection : false}>
                   {common("status")}
                 </TableHead>
                 <TableHead>AI Status</TableHead>
-                <TableHead sortable onSort={() => handleSort("priority")} sortDirection={sortColumn === "priority" ? sortDirection : false}>
+                <TableHead sortable onSort={() => sortBy("priority")} sortDirection={sortColumn === "priority" ? sortDirection : false}>
                   {t("priorityLabel")}
+                </TableHead>
+                <TableHead sortable onSort={() => sortBy("sla")} sortDirection={sortColumn === "sla" ? sortDirection : false}>
+                  {t("sla.column")}
                 </TableHead>
                 <TableHead>{t("category")}</TableHead>
                 <TableHead>{t("subject")}</TableHead>
@@ -348,6 +398,7 @@ export function TicketListView() {
                   <TableCell>{renderStatusBadge(ticket.status)}</TableCell>
                   <TableCell><TicketAIQuickReview ticket={ticket} onTicketChanged={refetch} /></TableCell>
                   <TableCell>{renderPriorityBadge(ticket.priority)}</TableCell>
+                  <TableCell><SlaBadge sla={ticket.sla} now={now} /></TableCell>
                   <TableCell className="text-xs font-medium">
                     {t.has(`categoryValues.${ticket.category}`)
                       ? t(`categoryValues.${ticket.category}`)

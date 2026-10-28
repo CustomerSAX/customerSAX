@@ -8,8 +8,16 @@ import { currentProductsConfiguration } from "../../features/products/providers/
 export const dynamic = "force-dynamic";
 
 async function ProjectProducts() {
-  const { key, provider, searchConfig } = await currentProductsConfiguration();
-  return <ProductListView key={key} provider={provider} searchConfig={searchConfig} />;
+  const { key, provider, searchConfig, connectionHubEnabled } =
+    await currentProductsConfiguration();
+  return (
+    <ProductListView
+      key={key}
+      provider={provider}
+      searchConfig={searchConfig}
+      connectionHubEnabled={connectionHubEnabled}
+    />
+  );
 }
 
 export default function ProductsPage() {

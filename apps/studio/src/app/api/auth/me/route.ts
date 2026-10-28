@@ -17,7 +17,7 @@ export async function GET() {
   payload.user = await ensureDefaultProjectSelection(token, payload.user);
   payload.user = await enrichUserWithOrganizationTheme(payload.user);
 
-  return NextResponse.json(payload, { status: 200 });
+  return NextResponse.json(payload, { status: 200, headers: { "Cache-Control": "private, no-store" } });
 }
 
 

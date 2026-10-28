@@ -1,47 +1,108 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { resolveProjectCrm } from "@csa/mongodb";
-import { resolveCrm } from "./index.js";
-import { salesforceProvider } from "../salesforce/provider.js";
-vi.mock("@csa/mongodb", async original => ({
+const mocks = vi.hoisted(() => ({
+  authorize: vi.fn(),
+  legacy: vi.fn(),
+  project: vi.fn(),
+  api: vi.fn(),
+  salesforce: vi.fn(),
+  zoho: vi.fn(),
+  hubspot: vi.fn()
+}));
+vi.mock("@csa/mongodb", async (original) => ({
   ...(await original<typeof import("@csa/mongodb")>()),
-  resolveProjectCrm: vi.fn(),
-  projectHubspotCredentials: vi.fn(() => ({ accessToken: "pat-na1-test", portalId: "42" })),
-  projectZohoCredentials: vi.fn(() => ({ region: "in", clientId: "id", clientSecret: "s", refreshToken: "r", orgDomain: null }))
+  assertProjectScope: mocks.authorize,
+  resolveProjectCrm: mocks.legacy
 }));
-vi.mock("../salesforce/project-client.js", () => ({
-  projectSalesforceClient: (clientId: string, projectKey: string, settings: { salesforceInstanceUrl: string }) => ({ instanceUrl: settings.salesforceInstanceUrl, clientId, projectKey }),
-  salesforceClient: () => ({ env: true })
+vi.mock("@csa/connection-hub", async (original) => ({
+  ...(await original<typeof import("@csa/connection-hub")>()),
+  hubRuntime: { project: mocks.project, api: mocks.api }
 }));
-vi.mock("../salesforce/provider.js", () => ({ salesforceProvider: vi.fn(() => ({ getContact: vi.fn() })) }));
-beforeEach(() => { vi.clearAllMocks(); vi.stubEnv("CRM_PROVIDER", "salesforce"); });
+vi.mock("../salesforce/provider.js", () => ({ salesforceProvider: mocks.salesforce }));
+vi.mock("../zoho/provider.js", () => ({ zohoProvider: mocks.zoho }));
+vi.mock("../hubspot/provider.js", () => ({ createHubspotProvider: mocks.hubspot }));
+import { resolveCrm } from "./index.js";
+const binding = {
+  connectorId: "salesforce",
+  canonicalAction: "salesforce-custom-api-call",
+  enabled: true,
+  connectionId: "hub-account",
+  allowedIndex: "https://acme.my.salesforce.com"
+};
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.stubEnv("CRM_PROVIDER", "salesforce");
+  mocks.authorize.mockResolvedValue(undefined);
+  mocks.project.mockResolvedValue({ bindings: [binding] });
+  mocks.salesforce.mockReturnValue({ getContact: vi.fn() });
+  mocks.zoho.mockReturnValue({ getContact: vi.fn() });
+  mocks.hubspot.mockReturnValue({ getContact: vi.fn() });
+});
 afterEach(() => vi.unstubAllEnvs());
-it("uses the active client/project settings instead of environment credentials", async () => {
-  vi.mocked(resolveProjectCrm).mockResolvedValue({ provider: "salesforce", salesforceInstanceUrl: "https://a.my.salesforce.com" });
+it("selects Salesforce from enabled Hub actions without resolving legacy credentials", async () => {
   expect((await resolveCrm("project-a", "client-a")).name).toBe("salesforce");
-  expect(resolveProjectCrm).toHaveBeenCalledWith("client-a", "project-a");
-  expect(salesforceProvider).toHaveBeenCalledWith({ instanceUrl: "https://a.my.salesforce.com", clientId: "client-a", projectKey: "project-a" });
+  expect(mocks.legacy).not.toHaveBeenCalled();
+  const client = mocks.salesforce.mock.calls[0][0];
+  expect(await client.instanceUrl()).toBe("https://acme.my.salesforce.com");
+  await client.api("query?q=SELECT", "GET");
+  expect(mocks.api).toHaveBeenCalledWith(
+    expect.anything(),
+    binding,
+    "/services/data/v56.0/query?q=SELECT",
+    "GET",
+    undefined
+  );
 });
-it("honors 'none' despite a Salesforce environment default", async () => {
-  vi.mocked(resolveProjectCrm).mockResolvedValue({ provider: "none" });
-  expect(await resolveCrm("project-b", "client-a")).toEqual({ name: "none", provider: null });
-  expect(salesforceProvider).not.toHaveBeenCalled();
+it.each(["hubspot", "zoho-crm"])(
+  "selects %s from Hub and uses the expected account API path",
+  async (connectorId) => {
+    const target = {
+      ...binding,
+      connectorId,
+      canonicalAction: `${connectorId}-custom-api-call`
+    };
+    mocks.project.mockResolvedValue({ bindings: [target] });
+    expect((await resolveCrm("project", "client")).name).toBe(
+      connectorId === "zoho-crm" ? "zoho" : "hubspot"
+    );
+    const api =
+      connectorId === "hubspot"
+        ? mocks.hubspot.mock.calls[0][0]
+        : mocks.zoho.mock.calls[0][0].api;
+    await api(connectorId === "hubspot" ? "crm/v3/objects/contacts/42" : "Contacts/42");
+    expect(mocks.api).toHaveBeenCalledWith(
+      expect.anything(),
+      target,
+      connectorId === "hubspot" ? "/crm/v3/objects/contacts/42" : "/crm/v8/Contacts/42",
+      "GET",
+      undefined
+    );
+  }
+);
+it("returns no CRM when Hub has no enabled CRM, ignoring old provider defaults", async () => {
+  mocks.project.mockResolvedValue({ bindings: [{ ...binding, enabled: false }] });
+  expect(await resolveCrm("project", "client")).toEqual({ name: "none", provider: null });
+  expect(mocks.legacy).not.toHaveBeenCalled();
 });
-it("does not fall back when settings cannot be resolved", async () => {
-  vi.mocked(resolveProjectCrm).mockRejectedValue(new Error("not authorized"));
+it("reports missing workspace actions and multiple selected CRMs", async () => {
+  mocks.project.mockResolvedValue({
+    bindings: [{ ...binding, canonicalAction: "salesforce-create-contact" }]
+  });
+  await expect(resolveCrm("project", "client")).rejects.toThrow("Custom API Call");
+  mocks.project.mockResolvedValue({
+    bindings: [binding, { ...binding, connectorId: "hubspot" }]
+  });
+  await expect(resolveCrm("project", "client")).rejects.toThrow("Multiple CRM");
+});
+it("rejects project ownership errors before reaching Hub and does not fall back during outages", async () => {
+  mocks.authorize.mockRejectedValueOnce(new Error("not authorized"));
   await expect(resolveCrm("project", "client")).rejects.toThrow("not authorized");
-  expect(salesforceProvider).not.toHaveBeenCalled();
+  expect(mocks.project).not.toHaveBeenCalled();
+  mocks.project.mockRejectedValue(new Error("Hub unavailable"));
+  await expect(resolveCrm("project", "client")).rejects.toThrow("Hub unavailable");
+  expect(mocks.legacy).not.toHaveBeenCalled();
 });
-it("rejects missing client context in production", async () => {
+it("requires an authenticated client in production", async () => {
   vi.stubEnv("NODE_ENV", "production");
   await expect(resolveCrm("project")).rejects.toThrow("authenticated client");
-  expect(resolveProjectCrm).not.toHaveBeenCalled();
-});
-it("builds the HubSpot provider from saved project credentials", async () => {
-  vi.mocked(resolveProjectCrm).mockResolvedValue({ provider: "hubspot", hubspotTokenEncrypted: "enc", hubspotPortalId: "42" });
-  expect((await resolveCrm("project-h", "client-a")).name).toBe("hubspot");
-  expect(salesforceProvider).not.toHaveBeenCalled();
-});
-it("builds the Zoho provider from saved project credentials", async () => {
-  vi.mocked(resolveProjectCrm).mockResolvedValue({ provider: "zoho", zohoRegion: "in", zohoClientId: "id", zohoSecretEncrypted: "e", zohoRefreshTokenEncrypted: "r" });
-  expect((await resolveCrm("project-z", "client-a")).name).toBe("zoho");
+  expect(mocks.project).not.toHaveBeenCalled();
 });

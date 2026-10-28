@@ -11,7 +11,7 @@ const port = Number(process.env.PORT ?? process.env.ADMIN_PORT ?? 4370);
 
 type AdminContext = { clientId?: string; projectKey?: string; userRole?: string; userEmail?: string };
 
-const securedResolvers = secureAdminResolvers(resolvers);
+const securedResolvers = { ...resolvers, ...secureAdminResolvers({ Query: resolvers.Query, Mutation: resolvers.Mutation }) };
 
 await startSubgraph({
   serviceName: "admin",
@@ -89,11 +89,11 @@ const clientScopedAdminFields = new Set([
   // Reads scoped to the caller's own client
   "adminClient", "adminProject", "adminProjectsByClient", "adminUsersByClient",
   "adminRoles", "adminAiSettings", "adminSmtpProfilesByClient",
-  "adminProjectTicketing",
+  "adminProjectTicketing", "adminProjectTicketingSla",
   // Client-scoped project & commerce management (Org Admin ownership)
   "adminCreateProject", "adminUpdateProject", "adminDeleteProject",
   "adminTestProjectCredentials", "adminTestProjectConnection",
-  "adminSaveProjectTicketing", "adminTestProjectTicketing",
+  "adminSaveProjectTicketing", "adminSaveProjectTicketingSla", "adminTestProjectTicketing",
   // Client-scoped user/role management
   "adminAssignClientUser", "adminCreateClientUser", "adminUpdateClientUser",
   "adminRemoveUserFromClient", "adminRemoveUserFromProject", "adminUpdateClientContact",

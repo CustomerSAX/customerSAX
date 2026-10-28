@@ -1,6 +1,7 @@
 import { freshdeskClient, type FreshdeskCredentials } from "@csa/mongodb";
 import type { TicketingProvider } from "../providers/types.js";
-import type { Ticket, TicketUpdate } from "../tickets/types.js";
+import type { SlaMetric, SlaStage, Ticket, TicketUpdate } from "../tickets/types.js";
+import { SLA_SORT_KEY, sortBySlaDue, ticketSla } from "../tickets/sla.js";
 
 type RemoteTicket = {
   id: number;
@@ -17,6 +18,11 @@ type RemoteTicket = {
   requester?: { name?: string; email?: string };
   custom_fields?: Record<string, unknown>;
   attachments?: Array<{ name: string; attachment_url: string; size: number }>;
+  fr_due_by?: string | null;
+  due_by?: string | null;
+  fr_escalated?: boolean;
+  is_escalated?: boolean;
+  stats?: { first_responded_at?: string | null; resolved_at?: string | null; closed_at?: string | null } | null;
 };
 type Conversation = {
   id: number;
@@ -38,6 +44,29 @@ const priorities: Record<number, string> = {
   3: "high",
   4: "urgent"
 };
+// Freshdesk's built-in statuses have fixed SLA behaviour: Open runs the clock,
+// Pending pauses it, Resolved/Closed stop it. Custom statuses are configurable
+// per account, so for those the clock's state is reported as unknown.
+function slaStage(t: RemoteTicket, dueAt: string, doneAt: string | null | undefined, escalated?: boolean): SlaStage {
+  if (doneAt) return Date.parse(doneAt) <= Date.parse(dueAt) ? "met" : "missed";
+  if (t.status === 4 || t.status === 5) return escalated ? "missed" : "completed";
+  if (t.status === 3) return "paused";
+  return t.status === 2 ? "running" : "unknown";
+}
+function sla(t: RemoteTicket) {
+  if (!t.fr_due_by && !t.due_by) return null;
+  const metrics: SlaMetric[] = [];
+  if (t.fr_due_by) {
+    const done = t.stats?.first_responded_at;
+    metrics.push({ key: "first_response", label: "First response", dueAt: t.fr_due_by, completedAt: done ?? null, stage: slaStage(t, t.fr_due_by, done, t.fr_escalated) });
+  }
+  if (t.due_by) {
+    // A reopened ticket keeps its old resolved_at, so only trust it while the ticket is stopped.
+    const done = t.status === 4 || t.status === 5 ? (t.stats?.resolved_at ?? t.stats?.closed_at) : null;
+    metrics.push({ key: "resolution", label: "Resolution", dueAt: t.due_by, completedAt: done ?? null, stage: slaStage(t, t.due_by, done, t.is_escalated) });
+  }
+  return ticketSla("freshdesk", metrics);
+}
 const html = (text: string) =>
   text
     .replace(/&/g, "&amp;")
@@ -83,12 +112,13 @@ export function freshdeskProvider(
       category: t.type,
       comments: [],
       attachments: attachments(t.attachments),
-      history: []
+      history: [],
+      sla: sla(t)
     };
   }
   async function read(id: string) {
     try {
-      return await api<RemoteTicket>(`tickets/${externalId(id)}?include=requester`);
+      return await api<RemoteTicket>(`tickets/${externalId(id)}?include=requester,stats`);
     } catch (e) {
       if ((e as { status?: number }).status === 404) return null;
       throw e;
@@ -184,7 +214,7 @@ export function freshdeskProvider(
       const rows: RemoteTicket[] = [];
       for (let page = 1; ; page++) {
         const batch = await api<RemoteTicket[]>(
-          `tickets?updated_since=1970-01-01T00%3A00%3A00Z&include=requester&per_page=100&page=${page}`
+          `tickets?updated_since=1970-01-01T00%3A00%3A00Z&include=requester,stats&per_page=100&page=${page}`
         );
         rows.push(...batch);
         if (rows.length > 1000)
@@ -223,11 +253,13 @@ export function freshdeskProvider(
         "ticketNumber",
         "subject",
         "status",
-        "priority"
+        "priority",
+        SLA_SORT_KEY
       ];
       const key = args.sortKey || "lastModifiedAt";
       if (!sorts.includes(key)) throw new Error("Unsupported Freshdesk sort field");
-      tickets.sort(
+      if (key === SLA_SORT_KEY) tickets = sortBySlaDue(tickets);
+      else tickets.sort(
         (a, b) =>
           String(a[key as keyof Ticket] ?? "").localeCompare(
             String(b[key as keyof Ticket] ?? ""),

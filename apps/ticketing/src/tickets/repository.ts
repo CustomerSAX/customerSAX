@@ -4,6 +4,8 @@ import { getTicketsCollection } from "../db/mongodb.js";
 import { mapTicket } from "./mapper.js";
 import { generateTicketNumber, nextTicketNumber } from "./ticket-number.js";
 import type { InformationRequest, Ticket, TicketDraft, TicketListArgs, TicketPage, TicketUpdate, WorklogComment } from "./types.js";
+import { NO_SLA_DUE, nativeSla, slaSortAt, statusEvents, type SlaEvent, type SlaTarget } from "./native-sla.js";
+import { SLA_SORT_KEY, sortBySlaDue } from "./sla.js";
 
 const log = createLogger("ticketing").child({ module: "tickets/repository" });
 
@@ -52,20 +54,28 @@ export async function listTickets(args: TicketListArgs, scope?: NativeTicketScop
   if (usesMemoryStore()) {
     const { limit, offset } = paging(args);
     const filtered = memoryTickets.filter((ticket) => matchesArgs(ticket, args) && matchesOwner(ticket, scope));
-    const sorted = sortMemoryTickets(filtered, args);
+    const sorted = args.sortKey === SLA_SORT_KEY
+      ? sortBySlaDue(sortMemoryTickets(filtered, {}).map(mapTicket))
+      : sortMemoryTickets(filtered, args).map(mapTicket);
     const results = sorted.slice(offset, offset + limit);
 
-    return { count: results.length, offset, results: results.map(mapTicket), total: filtered.length };
+    return { count: results.length, offset, results, total: filtered.length };
   }
 
   const collection = await getTicketsCollection();
   const { limit, offset } = paging(args);
   const filter = { $and: [buildFilter(args), ownerFilter(scope)] };
-  const sort = buildSort(args);
-  const [results, total] = await Promise.all([
-    collection.find(filter).sort(sort).skip(offset).limit(limit).toArray(),
-    collection.countDocuments(filter)
-  ]);
+  // Tickets predating SLA tracking have no slaSortAt; rank them with the "nothing running" ones, last.
+  const page = args.sortKey === SLA_SORT_KEY
+    ? collection.aggregate([
+        { $match: filter },
+        { $addFields: { _slaSortAt: { $ifNull: ["$slaSortAt", NO_SLA_DUE] } } },
+        { $sort: { _slaSortAt: 1, lastModifiedAt: -1 } },
+        { $skip: offset },
+        { $limit: limit }
+      ]).toArray()
+    : collection.find(filter).sort(buildSort(args)).skip(offset).limit(limit).toArray();
+  const [results, total] = await Promise.all([page, collection.countDocuments(filter)]);
 
   return {
     count: results.length,
@@ -88,7 +98,11 @@ export async function getTicket(id: string, projectKey?: string | null, scope?: 
   return doc ? mapTicket(doc) : null;
 }
 
-export async function createTicket(draft: TicketDraft, scope?: NativeTicketScope): Promise<Ticket> {
+/**
+ * @param slaTargets The project's SLA targets at creation time, copied onto the
+ * ticket so later policy edits never change an existing ticket's clocks.
+ */
+export async function createTicket(draft: TicketDraft, scope?: NativeTicketScope, slaTargets?: Partial<Record<string, SlaTarget>>): Promise<Ticket> {
   const now = new Date();
   const projectKey = resolveProjectKey(draft.projectKey);
   // Durable atomic counter for the real Mongo store; random-suffix fallback for
@@ -117,7 +131,8 @@ export async function createTicket(draft: TicketDraft, scope?: NativeTicketScope
     source: draft.source ?? "Manual",
     status: draft.status ?? "Open",
     subject: draft.subject,
-    ticketNumber
+    ticketNumber,
+    ...slaFields(slaTargets, draft.status ?? "Open", draft.priority ?? "normal", now)
   };
 
   if (usesMemoryStore()) {
@@ -139,7 +154,7 @@ export async function addWorklog(id: string, comment: WorklogComment, projectKey
     if (!doc) return null;
     doc.comments = [...(Array.isArray(doc.comments) ? doc.comments : []), comment];
     doc.lastModifiedAt = new Date();
-    return mapTicket(doc);
+    return recordSla(doc, [{ type: "action", at: doc.lastModifiedAt }]);
   }
 
   const collection = await getTicketsCollection();
@@ -148,7 +163,7 @@ export async function addWorklog(id: string, comment: WorklogComment, projectKey
     { $push: { comments: comment }, $set: { lastModifiedAt: new Date() } } as Document,
     { returnDocument: "after" }
   );
-  return result ? mapTicket(result) : null;
+  return result ? recordSla(result, [{ type: "action", at: result.lastModifiedAt }]) : null;
 }
 
 export async function updateTicket(id: string, patch: TicketUpdate & { projectKey?: string | null }, scope?: NativeTicketScope) {
@@ -164,7 +179,7 @@ export async function updateTicket(id: string, patch: TicketUpdate & { projectKe
     const doc = memoryTickets.find((ticket) => matchesIdentity(ticket, id, projectKey) && matchesOwner(ticket, scope));
     if (!doc) return null;
     Object.assign(doc, update, { lastModifiedAt: new Date() });
-    return mapTicket(doc);
+    return recordSla(doc, updateEvents(update, doc.lastModifiedAt));
   }
 
   const collection = await getTicketsCollection();
@@ -175,7 +190,7 @@ export async function updateTicket(id: string, patch: TicketUpdate & { projectKe
     { returnDocument: "after" }
   );
 
-  return result ? mapTicket(result) : null;
+  return result ? recordSla(result, updateEvents(update, result.lastModifiedAt)) : null;
 }
 
 /** Save the approved resolution and close atomically, only if the ticket is unchanged. */
@@ -188,7 +203,7 @@ export async function closeIfUnchanged(id: string, expectedLastModifiedAt: strin
     const doc = memoryTickets.find((ticket) => matchesIdentity(ticket, id, projectKey) && matchesOwner(ticket, scope));
     if (!doc || new Date(doc.lastModifiedAt).getTime() !== expected.getTime()) return null;
     Object.assign(doc, { status: "Closed", solution: solution.trim(), lastModifiedAt: modifiedAt });
-    return mapTicket(doc);
+    return recordSla(doc, statusEvents("Closed", modifiedAt));
   }
   const collection = await getTicketsCollection();
   const result = await collection.findOneAndUpdate(
@@ -196,17 +211,72 @@ export async function closeIfUnchanged(id: string, expectedLastModifiedAt: strin
     { $set: { status: "Closed", solution: solution.trim(), lastModifiedAt: modifiedAt } },
     { returnDocument: "after" }
   );
-  return result ? mapTicket(result) : null;
+  return result ? recordSla(result, statusEvents("Closed", modifiedAt)) : null;
+}
+
+/**
+ * Client-owned native tickets whose soonest running SLA deadline is at or
+ * before `cutoff` (breached or about to be), soonest first, across all
+ * clients. Used by the SLA alert sweep; returns each ticket with its owner.
+ */
+export async function ticketsWithSlaDueBy(cutoff: Date, limit: number): Promise<Array<{ clientId: string; ticket: Ticket }>> {
+  const due = (doc: Document) => typeof doc.clientId === "string" && doc.slaPolicy && doc.slaSortAt && new Date(doc.slaSortAt).getTime() <= cutoff.getTime();
+  const docs = usesMemoryStore()
+    ? memoryTickets.filter(due).sort((a, b) => new Date(a.slaSortAt).getTime() - new Date(b.slaSortAt).getTime()).slice(0, limit)
+    : await (await getTicketsCollection())
+        .find({ clientId: { $type: "string" }, slaPolicy: { $exists: true }, slaSortAt: { $lte: cutoff } })
+        .sort({ slaSortAt: 1 })
+        .limit(limit)
+        .toArray();
+  return docs.map((doc) => ({ clientId: doc.clientId as string, ticket: mapTicket(doc) }));
+}
+
+function slaFields(targets: Partial<Record<string, SlaTarget>> | undefined, status: string, priority: string, now: Date) {
+  if (!targets || !Object.keys(targets).length) return {};
+  const slaPolicy = { startedAt: now, targets };
+  // Creating a ticket isn't a response, so only its starting status is recorded.
+  const slaEvents: SlaEvent[] = statusEvents(status, now).filter((event) => event.type === "status");
+  return { slaPolicy, slaEvents, slaSortAt: slaSortAt(nativeSla(slaPolicy, slaEvents, priority)) };
+}
+
+/** A status change, or assigning the ticket to a person, is an agent acting on it. */
+function updateEvents(update: Record<string, unknown>, at: Date): SlaEvent[] {
+  const events: SlaEvent[] = typeof update.status === "string" ? statusEvents(update.status, at) : [];
+  if (typeof update.assignee === "string" && update.assignee.trim() && update.assignee !== "Queue") events.push({ type: "action", at });
+  return events;
+}
+
+/**
+ * Appends SLA events to a ticket that has an SLA policy and refreshes its
+ * stored next deadline (used for "breaching soon" sorting), then returns the
+ * mapped ticket. Tickets without a policy are returned unchanged. A priority
+ * change moves the deadline too, so this also runs with no new events.
+ */
+async function recordSla(doc: Document, events: SlaEvent[]): Promise<Ticket> {
+  if (!doc.slaPolicy) return mapTicket(doc);
+  if (usesMemoryStore()) {
+    doc.slaEvents = [...(Array.isArray(doc.slaEvents) ? doc.slaEvents : []), ...events];
+    doc.slaSortAt = slaSortAt(nativeSla(doc.slaPolicy, doc.slaEvents, doc.priority));
+    return mapTicket(doc);
+  }
+  const collection = await getTicketsCollection();
+  const updated = events.length
+    ? await collection.findOneAndUpdate({ _id: doc._id }, { $push: { slaEvents: { $each: events } } } as Document, { returnDocument: "after" })
+    : doc;
+  if (!updated) return mapTicket(doc);
+  const sortAt = slaSortAt(nativeSla(updated.slaPolicy, updated.slaEvents, updated.priority));
+  await collection.updateOne({ _id: updated._id }, { $set: { slaSortAt: sortAt } });
+  return mapTicket({ ...updated, slaSortAt: sortAt });
 }
 
 function buildFilter(args: TicketListArgs): Filter<Document> {
   const filter: Filter<Document> = { projectKey: resolveProjectKey(args.projectKey) };
 
   if (args.status?.trim()) {
-    filter.status = new RegExp(`^${escapeRegExp(args.status.trim())}$`, "i");
+    filter.status = { $in: equivalentValues(args.status, STATUS_SYNONYMS) };
   }
   if (args.priority?.trim()) {
-    filter.priority = new RegExp(`^${escapeRegExp(args.priority.trim())}$`, "i");
+    filter.priority = { $in: equivalentValues(args.priority, PRIORITY_SYNONYMS) };
   }
   if (args.category?.trim()) {
     filter.category = new RegExp(`^${escapeRegExp(args.category.trim())}$`, "i");
@@ -323,10 +393,22 @@ function matchesIdentity(ticket: Document, id: string, projectKey: string) {
   return ticket.projectKey === projectKey && (ticket.ticketNumber === id || documentId === id);
 }
 
+// Stored values mix casing and vocabulary across writers (studio "In Progress"/
+// "Medium", AI tools "in progress"/"normal"), so filters match any spelling of
+// the same value. Keys are normalized: lower-case, "_"/"-" read as spaces.
+const STATUS_SYNONYMS: Record<string, string[]> = { pending: ["pending", "waiting"], waiting: ["pending", "waiting"] };
+const PRIORITY_SYNONYMS: Record<string, string[]> = { normal: ["normal", "medium"], medium: ["normal", "medium"] };
+
+/** Exact, case-insensitive matchers for a filter value and its synonyms ("in_progress" matches "In Progress"). */
+function equivalentValues(value: string, synonyms: Record<string, string[]>): RegExp[] {
+  const key = value.trim().toLowerCase().replace(/[_-]/g, " ");
+  return (synonyms[key] ?? [key]).map((word) => new RegExp(`^${escapeRegExp(word).replace(/ /g, "[ _-]")}$`, "i"));
+}
+
 function matchesArgs(ticket: Document, args: TicketListArgs) {
   if (ticket.projectKey !== resolveProjectKey(args.projectKey)) return false;
-  if (args.status?.trim() && String(ticket.status ?? "").toLowerCase() !== args.status.trim().toLowerCase()) return false;
-  if (args.priority?.trim() && String(ticket.priority ?? "").toLowerCase() !== args.priority.trim().toLowerCase()) return false;
+  if (args.status?.trim() && !equivalentValues(args.status, STATUS_SYNONYMS).some((re) => re.test(String(ticket.status ?? "")))) return false;
+  if (args.priority?.trim() && !equivalentValues(args.priority, PRIORITY_SYNONYMS).some((re) => re.test(String(ticket.priority ?? "")))) return false;
   if (args.category?.trim() && String(ticket.category ?? "").toLowerCase() !== args.category.trim().toLowerCase()) return false;
   // Check both 'assignee' and legacy 'assignedTo' field (same as buildFilter above)
   if (args.assignee?.trim() && !contains(ticket.assignee, args.assignee) && !contains(ticket.assignedTo, args.assignee)) return false;
@@ -386,20 +468,29 @@ export async function finishInformationRequest(ticket: Ticket, request: Informat
   if (usesMemoryStore()) {
     const doc = memoryTickets.find(item => matchesIdentity(item, ticket.id, ticket.projectKey) && matchesOwner(item, scope));
     if (!doc || doc.informationRequest?.status !== "sending") return;
-    if (request.status === "accepted" && doc.status === ticket.status && mapTicket(doc).lastModifiedAt === ticket.lastModifiedAt) doc.status = "Pending";
+    const pending = request.status === "accepted" && doc.status === ticket.status && mapTicket(doc).lastModifiedAt === ticket.lastModifiedAt;
+    if (pending) doc.status = "Pending";
     doc.informationRequest = request;
     doc.comments = [...(doc.comments ?? []), comment];
     doc.lastModifiedAt = new Date();
+    if (request.status === "accepted") await recordSla(doc, informationRequestEvents(pending, doc.lastModifiedAt));
     return;
   }
   const collection = await getTicketsCollection();
   const identity = ticketIdentityFilter(ticket.id, ticket.projectKey, scope);
-  if (request.status === "accepted") await collection.updateOne(
+  const pending = request.status === "accepted" && (await collection.updateOne(
     { $and: [identity, { lastModifiedAt: new Date(ticket.lastModifiedAt!), status: ticket.status, "informationRequest.status": "sending" }] },
     { $set: { status: "Pending" } }
-  );
-  await collection.updateOne(
+  )).modifiedCount === 1;
+  const finished = await collection.findOneAndUpdate(
     { $and: [identity, { "informationRequest.status": "sending" }] },
-    { $set: { informationRequest: request, lastModifiedAt: new Date() }, $push: { comments: comment } } as Document
+    { $set: { informationRequest: request, lastModifiedAt: new Date() }, $push: { comments: comment } } as Document,
+    { returnDocument: "after" }
   );
+  if (finished && request.status === "accepted") await recordSla(finished, informationRequestEvents(pending, finished.lastModifiedAt));
+}
+
+/** An email actually sent to the customer is a response; the automatic move to Pending pauses the clock. */
+function informationRequestEvents(pending: boolean, at: Date): SlaEvent[] {
+  return pending ? statusEvents("Pending", at) : [{ type: "action", at }];
 }

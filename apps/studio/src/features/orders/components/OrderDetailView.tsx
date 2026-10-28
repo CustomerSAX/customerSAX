@@ -2,8 +2,8 @@
 
 import { useRegisterPageContext } from "@/features/csa-assistant";
 import { notify } from "@/features/notifications/notification-store";
-import { stripLocalePrefix } from "@/i18n/routing";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
+import { projectPath } from "@/lib/project-url";
 import {
   BackLink,
   DetailPage,
@@ -160,7 +160,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
-  const isB2b = stripLocalePrefix(pathname || "/").startsWith("/b2b");
+  const isB2b = projectPath(pathname || "/").pathname.startsWith("/b2b");
 
   const { order: singleOrder, loading: singleLoading, error: singleError } = useOrderDetail(id);
   const {

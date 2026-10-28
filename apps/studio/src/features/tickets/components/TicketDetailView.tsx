@@ -20,9 +20,9 @@
  * - The audit history tab keeps the same auditSearchText-driven filtering
  *   over ticket.history.
  *
- * No field is fabricated: SLA countdowns and sentiment analysis aren't
- * returned by the connected ticketing backend, so they render an honest
- * "—" (InfoRow's built-in empty state) rather than an invented value.
+ * No field is fabricated: SLA timers come only from the provider's own
+ * deadlines (Freshdesk/Zendesk) and say "not available" where it has none;
+ * sentiment isn't returned at all, so it renders an honest "—".
  * Native tickets include a persistent AI proposal and approval panel.
  * Commerce changes execute only after server-validated approval.
  */
@@ -69,6 +69,8 @@ import {
 } from "@csa/ui";
 import { useTicketStore, TICKET_CATEGORIES, TICKET_WORKFLOW } from "../hooks/use-tickets";
 import { ProviderFields } from "./ProviderFields";
+import { SlaTimers } from "./TicketSla";
+import { useNow } from "../sla";
 import { TicketAIReview } from "./TicketAIReview";
 import { ticketIdFromRoute } from "../api/ticket-id";
 import { useAssignees } from "../hooks/use-assignees";
@@ -135,6 +137,8 @@ function summaryPriorityTone(
 
 export function TicketDetailView({ id }: TicketDetailViewProps) {
   const common = useTranslations("Common");
+  const slaText = useTranslations("Tickets.sla");
+  const now = useNow();
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
   const backHref = customerIdParam ? `/customers/${customerIdParam}` : "/tickets";
@@ -794,7 +798,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
 
           <SectionCard title="Ticket Details" icon="info">
             <InfoList>
-              <InfoRow label="SLA" value={undefined} />
+              <InfoRow label={slaText("column")} value={<SlaTimers sla={ticket.sla} now={now} />} />
               <InfoRow label="Sentiment" value={undefined} />
               <InfoRow label="Time Spent" value={ticket.timeSpentOnTicket} />
               <InfoRow

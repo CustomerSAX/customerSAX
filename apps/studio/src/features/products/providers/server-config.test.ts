@@ -10,10 +10,11 @@ vi.mock("../../../app/api/auth/shared", async (importOriginal) => {
   };
 });
 import { currentProductsConfiguration } from "./server-config";
-import { invalidateSessionCache } from "../../../app/api/auth/shared";
 beforeEach(() => {
   vi.clearAllMocks();
-  invalidateSessionCache();
+  vi.stubEnv("CONNECTION_HUB_ENABLED", "false");
+  vi.stubEnv("USE_CONNECTION_HUB_PROD", "false");
+  vi.stubEnv("CONNECTION_HUB_CATALOG_REQUIRE_GOOGLE_AUTH", "false");
   vi.stubGlobal("fetch", mocks.fetch);
   vi.stubEnv("AUTH_SERVICE_URL", "http://auth.test");
   vi.stubEnv("PRODUCTS_PROVIDER", "commercetools");
@@ -69,10 +70,8 @@ it("resolves saved settings only for the authenticated active project", async ()
     headers: { authorization: "Bearer session-token" },
     cache: "no-store"
   });
-  expect(settings.provider).toBe("algolia");
-  expect(settings.searchConfig?.sortOptions).toEqual([
-    { label: "Relevance", value: "project-index" }
-  ]);
+  expect(settings.provider).toBe("commercetools");
+  expect(settings.searchConfig).toBeUndefined();
 });
 it("defaults unconfigured projects to Native even when the environment selects Algolia", async () => {
   vi.stubEnv("PRODUCTS_PROVIDER", "algolia");
@@ -111,4 +110,46 @@ it("does not treat GraphQL errors or missing data as an unconfigured project", a
       json: async () => ({ errors: [{ message: "Unavailable" }] })
     });
   await expect(currentProductsConfiguration()).rejects.toThrow("Unable to load");
+});
+
+it("uses saved hub bindings without loading project Algolia credentials", async () => {
+  vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
+  vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
+  vi.stubEnv("CONNECTION_HUB_API_KEY", "server-only-connector-key");
+  vi.stubEnv("CONNECTION_HUB_CLIENT_ID", "client");
+  const original = mocks.fetch.getMockImplementation();
+  mocks.fetch.mockImplementation(async (url: string, init: RequestInit) =>
+    url.endsWith("/bindings")
+      ? Response.json({
+          applicationId: "customersax",
+          bindings: ["search-products", "browse-records"].map((action) => ({
+            id: action,
+            revision: 1,
+            tenantId: "client",
+            projectKey: "store",
+            canonicalAction: action,
+            connectorId: "algolia",
+            operation: action === "search-products" ? "rc_search_products" : action,
+            allowedIndex: "products",
+            connectionId: "conn-a",
+            releaseId: "release-a",
+            enabled: true
+          }))
+        })
+      : original?.(url, init)
+  );
+  const settings = await currentProductsConfiguration();
+  expect(settings.connectionHubEnabled).toBe(true);
+  expect(settings.searchConfig).toBeUndefined();
+  expect(mocks.resolve).not.toHaveBeenCalled();
+  expect(JSON.stringify(settings)).not.toContain("server-only-connector-key");
+});
+it("retains the existing provider for clients without hub configuration", async () => {
+  vi.stubEnv("CONNECTION_HUB_ENABLED", "true");
+  vi.stubEnv("CONNECTION_HUB_URL", "http://127.0.0.1:3100");
+  vi.stubEnv("CONNECTION_HUB_API_KEY", "server-only-connector-key");
+  vi.stubEnv("CONNECTION_HUB_CLIENT_ID", "another-client");
+  const settings = await currentProductsConfiguration();
+  expect(settings.connectionHubEnabled).toBe(false);
+  expect(settings.provider).toBe("commercetools");
 });

@@ -8,8 +8,8 @@ import { Fragment, useCallback, useMemo, useState } from "react";
 import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
 import { useRegisterPageContext } from "@/features/csa-assistant";
 import { notify } from "@/features/notifications/notification-store";
-import { stripLocalePrefix } from "@/i18n/routing";
 import { formatDateTime } from "@/lib/format-date";
+import { projectPath } from "@/lib/project-url";
 import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 import {
   Badge,
@@ -148,7 +148,7 @@ export function OrderListView() {
   const common = useTranslations("Common");
   const paginationLabels = useTablePaginationLabels();
   const pathname = usePathname();
-  const isB2b = stripLocalePrefix(pathname || "/").startsWith("/b2b");
+  const isB2b = projectPath(pathname || "/").pathname.startsWith("/b2b");
   const orderColumnStorageKey = isB2b ? "csa_b2b_order_columns" : "csa_order_columns";
   const defaultOrderColumnKeys = isB2b
     ? DEFAULT_B2B_ORDER_COLUMN_KEYS

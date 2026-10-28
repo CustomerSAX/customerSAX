@@ -1,5 +1,6 @@
 import { ObjectId, type Document } from "@csa/mongodb";
 import type { Ticket } from "./types.js";
+import { nativeSla } from "./native-sla.js";
 
 export function mapTicket(doc: Document): Ticket {
   const id = doc._id instanceof ObjectId ? doc._id.toHexString() : String(doc._id ?? doc.id ?? "");
@@ -33,7 +34,8 @@ export function mapTicket(doc: Document): Ticket {
     source: stringOrNull(doc.source),
     status: String(doc.status ?? "open"),
     subject: String(doc.subject ?? ""),
-    ticketNumber
+    ticketNumber,
+    sla: nativeSla(doc.slaPolicy, doc.slaEvents, doc.priority)
   };
 }
 

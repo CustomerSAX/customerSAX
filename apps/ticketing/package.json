@@ -23,7 +23,8 @@
     "@csa/mongodb": "workspace:*",
     "@csa/service-bootstrap": "workspace:*",
     "graphql": "^16.9.0",
-    "graphql-tag": "^2.12.7"
+    "graphql-tag": "^2.12.7",
+    "@csa/connection-hub": "workspace:*"
   },
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",

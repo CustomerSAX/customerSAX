@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { Avatar, Badge, Button, Icon, Input } from "@csa/ui";
 import type { UIMessage } from "ai";
-import { useCurrentUser } from "@/lib/use-current-user";
+import { useLocale } from "next-intl";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useActionNotifications } from "../hooks/use-action-notifications";
+import { useChatToolEffects } from "../hooks/use-chat-tool-effects";
+import type { CsaChat } from "../hooks/use-csa-chat";
+import type { VoicePhase } from "../hooks/use-voice-chat";
+import { useVoiceChat } from "../hooks/use-voice-chat";
+import { useCartStore } from "../store/cart-store";
 import { useConversationStore } from "../store/conversation-store";
 import type {
   ActionApprovalArgs,
@@ -19,6 +26,13 @@ import type {
   SuggestedActionsArgs,
   TicketCardArgs
 } from "../types";
+import { ActionApproval } from "./ActionApproval";
+import { AssistantIntegrations, type AssistantAttachment } from "./AssistantIntegrations";
+import { CheckoutFlow } from "./CheckoutFlow";
+import { CrmContactCard, CrmPendingFollowups } from "./CrmCards";
+import { Markdown } from "./Markdown";
+import { SuggestedActions } from "./SuggestedActions";
+import { TicketCard, TicketSummaryTable } from "./TicketCards";
 import {
   CartSummaryCard,
   CaseBriefingCard,
@@ -29,19 +43,6 @@ import {
   ProductCard,
   RenderRefundCard
 } from "./ToolCards";
-import { CrmContactCard, CrmPendingFollowups } from "./CrmCards";
-import { TicketCard, TicketSummaryTable } from "./TicketCards";
-import { ActionApproval } from "./ActionApproval";
-import { SuggestedActions } from "./SuggestedActions";
-import { Markdown } from "./Markdown";
-import { CheckoutFlow } from "./CheckoutFlow";
-import { useCartStore } from "../store/cart-store";
-import type { CsaChat } from "../hooks/use-csa-chat";
-import { useVoiceChat } from "../hooks/use-voice-chat";
-import type { VoicePhase } from "../hooks/use-voice-chat";
-import { useLocale } from "next-intl";
-import { useChatToolEffects } from "../hooks/use-chat-tool-effects";
-import { useActionNotifications } from "../hooks/use-action-notifications";
 
 // ─── Internal/technical message filtering ──────────────────────────────────
 // Stepper actions and the ticket-open auto-briefing are sent through the same
@@ -418,9 +419,8 @@ function MessageBubble({
 
       {/* Constrained to 78% (product cards scroll within it); replies with a table take the full chat width so every column fits. */}
       <div
-        className={`flex flex-col gap-1 ${
-          !isUser && (tableTicketIds.length > 0 || searchTable || tableOrders.length > 0) ? "min-w-0 flex-1" : "max-w-[78%]"
-        } ${isUser ? "items-end" : "items-start"}`}
+        className={`flex flex-col gap-1 ${!isUser && (tableTicketIds.length > 0 || searchTable || tableOrders.length > 0) ? "min-w-0 flex-1" : "max-w-[78%]"
+          } ${isUser ? "items-end" : "items-start"}`}
       >
         {/* Text bubble — in ai@6+, text is in parts, not message.content */}
         {message.parts?.filter(p => p.type === "text").map((p, i) => {
@@ -429,11 +429,10 @@ function MessageBubble({
           return (
             <div
               key={`text-${i}`}
-              className={`rounded-m-lg px-3.5 py-2.5 ${
-                isUser
+              className={`rounded-m-lg px-3.5 py-2.5 ${isUser
                   ? "bg-m-primary text-white rounded-tr-sm [&_a]:text-white [&_strong]:text-white"
                   : "bg-m-surface-2 text-m-text rounded-tl-sm"
-              }`}
+                }`}
             >
               <Markdown>{textPart.text}</Markdown>
             </div>
@@ -730,23 +729,24 @@ export function ChatStream({ chat, sessionCustomerName, hideHeader, emptyState }
     sendSuggestion,
     stop
   } = chat;
-  const rightPanelOpen    = useConversationStore((s) => s.rightPanelOpen);
-  const setRightPanelOpen  = useConversationStore((s) => s.setRightPanelOpen);
-  const setRightPanelTab   = useConversationStore((s) => s.setRightPanelTab);
+  const rightPanelOpen = useConversationStore((s) => s.rightPanelOpen);
+  const setRightPanelOpen = useConversationStore((s) => s.setRightPanelOpen);
+  const setRightPanelTab = useConversationStore((s) => s.setRightPanelTab);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const prevMessagesCountRef = useRef(messages.length);
+  const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const activeTicketId = useConversationStore((s) => s.activeTicketId);
   const setActiveStepper = useConversationStore((s) => s.setActiveStepper);
   const tickets = useConversationStore((s) => s.context.tickets);
   const customer = useConversationStore((s) => s.customer);
   const contextOrders = useConversationStore((s) => s.context.orders);
-  
+
   const activeTicket = tickets.find(t => t.id === activeTicketId) || tickets[0];
-  
+
   const acCustomer = customer?.name || customer?.email || sessionCustomerName;
   const acOrderRef = contextOrders?.[0]?.orderNumber;
 
@@ -1022,7 +1022,7 @@ export function ChatStream({ chat, sessionCustomerName, hideHeader, emptyState }
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-semibold text-m-text-muted uppercase tracking-wider">Quick actions</span>
             {messages.length > 0 && (
-              <button 
+              <button
                 onClick={() => {
                   window.__csaClearBriefing?.();
                   window.location.reload(); // Simple clear for now
@@ -1157,13 +1157,15 @@ export function ChatStream({ chat, sessionCustomerName, hideHeader, emptyState }
           </div>
         )}
 
-        <form
-          onSubmit={(e) => {
-            scrollToBottom("smooth");
-            handleSubmit(e);
-          }}
-          className="flex items-center gap-2"
-        >
+        <form onSubmit={(event) => {
+          if (attachments.length === 0) { handleSubmit(event); return; }
+          event.preventDefault();
+          if (!input.trim() || isLoading) return;
+          sendSuggestion(input.trim() + attachments.map((file) => `\n\nAttached file: ${file.name}\n${file.text}`).join(""));
+          setInput("");
+          setAttachments([]);
+          scrollToBottom("smooth");
+        }} className="flex items-center gap-2">
           <Input
             placeholder={voice.dictating ? "Listening… speak now" : "Ask me to draft a reply or check order history..."}
             value={input}
@@ -1229,6 +1231,7 @@ export function ChatStream({ chat, sessionCustomerName, hideHeader, emptyState }
             />
           )}
         </form>
+        <AssistantIntegrations disabled={isLoading} attachments={attachments} setAttachments={setAttachments} onPrompt={setInput} />
       </div>
     </div>
   );

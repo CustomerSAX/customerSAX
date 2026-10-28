@@ -1090,12 +1090,30 @@ function toCatalogProduct(raw: RawCatalogProduct, currency: string): CatalogProd
 }
 
 async function catalogSearch(args: { text?: string; currency: string; limit: number; offset: number }) {
+  const ctx = getSystemPromptContext();
+  if (!ctx.clientId || !ctx.projectKey || ctx.canViewProducts === false)
+    throw new Error("Product access and an active project are required.");
+  const selection = await bffQuery<{ projectConnectionHubProducts: { selected: boolean; results: Record<string, unknown>[]; total: number | null } }>(
+    `query SelectedProductConnector($query: String, $limit: Int) {
+      projectConnectionHubProducts(query: $query, limit: $limit) { selected results total }
+    }`,
+    { query: args.text ?? "", limit: args.limit }
+  );
+  const hub = selection.projectConnectionHubProducts;
+  if (!hub || typeof hub.selected !== "boolean") throw new Error("Unable to resolve the selected product connector.");
+  if (hub.selected) {
+    if (args.offset > 0) throw new Error("Further pages are not supported by the selected Algolia connector.");
+    return {
+      source: "algolia", total: hub.total, count: hub.results.length, records: hub.results,
+      display: "These are records from the project's selected Algolia connector. Summarize the returned fields as text. Report missing prices, currency or stock honestly. Algolia objectIDs are not commerce product IDs: do not create native product cards, Details links or cart actions from these IDs."
+    };
+  }
   const currency = args.currency.trim().toUpperCase();
   const data = await bffQuery<{ productSearch: { results: RawCatalogProduct[]; total: number } }>(
     `query CatalogSearch($text: String, $browse: Boolean, $currency: String, $limit: Int, $offset: Int) {
       productSearch(text: $text, browse: $browse, currency: $currency, limit: $limit, offset: $offset)
     }`,
-    { text: args.text, browse: !args.text, currency, limit: args.limit, offset: args.offset }
+    { text: args.text ? singularSearchText(args.text) : undefined, browse: !args.text, currency, limit: args.limit, offset: args.offset }
   );
   const products = (data.productSearch?.results ?? []).map((p) => toCatalogProduct(p, currency));
   return {
@@ -1139,7 +1157,7 @@ const CURRENCY_INPUT = z
 
 export const searchProductsTool = tool({
   description:
-    "Search the product catalog by name, SKU or keyword. The studio shows every returned product as a card with Add to cart / Details buttons.",
+    "Search products using the project’s selected Algolia connector, or Native commerce when Algolia is not selected. Native results become product cards; external Algolia records must be summarized as text without native cart or Details actions.",
   inputSchema: z.object({
     query: z.string().describe("Search term (product name, SKU, keyword)"),
     currency: CURRENCY_INPUT,
@@ -1147,16 +1165,16 @@ export const searchProductsTool = tool({
   }),
   execute: async ({ query, currency, limit }) => {
     try {
-      return await catalogSearch({ text: singularSearchText(query), currency, limit, offset: 0 });
+      return await catalogSearch({ text: query.trim(), currency, limit, offset: 0 });
     } catch (err) {
-      return { error: String(err) };
+      return { error: "Product search is unavailable. Check the selected connector. Do not substitute another catalog." };
     }
   }
 });
 
 export const listProductsTool = tool({
   description:
-    "Browse the product catalog with pagination. The studio shows every returned product as a card with Add to cart / Details buttons.",
+    "Browse products using the project’s selected Algolia connector, or Native commerce when Algolia is not selected. Algolia supports the first page only and returns read-only records for text; Native supports pagination and product cards.",
   inputSchema: z.object({
     currency: CURRENCY_INPUT,
     limit: z.number().int().min(1).max(20).optional().default(10),
@@ -1166,7 +1184,7 @@ export const listProductsTool = tool({
     try {
       return await catalogSearch({ currency, limit, offset });
     } catch (err) {
-      return { error: String(err) };
+      return { error: "Product browsing is unavailable. Check the selected connector and supported page range. Do not substitute another catalog." };
     }
   }
 });
