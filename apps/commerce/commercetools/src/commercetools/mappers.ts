@@ -22,6 +22,7 @@ import type {
   Money,
   Order,
   OrderReturnInfo,
+  OrderDelivery,
   Product
 } from "@csa/commerce-contract";
 import type {
@@ -69,6 +70,11 @@ export function mapCart(cart: CtCart | null | undefined): Cart | null {
     discountCodes: (cart.discountCodes ?? [])
       .map((entry) => entry.discountCode?.code)
       .filter((code): code is string => Boolean(code)),
+    discountCodeStates: (cart.discountCodes ?? [])
+      .filter((entry) => Boolean(entry.discountCode?.code))
+      .map((entry) => ({ code: entry.discountCode!.code as string, state: entry.state ?? null })),
+    discountOnTotalPrice: mapOptionalMoney(cart.discountOnTotalPrice?.discountedAmount ?? undefined) ?? null,
+    totalDiscount: cartTotalDiscount(cart),
     id: cart.id,
     key: cart.key,
     lastModifiedAt: cart.lastModifiedAt,
@@ -84,6 +90,24 @@ export function mapCart(cart: CtCart | null | undefined): Cart | null {
     totalPrice: mapMoney(cart.totalPrice),
     version: cart.version
   };
+}
+
+/**
+ * Total saved on a cart, from commercetools' own numbers: each line at its
+ * full unit price times quantity, minus the line's discounted total, plus any
+ * cart-level discount on the total. Returns null when nothing is discounted,
+ * or when a line has no unit price — unknown, never a guessed zero.
+ */
+function cartTotalDiscount(cart: CtCart): Money | null {
+  let cents = 0;
+  for (const line of cart.lineItems ?? []) {
+    const unit = line.price?.value;
+    if (!unit || unit.currencyCode !== line.totalPrice.currencyCode) return null;
+    cents += unit.centAmount * line.quantity - line.totalPrice.centAmount;
+  }
+  cents += cart.discountOnTotalPrice?.discountedAmount?.centAmount ?? 0;
+  if (cents <= 0) return null;
+  return mapMoney({ ...cart.totalPrice, centAmount: cents });
 }
 
 export function mapOrder(order: CtOrder | null | undefined): Order | null {
@@ -106,8 +130,37 @@ export function mapOrder(order: CtOrder | null | undefined): Order | null {
     totalPrice: mapMoney(order.totalPrice),
     shippingAddress: order.shippingAddress ?? null,
     billingAddress: order.billingAddress ?? null,
-    returnInfo: (order.returnInfo ?? []).map(mapReturnInfo)
+    returnInfo: (order.returnInfo ?? []).map(mapReturnInfo),
+    deliveries: mapDeliveries(order)
   };
+}
+
+// Single-shipping deliveries plus any multi-shipping (Order.shipping[]) ones,
+// de-duplicated by delivery id. Empty when commercetools has none.
+function mapDeliveries(order: CtOrder): OrderDelivery[] {
+  const all = [
+    ...(order.shippingInfo?.deliveries ?? []),
+    ...(order.shipping ?? []).flatMap((s) => s.shippingInfo?.deliveries ?? [])
+  ];
+  const seen = new Set<string>();
+  const out: OrderDelivery[] = [];
+  for (const d of all) {
+    if (!d || seen.has(d.id)) continue;
+    seen.add(d.id);
+    out.push({
+      id: d.id,
+      createdAt: d.createdAt ?? null,
+      parcels: (d.parcels ?? []).map((p) => ({
+        id: p.id,
+        createdAt: p.createdAt ?? null,
+        trackingId: p.trackingData?.trackingId ?? null,
+        carrier: p.trackingData?.carrier ?? null,
+        provider: p.trackingData?.provider ?? null,
+        isReturn: p.trackingData?.isReturn ?? null
+      }))
+    });
+  }
+  return out;
 }
 
 function mapReturnInfo(ri: CtReturnInfo): OrderReturnInfo {

@@ -34,8 +34,8 @@ updateCart(id: $id, version: $version, actions: [
 
 ## Enums that actually exist
 
-- `ShipmentState`: `Backorder | Delayed | Partial | Pending | Ready | Shipped`. Only `Shipped`/`Partial` mean
-  physical goods have actually left the warehouse — gate any "has this shipped" logic on those two, not on
+- `ShipmentState`: `Backorder | Delayed | Delivered | Partial | Pending | Ready | Shipped`. Only `Shipped`/`Partial`/`Delivered` mean
+  physical goods have actually left the warehouse — gate any "has this shipped" logic on those three, not on
   order state.
 - `PaymentState`: `BalanceDue | CreditOwed | Failed | Paid | Pending`. Only `Paid` means money has actually
   cleared.

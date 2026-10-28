@@ -31,6 +31,8 @@ export const orderFields = `#graphql
   }
   shippingAddress { streetName streetNumber city state postalCode country }
   billingAddress  { streetName streetNumber city state postalCode country }
+  shippingInfo { deliveries { id createdAt parcels { id createdAt trackingData { trackingId carrier provider providerTransaction isReturn } } } }
+  shipping { shippingInfo { deliveries { id createdAt parcels { id createdAt trackingData { trackingId carrier provider providerTransaction isReturn } } } } }
   returnInfo {
     returnTrackingId
     returnDate

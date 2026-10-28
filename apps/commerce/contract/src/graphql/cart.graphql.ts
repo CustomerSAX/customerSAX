@@ -16,6 +16,12 @@ export const cartTypeDefs = gql`
     totalPrice: Money!
     shippingInfo: CartShippingInfo
     discountCodes: [String!]!
+    "Each applied code with its platform status — a code can be on the cart without discounting it."
+    discountCodeStates: [CartDiscountCodeState!]
+    "Amount discounted from the cart total by cart-level discounts (null when none). Line-item discounts are already in line totals."
+    discountOnTotalPrice: Money
+    "Total saved on this cart: line items at full unit price minus their discounted totals, plus any cart-level discount. Null when there is no discount or it cannot be computed."
+    totalDiscount: Money
     lineItems: [CartLineItem!]!
   }
 
@@ -61,6 +67,12 @@ export const cartTypeDefs = gql`
     id: ID!
     key: String
     name: String
+  }
+
+  type CartDiscountCodeState {
+    code: String!
+    "commercetools DiscountCodeState: MatchesCart (discount applies), DoesNotMatchCart, NotActive, NotValid, MaxApplicationReached, ApplicationStoppedByPreviousDiscount"
+    state: String
   }
 
   type DiscountCode {
@@ -118,5 +130,8 @@ export const cartTypeDefs = gql`
     updateCartAddresses(id: ID!, shippingAddress: Json, billingAddress: Json): Cart
     setCartShippingMethod(id: ID!, shippingMethodId: ID!): Cart
     addCartDiscountCode(id: ID!, code: String!): Cart
+    removeCartDiscountCode(id: ID!, code: String!): Cart
+    "Deletes an Active cart (never one already ordered). Returns true when deleted."
+    deleteCart(id: ID!): Boolean!
   }
 `;
