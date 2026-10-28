@@ -60,8 +60,9 @@ const updateUiStateSchema = z.object({
 });
 
 const draftEmailSchema = z.object({
-  draftContent: z.string().describe("Full email body (HTML or plain text)"),
-  suggestedSubject: z.string().describe("Suggested subject line")
+  draftContent: z.string().describe("Full email body as plain text (no HTML), ready to send"),
+  suggestedSubject: z.string().describe("Suggested subject line"),
+  to: z.string().describe("The customer's real email address from a tool result, or empty string when unknown — never guess one")
 });
 
 const actionApprovalSchema = z.object({
@@ -143,7 +144,14 @@ const productCardSchema = z.object({
 const cartSummarySchema = z.object({
   cartId: z.string(),
   cartVersion: z.number().optional(),
-  customer: z.object({ name: z.string(), email: z.string().optional() }),
+  customer: z
+    .object({ name: z.string(), email: z.string().optional() })
+    .optional()
+    .describe(
+      "The cart's customer exactly as a tool result in this conversation names them. If no tool result names the customer " +
+      "(e.g. view_cart shows customerId null), set name and email to empty strings — the card then shows no customer line. " +
+      "Never make up a name or email."
+    ),
   itemCount: z.number().int(),
   items: z.array(z.object({
     sku: z.string(),
@@ -151,10 +159,20 @@ const cartSummarySchema = z.object({
     quantity: z.number().int(),
     lineTotal: z.string()
   })),
-  subtotal: z.string(),
-  discount: z.string().optional(),
+  subtotal: z.string().describe("Sum of the line totals shown (line totals already include line discounts)"),
+  discount: z
+    .string()
+    .optional()
+    .describe(
+      "The cart's totalDiscount from the latest cart result, formatted (total saved — already included in the line totals). " +
+      "Empty string when the cart has no totalDiscount. Never a $0.00 placeholder."
+    ),
+  discountCodes: z
+    .array(z.object({ code: z.string(), applies: z.boolean() }))
+    .optional()
+    .describe("Codes on the cart from the latest cart result (discountCodeStates): applies = state is MatchesCart. Empty when none."),
   shipping: z.string().optional(),
-  total: z.string()
+  total: z.string().describe("The cart's total exactly as the latest cart result gives it (cartTotal / totalPrice). Never computed — discounts are already included.")
 });
 
 const orderConfirmationSchema = z.object({
@@ -239,7 +257,11 @@ const updateUiStateTool = tool({
 });
 
 const draftEmailTool = tool({
-  description: "Show a draft email for the agent to review, edit, and send to the customer.",
+  description:
+    "Show a draft email for the agent to review, edit, and send to the customer. The body is PLAIN TEXT read by the " +
+    "customer: never use markdown (** __ #), never mention internal states, ids or system gaps, and never promise a " +
+    "date, speed or outcome (no 'as soon as possible', 'I will ensure', 'expedited') that a tool result doesn't show — " +
+    "describe the real current state and the next step instead.",
   inputSchema: draftEmailSchema,
   execute: async (_args: z.infer<typeof draftEmailSchema>) => ({ success: true })
 });

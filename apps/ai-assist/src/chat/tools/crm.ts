@@ -12,6 +12,7 @@ import { createLogger } from "@csa/logger";
 import { bffQuery } from "../../commerce/graphql-client.js";
 import { getSystemPromptContext } from "../system-prompt.js";
 import { instrumentTools } from "./instrument.js";
+import { guardWriteTools } from "./write-guard.js";
 
 const log = createLogger("ai-assist").child({ module: "tools/crm" });
 
@@ -236,13 +237,13 @@ export function buildCrmTools(approvalGate?: { pending: boolean }) {
   });
 
   return instrumentTools(
-    {
+    guardWriteTools({
       find_crm_contact: findCrmContactTool,
       get_crm_contact_details: getCrmContactDetailsTool,
       log_crm_activity: logCrmActivityTool,
       update_crm_contact: updateCrmContactTool,
       update_crm_activity: updateCrmActivityTool,
-    },
+    }, approvalGate),
     log
   );
 }

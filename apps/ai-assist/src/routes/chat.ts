@@ -150,7 +150,11 @@ chatRouter.post("/chat", async (request, response, next) => {
 
     const sessionCtx: SystemPromptContext = {
       userEmail: csa.userEmail?.trim() || "unknown@csa.local",
-      userRole: roleDisplayLabel(csa.userRole),
+      // Raw role for downstream authorisation (the CRM service only accepts
+      // agent/admin/superadmin — a display label made every CRM write from chat
+      // fail); the label is for the prompt only.
+      userRole: csa.userRole?.trim().toLowerCase() ?? "",
+      userRoleLabel: roleDisplayLabel(csa.userRole),
       projectKey: csa.projectKey?.trim() || (process.env.COMMERCETOOLS_PROJECT_KEY ?? "default"),
       // Tenant id — carried through so the commerce path (bffQuery) can forward
       // x-csa-client-id and resolve provisioned multi-tenant projects. Absent
@@ -290,10 +294,11 @@ chatRouter.post("/chat", async (request, response, next) => {
             for (const step of steps) {
               const uiStateCall = step.toolCalls?.find?.(
                 (tc: { toolName: string }) => tc.toolName === "update_ui_state"
-              ) as { args?: { goal?: string; sentiment?: string; strategy?: string; nextSteps?: string[] } } | undefined;
+              ) as { input?: { goal?: string; sentiment?: string; strategy?: string; nextSteps?: string[] } } | undefined;
 
-              if (uiStateCall?.args) {
-                const { goal, sentiment, strategy, nextSteps } = uiStateCall.args;
+              // AI SDK v5+ puts tool arguments on `.input` (it was `.args`, which is never set now).
+              if (uiStateCall?.input) {
+                const { goal, sentiment, strategy, nextSteps } = uiStateCall.input;
                 await setWorkingMemory(sessionId, {
                   activeGoal: goal ?? null,
                   currentSentiment: sentiment ?? null,

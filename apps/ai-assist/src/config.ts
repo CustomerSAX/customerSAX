@@ -59,6 +59,16 @@ export const config = {
     maxAgenticSteps: 20,
   },
 
+  /** Order returns. */
+  returns: {
+    /**
+     * Days after the order date within which a return is allowed
+     * (env: RETURN_WINDOW_DAYS, default 30). Raise it locally to test returns
+     * on older orders; production keeps the default unless deliberately set.
+     */
+    windowDays: envInt("RETURN_WINDOW_DAYS", 30),
+  },
+
   /** Public voice widget (/voice/*) limits. Tenants come from VOICE_WIDGET_TENANTS (see voice/tenants.ts). */
   voice: {
     /** New voice sessions per client IP per hour (env: VOICE_SESSION_RATE_LIMIT). */

@@ -51,7 +51,7 @@ export async function bffQuery<TData>(
       commercePlatform: getPlatform(),
       projectKey: store?.projectKey,
       clientId: store?.clientId,
-      userRole: store?.userRole,
+      userRole: store?.userRole || undefined,
       userEmail: store?.userEmail
     }
   );

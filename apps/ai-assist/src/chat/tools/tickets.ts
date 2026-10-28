@@ -5,6 +5,7 @@ import { createLogger } from "@csa/logger";
 import { bffQuery } from "../../commerce/graphql-client.js";
 import { getSystemPromptContext } from "../system-prompt.js";
 import { instrumentTools } from "./instrument.js";
+import { guardWriteTools } from "./write-guard.js";
 
 const log = createLogger("ai-assist").child({ module: "tools/tickets" });
 
@@ -396,7 +397,7 @@ export function buildTicketTools(approvalGate?: { pending: boolean }) {
     }
   });
 
-  return instrumentTools({
+  return instrumentTools(guardWriteTools({
     search_tickets: searchTicketsTool,
     get_ticket: getTicketTool,
     create_ticket: createTicketTool,
@@ -405,5 +406,5 @@ export function buildTicketTools(approvalGate?: { pending: boolean }) {
     list_assignees: listAssigneesTool,
     search_knowledge_base: searchKnowledgeBaseTool,
     get_knowledge_base_article: getKnowledgeBaseArticleTool
-  }, log);
+  }, approvalGate), log);
 }
