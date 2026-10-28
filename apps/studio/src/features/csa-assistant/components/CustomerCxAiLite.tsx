@@ -1,6 +1,7 @@
 "use client";
 
 import { stripLocalePrefix } from "@/i18n/routing";
+import { projectPath } from "@/lib/project-url";
 import { roleLabel, useCurrentUser } from "@/lib/use-current-user";
 import type { UIMessage } from "ai";
 import {
@@ -98,9 +99,14 @@ function ContextIcon({ icon, size = 14 }: { icon: string; size?: number }) {
 export function CustomerCxAiLite() {
   const pathname = usePathname() || "/";
   const cleanPath = stripLocalePrefix(pathname);
+  const appPath = projectPath(pathname).pathname;
 
   // Hidden on dedicated assistant full page and login/auth screens
   const isExcludedPage =
+    appPath === "/csa-assistant" ||
+    appPath.startsWith("/csa-assistant/") ||
+    appPath === "/agent-mode" ||
+    appPath.startsWith("/agent-mode/") ||
     cleanPath === "/csa-assistant" ||
     cleanPath.startsWith("/csa-assistant/") ||
     cleanPath === "/agent-mode" ||
