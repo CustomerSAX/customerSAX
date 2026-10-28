@@ -12,7 +12,9 @@ const log = createLogger("ai-assist").child({ module: "tools/tickets" });
 // against the current time by the ticketing service (see TicketSla in its schema).
 const TICKET_FIELDS = `
   id ticketNumber projectKey customerName customerEmail customerId source status priority category subject assignee
-  contactType orderNumber message createdAt lastModifiedAt
+  contactType orderNumber message solution timeSpentOnTicket resolutionDate createdAt lastModifiedAt
+  comments { id comment createdAt status author }
+  history { id ticketNumber operationDate reason solution status priority assignedTo worklog timeSpent }
   sla { state nextDueAt focus { key label state dueAt } metrics { key label stage state dueAt completedAt } }
 `;
 
@@ -58,6 +60,7 @@ export const searchTicketsTool = tool({
       .enum(["any", "low", "normal", "high", "urgent"])
       .optional()
       .describe("Filter by priority; 'any' (no filter) unless the rep explicitly asked for a priority"),
+    category: z.string().optional().describe("Filter by category (request, orderInquiry, returns, etc.)"),
     assignee: z
       .string()
       .optional()
@@ -78,6 +81,7 @@ export const searchTicketsTool = tool({
     const customerId = opt(args.customerId);
     const status = opt(args.status);
     const priority = opt(args.priority);
+    const category = opt(args.category);
     const requested = opt(args.assignee);
     const me = getSystemPromptContext().userEmail;
     if (requested?.toLowerCase() === "me" && (!me.includes("@") || me === "unknown@csa.local"))
@@ -87,25 +91,61 @@ export const searchTicketsTool = tool({
     const limit = args.limit;
     try {
       const data = await bffQuery<{ ticketPage: { results: unknown[]; total: number } }>(
-        `query SearchTickets($search: String, $customerEmail: String, $customerId: String, $status: String, $priority: String, $assignee: String, $sortKey: String, $sortOrder: String, $limit: Int) {
-          ticketPage(search: $search, customerEmail: $customerEmail, customerId: $customerId, status: $status, priority: $priority, assignee: $assignee, sortKey: $sortKey, sortOrder: $sortOrder, limit: $limit) {
+        `query SearchTickets($search: String, $customerEmail: String, $customerId: String, $status: String, $priority: String, $category: String, $assignee: String, $sortKey: String, $sortOrder: String, $limit: Int) {
+          ticketPage(search: $search, customerEmail: $customerEmail, customerId: $customerId, status: $status, priority: $priority, category: $category, assignee: $assignee, sortKey: $sortKey, sortOrder: $sortOrder, limit: $limit) {
             results { ${TICKET_FIELDS} }
             total
           }
         }`,
-        { search: query, customerEmail, customerId, status, priority, assignee, ...sort, limit }
+        { search: query, customerEmail, customerId, status, priority, category, assignee, ...sort, limit }
       );
-      data.ticketPage?.results?.forEach((ticket) => withSlaTiming(ticket));
+      let page = data.ticketPage;
+      // Fallback: if searching by customerId yielded no tickets and no customerEmail was passed,
+      // try resolving the customer's email and querying by email (as some tickets are created by email only).
+      if (!page?.results?.length && customerId && !customerEmail) {
+        try {
+          const custData = await bffQuery<{ customer: { email?: string } | null }>(
+            `query ResolveCustomerEmail($id: ID!) {
+              customer(id: $id) { email }
+            }`,
+            { id: customerId }
+          );
+          const email = custData.customer?.email?.trim();
+          if (email) {
+            const fallbackData = await bffQuery<{ ticketPage: { results: unknown[]; total: number } }>(
+              `query SearchTicketsByEmail($search: String, $customerEmail: String, $status: String, $priority: String, $category: String, $assignee: String, $sortKey: String, $sortOrder: String, $limit: Int) {
+                ticketPage(search: $search, customerEmail: $customerEmail, status: $status, priority: $priority, category: $category, assignee: $assignee, sortKey: $sortKey, sortOrder: $sortOrder, limit: $limit) {
+                  results { ${TICKET_FIELDS} }
+                  total
+                }
+              }`,
+              { search: query, customerEmail: email, status, priority, category, assignee, ...sort, limit }
+            );
+            if (fallbackData.ticketPage?.results?.length) {
+              page = fallbackData.ticketPage;
+            }
+          }
+        } catch {
+          // Best-effort fallback
+        }
+      }
+
+      page?.results?.forEach((ticket) => withSlaTiming(ticket));
+
       // The studio renders these results itself as a ticket table with
       // per-row actions, straight from this output.
-      return data.ticketPage?.results?.length
+      return page?.results?.length
         ? {
-            ...data.ticketPage,
+            ...page,
+            count: page?.results?.length ?? 0,
             displayed:
               "These tickets are now shown to the rep as a table (number, subject, status, priority, SLA, assignee, last update) with an Actions button on every row. " +
               "Do NOT list them as text or bullets and do not restate their fields. Reply with ONE short line, e.g. '5 open tickets — 2 are urgent.'"
           }
-        : data.ticketPage;
+        : {
+            ...page,
+            count: 0
+          };
     } catch (err) {
       return { error: String(err) };
     }
@@ -119,14 +159,27 @@ export const getTicketTool = tool({
     id: z.string().describe("Ticket internal ID, or the ticket number without '#'")
   }),
   execute: async ({ id }) => {
+    const cleanId = id.trim().replace(/^#/, "");
     try {
       const data = await bffQuery<{ ticket: unknown }>(
         `query GetTicket($id: ID!) {
           ticket(id: $id) { ${TICKET_FIELDS} }
         }`,
-        { id }
+        { id: cleanId }
       );
-      return data.ticket ? withSlaTiming(data.ticket) : { error: "Ticket not found" };
+      if (data.ticket) return withSlaTiming(data.ticket);
+
+      // Fallback search by ticketNumber or keyword if direct lookup yielded nothing
+      const searchData = await bffQuery<{ ticketPage: { results: unknown[] } }>(
+        `query SearchTicketFallback($search: String) {
+          ticketPage(search: $search, limit: 1) {
+            results { ${TICKET_FIELDS} }
+          }
+        }`,
+        { search: cleanId }
+      );
+      const fallbackTicket = searchData.ticketPage?.results?.[0];
+      return fallbackTicket ? withSlaTiming(fallbackTicket) : { error: "Ticket not found" };
     } catch (err) {
       return { error: String(err) };
     }

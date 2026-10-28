@@ -200,12 +200,12 @@ function OrderActionButtons({
 
 export function OrderSummaryCard({
   args,
-  onSuggest,
-  isLoading
+  onSuggest = () => {},
+  isLoading = false
 }: {
   args: OrderSummaryArgs;
-  onSuggest: (prompt: string) => void;
-  isLoading: boolean;
+  onSuggest?: (prompt: string) => void;
+  isLoading?: boolean;
 }) {
   const liveOrder = useLiveOrder(args.orderId, isLoading);
   const { live } = liveOrder;
@@ -621,18 +621,76 @@ export function CaseBriefingCard({
 // ─── Draft Email Card ─────────────────────────────────────────────────────────
 
 export function DraftEmailCard({ args }: { args: DraftEmailArgs }) {
+  const [copied, setCopied] = useState(false);
+  const [inserted, setInserted] = useState<string | null>(null);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(args.draftContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard error
+    }
+  };
+
+  const handleInsert = (target: "worklog" | "solution") => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("csa:insert-draft", {
+          detail: { text: args.draftContent, target }
+        })
+      );
+      setInserted(target);
+      setTimeout(() => setInserted(null), 2500);
+    }
+  };
+
   return (
     <Card variant="default" className="my-2 border-l-4 border-l-m-info">
       <CardHeader className="px-4 pt-4 pb-2">
-        <div className="flex items-center gap-2">
-          <Icon name="mail" size="sm" className="text-m-info" />
-          <CardTitle className="text-sm font-semibold">Draft Email</CardTitle>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Icon name="mail" size="sm" className="text-m-info" />
+            <CardTitle className="text-sm font-semibold">Draft Email</CardTitle>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopy}
+            className="text-xs h-7 px-2"
+            leftIcon={<Icon name={copied ? "check" : "copy"} size="xs" />}
+          >
+            {copied ? "Copied" : "Copy"}
+          </Button>
         </div>
-        <p className="text-xs text-m-text-muted mt-0.5">Subject: {args.suggestedSubject}</p>
+        {args.suggestedSubject && (
+          <p className="text-xs text-m-text-muted mt-0.5">Subject: {args.suggestedSubject}</p>
+        )}
       </CardHeader>
-      <CardContent className="px-4 pb-4">
-        <div className="text-xs text-m-text bg-m-surface-2 rounded-m-md p-3 whitespace-pre-wrap max-h-48 overflow-y-auto">
+      <CardContent className="px-4 pb-4 space-y-2">
+        <div className="text-xs text-m-text bg-m-surface-2 rounded-m-md p-3 whitespace-pre-wrap max-h-48 overflow-y-auto font-sans leading-relaxed select-text">
           {args.draftContent}
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleInsert("worklog")}
+            className="flex-1 text-xs"
+            leftIcon={<Icon name={inserted === "worklog" ? "check" : "file-text"} size="xs" />}
+          >
+            {inserted === "worklog" ? "Inserted to Note" : "Insert into Note"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleInsert("solution")}
+            className="flex-1 text-xs"
+            leftIcon={<Icon name={inserted === "solution" ? "check" : "check-circle"} size="xs" />}
+          >
+            {inserted === "solution" ? "Inserted to Resolution" : "Insert to Resolution"}
+          </Button>
         </div>
       </CardContent>
     </Card>

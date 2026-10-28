@@ -88,7 +88,7 @@ const labels: Record<Review["status"], string> = {
 export function TicketAIReview({
   ticket,
   onTicketChanged,
-  initialOperation = "analyze"
+  initialOperation = "load"
 }: {
   ticket: Ticket;
   onTicketChanged: () => Promise<unknown>;
@@ -240,6 +240,23 @@ export function TicketAIReview({
               className="ml-2 font-semibold underline"
             >
               Reload status
+            </button>
+          </div>
+        )}
+        {!review && !busy && !error && (
+          <div className="space-y-3">
+            <p className="text-sm text-m-text-muted">
+              No AI review yet. Analysis reads the ticket and prepares a proposal. Nothing changes until you approve.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                void request("analyze");
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Analyze ticket
             </button>
           </div>
         )}

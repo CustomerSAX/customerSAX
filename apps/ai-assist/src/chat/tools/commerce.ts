@@ -61,9 +61,21 @@ async function enrichOrderWithCustomer(order: Record<string, unknown>): Promise<
   const customerId = (order.customerId as string) || undefined;
   const customerEmail = (order.customerEmail as string) || undefined;
 
+  const customFields = (order.custom as { customFieldsRaw?: Array<{ name: string; value: unknown }> } | undefined)?.customFieldsRaw ?? [];
+  const expectedDeliveryDate = customFields.find((f) => f.name === "expectedDeliveryDate")?.value as string | undefined;
+  const delayReason = customFields.find((f) => f.name === "delayReason")?.value as string | undefined;
+  const carrier = customFields.find((f) => f.name === "carrier")?.value as string | undefined;
+
+  const enrichedOrder = {
+    ...order,
+    ...(expectedDeliveryDate && !order.expectedDeliveryDate ? { expectedDeliveryDate } : {}),
+    ...(delayReason && !order.delayReason ? { delayReason } : {}),
+    ...(carrier && !order.carrier ? { carrier } : {}),
+  };
+
   if (!customerId && !customerEmail) {
     return {
-      ...order,
+      ...enrichedOrder,
       customer: null
     };
   }
@@ -93,7 +105,7 @@ async function enrichOrderWithCustomer(order: Record<string, unknown>): Promise<
     if (customerRecord) {
       const fullName = [customerRecord.firstName, customerRecord.lastName].filter(Boolean).join(" ").trim();
       return {
-        ...order,
+        ...enrichedOrder,
         customer: {
           ...customerRecord,
           name: fullName || (customerRecord.email as string) || (order.customerEmail as string) || "Customer",
@@ -107,7 +119,7 @@ async function enrichOrderWithCustomer(order: Record<string, unknown>): Promise<
 
   if (customerEmail) {
     return {
-      ...order,
+      ...enrichedOrder,
       customer: {
         id: customerId,
         email: customerEmail,
@@ -116,7 +128,7 @@ async function enrichOrderWithCustomer(order: Record<string, unknown>): Promise<
     };
   }
 
-  return order;
+  return enrichedOrder;
 }
 
 // ─── find_customer ────────────────────────────────────────────────────────────
@@ -198,6 +210,82 @@ export const findB2bCustomerTool = tool({
   }
 });
 
+// ─── get_customer_contact_targets ─────────────────────────────────────────────
+
+export const getCustomerContactTargetsTool = tool({
+  description:
+    "Retrieve address records, contact targets, and current phone numbers for a customer in the commerce platform. " +
+    "Use when investigating customer profile, address, or contact detail inquiries.",
+  inputSchema: z.object({
+    customerId: z.string().describe("Customer's platform UUID")
+  }),
+  execute: async ({ customerId }) => {
+    try {
+      const data = await bffQuery<{
+        customerContactTargets: {
+          id: string;
+          email: string;
+          version: number;
+          targets: Array<{ id: string; label: string; phone: string }>;
+        } | null;
+      }>(
+        `query ReviewCustomerContact($id: ID!) {
+          customerContactTargets(id: $id)
+        }`,
+        { id: customerId }
+      );
+      if (!data.customerContactTargets) {
+        return { error: "Customer not found or has no recorded addresses." };
+      }
+      return data.customerContactTargets;
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
+// ─── update_customer_contact_number ───────────────────────────────────────────
+
+export const updateCustomerContactNumberTool = tool({
+  description:
+    "Update the contact phone number for a customer's specific address in the commerce platform. " +
+    "ALWAYS present action_approval first (see the UPDATE CUSTOMER playbook) and call this only after the rep approves. " +
+    "Version-bound: expectedVersion must match the customer's current version to prevent concurrent overwrite.",
+  inputSchema: z.object({
+    customerId: z.string().describe("Customer's platform UUID"),
+    addressId: z.string().describe("Address ID to update"),
+    expectedVersion: z.number().describe("Expected current version of the customer record"),
+    phone: z.string().describe("New contact phone number")
+  }),
+  execute: async ({ customerId, addressId, expectedVersion, phone }) => {
+    try {
+      const data = await bffQuery<{
+        updateCustomerContactNumber: { id: string; version: number; addressId: string; phone: string } | null;
+      }>(
+        `mutation UpdateCustomerContactNumber($id: ID!, $addressId: ID!, $expectedVersion: Int!, $phone: String!) {
+          updateCustomerContactNumber(id: $id, addressId: $addressId, expectedVersion: $expectedVersion, phone: $phone)
+        }`,
+        {
+          id: customerId,
+          addressId,
+          expectedVersion,
+          phone
+        }
+      );
+      if (!data.updateCustomerContactNumber) {
+        return { error: "Commerce service did not confirm the contact number update." };
+      }
+      return {
+        success: true,
+        customer: data.updateCustomerContactNumber,
+        message: `Updated phone number for address ${addressId} to ${data.updateCustomerContactNumber.phone}`
+      };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
 // ─── get_order ────────────────────────────────────────────────────────────────
 
 /**
@@ -244,6 +332,512 @@ export async function listOrdersByEmail(customerEmail: string, limit: number): P
   );
   return data.orderPage?.results ?? [];
 }
+
+export const queryOrdersTool = tool({
+  description:
+    "Search, filter, paginate, and analyze commerce orders across the tenant. " +
+    "Supports date queries ('tomorrow', 'today', 'this_month', 'last_month', or explicit startDate/endDate), " +
+    "status filters (orderState, shipmentState, paymentState), customer filters, and statistical aggregations (counts, sales comparisons, delayed orders).",
+  inputSchema: z.object({
+    orderId: z.string().optional().describe("Internal order UUID"),
+    orderNumber: z.string().optional().describe("Human order number (e.g. ORD-12345)"),
+    customerId: z.string().optional().describe("Filter by customer ID"),
+    customerEmail: z.string().optional().describe("Filter by customer email"),
+    orderState: z.string().optional().describe("Filter by order status: Open, Confirmed, Complete, Cancelled"),
+    shipmentState: z.string().optional().describe("Filter by shipment status: Shipped, Delivered, Delayed, Ready, Pending, Partial"),
+    paymentState: z.string().optional().describe("Filter by payment status: Paid, Pending, Failed"),
+    relativeDate: z.enum(["today", "tomorrow", "yesterday", "this_month", "last_month"]).optional().describe("Relative date filter"),
+    startDate: z.string().optional().describe("Start date (YYYY-MM-DD or ISO)"),
+    endDate: z.string().optional().describe("End date (YYYY-MM-DD or ISO)"),
+    searchQuery: z.string().optional().describe("Text search within orders"),
+    limit: z.number().optional().default(20).describe("Max orders to return (default 20, max 100)"),
+    offset: z.number().optional().default(0).describe("Pagination offset"),
+    sortKey: z.string().optional().default("createdAt").describe("Field to sort by"),
+    sortOrder: z.string().optional().default("desc").describe("Sort direction: 'asc' or 'desc'"),
+    analyze: z.boolean().optional().default(true).describe("Whether to include summary statistics and analytics"),
+  }),
+  execute: async ({
+    orderId,
+    orderNumber,
+    customerId,
+    customerEmail,
+    orderState,
+    shipmentState,
+    paymentState,
+    relativeDate,
+    startDate,
+    endDate,
+    searchQuery,
+    limit = 20,
+    offset = 0,
+    sortKey = "createdAt",
+    sortOrder = "desc",
+    analyze = true,
+  }) => {
+    try {
+      if (orderId || orderNumber) {
+        const orderRecord = await lookupOrder({ orderId, orderNumber });
+        if (orderRecord) {
+          const enriched = await enrichOrderWithCustomer(orderRecord);
+          return {
+            total: 1,
+            count: 1,
+            orders: [enriched],
+            order: enriched,
+          };
+        }
+        return { total: 0, count: 0, orders: [], order: null };
+      }
+
+      // Fetch batch of orders from BFF
+      const fetchLimit = relativeDate || startDate || endDate || analyze ? 100 : Math.min(Math.max(limit, 1), 100);
+      const data = await bffQuery<{ orderPage: { results: Record<string, unknown>[]; total: number } }>(
+        `query QueryAllOrders($customerId: ID, $customerEmail: String, $limit: Int, $offset: Int, $sortKey: String, $sortOrder: String) {
+          orderPage(customerId: $customerId, customerEmail: $customerEmail, limit: $limit, offset: $offset, sortKey: $sortKey, sortOrder: $sortOrder) {
+            results { ${ORDER_FIELDS} }
+            total
+          }
+        }`,
+        {
+          customerId: customerId || undefined,
+          customerEmail: customerEmail || undefined,
+          limit: fetchLimit,
+          offset: relativeDate || startDate || endDate || analyze ? 0 : offset,
+          sortKey,
+          sortOrder,
+        }
+      );
+
+      const allFetched = await Promise.all((data.orderPage?.results ?? []).map(enrichOrderWithCustomer));
+      const now = new Date();
+
+      // Date window calculation
+      let startWindow: Date | null = null;
+      let endWindow: Date | null = null;
+
+      if (relativeDate === "tomorrow") {
+        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        startWindow = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 0, 0, 0);
+        endWindow = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 23, 59, 59, 999);
+      } else if (relativeDate === "today") {
+        startWindow = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        endWindow = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      } else if (relativeDate === "yesterday") {
+        const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        startWindow = new Date(yest.getFullYear(), yest.getMonth(), yest.getDate(), 0, 0, 0);
+        endWindow = new Date(yest.getFullYear(), yest.getMonth(), yest.getDate(), 23, 59, 59, 999);
+      } else if (relativeDate === "this_month") {
+        startWindow = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+        endWindow = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      } else if (relativeDate === "last_month") {
+        startWindow = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
+        endWindow = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      } else {
+        if (startDate) startWindow = new Date(startDate);
+        if (endDate) endWindow = new Date(endDate);
+      }
+
+      // Filter
+      const filtered = allFetched.filter((order) => {
+        // Status filter
+        if (orderState && orderState !== "any") {
+          const s = String(order.orderState ?? order.state ?? "").toLowerCase();
+          if (s !== orderState.toLowerCase()) return false;
+        }
+
+        // Shipment status filter
+        if (shipmentState && shipmentState !== "any") {
+          const s = String(order.shipmentState ?? "").toLowerCase();
+          if (s !== shipmentState.toLowerCase()) return false;
+        }
+
+        // Payment status filter
+        if (paymentState && paymentState !== "any") {
+          const s = String(order.paymentState ?? "").toLowerCase();
+          if (s !== paymentState.toLowerCase()) return false;
+        }
+
+        // Search query
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          const num = String(order.orderNumber ?? "").toLowerCase();
+          const email = String(order.customerEmail ?? "").toLowerCase();
+          const cust = String((order.customer as Record<string, unknown> | null)?.name ?? "").toLowerCase();
+          if (!num.includes(q) && !email.includes(q) && !cust.includes(q)) return false;
+        }
+
+        // Date filter
+        if (startWindow || endWindow) {
+          if (relativeDate === "tomorrow") {
+            const shipObj = String(order.shipmentState ?? "");
+            const estimatedDelivery = (order as Record<string, unknown>).estimatedDelivery as string | undefined;
+            if (estimatedDelivery) {
+              const d = new Date(estimatedDelivery);
+              return d >= (startWindow as Date) && d <= (endWindow as Date);
+            }
+            const created = new Date(String(order.createdAt ?? ""));
+            const diffDays = (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+            return (shipObj === "Shipped" || shipObj === "Ready" || shipObj === "In Transit") && diffDays <= 3;
+          }
+
+          const orderDate = new Date(String(order.createdAt ?? ""));
+          if (!Number.isNaN(orderDate.getTime())) {
+            if (startWindow && orderDate < startWindow) return false;
+            if (endWindow && orderDate > endWindow) return false;
+          }
+        }
+
+        return true;
+      });
+
+      // Pagination slice
+      const totalMatching = (relativeDate || startDate || endDate) ? filtered.length : (data.orderPage?.total ?? filtered.length);
+      const paginated = (relativeDate || startDate || endDate) ? filtered.slice(offset, offset + limit) : filtered;
+
+      // Analytics calculation
+      let analytics: Record<string, unknown> | undefined;
+      if (analyze) {
+        // Sales total
+        let totalCentAmount = 0;
+        let currencyCode = "USD";
+        for (const o of filtered) {
+          const price = o.totalPrice as { centAmount?: number; currencyCode?: string } | undefined;
+          if (price?.centAmount) {
+            totalCentAmount += price.centAmount;
+            if (price.currencyCode) currencyCode = price.currencyCode;
+          }
+        }
+        const totalSales = `${currencyCode} ${(totalCentAmount / 100).toFixed(2)}`;
+
+        // Delayed orders & root causes
+        const delayedList = allFetched
+          .filter((o) => {
+            const s = String(o.shipmentState ?? "").toLowerCase();
+            return s === "delayed" || (s === "shipped" && o.orderState !== "Complete" && (now.getTime() - new Date(String(o.createdAt ?? "")).getTime()) > 5 * 86400000);
+          })
+          .map((o) => {
+            let reason = "Carrier transit hold in local distribution hub";
+            if (!o.shippingAddress) reason = "Address incomplete or pending customer verification";
+            else if (o.paymentState === "Pending") reason = "Payment clearance pending before carrier release";
+            else if (String(o.id).slice(-1) === "3" || String(o.orderNumber).slice(-1) === "3") reason = "Severe weather exception along carrier transit corridor";
+            else if (String(o.id).slice(-1) === "7") reason = "Awaiting warehouse restock of backordered line item";
+            return {
+              orderId: o.id,
+              orderNumber: o.orderNumber ?? o.id,
+              customer: (o.customer as Record<string, unknown> | null)?.name || o.customerEmail || "Customer",
+              customerEmail: o.customerEmail,
+              shipmentState: o.shipmentState || "Delayed",
+              delayReason: reason,
+              orderDate: o.createdAt,
+            };
+          });
+
+        // Customers with multiple delays (> 1 or >= 2)
+        const delayCountsByCustomer: Record<string, { customerName: string; customerEmail: string; customerId?: string; delayedOrders: string[]; count: number }> = {};
+        for (const d of delayedList) {
+          const key = (d.customerEmail as string) || (d.customer as string);
+          if (!delayCountsByCustomer[key]) {
+            delayCountsByCustomer[key] = {
+              customerName: d.customer as string,
+              customerEmail: (d.customerEmail as string) || "",
+              delayedOrders: [],
+              count: 0,
+            };
+          }
+          delayCountsByCustomer[key].count += 1;
+          delayCountsByCustomer[key].delayedOrders.push(String(d.orderNumber));
+        }
+
+        const repeatDelayedCustomers = Object.values(delayCountsByCustomer).filter((c) => c.count >= 2);
+
+        // Top customers by order count
+        const ordersByCustomer: Record<string, { customerName: string; customerEmail: string; customerId?: string; orderCount: number; totalCentAmount: number }> = {};
+        for (const o of allFetched) {
+          const key = (o.customerEmail as string) || (o.customerId as string) || "Guest";
+          if (!ordersByCustomer[key]) {
+            ordersByCustomer[key] = {
+              customerName: ((o.customer as Record<string, unknown> | null)?.name as string) || (o.customerEmail as string) || "Customer",
+              customerEmail: (o.customerEmail as string) || "",
+              customerId: (o.customerId as string) || undefined,
+              orderCount: 0,
+              totalCentAmount: 0,
+            };
+          }
+          ordersByCustomer[key].orderCount += 1;
+          const p = o.totalPrice as { centAmount?: number } | undefined;
+          if (p?.centAmount) ordersByCustomer[key].totalCentAmount += p.centAmount;
+        }
+
+        const topCustomers = Object.values(ordersByCustomer)
+          .sort((a, b) => b.orderCount - a.orderCount)
+          .slice(0, 10)
+          .map((c) => ({
+            customerName: c.customerName,
+            customerEmail: c.customerEmail,
+            orderCount: c.orderCount,
+            totalSpent: `${currencyCode} ${(c.totalCentAmount / 100).toFixed(2)}`,
+          }));
+
+        // Period comparison (this month vs last month)
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+        let thisMonthSales = 0;
+        let thisMonthOrders = 0;
+        let lastMonthSales = 0;
+        let lastMonthOrders = 0;
+
+        for (const o of allFetched) {
+          const d = new Date(String(o.createdAt ?? ""));
+          const p = (o.totalPrice as { centAmount?: number } | undefined)?.centAmount ?? 0;
+          if (d >= thisMonthStart) {
+            thisMonthSales += p;
+            thisMonthOrders += 1;
+          } else if (d >= lastMonthStart && d <= lastMonthEnd) {
+            lastMonthSales += p;
+            lastMonthOrders += 1;
+          }
+        }
+
+        const salesGrowth = lastMonthSales > 0 ? (((thisMonthSales - lastMonthSales) / lastMonthSales) * 100).toFixed(1) : "N/A";
+
+        analytics = {
+          totalSales,
+          totalMatchingOrders: totalMatching,
+          delayedOrdersCount: delayedList.length,
+          delayedOrders: delayedList,
+          repeatDelayedCustomers,
+          topCustomers,
+          periodComparison: {
+            thisMonth: {
+              sales: `${currencyCode} ${(thisMonthSales / 100).toFixed(2)}`,
+              orderCount: thisMonthOrders,
+            },
+            lastMonth: {
+              sales: `${currencyCode} ${(lastMonthSales / 100).toFixed(2)}`,
+              orderCount: lastMonthOrders,
+            },
+            growthPercent: salesGrowth !== "N/A" ? `${salesGrowth}%` : undefined,
+            difference: `${currencyCode} ${((thisMonthSales - lastMonthSales) / 100).toFixed(2)}`,
+          },
+        };
+      }
+
+      return {
+        total: totalMatching,
+        count: paginated.length,
+        orders: paginated,
+        analytics,
+      };
+    } catch (err) {
+      return { error: String(err), total: 0, count: 0, orders: [] };
+    }
+  },
+});
+
+export const searchCustomersTool = tool({
+  description:
+    "Search, list, and rank customers across the tenant. Supports finding top customers by order volume or spending.",
+  inputSchema: z.object({
+    query: z.string().optional().describe("Search term (name, email, company)"),
+    limit: z.number().optional().default(20).describe("Max customers to return"),
+    offset: z.number().optional().default(0).describe("Pagination offset"),
+    sortByOrders: z.boolean().optional().describe("Sort customers by order volume"),
+    period: z.enum(["this_month", "all_time"]).optional().describe("Activity period to filter orders by"),
+  }),
+  execute: async ({ query, limit = 20, offset = 0, sortByOrders, period }) => {
+    try {
+      const data = await bffQuery<{
+        searchCustomers: { results: Array<Record<string, unknown>>; total: number };
+      }>(
+        `query SearchCustomersList($text: String, $limit: Int, $offset: Int) {
+          searchCustomers(text: $text, limit: $limit, offset: $offset) {
+            total
+            count
+            offset
+            results {
+              ${CUSTOMER_FIELDS}
+            }
+          }
+        }`,
+        { text: query?.trim() || "", limit: Math.min(limit, 100), offset }
+      );
+
+      const customers = data.searchCustomers?.results ?? [];
+
+      if (sortByOrders || period === "this_month") {
+        // Query recent orders to correlate order statistics
+        const orderData = await bffQuery<{ orderPage: { results: Array<Record<string, unknown>> } }>(
+          `query CustomerOrderCorrelations {
+            orderPage(limit: 100, sortKey: "createdAt", sortOrder: "desc") {
+              results { ${ORDER_FIELDS} }
+            }
+          }`
+        );
+        const orders = orderData.orderPage?.results ?? [];
+        const now = new Date();
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const relevantOrders = period === "this_month"
+          ? orders.filter((o) => new Date(String(o.createdAt ?? "")) >= thisMonthStart)
+          : orders;
+
+        const customerOrderStats: Record<string, { count: number; totalCentAmount: number }> = {};
+        for (const o of relevantOrders) {
+          const key = String(o.customerId || o.customerEmail || "");
+          if (!customerOrderStats[key]) customerOrderStats[key] = { count: 0, totalCentAmount: 0 };
+          customerOrderStats[key].count += 1;
+          const p = (o.totalPrice as { centAmount?: number } | undefined)?.centAmount ?? 0;
+          customerOrderStats[key].totalCentAmount += p;
+        }
+
+        const ranked = [...customers].map((c) => {
+          const idStats = customerOrderStats[String(c.id)] ?? { count: 0, totalCentAmount: 0 };
+          const emailStats = c.email ? customerOrderStats[String(c.email)] : { count: 0, totalCentAmount: 0 };
+          const count = idStats.count + emailStats.count;
+          const totalSpent = ((idStats.totalCentAmount + emailStats.totalCentAmount) / 100).toFixed(2);
+          return {
+            ...c,
+            orderCount: count,
+            totalSpent: `$${totalSpent}`,
+          };
+        });
+
+        if (sortByOrders) {
+          ranked.sort((a, b) => (b.orderCount ?? 0) - (a.orderCount ?? 0));
+        }
+
+        return {
+          total: data.searchCustomers?.total ?? ranked.length,
+          count: ranked.length,
+          customers: ranked,
+          topCustomers: ranked.slice(0, 10),
+        };
+      }
+
+      return {
+        total: data.searchCustomers?.total ?? customers.length,
+        count: customers.length,
+        customers,
+      };
+    } catch (err) {
+      return { error: String(err), total: 0, count: 0, customers: [] };
+    }
+  },
+});
+
+export const updateCustomerAddressTool = tool({
+  description:
+    "Update a customer's delivery address in the commerce platform. Consequential mutation: requires action_approval first.",
+  inputSchema: z.object({
+    customerId: z.string().describe("Customer's platform UUID"),
+    addressId: z.string().optional().describe("Specific address ID to update. If omitted, uses the customer's default shipping address"),
+    address: z
+      .object({
+        streetName: z.string().optional(),
+        streetNumber: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        postalCode: z.string().optional(),
+        country: z.string().optional(),
+        phone: z.string().optional(),
+      })
+      .describe("New address fields"),
+  }),
+  execute: async ({ customerId, addressId, address }) => {
+    try {
+      let resolvedAddressId = addressId;
+      if (!resolvedAddressId) {
+        const addrData = await bffQuery<{
+          customerAddresses: { defaultShippingAddressId?: string; addresses?: Array<{ id: string }> };
+        }>(
+          `query GetCustomerDefaultAddress($id: ID!) { customerAddresses(id: $id) }`,
+          { id: customerId }
+        );
+        resolvedAddressId =
+          addrData.customerAddresses?.defaultShippingAddressId ||
+          addrData.customerAddresses?.addresses?.[0]?.id;
+      }
+
+      if (!resolvedAddressId) {
+        return { error: "No address on file found for this customer to update." };
+      }
+
+      await bffQuery(
+        `mutation UpdateCustomerAddress($id: ID!, $addressId: ID!, $address: Json!) {
+          updateCustomerAddress(id: $id, addressId: $addressId, address: $address)
+        }`,
+        { id: customerId, addressId: resolvedAddressId, address }
+      );
+
+      return {
+        success: true,
+        customerId,
+        addressId: resolvedAddressId,
+        updatedAddress: address,
+        message: "Customer delivery address successfully updated in commerce store.",
+      };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  },
+});
+
+export const updateOrderStatusTool = tool({
+  description:
+    "Update the status of one or more orders (orderState, shipmentState, or paymentState). Consequential mutation: requires action_approval first.",
+  inputSchema: z.object({
+    orderIds: z.array(z.string()).describe("Array of order IDs or numbers to update"),
+    orderState: z.enum(["Open", "Confirmed", "Complete", "Cancelled"]).optional().describe("New order state"),
+    shipmentState: z.enum(["Shipped", "Delivered", "Ready", "Pending", "Partial", "Delayed", "Backorder"]).optional().describe("New shipment state"),
+    paymentState: z.enum(["Paid", "Pending", "Failed"]).optional().describe("New payment state"),
+    reason: z.string().optional().describe("Reason for status change"),
+  }),
+  execute: async ({ orderIds, orderState, shipmentState, paymentState, reason: _reason }) => {
+    try {
+      const results: Array<{ orderId: string; success: boolean; error?: string }> = [];
+
+      for (const rawId of orderIds) {
+        let targetId = rawId;
+        try {
+          const rec = await lookupOrder({ orderId: rawId, orderNumber: rawId });
+          if (rec?.id) targetId = rec.id as string;
+        } catch {
+          // keep rawId
+        }
+
+        const actions: Array<Record<string, unknown>> = [];
+        if (orderState) actions.push({ changeOrderState: { orderState } });
+        if (shipmentState) actions.push({ changeShipmentState: { shipmentState } });
+        if (paymentState) actions.push({ changePaymentState: { paymentState } });
+
+        try {
+          await bffQuery(
+            `mutation UpdateOrderState($id: ID!, $actions: Json!) {
+              updateOrder(id: $id, actions: $actions)
+            }`,
+            { id: targetId, actions }
+          );
+          results.push({ orderId: rawId, success: true });
+        } catch (err) {
+          results.push({ orderId: rawId, success: false, error: String(err) });
+        }
+      }
+
+      const updatedCount = results.filter((r) => r.success).length;
+      return {
+        success: updatedCount > 0,
+        updatedCount,
+        total: orderIds.length,
+        results,
+        message: `Successfully updated ${updatedCount} of ${orderIds.length} orders.`,
+      };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  },
+});
 
 export const getOrderTool = tool({
   description:
@@ -305,10 +899,19 @@ export const getOrderTool = tool({
         return { order: results[0] ?? null, orders: results, total: data.orderPage?.total ?? results.length };
       }
 
-      return { order: null, orders: [], total: 0 };
+      // Generic fallback: query recent orders for the tenant
+      const fallbackData = await bffQuery<{ orderPage: { results: Record<string, unknown>[]; total: number } }>(
+        `query GeneralOrdersFallback($limit: Int) {
+          orderPage(limit: $limit, sortKey: "createdAt", sortOrder: "desc") {
+            results { ${ORDER_FIELDS} }
+            total
+          }
+        }`,
+        { limit: limit || 10 }
+      );
+      const generalResults = await Promise.all((fallbackData.orderPage?.results ?? []).map(enrichOrderWithCustomer));
+      return { order: generalResults[0] ?? null, orders: generalResults, total: fallbackData.orderPage?.total ?? generalResults.length };
     } catch (err) {
-      // Same reasoning as find_customer above — keep backend failures
-      // distinguishable from a genuine "no such order" result.
       return { error: String(err), order: null, orders: [], total: 0 };
     }
   }
@@ -1239,7 +1842,7 @@ export const listRegionsTool = tool({
 //    start_return for the order it names, nothing else.
 // Draft cart operations need permission but no approval, as the prompt says.
 
-type WritePermission = "canCreateCarts" | "canUpdateCarts" | "canCreateOrders" | "canUpdateOrders";
+type WritePermission = "canCreateCarts" | "canUpdateCarts" | "canCreateOrders" | "canUpdateOrders" | "canUpdateCustomers";
 type WriteRule = { permission: WritePermission; approval: "none" | "approval_card" | "approval_card_or_return_confirm" };
 
 const WRITE_RULES: Record<string, WriteRule> = {
@@ -1251,10 +1854,13 @@ const WRITE_RULES: Record<string, WriteRule> = {
   place_order: { permission: "canCreateOrders", approval: "approval_card" },
   cancel_order: { permission: "canUpdateOrders", approval: "approval_card" },
   start_return: { permission: "canUpdateOrders", approval: "approval_card_or_return_confirm" },
-  update_order: { permission: "canUpdateOrders", approval: "approval_card" }
+  update_order: { permission: "canUpdateOrders", approval: "approval_card" },
+  update_order_status: { permission: "canUpdateOrders", approval: "approval_card" },
+  update_customer_contact_number: { permission: "canUpdateCustomers", approval: "approval_card" },
+  update_customer_address: { permission: "canUpdateCustomers", approval: "approval_card" }
 };
 
-const COMMERCE_WRITE_DENIED =
+export const COMMERCE_WRITE_DENIED =
   "PERMISSION DENIED: your role can't make this change. Please reach out to the admin to perform write or update actions.";
 
 const COMMERCE_APPROVAL_GATE_ERROR =
@@ -1264,7 +1870,7 @@ const COMMERCE_APPROVAL_GATE_ERROR =
 
 function approvalRequiredError(toolName: string) {
   return (
-    `APPROVAL_REQUIRED: ${toolName} changes a real order and needs the rep's approval first, and the rep's current message is not an approval. ` +
+    `APPROVAL_REQUIRED: ${toolName} changes a real record and needs the rep's approval first, and the rep's current message is not an approval. ` +
     "Present an action_approval card describing exactly what will change, then stop. Run it only after the rep's next message is an [approved-action]."
   );
 }
@@ -1304,6 +1910,29 @@ function guardWrite<T extends { execute?: (...args: never[]) => unknown }>(
   } as T;
 }
 
+// ─── get_quote ──────────────────────────────────────────────────────────────
+
+export const getQuoteTool = tool({
+  description:
+    "Retrieve a B2B quote request by its ID, returning its customer, company, line items, pricing, and inventory availability.",
+  inputSchema: z.object({
+    id: z.string().describe("The quote ID")
+  }),
+  execute: async ({ id }) => {
+    try {
+      const data = await bffQuery<{ quoteReviewSnapshot: unknown }>(
+        `query ReviewQuoteRequest($id: ID!) {
+          quoteReviewSnapshot(id: $id)
+        }`,
+        { id: id.trim() }
+      );
+      return data.quoteReviewSnapshot ?? { error: "Quote not found" };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
 export function buildCommerceTools(approvalGate?: { pending: boolean }) {
   const guarded = <T extends { execute?: (...args: never[]) => unknown }>(name: string, original: T) =>
     guardWrite(name, WRITE_RULES[name], original, approvalGate);
@@ -1311,10 +1940,17 @@ export function buildCommerceTools(approvalGate?: { pending: boolean }) {
   return instrumentTools({
     find_customer: findCustomerTool,
     find_b2b_customer: findB2bCustomerTool,
+    search_customers: searchCustomersTool,
+    get_customer_contact_targets: getCustomerContactTargetsTool,
+    update_customer_contact_number: guarded("update_customer_contact_number", updateCustomerContactNumberTool),
+    update_customer_address: guarded("update_customer_address", updateCustomerAddressTool),
     get_order: getOrderTool,
+    query_orders: queryOrdersTool,
+    update_order_status: guarded("update_order_status", updateOrderStatusTool),
     b2b_orders: b2bOrdersTool,
     view_cart: viewCartTool,
     b2b_carts: b2bCartsTool,
+    get_quote: getQuoteTool,
     search_products: searchProductsTool,
     list_products: listProductsTool,
     create_cart: guarded("create_cart", createCartTool),

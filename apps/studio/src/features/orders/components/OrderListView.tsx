@@ -1,37 +1,38 @@
 "use client";
 
-import { Fragment, useState, useMemo, useCallback } from "react";
-import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Fragment, useCallback, useMemo, useState } from "react";
 // Keep route-mode checks independent from the locale segment shown in the URL.
+import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
+import { useRegisterPageContext } from "@/features/csa-assistant";
+import { notify } from "@/features/notifications/notification-store";
+import { formatDateTime } from "@/lib/format-date";
 import { projectPath } from "@/lib/project-url";
+import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 import {
-  PageHeader,
-  Button,
-  Icon,
-  SearchBar,
-  Select,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-  TablePagination,
   Badge,
-  Skeleton,
+  Button,
   EmptyState,
+  Icon,
+  PageHeader,
   Panel,
+  SearchBar,
+  SectionCard,
+  Select,
+  Skeleton,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TablePagination,
+  TableRow,
   useDataTable,
 } from "@csa/ui";
-import { SectionCard } from "@csa/ui";
-import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
 import { useOrderStore } from "../hooks/use-orders";
-import { notify } from "@/features/notifications/notification-store";
-import type { Order, OrderState, ShipmentState, PaymentState } from "../types/order-types";
-import { formatDateTime } from "@/lib/format-date";
-import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
+import type { Order, OrderState, PaymentState, ShipmentState } from "../types/order-types";
 
 const B2C_SEARCH_FIELD_OPTIONS = [
   { value: "all", label: "All fields" },
@@ -281,6 +282,37 @@ export function OrderListView() {
     pageSize: 20,
   });
   const isLoading = loading || isRefreshing;
+
+  const visibleOrderRecords = useMemo(
+    () =>
+      paginatedOrders.map((o) => ({
+        id: o.id,
+        identifier: o.orderNumber,
+        label: `Order ${o.orderNumber}`,
+        subtitle: o.customerName,
+        status: o.orderState,
+        total: o.grandTotal ? String(o.grandTotal) : undefined,
+      })),
+    [paginatedOrders]
+  );
+
+  useRegisterPageContext(
+    "OrderListView",
+    {
+      pageType: "order_list",
+      entityType: "order",
+      type: "order",
+      id: "",
+      visibleRecords: visibleOrderRecords,
+      activeFilters: {
+        search: searchText || undefined,
+        page: currentPage,
+        limit: 20,
+        totalCount: totalItems,
+      },
+    },
+    [visibleOrderRecords, searchText, currentPage, totalItems]
+  );
 
   const renderOrderStateBadge = (state: OrderState) => {
     switch (state) {

@@ -12,6 +12,9 @@ it("preserves native B2B route detection and ticket detail IDs", () => {
   expect(projectPath("/en-us/b2c-csa/tickets/zendesk%3Aaccount%3A42").pathname).toBe("/tickets/zendesk%3Aaccount%3A42");
   expect(projectPath("/en-us/tickets/create")).toEqual({ projectKey: null, pathname: "/tickets/create" });
   expect(projectPath("/en-us/orders/123").projectKey).toBeNull();
+  expect(projectPath("/en-us/b2c-csa/agent-mode")).toEqual({ projectKey: "b2c-csa", pathname: "/agent-mode" });
+  expect(projectHref("/en-us/agent-mode", { projectKey: "b2c-csa" })).toBe("/en-us/b2c-csa/agent-mode");
+  expect(projectHref("/en-us/b2c-csa/agent-mode", { projectKey: "b2c-csa" })).toBe("/en-us/b2c-csa/agent-mode");
 });
 
 it("keeps login and organization administration outside project URLs", () => {

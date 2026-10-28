@@ -27,6 +27,7 @@ import {
   type StatusTone,
 } from "@csa/ui";
 import { formatDateTime } from "@/lib/format-date";
+import { useRegisterPageContext } from "@/features/csa-assistant";
 import { QuoteAIReview } from "./QuoteAIReview";
 import {
   baseQuoteStatusLabel,
@@ -427,6 +428,42 @@ export function QuoteDetailView({ id }: { id: string }) {
   });
 
   const quote = data?.quote ?? null;
+
+  useRegisterPageContext(
+    "QuoteDetailView",
+    quote
+      ? {
+          entityType: "quote",
+          entityId: quote.id,
+          pageType: "quote_details",
+          recordSummary: {
+            quoteId: quote.id,
+            quoteNumber: quote.quoteNumber,
+            key: quote.key,
+            status: quote.status,
+            customerEmail: quote.customerEmail,
+            companyName: quote.companyName,
+            comment: quote.comment,
+            totalPrice: quote.totalPrice
+              ? `${quote.totalPrice.currencyCode} ${(quote.totalPrice.centAmount / 100).toFixed(2)}`
+              : undefined,
+            lineItems: quote.lineItems?.map((item) => ({
+              id: item.id,
+              name: item.name,
+              sku: item.sku,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice
+                ? `${item.unitPrice.currencyCode} ${(item.unitPrice.centAmount / 100).toFixed(2)}`
+                : undefined,
+              totalPrice: item.totalPrice
+                ? `${item.totalPrice.currencyCode} ${(item.totalPrice.centAmount / 100).toFixed(2)}`
+                : undefined,
+            })),
+          },
+        }
+      : null,
+    [quote]
+  );
   const {
     actingRole,
     buyerDeclineNote,

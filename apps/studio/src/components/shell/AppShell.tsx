@@ -1,12 +1,13 @@
 "use client";
 
+import { CustomerCxAiLite } from "@/features/csa-assistant";
 import { NotificationBell } from "@/features/notifications/NotificationBell";
+import { NotificationToaster } from "@/features/notifications/NotificationCenter";
+import { CreateProjectModal } from "@/features/projects/CreateProjectModal";
 import { apolloClient } from "@/graphql/client";
-import { TicketAIHelper } from "@/features/tickets/components/TicketAIHelper";
 import { localizeHref, localizePathname } from "@/i18n/routing";
-import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
 import { projectHref, projectPath } from "@/lib/project-url";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
 import { gql, useQuery } from "@apollo/client";
 import {
   DEFAULT_LOCALE,
@@ -27,12 +28,11 @@ import {
   TopBar,
   useDialogAccessibility
 } from "@csa/ui";
-import { CreateProjectModal } from "@/features/projects/CreateProjectModal";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NotificationToaster } from "@/features/notifications/NotificationCenter";
 
 const sidebarGroups: SidebarGroup[] = [
   {
@@ -74,6 +74,12 @@ const sidebarGroups: SidebarGroup[] = [
         id: "csa-assistant",
         href: "/csa-assistant",
         label: "CSA Assistant",
+        icon: "sparkles"
+      },
+      {
+        id: "agent-mode",
+        href: "/agent-mode",
+        label: "Agent Mode",
         icon: "sparkles"
       }
     ]
@@ -134,6 +140,12 @@ const b2bSidebarGroups: SidebarGroup[] = [
         id: "csa-assistant",
         href: "/csa-assistant",
         label: "CSA Assistant",
+        icon: "sparkles"
+      },
+      {
+        id: "agent-mode",
+        href: "/agent-mode",
+        label: "Agent Mode",
         icon: "sparkles"
       }
     ]
@@ -361,7 +373,8 @@ const standardNavigateCommands: CommandItem[] = [
     href: "/knowledgebase",
     icon: "book-open"
   },
-  { id: "assistant", label: "CSA Assistant", href: "/csa-assistant", icon: "sparkles" }
+  { id: "assistant", label: "CSA Assistant", href: "/csa-assistant", icon: "sparkles" },
+  { id: "agent-mode", label: "Agent Mode", href: "/agent-mode", icon: "sparkles" }
 ];
 
 const b2bNavigateCommands: CommandItem[] = [
@@ -430,7 +443,8 @@ const b2bNavigateCommands: CommandItem[] = [
     href: "/b2b/import-export",
     icon: "upload"
   },
-  { id: "assistant", label: "CSA Assistant", href: "/csa-assistant", icon: "sparkles" }
+  { id: "assistant", label: "CSA Assistant", href: "/csa-assistant", icon: "sparkles" },
+  { id: "agent-mode", label: "Agent Mode", href: "/agent-mode", icon: "sparkles" }
 ];
 
 const standardCreateCommands: CommandItem[] = [
@@ -493,6 +507,7 @@ const navigationModuleById: Record<string, string | string[] | undefined> = {
   reports: "reports",
   knowledgebase: "knowledgebase",
   "csa-assistant": "assistant",
+  "agent-mode": "assistant",
   "audit-log": "audit",
   "admin-settings": undefined,
   "admin-projects": undefined,
@@ -516,6 +531,7 @@ const commandPermissionById: Record<
   reports: { module: "reports", action: "view" },
   knowledgebase: { module: "knowledgebase", action: "view" },
   assistant: { module: "assistant", action: "view" },
+  "agent-mode": { module: "assistant", action: "view" },
   "create-customer": { module: "customers", action: "create" },
   "create-ticket": { module: "tickets", action: "create" }
 };
@@ -1242,16 +1258,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           brandOrBreadcrumbs={
             <div className="csa-topbar-project flex min-w-0 flex-wrap items-center gap-3">
               <button
-          type="button"
-          ref={navigationToggleRef}
-          className="csa-navigation-toggle flex h-10 w-10 shrink-0 items-center justify-center rounded-md md:hidden"
-          aria-expanded={isNavigationOpen}
-          aria-controls="studio-navigation"
-          onClick={() => setIsNavigationOpen((open) => !open)}
-        >
-          <Icon name={isNavigationOpen ? "x" : "menu"} size="sm" />
-          <span className="sr-only">{isNavigationOpen ? t("collapseSidebar") : t("expandSidebar")}</span>
-        </button>
+                type="button"
+                ref={navigationToggleRef}
+                className="csa-navigation-toggle flex h-10 w-10 shrink-0 items-center justify-center rounded-md md:hidden"
+                aria-expanded={isNavigationOpen}
+                aria-controls="studio-navigation"
+                onClick={() => setIsNavigationOpen((open) => !open)}
+              >
+                <Icon name={isNavigationOpen ? "x" : "menu"} size="sm" />
+                <span className="sr-only">{isNavigationOpen ? t("collapseSidebar") : t("expandSidebar")}</span>
+              </button>
               {currentUser.projects.length > 0 ? (
                 <select
                   aria-label={t("project")}
@@ -1410,6 +1426,21 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <NotificationBell key={`${user.email}:${user.activeClientId}:${user.activeProjectKey}`} locale={currentLocale} clientId={user.activeClientId} projectKey={user.activeProjectKey} />
               )}
 
+              <button
+                type="button"
+                onClick={() => router.push(localizeHref("/agent-mode", currentLocale))}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs transition hover:opacity-95 cursor-pointer select-none"
+                style={{
+                  background: "linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25))",
+                  border: "1px solid rgba(255, 255, 255, 0.25)",
+                  color: "var(--topbar-text, #fff)",
+                }}
+                title="Open CustomerX Agent Mode"
+              >
+                <Icon name="sparkles" size="xs" />
+                <span className="hidden sm:inline">Agent Mode</span>
+              </button>
+
               <Dropdown
                 trigger={
                   <div
@@ -1567,8 +1598,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                               type="button"
                               onClick={() => openCommand(item)}
                               className={`flex w-full items-center gap-3 rounded-m-lg px-3 py-2.5 text-left transition ${activeCommandIndex === index
-                                  ? "bg-m-surface-2"
-                                  : "hover:bg-m-surface-2"
+                                ? "bg-m-surface-2"
+                                : "hover:bg-m-surface-2"
                                 }`}
                             >
                               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-m-md bg-m-surface-2 text-m-text-muted">
@@ -1615,8 +1646,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                                   type="button"
                                   onClick={() => openCommand(item)}
                                   className={`flex w-full items-center gap-3 rounded-m-lg px-3 py-2.5 text-left transition ${activeCommandIndex === commandIndex
-                                      ? "bg-m-surface-2"
-                                      : "hover:bg-m-surface-2"
+                                    ? "bg-m-surface-2"
+                                    : "hover:bg-m-surface-2"
                                     }`}
                                 >
                                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-m-md bg-m-surface-2 text-m-text-muted">
@@ -1661,8 +1692,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                                 type="button"
                                 onClick={() => openCommand(item)}
                                 className={`flex items-center gap-3 rounded-m-lg border border-m-border px-3 py-3 text-left transition ${activeCommandIndex === commandIndex
-                                    ? "bg-m-surface-2"
-                                    : "hover:bg-m-surface-2"
+                                  ? "bg-m-surface-2"
+                                  : "hover:bg-m-surface-2"
                                   }`}
                               >
                                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-m-lg bg-m-surface-2 text-m-primary">
@@ -1722,9 +1753,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           }}
         >
           {currentUser.role === "admin" &&
-          currentUser.projects.length === 0 &&
-          !appPathname.startsWith("/admin/") &&
-          !appPathname.startsWith("/admin-settings") ? (
+            currentUser.projects.length === 0 &&
+            !appPathname.startsWith("/admin/") &&
+            !appPathname.startsWith("/admin-settings") ? (
             <div className="flex flex-1 flex-col items-center justify-center p-8 text-center my-auto">
               <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-m-primary/10 text-m-primary mb-6 shadow-sm">
                 <Icon name="folder-plus" size="xl" />
@@ -1748,9 +1779,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             children
           )}
         </main>
-        {(appPathname === "/tickets" || appPathname.startsWith("/tickets/")) && (
-          <TicketAIHelper />
-        )}
+        <CustomerCxAiLite />
       </div>
 
       <NotificationToaster />

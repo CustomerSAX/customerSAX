@@ -26,6 +26,7 @@ import { formatDate } from "@/lib/format-date";
 import { ColumnManager, type ManagedColumn } from "@/components/table/ColumnManager";
 import { SectionCard } from "@csa/ui";
 import { useCustomerStore } from "../hooks/use-customers";
+import { useRegisterPageContext } from "@/features/csa-assistant";
 import type { Customer, CustomerListFilters } from "../types/customer-types";
 
 const SEARCH_OPTIONS = [
@@ -255,6 +256,36 @@ export function CustomerListView() {
     pageSize: 10,
   });
   const isLoading = loading || isRefreshing;
+
+  const visibleCustomerRecords = useMemo(
+    () =>
+      paginatedCustomers.map((cust) => ({
+        id: cust.id,
+        name: `${cust.firstName || ""} ${cust.lastName || ""}`.trim() || cust.companyName || "Unnamed",
+        email: cust.email,
+        identifier: cust.customerNumber || cust.id,
+        subtitle: cust.companyName || cust.customerGroup?.name,
+      })),
+    [paginatedCustomers]
+  );
+
+  useRegisterPageContext(
+    "CustomerListView",
+    {
+      pageType: "customer_list",
+      entityType: "customer",
+      type: "customer",
+      id: "",
+      visibleRecords: visibleCustomerRecords,
+      activeFilters: {
+        search: filters.searchText || undefined,
+        page: currentPage,
+        limit: 10,
+        totalCount: totalItems,
+      },
+    },
+    [visibleCustomerRecords, filters.searchText, currentPage, totalItems]
+  );
 
   const applyAdvancedFilters = () => {
     setFilters(draftFilters);

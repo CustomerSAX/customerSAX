@@ -1,7 +1,7 @@
 import { localeFromPathname, localeToPathSegment, stripLocalePrefix } from "../i18n/routing";
 
 export type UrlProject = { projectKey: string; clientId?: string };
-const routeRoots = new Set(["dashboard", "tickets", "customers", "orders", "products", "cart", "subscriptions", "b2b", "calendar", "reports", "knowledgebase", "csa-assistant", "algolia-search", "admin", "admin-settings", "profile", "superadmin", "login", "sign-in", "select-project", "auth", "api", "organizations"]);
+const routeRoots = new Set(["dashboard", "tickets", "customers", "orders", "products", "cart", "subscriptions", "b2b", "calendar", "reports", "knowledgebase", "csa-assistant", "agent-mode", "algolia-search", "admin", "admin-settings", "profile", "superadmin", "login", "sign-in", "select-project", "auth", "api", "organizations"]);
 const unscopedRoots = new Set(["login", "sign-in", "select-project", "superadmin", "auth", "api", "organizations"]);
 
 export function projectPath(pathname: string): { projectKey: string | null; pathname: string } {

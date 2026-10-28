@@ -52,3 +52,100 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sessions: [], total: 0 });
   }
 }
+
+/**
+ * PATCH /api/chat/sessions
+ *
+ * Renames an existing chat session with server-side identity validation.
+ * Body: { sessionId: string, title: string }
+ */
+export async function PATCH(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/chat/sessions:patch');
+  try {
+    const user = await getCurrentUser();
+    if (!user?.email) {
+      return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as { sessionId?: string; title?: string };
+    const { searchParams } = new URL(request.url);
+    const sessionId = (body.sessionId || searchParams.get('sessionId'))?.trim();
+    const title = body.title?.trim();
+
+    if (!sessionId || !title) {
+      return NextResponse.json({ error: 'sessionId and title are required' }, { status: 400 });
+    }
+
+    const url = new URL(`${AI_ASSIST_URL}/sessions`);
+    const headers = new Headers({ 'content-type': 'application/json' });
+    applyCsaHeaders(headers, {
+      userEmail: user.email,
+      projectKey: user.activeProjectKey || CT_PROJECT_KEY || undefined,
+      clientId: user.activeClientId,
+      requestId,
+    });
+
+    const res = await fetch(url.toString(), {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ sessionId, title }),
+      cache: 'no-store',
+    });
+
+    const data = await res.json().catch(() => ({}));
+    return NextResponse.json(data, { status: res.status });
+  } catch (err) {
+    log.error('rename session failed', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/chat/sessions?sessionId=xxx
+ *
+ * Deletes an existing chat session with server-side identity validation.
+ */
+export async function DELETE(request: NextRequest) {
+  const { log, requestId } = requestLogger(request, 'api/chat/sessions:delete');
+  try {
+    const user = await getCurrentUser();
+    if (!user?.email) {
+      return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    let sessionId = searchParams.get('sessionId')?.trim();
+    if (!sessionId) {
+      const body = (await request.json().catch(() => ({}))) as { sessionId?: string };
+      sessionId = body.sessionId?.trim();
+    }
+
+    if (!sessionId) {
+      return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
+    }
+
+    const url = new URL(`${AI_ASSIST_URL}/sessions`);
+    url.searchParams.set('sessionId', sessionId);
+
+    const headers = new Headers();
+    applyCsaHeaders(headers, {
+      userEmail: user.email,
+      projectKey: user.activeProjectKey || CT_PROJECT_KEY || undefined,
+      clientId: user.activeClientId,
+      requestId,
+    });
+
+    const res = await fetch(url.toString(), {
+      method: 'DELETE',
+      headers,
+      cache: 'no-store',
+    });
+
+    const data = await res.json().catch(() => ({}));
+    return NextResponse.json(data, { status: res.status });
+  } catch (err) {
+    log.error('delete session failed', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+

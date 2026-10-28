@@ -25,6 +25,7 @@ import { useTablePaginationLabels } from "@/lib/use-table-pagination-labels";
 import { useQuotes } from "../hooks/use-quotes";
 import { QuoteStatusChip } from "./QuoteStatusChip";
 import { QuoteAIQuickReview } from "./QuoteAIQuickReview";
+import { useRegisterPageContext } from "@/features/csa-assistant";
 import { useQuoteAIStatuses } from "../hooks/use-quote-ai-statuses";
 import { useCompanies } from "@/features/companies/hooks/use-companies";
 import {
@@ -61,6 +62,25 @@ export function QuoteListView() {
     await refetch();
     await refreshAIStatuses();
   };
+
+  useRegisterPageContext(
+    "QuoteListView",
+    {
+      pageType: "quote_list",
+      entityType: "quote",
+      visibleRecords: quotes.map((q) => ({
+        id: q.id,
+        identifier: q.quoteNumber,
+        status: q.status,
+        companyName: q.companyName,
+      })),
+      activeFilters: {
+        search: filter.searchText || undefined,
+        filters: { status: filter.statusFilter || undefined },
+      },
+    },
+    [quotes, filter]
+  );
 
   const { allCompanies } = useCompanies();
 
