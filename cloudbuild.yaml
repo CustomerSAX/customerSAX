@@ -69,7 +69,7 @@ steps:
       - 'scripts/cloudbuild-deploy.sh'
     waitFor:
       - 'build-and-push'
-    timeout: 1800s
+    timeout: 3600s
 
   # ────────────────────────────────────────────────────────────
   # Step 4: Collect all Cloud Run URLs and inject into services.
@@ -91,8 +91,9 @@ options:
   machineType: 'E2_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
 
-# Overall pipeline timeout (6 services × ~5 min build + deploy + headroom)
-timeout: 3600s
+# Overall pipeline timeout. Production deploys eight services; this must be
+# greater than the combined build, deploy, and URL-update step ceilings.
+timeout: 7800s
 
 tags:
   - 'customersax'
