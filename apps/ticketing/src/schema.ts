@@ -2,6 +2,7 @@ import { loadAIStatus } from "./ai-status/loader.js";
 import { listNotifications, markNotificationsRead } from "./notifications/store.js";
 import { analyzeCreatedTicket } from "./email/analyze-created.js";
 import { gql } from "graphql-tag";
+import type { FieldNode, FragmentDefinitionNode, GraphQLResolveInfo, SelectionSetNode } from "graphql";
 import { resolveTicketing } from "./providers/index.js";
 import { searchZendeskPlugin } from "./zendesk/plugin.js";
 import type { SlaMetric, Ticket, TicketDraft, TicketListArgs, TicketSla, TicketUpdate, WorklogComment } from "./tickets/types.js";
@@ -17,6 +18,39 @@ function selectedProject(context: unknown) {
 
 async function selectedProvider(context: unknown) {
   return (await resolveTicketing(selectedProject(context), (context as TicketingContext | undefined)?.clientId)).provider;
+}
+
+/**
+ * Checks a resolver selection path, expanding named and inline fragments.
+ * Provider adapters use this to avoid remote enrichments the caller will not
+ * receive (notably one Zendesk SLA request for every ticket in a list).
+ */
+export function selectionIncludes(
+  info: Pick<GraphQLResolveInfo, "fieldNodes" | "fragments">,
+  path: string[]
+): boolean {
+  function fields(
+    selectionSet: SelectionSetNode | undefined,
+    seen = new Set<string>()
+  ): FieldNode[] {
+    if (!selectionSet) return [];
+    return selectionSet.selections.flatMap((selection): FieldNode[] => {
+      if (selection.kind === "Field") return [selection];
+      if (selection.kind === "InlineFragment") return fields(selection.selectionSet, seen);
+      const name = selection.name.value;
+      if (seen.has(name)) return [];
+      const fragment: FragmentDefinitionNode | undefined = info.fragments[name];
+      return fragment ? fields(fragment.selectionSet, new Set(seen).add(name)) : [];
+    });
+  }
+  let nodes = info.fieldNodes;
+  for (const segment of path) {
+    nodes = nodes.flatMap((node) =>
+      fields(node.selectionSet).filter((field) => field.name.value === segment)
+    );
+    if (!nodes.length) return false;
+  }
+  return true;
 }
 
 async function notificationScope(context: unknown, expected: { clientId: string; projectKey: string }) {
@@ -239,10 +273,14 @@ export const resolvers = {
       (await selectedProvider(context)).getFields?.(args.id) ?? [],
     ticket: async (_parent: unknown, args: { id: string }, context: unknown) =>
       (await selectedProvider(context)).getTicket(args.id),
-    ticketPage: async (_parent: unknown, args: TicketListArgs, context: unknown) =>
-      (await selectedProvider(context)).listTickets(args),
-    tickets: async (_parent: unknown, args: TicketListArgs, context: unknown) => {
-      const page = await (await selectedProvider(context)).listTickets(args);
+    ticketPage: async (_parent: unknown, args: TicketListArgs, context: unknown, info: GraphQLResolveInfo) =>
+      (await selectedProvider(context)).listTickets(args, {
+        includeSla: selectionIncludes(info, ["results", "sla"])
+      }),
+    tickets: async (_parent: unknown, args: TicketListArgs, context: unknown, info: GraphQLResolveInfo) => {
+      const page = await (await selectedProvider(context)).listTickets(args, {
+        includeSla: selectionIncludes(info, ["sla"])
+      });
 
       return page.results;
     }

@@ -73,7 +73,10 @@ it.each([undefined, "slaDueAt"])(
       throw new Error("Unsupported Hub read path");
     });
     const connection = (await lookup())!;
-    const page = await zendeskProvider("project-a", connection).listTickets({ sortKey });
+    const page = await zendeskProvider("project-a", connection).listTickets(
+      { sortKey },
+      { includeSla: true }
+    );
     expect(page.total).toBe(2);
     expect(page.results.map((item) => item.ticketNumber)).toEqual(
       sortKey === "slaDueAt" ? ["43", "42"] : ["42", "43"]

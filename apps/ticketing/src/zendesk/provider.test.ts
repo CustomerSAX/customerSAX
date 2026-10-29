@@ -268,7 +268,7 @@ it("maps SLA policy metrics without guessing whether an achieved one was met", a
         { ...ticket, id: 43, slas: { policy_metrics: [] } }
       ]
     });
-  const { results } = await zendeskProvider("test").listTickets({});
+  const { results } = await zendeskProvider("test").listTickets({}, { includeSla: true });
   expect(api).toHaveBeenLastCalledWith("tickets/show_many.json?ids=42,43&include=slas");
   expect(results[0].sla).toEqual({
     source: "zendesk",
@@ -284,8 +284,17 @@ it("maps SLA policy metrics without guessing whether an achieved one was met", a
 
 it("reports no SLA data when Zendesk returns none for the account", async () => {
   vi.mocked(api).mockResolvedValueOnce({ results: [ticket], count: 1 }).mockResolvedValueOnce({ tickets: [ticket] });
-  const { results } = await zendeskProvider("test").listTickets({});
+  const { results } = await zendeskProvider("test").listTickets({}, { includeSla: true });
   expect(results[0].sla).toBeUndefined();
+});
+
+it("does not fetch SLA details when a ticket list does not select SLA fields", async () => {
+  vi.mocked(api).mockResolvedValueOnce({ results: [ticket, { ...ticket, id: 43 }], count: 2 });
+  const { results } = await zendeskProvider("test").listTickets({ limit: 100 });
+  expect(results).toHaveLength(2);
+  expect(results.every((item) => item.sla === undefined)).toBe(true);
+  expect(api).toHaveBeenCalledTimes(1);
+  expect(api).not.toHaveBeenCalledWith(expect.stringContaining("include=slas"));
 });
 
 it("sorts unsolved tickets by soonest SLA deadline across every search page", async () => {

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { createRequire } from "node:module";
+import { buildSubgraphSchema } from "@apollo/subgraph";
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   hub: vi.fn(),
@@ -16,7 +18,10 @@ vi.mock("../zendesk/connection-hub.js", () => ({
 }));
 vi.mock("../zendesk/provider.js", () => ({ zendeskProvider: mocks.zendesk }));
 import { resolveTicketing } from "./index.js";
-import { resolvers } from "../schema.js";
+import type { TicketListOptions } from "./types.js";
+import type { TicketListArgs } from "../tickets/types.js";
+import { resolvers, typeDefs } from "../schema.js";
+const { graphql } = createRequire(import.meta.url)("graphql") as typeof import("graphql");
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.authorize.mockResolvedValue(undefined);
@@ -41,6 +46,31 @@ it("uses native tickets when no Hub ticketing provider is selected, without old 
   expect((await resolveTicketing("project-a", "client-a")).name).toBe("internal");
   expect(mocks.zendesk).not.toHaveBeenCalled();
   expect(mocks.legacy).not.toHaveBeenCalled();
+});
+it("requests Zendesk SLA enrichment only when the GraphQL list selects SLA", async () => {
+  const listTickets = vi.fn(async (_args: TicketListArgs, _options?: TicketListOptions) => ({
+    results: [], total: 0, count: 0, offset: 0
+  }));
+  mocks.hub.mockResolvedValue({ subdomain: "hub-account", api: vi.fn() });
+  mocks.zendesk.mockReturnValue({ getTicket: vi.fn(), listTickets });
+  const schema = buildSubgraphSchema([{ typeDefs, resolvers }]);
+  const contextValue = { projectKey: "project-a", clientId: "client-a" };
+
+  await graphql({
+    schema,
+    contextValue,
+    source: `{ ticketPage { results { id subject } } }`
+  });
+  await graphql({
+    schema,
+    contextValue,
+    source: `{ ticketPage { results { id sla { nextDueAt } } } }`
+  });
+
+  expect(listTickets.mock.calls.map((call) => call[1])).toEqual([
+    { includeSla: false },
+    { includeSla: true }
+  ]);
 });
 it("fails closed on Hub outages instead of returning unrelated native or legacy tickets", async () => {
   mocks.hub.mockRejectedValue(new Error("Hub unavailable"));

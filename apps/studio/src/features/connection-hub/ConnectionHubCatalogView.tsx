@@ -8,6 +8,7 @@ import { getProviderLogo } from "@/features/onboarding/components/ProviderLogo";
 import type { HubCatalogConnector } from "@/lib/connection-hub-catalog";
 import { ZendeskPluginDialog } from "@/features/csa-assistant/components/ZendeskPluginDialog";
 import { RemoveConnectorDialog, type RemovalTarget } from "./RemoveConnectorDialog";
+import { ConnectConnectorDialog, type ConnectionTarget } from "./ConnectConnectorDialog";
 
 import {
   AlgoliaPluginDialog,
@@ -20,6 +21,7 @@ export function ConnectionHubCatalogView() {
   const [algoliaOpen, setAlgoliaOpen] = useState(false);
   const [zendeskOpen, setZendeskOpen] = useState(false);
   const [removal, setRemoval] = useState<RemovalTarget | null>(null);
+  const [connection, setConnection] = useState<ConnectionTarget | null>(null);
   const [notice, setNotice] = useState<{
     clientId: string;
     projectKey: string;
@@ -254,9 +256,7 @@ export function ConnectionHubCatalogView() {
                         {item.authenticationType.replace(/_/g, " ")}
                       </Badge>
                     </div>
-                    {(item.id === "algolia" ||
-                      item.id === "zendesk" ||
-                      (known && selected)) && (
+                    {(item.id === "algolia" || item.id === "zendesk" || known) && (
                       <div className="flex flex-wrap items-center gap-3">
                         {item.id === "algolia" && (
                           <Button
@@ -275,7 +275,23 @@ export function ConnectionHubCatalogView() {
                             disabled={!user?.activeClientId || !user.activeProjectKey}
                             onClick={() => setZendeskOpen(true)}
                           >
-                            Manage Zendesk
+                            {!known || selected ? "Manage Zendesk" : "Connect Zendesk"}
+                          </Button>
+                        )}
+                        {item.id !== "algolia" && item.id !== "zendesk" && !selected && (
+                          <Button
+                            variant="outline"
+                            disabled={!user?.activeClientId || !user.activeProjectKey}
+                            onClick={() => {
+                              if (!user?.activeClientId || !user.activeProjectKey) return;
+                              setConnection({
+                                ...item,
+                                clientId: user.activeClientId,
+                                projectKey: user.activeProjectKey
+                              });
+                            }}
+                          >
+                            Connect {item.name}
                           </Button>
                         )}
                         {known && selected && (
@@ -369,6 +385,23 @@ export function ConnectionHubCatalogView() {
                 text
               });
               setRemoval(null);
+            }}
+          />
+        )}
+      {connection &&
+        connection.clientId === user?.activeClientId &&
+        connection.projectKey === user?.activeProjectKey && (
+          <ConnectConnectorDialog
+            key={`${connection.clientId}:${connection.projectKey}:${connection.id}`}
+            target={connection}
+            onClose={() => setConnection(null)}
+            onConnected={(text) => {
+              setNotice({
+                clientId: connection.clientId,
+                projectKey: connection.projectKey,
+                text
+              });
+              setConnection(null);
             }}
           />
         )}
