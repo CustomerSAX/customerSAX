@@ -1070,7 +1070,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
   const setRightPanelOpen  = useConversationStore((s) => s.setRightPanelOpen);
   const setRightPanelTab   = useConversationStore((s) => s.setRightPanelTab);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
   const activeTicketId = useConversationStore((s) => s.activeTicketId);
   const setActiveStepper = useConversationStore((s) => s.setActiveStepper);
@@ -1098,9 +1098,12 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
     && orderWorkflow?.cart != null
     && !orderWorkflow?.placedOrder;
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom — of the message list only. scrollIntoView() also
+  // scrolls every ancestor, including the window, which pushed the whole app
+  // (top bar and all) off screen while a reply streamed.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const list = messagesRef.current;
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [messages, isLoading]);
 
   useChatToolEffects(messages, isLoading);
@@ -1252,7 +1255,7 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={messagesRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
             <div className="w-12 h-12 rounded-full bg-m-primary/10 flex items-center justify-center mb-4">
@@ -1300,7 +1303,6 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
           }}
         />
 
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
