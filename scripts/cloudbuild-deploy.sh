@@ -175,9 +175,54 @@ deploy_service() {
 
 }
 
+# Deploy independent services in bounded parallel batches. Production queues all
+# eight services, and deploying them serially can exceed the Cloud Build step
+# deadline even when every rollout succeeds. Keep bff until the end because its
+# FEDERATED_SERVICES value is assembled from the deployed subgraph URLs.
+MAX_PARALLEL_DEPLOYS=4
+NON_BFF_SERVICES=()
+DEPLOY_BFF=false
+
 for SVC in "${SERVICES[@]}"; do
-  deploy_service "${SVC}"
+  if [ "${SVC}" = "bff" ]; then
+    DEPLOY_BFF=true
+  else
+    NON_BFF_SERVICES+=("${SVC}")
+  fi
 done
+
+deploy_batch() {
+  local -a BATCH_SERVICES=("$@")
+  local -a BATCH_PIDS=()
+  local -a FAILED_DEPLOYS=()
+  local INDEX
+
+  echo "▶ Deploying batch in parallel: ${BATCH_SERVICES[*]}"
+  for SVC in "${BATCH_SERVICES[@]}"; do
+    deploy_service "${SVC}" &
+    BATCH_PIDS+=("$!")
+  done
+
+  for INDEX in "${!BATCH_PIDS[@]}"; do
+    if ! wait "${BATCH_PIDS[${INDEX}]}"; then
+      FAILED_DEPLOYS+=("${BATCH_SERVICES[${INDEX}]}")
+    fi
+  done
+
+  if [ "${#FAILED_DEPLOYS[@]}" -gt 0 ]; then
+    echo "❌ Deployments failed: ${FAILED_DEPLOYS[*]}"
+    return 1
+  fi
+}
+
+for ((START=0; START<${#NON_BFF_SERVICES[@]}; START+=MAX_PARALLEL_DEPLOYS)); do
+  deploy_batch "${NON_BFF_SERVICES[@]:START:MAX_PARALLEL_DEPLOYS}"
+done
+
+if [ "${DEPLOY_BFF}" = true ]; then
+  echo "▶ Deploying bff after all subgraphs are ready"
+  deploy_service "bff"
+fi
 
 echo ""
 echo "✅ All services deployed to Cloud Run!"
