@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import {
+  generateKnowledgeBaseCsvTemplate,
   generateKnowledgeBaseTemplate,
   parseAndValidateKnowledgeBaseExcel
 } from "./excel";
@@ -86,5 +87,41 @@ describe("Knowledge Base Excel utility", () => {
     expect(result.errors.some((e) => e.includes('Sheet "FAQ", Row 2: "Question" cannot be empty'))).toBe(true);
     expect(result.errors.some((e) => e.includes('Sheet "FAQ", Row 3: "Section" cannot be empty'))).toBe(true);
     expect(result.errors.some((e) => e.includes('Sheet "Troubleshoot", Row 2: "Answer" cannot be empty'))).toBe(true);
+  });
+
+  it("generates and validates CSV template with Type, Section, Question, Answer", () => {
+    const csvBuffer = generateKnowledgeBaseCsvTemplate();
+    expect(csvBuffer).toBeDefined();
+
+    const result = parseAndValidateKnowledgeBaseExcel(csvBuffer, "knowledge-base.csv");
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.items.length).toBe(6);
+
+    const faqItems = result.items.filter((i) => i.type === "faq");
+    const tsItems = result.items.filter((i) => i.type === "troubleshoot");
+    expect(faqItems.length).toBe(3);
+    expect(tsItems.length).toBe(3);
+  });
+
+  it("parses CSV with custom rows and handles row error reporting", () => {
+    const csv = `Type,Section,Question,Answer
+FAQ,Billing,How to pay?,Credit card
+Troubleshoot,Network,,Check router
+`;
+    const result = parseAndValidateKnowledgeBaseExcel(Buffer.from(csv), "test.csv");
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('Row 3: "Question" cannot be empty'))).toBe(true);
+  });
+
+  it("parses CSV without Type column defaulting to FAQ", () => {
+    const csv = `Section,Question,Answer
+Support,How to contact?,Call 1-800
+`;
+    const result = parseAndValidateKnowledgeBaseExcel(Buffer.from(csv), "faq.csv");
+    expect(result.valid).toBe(true);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].type).toBe("faq");
+    expect(result.items[0].section).toBe("Support");
   });
 });

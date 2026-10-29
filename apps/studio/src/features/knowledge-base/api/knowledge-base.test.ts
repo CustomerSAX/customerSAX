@@ -26,6 +26,25 @@ describe("Knowledge Base Endpoints & Utilities", () => {
     expect(parseResult.items.length).toBe(6); // 3 FAQ, 3 Troubleshoot
   });
 
+  it("Template route returns valid CSV file when ?format=csv is requested", async () => {
+    const request = new Request("http://localhost:3000/api/organizations/org-123/knowledge-base/template?format=csv");
+    const response = await getTemplateRoute(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("text/csv; charset=utf-8");
+    expect(response.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="knowledge-base-template.csv"'
+    );
+
+    const text = await response.text();
+    expect(text).toContain("Type,Section,Question,Answer");
+    expect(text).toContain("FAQ,Account,How do I reset my password?");
+
+    const parseResult = parseAndValidateKnowledgeBaseExcel(Buffer.from(text), "template.csv");
+    expect(parseResult.valid).toBe(true);
+    expect(parseResult.items.length).toBe(6);
+  });
+
   it("Excel parser validates required sheets and columns", () => {
     const validBuffer = generateKnowledgeBaseTemplate();
     const res = parseAndValidateKnowledgeBaseExcel(validBuffer);

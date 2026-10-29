@@ -17,9 +17,10 @@ import { OrganizationSettingsView } from "@/features/organization/OrganizationSe
 import { ProjectsListView } from "@/features/projects/ProjectsListView";
 import { ConnectionHubCatalogView } from "@/features/connection-hub/ConnectionHubCatalogView";
 import { StudioConnectorsView } from "@/features/connectors/StudioConnectorsView";
+import { KnowledgeBaseAdmin } from "./KnowledgeBaseAdmin";
 
-export type AdminSettingsTab = "organization" | "projects" | "connectors" | "connection-hub" | "users" | "roles";
-export type LegacySection = "email" | "ai" | "knowledge-base";
+export type AdminSettingsTab = "organization" | "projects" | "connectors" | "connection-hub" | "knowledge-base" | "users" | "roles";
+export type LegacySection = "email" | "ai";
 export type Section = AdminSettingsTab | LegacySection;
 type Permission = {
   module: string;
@@ -318,6 +319,7 @@ const ADMIN_TABS: Array<{ id: AdminSettingsTab; label: string; icon: string }> =
   { id: "projects", label: "Projects", icon: "folder" },
   { id: "connection-hub", label: "Connection Hub", icon: "link" },
   { id: "connectors", label: "Native Connectors", icon: "layers" },
+  { id: "knowledge-base", label: "Knowledge Base", icon: "book-open" },
   { id: "users", label: "Users", icon: "users" },
   { id: "roles", label: "Roles", icon: "shield" }
 ];
@@ -328,10 +330,10 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
   const currentLocale = useLocale() as AppLocale;
 
   const normalizeSection = (sec?: Section): AdminSettingsTab => {
-    if (sec === "email" || sec === "ai" || sec === "knowledge-base") {
+    if (sec === "email" || sec === "ai") {
       return "connectors";
     }
-    if (sec === "projects" || sec === "connection-hub" || sec === "connectors" || sec === "users" || sec === "roles") {
+    if (sec === "projects" || sec === "connection-hub" || sec === "connectors" || sec === "knowledge-base" || sec === "users" || sec === "roles") {
       return sec;
     }
     return "organization";
@@ -419,6 +421,7 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
           {activeSection === "projects" && <ProjectsListView embedded />}
           {activeSection === "connection-hub" && <ConnectionHubCatalogView />}
           {activeSection === "connectors" && <StudioConnectorsView embedded />}
+          {activeSection === "knowledge-base" && <KnowledgeBaseAdmin clientId={clientId} />}
           {activeSection === "users" && (
             loading ? (
               <State text={t("loading")} />

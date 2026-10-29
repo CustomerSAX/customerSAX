@@ -7,6 +7,8 @@ const TAB_MAP: Record<string, AdminSettingsTab> = {
   projects: "projects",
   "connection-hub": "connection-hub",
   connectors: "connectors",
+  "knowledge-base": "knowledge-base",
+  knowledgebase: "knowledge-base",
   users: "users",
   roles: "roles",
   email: "connectors",

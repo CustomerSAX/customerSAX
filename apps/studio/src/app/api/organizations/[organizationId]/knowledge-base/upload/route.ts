@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
       if (!file) {
         return NextResponse.json(
-          { ok: false, error: "No file was uploaded. Please attach an Excel (.xlsx) file." },
+          { ok: false, error: "No file was uploaded. Please attach an Excel (.xlsx) or CSV (.csv) file." },
           { status: 400 }
         );
       }
@@ -64,24 +64,28 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   if (!fileBuffer || fileBuffer.byteLength === 0) {
     return NextResponse.json(
-      { ok: false, error: "The uploaded file is empty. Please upload a valid .xlsx file." },
+      { ok: false, error: "The uploaded file is empty. Please upload a valid .xlsx or .csv file." },
       { status: 400 }
     );
   }
 
   // Validate file extension
-  if (filename && !filename.toLowerCase().endsWith(".xlsx")) {
+  const lowerFilename = (filename || "").toLowerCase();
+  const isExcel = lowerFilename.endsWith(".xlsx") || lowerFilename.endsWith(".xls");
+  const isCsv = lowerFilename.endsWith(".csv");
+
+  if (filename && !isExcel && !isCsv) {
     return NextResponse.json(
       {
         ok: false,
-        error: "Invalid file type. Please upload a valid Excel spreadsheet (.xlsx)."
+        error: "Invalid file type. Please upload a valid Excel spreadsheet (.xlsx) or CSV file (.csv)."
       },
       { status: 400 }
     );
   }
 
-  // Parse and validate the Excel workbook contents
-  const parseResult = parseAndValidateKnowledgeBaseExcel(fileBuffer);
+  // Parse and validate the Excel or CSV workbook contents
+  const parseResult = parseAndValidateKnowledgeBaseExcel(fileBuffer, filename);
 
   if (!parseResult.valid) {
     // If validation fails, do NOT touch existing records! Return actionable error messages.

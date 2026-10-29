@@ -43,11 +43,11 @@ export function KnowledgeBaseAdmin({ clientId }: KnowledgeBaseAdminProps) {
   }, [clientId]);
 
   // Handle template download
-  const handleDownloadTemplate = () => {
-    const downloadUrl = `/api/organizations/${clientId}/knowledge-base/template`;
+  const handleDownloadTemplate = (format: "xlsx" | "csv" = "xlsx") => {
+    const downloadUrl = `/api/organizations/${clientId}/knowledge-base/template?format=${format}`;
     const anchor = document.createElement("a");
     anchor.href = downloadUrl;
-    anchor.download = "knowledge-base-template.xlsx";
+    anchor.download = `knowledge-base-template.${format}`;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
@@ -127,7 +127,7 @@ export function KnowledgeBaseAdmin({ clientId }: KnowledgeBaseAdminProps) {
       <div>
         <h2 className="text-xl font-bold text-m-text">Knowledge Base</h2>
         <p className="mt-1 text-sm text-m-text-muted">
-          Upload your organization&apos;s FAQ and Troubleshooting content using the Excel template.
+          Upload your organization&apos;s FAQ and Troubleshooting content using an Excel (.xlsx) or CSV template.
         </p>
       </div>
 
@@ -263,24 +263,34 @@ export function KnowledgeBaseAdmin({ clientId }: KnowledgeBaseAdminProps) {
       <div className="rounded-xl border border-m-border bg-m-surface p-6 shadow-sm">
         <h3 className="text-base font-bold text-m-text">Upload & Template</h3>
         <p className="mt-1 text-xs text-m-text-muted">
-          Download our pre-structured template, add your questions and answers in the FAQ and Troubleshoot sheets, and upload the completed workbook.
+          Download our pre-structured Excel or CSV template, add your questions and answers in FAQ and Troubleshoot, and upload the completed file.
         </p>
 
-        <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-          <Button
-            type="button"
-            variant="secondary"
-            leftIcon={<Icon name="download" size="xs" />}
-            onClick={handleDownloadTemplate}
-          >
-            Download Template
-          </Button>
+        <div className="mt-6 flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              leftIcon={<Icon name="download" size="xs" />}
+              onClick={() => handleDownloadTemplate("xlsx")}
+            >
+              Excel Template (.xlsx)
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              leftIcon={<Icon name="download" size="xs" />}
+              onClick={() => handleDownloadTemplate("csv")}
+            >
+              CSV Template (.csv)
+            </Button>
+          </div>
 
           <div className="relative flex-1">
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
               onChange={handleFileChange}
               id="kb-file-upload"
               className="sr-only"
@@ -298,7 +308,7 @@ export function KnowledgeBaseAdmin({ clientId }: KnowledgeBaseAdminProps) {
                 ) : (
                   <span className="text-m-text-muted flex items-center gap-2">
                     <Icon name="upload" size="xs" />
-                    Select or browse completed .xlsx file...
+                    Select or browse completed .xlsx or .csv file...
                   </span>
                 )}
               </span>
