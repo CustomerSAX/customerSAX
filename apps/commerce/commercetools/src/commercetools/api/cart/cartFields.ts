@@ -47,7 +47,11 @@ export const cartFields = `#graphql
     price { centAmount currencyCode fractionDigits }
   }
   discountCodes {
-    discountCode { code }
+    discountCode { id code }
+    state
+  }
+  discountOnTotalPrice {
+    discountedAmount { centAmount currencyCode fractionDigits }
   }
   lineItems {
     id
@@ -59,6 +63,9 @@ export const cartFields = `#graphql
       value
     }
     quantity
+    price {
+      value { centAmount currencyCode fractionDigits }
+    }
     totalPrice {
       centAmount
       currencyCode

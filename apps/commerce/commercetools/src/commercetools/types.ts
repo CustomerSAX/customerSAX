@@ -28,6 +28,8 @@ export type CtLineItem = {
   nameAllLocales?: LocalizedString;
   productId?: string;
   quantity: number;
+  /** Unit price before any discount (present on cart line items). */
+  price?: { value?: CtMoney | null } | null;
   totalPrice: CtMoney;
   variant?: {
     sku?: string;
@@ -44,7 +46,8 @@ export type CtCart = {
   key?: string;
   lastModifiedAt?: string;
   lineItems?: CtLineItem[];
-  discountCodes?: Array<{ discountCode?: { code?: string } | null }>;
+  discountCodes?: Array<{ discountCode?: { id?: string; code?: string } | null; state?: string | null }>;
+  discountOnTotalPrice?: { discountedAmount?: CtMoney | null } | null;
   shippingAddress?: CtAddress | null;
   shippingInfo?: {
     price?: CtMoney;
@@ -87,6 +90,24 @@ export type CtReturnInfo = {
   items: CtReturnItem[];
 };
 
+export type CtParcel = {
+  id: string;
+  createdAt?: string | null;
+  trackingData?: {
+    trackingId?: string | null;
+    carrier?: string | null;
+    provider?: string | null;
+    providerTransaction?: string | null;
+    isReturn?: boolean | null;
+  } | null;
+};
+
+export type CtDelivery = {
+  id: string;
+  createdAt?: string | null;
+  parcels?: CtParcel[] | null;
+};
+
 export type CtOrder = {
   createdAt?: string;
   customerId?: string;
@@ -102,6 +123,8 @@ export type CtOrder = {
   shippingAddress?: CtAddress | null;
   billingAddress?: CtAddress | null;
   returnInfo?: CtReturnInfo[] | null;
+  shippingInfo?: { deliveries?: CtDelivery[] | null } | null;
+  shipping?: Array<{ shippingInfo?: { deliveries?: CtDelivery[] | null } | null }> | null;
 };
 
 export type CtCustomer = {

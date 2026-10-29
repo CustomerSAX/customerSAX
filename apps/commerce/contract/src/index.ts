@@ -28,6 +28,8 @@ export type {
   Order,
   OrderAddress,
   OrderReturnInfo,
+  OrderDelivery,
+  OrderParcel,
   OrderReturnItem,
   Page,
   Product,

@@ -65,6 +65,12 @@ export type Cart = {
     shippingMethodName?: string;
   } | null;
   discountCodes: string[];
+  /** Each applied code with its platform status (null when the platform does not report it). */
+  discountCodeStates?: Array<{ code: string; state?: string | null }> | null;
+  /** Cart-level discount on the total; null when none. */
+  discountOnTotalPrice?: Money | null;
+  /** Total saved: full-price line items minus discounted line totals, plus cart-level discount. Null when none/unknown. */
+  totalDiscount?: Money | null;
   totalPrice: Money;
   version: number;
 };
@@ -133,6 +139,21 @@ export type OrderReturnInfo = {
   items: OrderReturnItem[];
 };
 
+export type OrderParcel = {
+  id: string;
+  createdAt?: string | null;
+  trackingId?: string | null;
+  carrier?: string | null;
+  provider?: string | null;
+  isReturn?: boolean | null;
+};
+
+export type OrderDelivery = {
+  id: string;
+  createdAt?: string | null;
+  parcels: OrderParcel[];
+};
+
 export type OrderAddress = {
   streetName?: string | null;
   streetNumber?: string | null;
@@ -158,6 +179,7 @@ export type Order = {
   shippingAddress?: OrderAddress | null;
   billingAddress?: OrderAddress | null;
   returnInfo?: OrderReturnInfo[] | null;
+  deliveries?: OrderDelivery[] | null;
 };
 
 export type Customer = {

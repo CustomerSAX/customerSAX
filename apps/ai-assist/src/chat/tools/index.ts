@@ -13,6 +13,10 @@ import { buildUiTools } from "./ui-tools.js";
 import { buildTicketTools } from "./tickets.js";
 import { buildCrmTools } from "./crm.js";
 import { buildWrapUpTools } from "./wrap-up.js";
+import { buildAddressTools } from "./addresses.js";
+import { buildOrderStatusTools } from "./order-status.js";
+import { buildTeamStatsTools } from "./team-stats.js";
+import { buildCustomerOverviewTools } from "./customer-overview.js";
 
 /**
  * Builds the per-request tool set.
@@ -33,6 +37,10 @@ export function buildChatTools(): ToolSet {
     ...buildUiTools(approvalGate),
     ...(buildTicketTools(approvalGate) as ToolSet),
     ...(buildCrmTools(approvalGate) as ToolSet),
-    ...(buildWrapUpTools(approvalGate) as ToolSet)
+    ...(buildWrapUpTools(approvalGate) as ToolSet),
+    ...(buildAddressTools(approvalGate) as ToolSet),
+    ...(buildOrderStatusTools() as ToolSet),
+    ...(buildTeamStatsTools() as ToolSet),
+    ...(buildCustomerOverviewTools() as ToolSet)
   };
 }

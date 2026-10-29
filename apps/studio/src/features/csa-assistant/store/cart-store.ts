@@ -319,7 +319,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       }
     } catch (e) {
       if (get().customerId !== customerId) return;
-      console.error('[CartStore] resolve failed:', e);
+      console.warn('[CartStore] resolve failed:', e);
       set({ resolving: false, error: e instanceof Error ? e.message : String(e) });
     }
   },
@@ -343,7 +343,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         currency: cart.currencyCode ?? get().currency,
       });
     } catch (e) {
-      console.error('[CartStore] refresh failed:', e);
+      console.warn('[CartStore] refresh failed:', e);
     }
   },
 
@@ -405,7 +405,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       return { ok: true };
     } catch (e) {
       const msg = humanizeError(e instanceof Error ? e.message : String(e));
-      console.error('[CartStore] addItem failed:', e);
+      console.warn('[CartStore] addItem failed:', e);
       set({ mutating: false, error: msg, pendingKeys: clearPending(get, key) });
       return { ok: false, error: msg };
     }
@@ -431,7 +431,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       // Stale cart — clear so the next addItem creates a fresh one.
       if (isCartStaleError(raw)) set({ cartId: null, items: [], ...EMPTY_TOTALS });
       const msg = humanizeError(raw);
-      console.error('[CartStore] changeQuantity failed:', e);
+      console.warn('[CartStore] changeQuantity failed:', e);
       set({ mutating: false, error: msg, pendingKeys: clearPending(get, key) });
       return { ok: false, error: msg };
     }
@@ -452,7 +452,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       const raw = e instanceof Error ? e.message : String(e);
       if (isCartStaleError(raw)) set({ cartId: null, items: [], ...EMPTY_TOTALS });
       const msg = humanizeError(raw);
-      console.error('[CartStore] removeItem failed:', e);
+      console.warn('[CartStore] removeItem failed:', e);
       set({ mutating: false, error: msg, pendingKeys: clearPending(get, key) });
       return { ok: false, error: msg };
     }

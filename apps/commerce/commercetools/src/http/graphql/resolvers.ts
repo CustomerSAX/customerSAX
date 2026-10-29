@@ -40,6 +40,8 @@ export const resolvers = {
   Json: jsonScalar,
   Mutation: {
     addCartDiscountCode: cartResolvers.addCartDiscountCode,
+    removeCartDiscountCode: cartResolvers.removeCartDiscountCode,
+    deleteCart: cartResolvers.deleteCart,
     addCartLineItem: cartResolvers.addCartLineItem,
     addCustomerAddress: customerResolvers.addCustomerAddress,
     changeCartLineItemQuantity: cartResolvers.changeCartLineItemQuantity,

@@ -26,6 +26,22 @@ export const orderTypeDefs = gql`
     shippingAddress: OrderAddress
     billingAddress: OrderAddress
     returnInfo: [OrderReturnInfo!]
+    deliveries: [OrderDelivery!]
+  }
+
+  type OrderParcel {
+    id: ID!
+    createdAt: String
+    trackingId: String
+    carrier: String
+    provider: String
+    isReturn: Boolean
+  }
+
+  type OrderDelivery {
+    id: ID!
+    createdAt: String
+    parcels: [OrderParcel!]!
   }
 
   type OrderLineItem {

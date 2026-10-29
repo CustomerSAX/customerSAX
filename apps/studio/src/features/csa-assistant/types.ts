@@ -120,11 +120,15 @@ export interface OrderConfirmationArgs {
 export interface CartSummaryArgs {
   cartId: string;
   cartVersion?: number;
-  customer: { name: string; email?: string };
+  /** Absent when the cart has no known customer — never a placeholder. */
+  customer?: { name: string; email?: string };
   itemCount: number;
   items: Array<{ sku: string; name: string; quantity: number; lineTotal: string }>;
   subtotal: string;
+  /** Total saved (already included in the line totals); empty when there is no real saving. */
   discount?: string;
+  /** Codes on the cart; applies = the code is actually discounting (commercetools state MatchesCart). */
+  discountCodes?: Array<{ code: string; applies: boolean }>;
   shipping?: string;
   total: string;
 }
@@ -181,6 +185,8 @@ export interface CrmContactCardArgs {
 export interface DraftEmailArgs {
   draftContent: string;
   suggestedSubject: string;
+  /** Recipient (customer email); empty when unknown. */
+  to?: string;
 }
 
 export interface RenderRefundActionArgs {

@@ -47,7 +47,7 @@ type ReturnEligibilityToolResult = {
     id?: string;
     orderNumber?: string;
     totalPrice?: string;
-    lineItems?: Array<{ lineItemId?: string; name?: string; quantity?: number; price?: string }>;
+    lineItems?: Array<{ lineItemId?: string; name?: string; quantity?: number; returnableQuantity?: number; price?: string }>;
   };
 };
 type StartReturnToolResult = { success?: boolean; returnTrackingId?: string };
@@ -275,6 +275,7 @@ export function useChatToolEffects(messages: UIMessage[], isLoading: boolean) {
                       lineItemId: li.lineItemId,
                       name: li.name,
                       quantity: li.quantity ?? 1,
+                      returnableQuantity: li.returnableQuantity,
                       price: li.price,
                     }))
                   : [],

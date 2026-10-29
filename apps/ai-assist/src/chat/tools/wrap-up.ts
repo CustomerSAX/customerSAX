@@ -18,6 +18,7 @@ import { z } from "zod";
 import { createLogger } from "@csa/logger";
 import { getSystemPromptContext } from "../system-prompt.js";
 import { instrumentTools } from "./instrument.js";
+import { guardWriteTools } from "./write-guard.js";
 import { addTicketNote, updateTicketFields } from "./tickets.js";
 import { crmToolError, logCrmActivity } from "./crm.js";
 
@@ -153,5 +154,5 @@ export function buildWrapUpTools(approvalGate?: { pending: boolean }) {
     }
   });
 
-  return instrumentTools({ wrap_up_case: wrapUpCaseTool }, log);
+  return instrumentTools(guardWriteTools({ wrap_up_case: wrapUpCaseTool }, approvalGate), log);
 }

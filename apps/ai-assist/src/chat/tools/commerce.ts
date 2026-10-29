@@ -13,6 +13,9 @@ import { withIdempotency } from "@csa/mongodb";
 import { bffQuery, formatMoney } from "../../commerce/graphql-client.js";
 import { contextStorage, getSystemPromptContext } from "../system-prompt.js";
 import { instrumentTools } from "./instrument.js";
+import { config } from "../../config.js";
+import { guardWriteTools } from "./write-guard.js";
+import { RESOLUTION_REASONS } from "./ui-tools.js";
 
 const log = createLogger("ai-assist").child({ module: "tools/commerce" });
 
@@ -27,6 +30,7 @@ const ORDER_FIELDS = `
   lineItems { id productId sku name quantity totalPrice { ${MONEY_FRAGMENT} } }
   shippingAddress { ${ADDRESS_FRAGMENT} }
   billingAddress { ${ADDRESS_FRAGMENT} }
+  deliveries { id createdAt parcels { trackingId carrier provider isReturn } }
   returnInfo {
     returnTrackingId
     returnDate
@@ -34,6 +38,7 @@ const ORDER_FIELDS = `
       id
       type
       quantity
+      lineItemId
       shipmentState
       paymentState
       comment
@@ -41,9 +46,11 @@ const ORDER_FIELDS = `
   }
 `;
 const CART_FIELDS = `
-  id version key customerId currencyCode
+  id version key customerId customerEmail currencyCode
   totalPrice { ${MONEY_FRAGMENT} }
   lineItems { id productId sku name quantity totalPrice { ${MONEY_FRAGMENT} } }
+  discountCodeStates { code state }
+  totalDiscount { ${MONEY_FRAGMENT} }
 `;
 const CUSTOMER_FIELDS = `
   id customerNumber email firstName lastName companyName
@@ -245,6 +252,58 @@ export async function listOrdersByEmail(customerEmail: string, limit: number): P
   return data.orderPage?.results ?? [];
 }
 
+// ─── get_latest_orders ────────────────────────────────────────────────────────
+
+/** Order states commercetools uses — "open orders" means orderState Open. */
+const ORDER_STATES = ["Open", "Confirmed", "Complete", "Cancelled"] as const;
+
+export const getLatestOrdersTool = tool({
+  description:
+    "The store's most recent orders, newest first, whatever their age — use for 'latest order', 'last order', " +
+    "'most recent orders', 'last 5 orders', 'latest open orders'. Not limited to a time window, so it always returns " +
+    "the real latest orders when any exist. The studio shows them as order cards.",
+  inputSchema: z.object({
+    limit: z.number().int().describe("How many orders: 1 for 'the latest order', else what the rep asked for (max 20); 5 when unsaid"),
+    orderState: z
+      .enum(["any", ...ORDER_STATES])
+      .describe("Only orders in this state ('Open' for 'open orders'); 'any' when the rep didn't say")
+  }),
+  execute: async ({ limit, orderState }) => {
+    const want = Math.min(Math.max(Math.round(limit) || 5, 1), 20);
+    const state = orderState === "any" ? null : orderState;
+    try {
+      const found: Record<string, unknown>[] = [];
+      let total = 0;
+      // Without a state filter the first page is enough; with one, page on until enough match.
+      for (let page = 0; page < (state ? 5 : 1) && found.length < want; page++) {
+        const data = await bffQuery<{ orderPage: { results: Record<string, unknown>[]; total: number } }>(
+          `query LatestOrders($limit: Int, $offset: Int) {
+            orderPage(limit: $limit, offset: $offset, sortKey: "createdAt", sortOrder: "desc") {
+              total
+              results { ${ORDER_FIELDS} }
+            }
+          }`,
+          { limit: state ? 100 : want, offset: page * 100 }
+        );
+        total = data.orderPage?.total ?? 0;
+        const results = data.orderPage?.results ?? [];
+        found.push(...results.filter((o) => !state || (o.orderState ?? o.state) === state));
+        if (results.length < (state ? 100 : want)) break;
+      }
+      const orders = await Promise.all(found.slice(0, want).map((o) => enrichOrderWithCustomer(o)));
+      return {
+        orders,
+        order: orders[0] ?? null,
+        total: orders.length,
+        storeOrderCount: total,
+        ...(orders.length === 0 ? { note: state ? `No ${state} orders among the store's newest orders.` : "This store has no orders yet." } : {})
+      };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
 export const getOrderTool = tool({
   description:
     "Retrieve a specific order by ID or order number, or list recent orders for a customer by their ID or email.",
@@ -369,16 +428,29 @@ export const viewCartTool = tool({
       }
 
       if (searchText) {
-        const data = await bffQuery<{ searchCarts: { results: unknown[]; total: number } }>(
+        const data = await bffQuery<{
+          searchCarts: { results: Array<Record<string, unknown> & { cartState?: string; lastModifiedAt?: string }>; total: number };
+        }>(
           `query SearchCarts($text: String!, $limit: Int) {
             searchCarts(text: $text, limit: $limit) {
-              results { ${CART_FIELDS} }
+              results { ${CART_FIELDS} cartState createdAt lastModifiedAt }
               total
             }
           }`,
-          { text: searchText, limit: 5 }
+          { text: searchText, limit: 20 }
         );
-        return data.searchCarts;
+        // Only carts still being shopped (Active), newest first: the first is
+        // the customer's current cart — the one new items go into (create_cart
+        // reuses it) — and any others are older leftovers.
+        const active = (data.searchCarts?.results ?? [])
+          .filter((c) => c.cartState === "Active")
+          .sort((a, b) => String(b.lastModifiedAt ?? "").localeCompare(String(a.lastModifiedAt ?? "")));
+        return {
+          results: active,
+          total: active.length,
+          currentCartId: (active[0]?.id as string | undefined) ?? null,
+          olderCartCount: Math.max(0, active.length - 1)
+        };
       }
 
       return { error: "Provide cartId, key, or searchText" };
@@ -588,6 +660,33 @@ export const listProductsTool = tool({
 
 // ─── create_cart ──────────────────────────────────────────────────────────────
 
+/**
+ * The customer's most recently modified Active cart in `currency`, or null.
+ * Matched on the customer id or email the cart actually carries; B2B
+ * (business-unit) carts are never reused here.
+ */
+async function findReusableCart(currency: string, customerId?: string, customerEmail?: string): Promise<Record<string, unknown> | null> {
+  const text = customerEmail || customerId;
+  if (!text) return null;
+  const data = await bffQuery<{
+    searchCarts: { results: Array<Record<string, unknown> & { cartState?: string; lastModifiedAt?: string; customerId?: string | null; customerEmail?: string | null; currencyCode?: string }> };
+  }>(
+    `query ReusableCarts($text: String!) {
+      searchCarts(text: $text, limit: 20) { results { ${CART_FIELDS} cartState lastModifiedAt } }
+    }`,
+    { text }
+  );
+  const email = customerEmail?.toLowerCase();
+  const mine = (data.searchCarts?.results ?? []).filter(
+    (c) =>
+      c.cartState === "Active" &&
+      c.currencyCode === currency &&
+      ((customerId && c.customerId === customerId) || (email && c.customerEmail?.toLowerCase() === email))
+  );
+  mine.sort((a, b) => String(b.lastModifiedAt ?? "").localeCompare(String(a.lastModifiedAt ?? "")));
+  return mine[0] ?? null;
+}
+
 export const createCartTool = tool({
   description:
     "Create a new cart for a customer. Executes immediately — no approval needed. " +
@@ -605,17 +704,41 @@ export const createCartTool = tool({
     businessUnitKey: z
       .string()
       .optional()
-      .describe("B2B business unit key — omit for a normal order; never guess or reuse one from a different customer")
+      .describe("B2B business unit key — omit for a normal order; never guess or reuse one from a different customer"),
+    startFresh: z
+      .boolean()
+      .default(false)
+      .describe("true ONLY when the rep explicitly asks for a separate new cart; otherwise the customer's existing active cart is reused")
   }),
-  execute: async ({ currency, customerId, customerEmail, businessUnitKey }) => {
+  execute: async ({ currency, customerId, customerEmail, businessUnitKey, startFresh }) => {
     try {
+      // commercetools allows any number of active carts per customer, so
+      // starting every order with a new cart left customers with several.
+      // Reuse their latest active cart in this currency instead.
+      if (!startFresh && !businessUnitKey?.trim()) {
+        const existing = await findReusableCart(currency, customerId?.trim(), customerEmail?.trim());
+        if (existing) {
+          return {
+            ...existing,
+            reused: true,
+            note: "This customer already had an active cart in this currency, so it is being reused instead of creating another. Tell the rep it already contains these items."
+          };
+        }
+      }
       const data = await bffQuery<{ createB2bCart: unknown }>(
         `mutation CreateCart($currency: String!, $customerId: ID, $customerEmail: String, $businessUnitKey: String) {
           createB2bCart(currency: $currency, customerId: $customerId, customerEmail: $customerEmail, businessUnitKey: $businessUnitKey) {
             ${CART_FIELDS}
           }
         }`,
-        { currency, customerId, customerEmail, businessUnitKey }
+        // The model fills every optional field, often with "" — an empty id
+        // isn't "no customer" to commercetools, it's an invalid id.
+        {
+          currency,
+          customerId: customerId?.trim() || undefined,
+          customerEmail: customerEmail?.trim() || undefined,
+          businessUnitKey: businessUnitKey?.trim() || undefined
+        }
       );
       return data.createB2bCart ?? { error: "Cart creation failed" };
     } catch (err) {
@@ -738,7 +861,11 @@ export const updateCartAddressTool = tool({
         }`,
         { billingAddress, id: cartId, shippingAddress }
       );
-      return data.updateCartAddresses ?? { error: "Failed to set address" };
+      if (!data.updateCartAddresses) return { error: "Failed to set address" };
+      return {
+        ...(data.updateCartAddresses as Record<string, unknown>),
+        nextStep: "Address set. If this is a checkout, call list_shipping_methods now so the rep can pick a shipping method."
+      };
     } catch (err) {
       return { error: String(err) };
     }
@@ -763,7 +890,17 @@ export const listShippingMethodsTool = tool({
         }`,
         { limit }
       );
-      return data.shippingMethods ?? [];
+      const methods = (data.shippingMethods ?? []).map((m) => ({ id: m.id, name: (m.name ?? m.key ?? m.id).trim() }));
+      // The studio shows these as a shipping-method card with one button per
+      // method — or, when there are none, a clear "no shipping methods" card.
+      return {
+        methods,
+        count: methods.length,
+        display:
+          methods.length > 0
+            ? "These methods are ALREADY shown to the rep as buttons on a shipping-method card. Reply with one short line; don't list them."
+            : "This store has NO shipping methods set up, so an order can't be placed until one is added in the commerce admin. Say exactly that in one line (never 'try again later'); the card offers a ticket."
+      };
     } catch (err) {
       return { error: String(err) };
     }
@@ -814,6 +951,173 @@ export const removeFromCartTool = tool({
         { id: cartId, lineItemId }
       );
       return data.removeCartLineItem ?? { error: "Failed to remove item" };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
+// ─── delete_cart ──────────────────────────────────────────────────────────────
+
+export const deleteCartTool = tool({
+  description:
+    "Delete one of a customer's active carts (e.g. an old duplicate or an empty cart). ALWAYS require action_approval first. " +
+    "Carts already turned into orders can't be deleted.",
+  inputSchema: z.object({ cartId: z.string().describe("Cart ID to delete") }),
+  execute: async ({ cartId }) => {
+    try {
+      const data = await bffQuery<{ deleteCart: boolean }>(`mutation DeleteCart($id: ID!) { deleteCart(id: $id) }`, { id: cartId });
+      return data.deleteCart ? { deleted: true, cartId } : { error: "The cart was not deleted." };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
+// ─── Discount codes ───────────────────────────────────────────────────────────
+//
+// commercetools accepts some codes onto a cart without discounting anything
+// (used up, conditions not met, blocked by another discount), so every result
+// carries the code's real state, not just "added". Draft cart changes — the
+// final total is still approved at place_order.
+
+const DISCOUNT_STATE_MEANING: Record<string, string> = {
+  MatchesCart: "applied — the discount is on the cart",
+  DoesNotMatchCart: "on the cart but not discounting anything: this cart doesn't meet the code's conditions (products, minimum amount, customer group…)",
+  MaxApplicationReached: "on the cart but not discounting anything: the code has reached its usage limit",
+  NotActive: "on the cart but not discounting anything: the code is inactive",
+  NotValid: "on the cart but not discounting anything: the code is outside its validity dates",
+  ApplicationStoppedByPreviousDiscount: "on the cart but not discounting anything: another discount already on the cart blocks it"
+};
+
+/** commercetools' errors name codes by internal id; restate them with the code the rep typed. */
+function discountCodeError(err: unknown, code: string): string {
+  const raw = String(err);
+  if (/was not found/i.test(raw)) return `Discount code '${code}' doesn't exist in this store.`;
+  if (/not active/i.test(raw)) return `Discount code '${code}' is inactive.`;
+  if (/does not contain active and valid/i.test(raw)) return `Discount code '${code}' has no active, valid discount behind it right now.`;
+  if (/not applied to this cart/i.test(raw)) return `Discount code '${code}' isn't applied to this cart.`;
+  return raw;
+}
+
+type CartWithDiscounts = {
+  discountCodeStates?: Array<{ code: string; state?: string | null }> | null;
+  totalDiscount?: { centAmount?: number; currencyCode?: string; fractionDigits?: number } | null;
+} & Record<string, unknown>;
+
+function discountSummary(cart: CartWithDiscounts) {
+  const total = cart.totalPrice as { centAmount?: number; currencyCode?: string; fractionDigits?: number } | undefined;
+  return {
+    // The cart's real total, discounts already applied. Report THIS number —
+    // subtracting totalDiscount from it would count the saving twice.
+    cartTotal: total ? formatMoney(total) : null,
+    totalAlreadyIncludesDiscount: true,
+    codes: (cart.discountCodeStates ?? []).map((c) => ({
+      code: c.code,
+      state: c.state ?? null,
+      applies: c.state === "MatchesCart",
+      meaning: (c.state && DISCOUNT_STATE_MEANING[c.state]) ?? "status not reported"
+    })),
+    totalDiscount: cart.totalDiscount ? formatMoney(cart.totalDiscount) : null
+  };
+}
+
+export const applyDiscountCodeTool = tool({
+  description:
+    "Apply a discount / promo / coupon code to a cart (e.g. 'apply SAVE10'). Draft cart change — no approval needed. " +
+    "The result says whether the code actually discounts (applies) and, if not, why; report that honestly, then call cart_summary.",
+  inputSchema: z.object({
+    cartId: z.string().describe("Cart ID"),
+    code: z.string().min(1).describe("The code exactly as the rep gave it")
+  }),
+  execute: async ({ cartId, code }) => {
+    const trimmed = code.trim();
+    try {
+      const data = await bffQuery<{ addCartDiscountCode: CartWithDiscounts | null }>(
+        `mutation ApplyDiscountCode($id: ID!, $code: String!) {
+          addCartDiscountCode(id: $id, code: $code) { ${CART_FIELDS} }
+        }`,
+        { id: cartId, code: trimmed }
+      );
+      if (!data.addCartDiscountCode) return { error: "Cart not found" };
+      const summary = discountSummary(data.addCartDiscountCode);
+      const thisCode = summary.codes.find((c) => c.code.toLowerCase() === trimmed.toLowerCase()) ?? null;
+      return { code: trimmed, applied: thisCode?.applies ?? false, codeStatus: thisCode, ...summary, cart: data.addCartDiscountCode };
+    } catch (err) {
+      return { error: discountCodeError(err, trimmed) };
+    }
+  }
+});
+
+export const removeDiscountCodeTool = tool({
+  description: "Remove a discount code from a cart. Draft cart change — no approval needed. Call cart_summary afterwards.",
+  inputSchema: z.object({
+    cartId: z.string().describe("Cart ID"),
+    code: z.string().min(1).describe("The code to remove")
+  }),
+  execute: async ({ cartId, code }) => {
+    const trimmed = code.trim();
+    try {
+      const data = await bffQuery<{ removeCartDiscountCode: CartWithDiscounts | null }>(
+        `mutation RemoveDiscountCode($id: ID!, $code: String!) {
+          removeCartDiscountCode(id: $id, code: $code) { ${CART_FIELDS} }
+        }`,
+        { id: cartId, code: trimmed }
+      );
+      if (!data.removeCartDiscountCode) return { error: "Cart not found" };
+      return { removed: trimmed, ...discountSummary(data.removeCartDiscountCode), cart: data.removeCartDiscountCode };
+    } catch (err) {
+      return { error: discountCodeError(err, trimmed) };
+    }
+  }
+});
+
+export const listDiscountCodesTool = tool({
+  description: "List the store's currently active discount codes (code, name, validity). Use when the rep asks which codes exist.",
+  inputSchema: z.object({}),
+  execute: async () => {
+    try {
+      const data = await bffQuery<{
+        discountCodes: Array<{ code: string; name?: string | null; isActive: boolean; validFrom?: string | null; validUntil?: string | null }>;
+      }>(`query ActiveDiscountCodes { discountCodes(limit: 100) { code name isActive validFrom validUntil } }`, {});
+      const now = Date.now();
+      const active = (data.discountCodes ?? []).filter(
+        (d) =>
+          d.isActive &&
+          (!d.validFrom || Date.parse(d.validFrom) <= now) &&
+          (!d.validUntil || Date.parse(d.validUntil) >= now)
+      );
+      return {
+        codes: active.map((d) => ({ code: d.code, name: d.name ?? null, validUntil: d.validUntil ?? null })),
+        count: active.length,
+        note: "Active codes can still be used up or not match a given cart — apply_discount_code reports the real result."
+      };
+    } catch (err) {
+      return { error: String(err) };
+    }
+  }
+});
+
+// ─── change_cart_quantity ─────────────────────────────────────────────────────
+
+export const changeCartQuantityTool = tool({
+  description:
+    "Set a cart line item to a new total quantity (e.g. 'make it 3' → quantity 3). Use this instead of removing and re-adding. " +
+    "Quantity 0 removes the line. Draft cart operation — no approval needed.",
+  inputSchema: z.object({
+    cartId: z.string().describe("Cart ID"),
+    lineItemId: z.string().describe("Line item ID from view_cart / the cart in this conversation"),
+    quantity: z.number().int().min(0).max(999).describe("New TOTAL quantity for the line (not a delta)")
+  }),
+  execute: async ({ cartId, lineItemId, quantity }) => {
+    try {
+      const data = await bffQuery<{ changeCartLineItemQuantity: unknown }>(
+        `mutation ChangeCartQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!) {
+          changeCartLineItemQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) { ${CART_FIELDS} }
+        }`,
+        { id: cartId, lineItemId, quantity }
+      );
+      return data.changeCartLineItemQuantity ?? { error: "Failed to change the quantity" };
     } catch (err) {
       return { error: String(err) };
     }
@@ -921,7 +1225,9 @@ export const cancelOrderTool = tool({
 
 export const startReturnTool = tool({
   description:
-    "Start a return/refund process for specific line items. ALWAYS require action_approval before calling this tool.",
+    "Start a return/refund process for specific line items and quantities. Needs the rep's approval: an approved " +
+    "action_approval card, or a `return.confirm` click (return card / stepper) for this order. Quantities can't " +
+    "exceed what is still returnable on each line.",
   inputSchema: z.object({
     orderId: z.string().describe("Order ID"),
     reason: z.string().describe("Return reason code (e.g. defective_product, wrong_item)"),
@@ -943,6 +1249,22 @@ export const startReturnTool = tool({
         key: `start_return:${currentProjectKey()}:${orderId}:${signature}`,
         operation: "start_return",
         exec: async () => {
+          // Never record more than is still returnable: ordered quantity minus
+          // what earlier returns on this order already covered.
+          const current = await bffQuery<{ order: CtOrderForReturn | null }>(
+            `query OrderForReturn($id: ID) { order(id: $id) { ${ORDER_FIELDS} } }`,
+            { id: orderId }
+          );
+          if (!current.order) throw new Error("Order not found");
+          const remaining = returnableQuantities(current.order);
+          for (const li of lineItems) {
+            const left = remaining.get(li.lineItemId);
+            if (left === undefined) throw new Error(`Line item ${li.lineItemId} is not on this order`);
+            if (li.quantity > left) {
+              throw new Error(`Only ${left} of ${li.name ?? li.sku ?? li.lineItemId} can still be returned (asked for ${li.quantity})`);
+            }
+          }
+
           const returnTrackingId = `CSA-RETURN-${Date.now()}`;
           // Real commercetools ReturnItemDraftType has no `type` or
           // `paymentState` field (only lineItemId/customLineItemId, quantity,
@@ -999,14 +1321,45 @@ export type CtOrderForReturn = {
     sku?: string | null;
     totalPrice?: { centAmount?: number; currencyCode?: string; fractionDigits?: number } | null;
   }>;
+  returnInfo?: Array<{ items?: Array<{ lineItemId?: string | null; quantity: number }> | null }> | null;
 };
+
+/**
+ * Line items (still returnable) whose name matches any of the words the rep
+ * used — "jacket" matches "Corduroy Shirt Jacket". Only pre-selects; the rep
+ * still confirms on the card.
+ */
+function matchLineItems(order: CtOrderForReturn, mentioned: string[]): string[] {
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  const terms = mentioned.map(norm).filter((t) => t.length >= 3).map((t) => t.replace(/s$/, ""));
+  if (terms.length === 0) return [];
+  const remaining = returnableQuantities(order);
+  return (order.lineItems ?? [])
+    .filter((li) => (remaining.get(li.id) ?? 0) > 0)
+    .filter((li) => terms.some((t) => norm(li.name).includes(t) || (li.sku ? norm(li.sku).includes(t) : false)))
+    .map((li) => li.id);
+}
+
+/** Per line item: ordered quantity minus what earlier returns on the order already cover. */
+function returnableQuantities(order: CtOrderForReturn): Map<string, number> {
+  const returned = new Map<string, number>();
+  for (const info of order.returnInfo ?? []) {
+    for (const item of info.items ?? []) {
+      if (item.lineItemId) returned.set(item.lineItemId, (returned.get(item.lineItemId) ?? 0) + item.quantity);
+    }
+  }
+  return new Map((order.lineItems ?? []).map((li) => [li.id, Math.max(0, li.quantity - (returned.get(li.id) ?? 0))]));
+}
 
 // commercetools' real ShipmentState enum. Only these two mean physical goods
 // actually left the warehouse — everything else (Pending/Ready/Backorder/
 // Delayed) means nothing has shipped yet, so there is nothing to return.
-const SHIPPED_STATES = new Set(["Shipped", "Partial"]);
+// "Delivered" is a real commercetools ShipmentState too — a delivered order
+// has certainly shipped (it used to be treated as "nothing shipped yet").
+const SHIPPED_STATES = new Set(["Shipped", "Partial", "Delivered"]);
 
 function formatOrderForReturn(order: CtOrderForReturn) {
+  const remaining = returnableQuantities(order);
   return {
     id: order.id,
     orderNumber: order.orderNumber ?? undefined,
@@ -1015,6 +1368,7 @@ function formatOrderForReturn(order: CtOrderForReturn) {
       lineItemId: li.id,
       name: li.name,
       quantity: li.quantity,
+      returnableQuantity: remaining.get(li.id) ?? 0,
       sku: li.sku ?? undefined,
       price: formatMoney(li.totalPrice)
     }))
@@ -1032,7 +1386,8 @@ export type ReturnEligibility = {
   paymentState?: string | null;
 };
 
-const RETURN_WINDOW_DAYS = 30;
+/** Return window in days — config.returns.windowDays (env RETURN_WINDOW_DAYS, default 30). */
+const RETURN_WINDOW_DAYS = config.returns.windowDays;
 
 /**
  * The single return-eligibility rule, gated on the order's real current
@@ -1093,6 +1448,16 @@ export function evaluateReturnEligibility(order: CtOrderForReturn): ReturnEligib
     };
   }
 
+  // Only judged when the caller fetched returnInfo — every unit already returned leaves nothing to return.
+  if (order.returnInfo && order.lineItems?.length && [...returnableQuantities(order).values()].every((n) => n === 0)) {
+    return {
+      eligible: false,
+      reason: "Every item on this order has already been returned.",
+      shipmentState,
+      paymentState
+    };
+  }
+
   return {
     eligible: true,
     daysSince,
@@ -1113,9 +1478,21 @@ export const checkReturnEligibilityTool = tool({
     "start_return can be prepared without a separate get_order call — and so the Return stepper panel has " +
     "something to render.",
   inputSchema: z.object({
-    orderId: z.string().describe("Order ID to check")
+    orderId: z.string().describe("Order ID to check"),
+    likelyReason: z
+      .string()
+      .optional()
+      .describe(
+        "Return reason id ONLY when the conversation already says why the customer is returning " +
+          "(e.g. 'arrived broken' → damaged_in_shipping, 'wrong size sent' → wrong_item). Ids: defective_product, " +
+          "wrong_item, item_not_as_described, damaged_in_shipping, quality_issue. Empty string when nobody said why."
+      ),
+    likelyItems: z
+      .array(z.string())
+      .optional()
+      .describe("Item names the rep or customer said are being returned (e.g. ['jacket']); empty array when they didn't say")
   }),
-  execute: async ({ orderId }) => {
+  execute: async ({ orderId, likelyReason, likelyItems }) => {
     try {
       const data = await bffQuery<{ order: CtOrderForReturn | null }>(
         `query OrderForReturn($id: ID) {
@@ -1127,7 +1504,21 @@ export const checkReturnEligibilityTool = tool({
       const order = data.order;
       if (!order) return { eligible: false, reason: "Order not found" };
 
-      return { ...evaluateReturnEligibility(order), order: formatOrderForReturn(order) };
+      const eligibility = evaluateReturnEligibility(order);
+      const returnReasons = RESOLUTION_REASONS.filter((r) => r.category === "return").map(({ id, label }) => ({ id, label }));
+      return {
+        ...eligibility,
+        order: formatOrderForReturn(order),
+        // The studio's return card offers these as its reason choices, with
+        // the stated reason pre-selected (only a real id from the list).
+        ...(eligibility.eligible
+          ? {
+              returnReasons,
+              suggestedReason: returnReasons.some((r) => r.id === likelyReason) ? likelyReason : null,
+              suggestedLineItemIds: matchLineItems(order, likelyItems ?? [])
+            }
+          : {})
+      };
     } catch (err) {
       return { error: String(err) };
     }
@@ -1227,107 +1618,33 @@ export const listRegionsTool = tool({
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-// ─── Server-side write guard ─────────────────────────────────────────────────
-//
-// The commerce write tools used to rely on the model following the prompt and
-// on the studio UI. These checks run in code, on every call:
-//  - permission: the rep's role (from trusted headers) must allow the write;
-//  - approval (commitment writes only): the rep's CURRENT message must be an
-//    approval (`SystemPromptContext.approval`, derived from the message itself
-//    in routes/chat.ts), and no approval card may have been shown earlier in
-//    this same turn (the approval gate). A `return.confirm` authorises
-//    start_return for the order it names, nothing else.
-// Draft cart operations need permission but no approval, as the prompt says.
-
-type WritePermission = "canCreateCarts" | "canUpdateCarts" | "canCreateOrders" | "canUpdateOrders";
-type WriteRule = { permission: WritePermission; approval: "none" | "approval_card" | "approval_card_or_return_confirm" };
-
-const WRITE_RULES: Record<string, WriteRule> = {
-  create_cart: { permission: "canCreateCarts", approval: "none" },
-  add_to_cart: { permission: "canUpdateCarts", approval: "none" },
-  remove_from_cart: { permission: "canUpdateCarts", approval: "none" },
-  update_cart_address: { permission: "canUpdateCarts", approval: "none" },
-  update_cart_shipping_method: { permission: "canUpdateCarts", approval: "none" },
-  place_order: { permission: "canCreateOrders", approval: "approval_card" },
-  cancel_order: { permission: "canUpdateOrders", approval: "approval_card" },
-  start_return: { permission: "canUpdateOrders", approval: "approval_card_or_return_confirm" },
-  update_order: { permission: "canUpdateOrders", approval: "approval_card" }
-};
-
-const COMMERCE_WRITE_DENIED =
-  "PERMISSION DENIED: your role can't make this change. Please reach out to the admin to perform write or update actions.";
-
-const COMMERCE_APPROVAL_GATE_ERROR =
-  "APPROVAL_GATE_BLOCKED: An action_approval confirmation card was shown earlier in this turn. " +
-  "You must NOT call a commerce write tool until the agent explicitly clicks Approve in the UI. " +
-  "Stop your response now and wait for the next user message.";
-
-function approvalRequiredError(toolName: string) {
-  return (
-    `APPROVAL_REQUIRED: ${toolName} changes a real order and needs the rep's approval first, and the rep's current message is not an approval. ` +
-    "Present an action_approval card describing exactly what will change, then stop. Run it only after the rep's next message is an [approved-action]."
-  );
-}
-
-function guardWrite<T extends { execute?: (...args: never[]) => unknown }>(
-  name: string,
-  rule: WriteRule,
-  original: T,
-  approvalGate?: { pending: boolean }
-): T {
-  const execute = original.execute as ((...args: unknown[]) => unknown) | undefined;
-  if (!execute) return original;
-  return {
-    ...original,
-    execute: async (...args: unknown[]) => {
-      const ctx = getSystemPromptContext();
-      if (!ctx[rule.permission]) {
-        log.info(`write:${name}`, { ok: false, blocked: "permission" });
-        return { error: COMMERCE_WRITE_DENIED };
-      }
-      if (rule.approval !== "none") {
-        if (approvalGate?.pending) return { error: COMMERCE_APPROVAL_GATE_ERROR };
-        const approval = ctx.approval;
-        const input = (args[0] ?? {}) as { orderId?: unknown };
-        const approved =
-          approval?.kind === "approval_card" ||
-          (rule.approval === "approval_card_or_return_confirm" &&
-            approval?.kind === "return_confirm" &&
-            approval.orderId === input.orderId);
-        if (!approved) {
-          log.info(`write:${name}`, { ok: false, blocked: "approval" });
-          return { error: approvalRequiredError(name) };
-        }
-      }
-      return execute(...args);
-    }
-  } as T;
-}
-
 export function buildCommerceTools(approvalGate?: { pending: boolean }) {
-  const guarded = <T extends { execute?: (...args: never[]) => unknown }>(name: string, original: T) =>
-    guardWrite(name, WRITE_RULES[name], original, approvalGate);
-
-  return instrumentTools({
+  return instrumentTools(guardWriteTools({
     find_customer: findCustomerTool,
     find_b2b_customer: findB2bCustomerTool,
     get_order: getOrderTool,
+    get_latest_orders: getLatestOrdersTool,
     b2b_orders: b2bOrdersTool,
     view_cart: viewCartTool,
     b2b_carts: b2bCartsTool,
     search_products: searchProductsTool,
     list_products: listProductsTool,
-    create_cart: guarded("create_cart", createCartTool),
-    add_to_cart: guarded("add_to_cart", addToCartTool),
-    remove_from_cart: guarded("remove_from_cart", removeFromCartTool),
-    update_cart_address: guarded("update_cart_address", updateCartAddressTool),
+    create_cart: createCartTool,
+    add_to_cart: addToCartTool,
+    remove_from_cart: removeFromCartTool,
+    change_cart_quantity: changeCartQuantityTool,
+    apply_discount_code: applyDiscountCodeTool,
+    remove_discount_code: removeDiscountCodeTool,
+    list_discount_codes: listDiscountCodesTool,
+    delete_cart: deleteCartTool,
+    update_cart_address: updateCartAddressTool,
     list_shipping_methods: listShippingMethodsTool,
-    update_cart_shipping_method: guarded("update_cart_shipping_method", updateCartShippingMethodTool),
-    place_order: guarded("place_order", placeOrderTool),
-    cancel_order: guarded("cancel_order", cancelOrderTool),
-    start_return: guarded("start_return", startReturnTool),
+    update_cart_shipping_method: updateCartShippingMethodTool,
+    place_order: placeOrderTool,
+    cancel_order: cancelOrderTool,
+    start_return: startReturnTool,
     check_return_eligibility: checkReturnEligibilityTool,
-    update_order: guarded("update_order", updateOrderTool),
+    update_order: updateOrderTool,
     list_regions: listRegionsTool
-  }, log);
+  }, approvalGate), log);
 }

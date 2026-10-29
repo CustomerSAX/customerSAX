@@ -87,6 +87,35 @@ function extractText(message: UIMessage): string {
 }
 
 /**
+ * A rep-safe reason for a failed chat stream. Only recognised AI-provider
+ * failures are named; the raw error (which may include request details) stays
+ * in the server log, and anything unrecognised gets a generic message.
+ */
+function chatErrorMessage(error: unknown): string {
+  const e = error as { statusCode?: number; status?: number; message?: string; responseBody?: string; lastError?: unknown } | null;
+  const inner = (e?.lastError ?? e) as typeof e; // retry wrapper → last attempt
+  const status = inner?.statusCode ?? inner?.status;
+  const text = `${inner?.message ?? ""} ${inner?.responseBody ?? ""}`.toLowerCase();
+  const prefix = "Assistant unavailable: ";
+  if (/insufficient_quota|exceeded your current quota|credit balance|billing/.test(text)) {
+    return prefix + "the AI provider account has run out of credits or quota. An admin needs to top it up.";
+  }
+  if (status === 401 || status === 403 || /invalid[_ ]api[_ ]key|incorrect api key|authentication/.test(text)) {
+    return prefix + "the AI provider rejected the API key. An admin needs to update it.";
+  }
+  if (status === 404 || /model .*(not found|does not exist)|model_not_found/.test(text)) {
+    return prefix + "the configured AI model isn't available to this API key. An admin needs to check the model setting.";
+  }
+  if (status === 429 || /rate limit/.test(text)) {
+    return prefix + "the AI provider is rate-limiting requests. Please try again in a minute.";
+  }
+  if (/econnrefused|enotfound|etimedout|fetch failed|network/.test(text)) {
+    return prefix + "couldn't reach the AI provider. Please try again shortly.";
+  }
+  return "An error occurred.";
+}
+
+/**
  * What the rep's latest message authorises. Only two UI actions are approvals:
  * the Approve click on an approval card (sent as `[approved-action] …`) and a
  * `return.confirm` hidden action (return stepper / refund card Confirm), which
@@ -150,7 +179,11 @@ chatRouter.post("/chat", async (request, response, next) => {
 
     const sessionCtx: SystemPromptContext = {
       userEmail: csa.userEmail?.trim() || "unknown@csa.local",
-      userRole: roleDisplayLabel(csa.userRole),
+      // Raw role for downstream authorisation (the CRM service only accepts
+      // agent/admin/superadmin — a display label made every CRM write from chat
+      // fail); the label is for the prompt only.
+      userRole: csa.userRole?.trim().toLowerCase() ?? "",
+      userRoleLabel: roleDisplayLabel(csa.userRole),
       projectKey: csa.projectKey?.trim() || (process.env.COMMERCETOOLS_PROJECT_KEY ?? "default"),
       // Tenant id — carried through so the commerce path (bffQuery) can forward
       // x-csa-client-id and resolve provisioned multi-tenant projects. Absent
@@ -290,10 +323,11 @@ chatRouter.post("/chat", async (request, response, next) => {
             for (const step of steps) {
               const uiStateCall = step.toolCalls?.find?.(
                 (tc: { toolName: string }) => tc.toolName === "update_ui_state"
-              ) as { args?: { goal?: string; sentiment?: string; strategy?: string; nextSteps?: string[] } } | undefined;
+              ) as { input?: { goal?: string; sentiment?: string; strategy?: string; nextSteps?: string[] } } | undefined;
 
-              if (uiStateCall?.args) {
-                const { goal, sentiment, strategy, nextSteps } = uiStateCall.args;
+              // AI SDK v5+ puts tool arguments on `.input` (it was `.args`, which is never set now).
+              if (uiStateCall?.input) {
+                const { goal, sentiment, strategy, nextSteps } = uiStateCall.input;
                 await setWorkingMemory(sessionId, {
                   activeGoal: goal ?? null,
                   currentSentiment: sentiment ?? null,
@@ -353,7 +387,9 @@ chatRouter.post("/chat", async (request, response, next) => {
     });
 
     // Bridge Fetch API Response → Express response
-    const webResponse = result.toUIMessageStreamResponse();
+    // The SDK masks every stream error as "An error occurred."; known provider
+    // failures get a safe plain-language reason instead (never the raw error).
+    const webResponse = result.toUIMessageStreamResponse({ onError: chatErrorMessage });
 
     response.status(webResponse.status);
     // Expose sessionId so clients can capture it from the response header
