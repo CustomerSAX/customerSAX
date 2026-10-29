@@ -38,8 +38,10 @@ async function gql(query: string, variables: Record<string, unknown>, requestId:
     // consistent and future-proofs header requirements.
     headers: bffJsonHeaders(),
     body: JSON.stringify({ query, variables }),
-    // Short timeout so the studio doesn't hang if ticketing is down
-    signal: AbortSignal.timeout(5000),
+    // Native ticket reads are normally immediate, but external providers can
+    // legitimately need several paginated API calls. Keep a finite deadline
+    // without aborting healthy Zendesk/Freshdesk responses after five seconds.
+    signal: AbortSignal.timeout(30_000),
   }, requestId);
   if (!res.ok) throw new Error(`Ticketing ${res.status}`);
   const { data, errors } = (await res.json()) as {

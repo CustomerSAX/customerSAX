@@ -369,7 +369,7 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
       return ticketFields(data.ticket, api);
     },
     getTicket,
-    listTickets: async (args) => {
+    listTickets: async (args, options) => {
       const limit = Math.min(100, Math.max(1, Math.floor(args.limit ?? 20)));
       const offset = Math.max(0, Math.floor(args.offset ?? 0));
       if (offset + limit > 1000)
@@ -422,7 +422,13 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
         users = users.concat(next.users || []);
       }
       const page = rows.slice(offset % 100, (offset % 100) + limit);
-      const results = (await withSlas(page)).map((t) => map(t, users));
+      // Zendesk search does not include SLA data. Only pay for the additional
+      // provider reads when the GraphQL caller selected `sla`; lightweight
+      // consumers such as CSA Assistant's conversation list otherwise turn a
+      // 100-row request into 101 remote calls and exceed its response deadline.
+      const results = (options?.includeSla ? await withSlas(page) : page).map((t) =>
+        map(t, users)
+      );
       return { results, total: first.count, count: results.length, offset };
     },
     createTicket: async (draft) => {
