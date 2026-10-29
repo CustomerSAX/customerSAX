@@ -269,9 +269,27 @@ export function zendeskProvider(projectKey: string, connection?: { subdomain: st
     if (custom.length) body.custom_fields = custom;
     return body;
   }
-  // Search results never carry SLA data; show_many sideloads it for up to 100 tickets per call.
+  // Search results never carry SLA data. Hub's read action supports individual
+  // ticket reads; the direct adapter can use show_many for up to 100 at a time.
   async function withSlas(rows: RemoteTicket[]) {
     const slas = new Map<number, RemoteTicket["slas"]>();
+    if (connection) {
+      // Bound concurrency to avoid exhausting Hub's connector worker pool.
+      for (let i = 0; i < rows.length; i += 2) {
+        const tickets = await Promise.all(
+          rows.slice(i, i + 2).map(async (row) => {
+            const { ticket } = await api<{ ticket: RemoteTicket }>(
+              `tickets/${row.id}.json?include=slas`
+            );
+            return ticket;
+          })
+        );
+        for (const ticket of tickets) slas.set(ticket.id, ticket.slas);
+      }
+      return rows.map((ticket) =>
+        slas.has(ticket.id) ? { ...ticket, slas: slas.get(ticket.id) } : ticket
+      );
+    }
     for (let i = 0; i < rows.length; i += 100) {
       const ids = rows.slice(i, i + 100).map((t) => t.id).join(",");
       const { tickets } = await api<{ tickets: RemoteTicket[] }>(`tickets/show_many.json?ids=${ids}&include=slas`);
