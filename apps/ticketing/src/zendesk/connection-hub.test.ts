@@ -5,6 +5,7 @@ vi.mock("@csa/connection-hub", async (original) => ({
   hubRuntime: mocks
 }));
 import { connectionHubZendesk } from "./connection-hub.js";
+import { zendeskProvider } from "./provider.js";
 const binding = {
   connectorId: "zendesk",
   canonicalAction: "zendesk-read",
@@ -28,6 +29,62 @@ it("uses the enabled Hub read action", async () => {
     path: "search.json"
   });
 });
+it.each([undefined, "slaDueAt"])(
+  "loads tickets and SLA data through the enabled read action (sort: %s)",
+  async (sortKey) => {
+    const ticket = {
+      id: 42,
+      subject: "Example",
+      status: "open",
+      created_at: "2026-01-01",
+      updated_at: "2026-01-02",
+      requester_id: 1
+    };
+    mocks.execute.mockImplementation(async (_scope, _binding, { path }) => {
+      if (path.startsWith("search.json?"))
+        return {
+          status: 200,
+          data: { results: [ticket, { ...ticket, id: 43 }], count: 2 }
+        };
+      if (path === "tickets/42.json?include=slas")
+        return {
+          status: 200,
+          data: { ticket: { ...ticket, slas: { policy_metrics: [] } } }
+        };
+      if (path === "tickets/43.json?include=slas")
+        return {
+          status: 200,
+          data: {
+            ticket: {
+              ...ticket,
+              id: 43,
+              slas: {
+                policy_metrics: [
+                  {
+                    metric: "first_reply_time",
+                    stage: "active",
+                    breach_at: "2026-01-03T10:00:00Z"
+                  }
+                ]
+              }
+            }
+          }
+        };
+      throw new Error("Unsupported Hub read path");
+    });
+    const connection = (await lookup())!;
+    const page = await zendeskProvider("project-a", connection).listTickets({ sortKey });
+    expect(page.total).toBe(2);
+    expect(page.results.map((item) => item.ticketNumber)).toEqual(
+      sortKey === "slaDueAt" ? ["43", "42"] : ["42", "43"]
+    );
+    expect(page.results.find((item) => item.ticketNumber === "43")?.sla?.nextDueAt).toBe(
+      "2026-01-03T10:00:00Z"
+    );
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
+    expect(mocks.api).not.toHaveBeenCalled();
+  }
+);
 it("uses native tickets when the Hub binding is removed or disabled", async () => {
   mocks.project.mockResolvedValue({ bindings: [{ ...binding, enabled: false }] });
   expect(await lookup()).toBeUndefined();
