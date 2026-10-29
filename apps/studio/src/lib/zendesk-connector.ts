@@ -133,13 +133,10 @@ async function connect(input: unknown) {
       "Enter a Zendesk subdomain and OAuth access token."
     );
   const previous = await bindings(scope);
-  if (previous.some((item) => item.providerAccount !== input.subdomain))
-    throw new ZendeskPluginError(
-      409,
-      "Update credentials for the same Zendesk account. Manage account changes in Connection Hub."
-    );
 
-  // Rotation keeps each existing action's reviewed release and enabled state.
+  // Credential rotation or an account move keeps each existing action's
+  // reviewed release and enabled state. Creating the live connection first
+  // validates the new account before any project binding is changed.
   // New/reconnected projects enable only the two read actions.
   const selected = previous.some((item) => item.enabled);
   const missing = reads.filter(

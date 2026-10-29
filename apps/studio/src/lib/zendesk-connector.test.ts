@@ -31,6 +31,7 @@ const input = {
 };
 const scope = { clientId: input.clientId, projectKey: input.projectKey };
 let saved: (typeof binding)[];
+let connectedAccount: string;
 const request = (method = "GET", body: unknown = input, origin = "http://studio.test") =>
   new NextRequest("http://studio.test/api/connection-hub/zendesk/connector", {
     method,
@@ -54,6 +55,7 @@ beforeEach(() => {
     activeClientId: "client-a",
     activeProjectKey: "project-a"
   });
+  connectedAccount = input.subdomain;
   saved = [
     { ...binding },
     {
@@ -82,18 +84,21 @@ beforeEach(() => {
           { id: "release-new", version: "1.1.0", enabled: true, connectorId: "zendesk" }
         ]
       });
-    if (url.endsWith("/connections"))
+    if (url.endsWith("/connections")) {
+      connectedAccount = JSON.parse(String(options.body)).applicationId;
       return Response.json({
         id: "conn-new",
         connectorId: "zendesk",
         mode: "live",
         enabled: true
       });
+    }
     const body = JSON.parse(String(options.body));
     if (url.endsWith("/admin/bindings")) {
       const created = {
         ...binding,
         ...body,
+        providerAccount: connectedAccount,
         id: `created-${body.canonicalAction}`,
         revision: 1
       };
@@ -104,7 +109,11 @@ beforeEach(() => {
     if (!target) throw new Error("Unexpected Hub request");
     if (target.revision !== body.expectedRevision)
       return new Response(null, { status: 409 });
-    Object.assign(target, body, { revision: target.revision + 1 });
+    Object.assign(target, body, {
+      providerAccount:
+        body.connectionId === "conn-new" ? connectedAccount : target.providerAccount,
+      revision: target.revision + 1
+    });
     return Response.json(target);
   });
   vi.stubGlobal("fetch", mocks.fetch);
@@ -209,10 +218,17 @@ it("rejects stale project and cross-origin mutations before Hub access", async (
   expect((await DELETE(request("DELETE", scope, "https://evil.test"))).status).toBe(403);
   expect(mocks.fetch).not.toHaveBeenCalled();
 });
-it("rejects account changes and invalid credentials without modifying bindings", async () => {
-  await expect(
-    zendeskConnector.connect({ ...input, subdomain: "another" })
-  ).rejects.toThrow("same Zendesk account");
+it("moves existing project actions to a new Zendesk subdomain", async () => {
+  const result = await zendeskConnector.connect({ ...input, subdomain: "another" });
+  expect(result).toMatchObject({ connected: true, subdomain: "another" });
+  expect(saved.slice(0, 3).every((item) => item.providerAccount === "another")).toBe(
+    true
+  );
+  expect(saved.slice(3).every((item) => item.providerAccount === "acme")).toBe(true);
+  const create = mocks.fetch.mock.calls.find(([url]) => url.endsWith("/connections"));
+  expect(JSON.parse(create![1].body)).toMatchObject({ applicationId: "another" });
+});
+it("rejects invalid credentials without modifying bindings", async () => {
   await expect(zendeskConnector.connect({ ...input, accessToken: " " })).rejects.toThrow(
     "OAuth access token"
   );

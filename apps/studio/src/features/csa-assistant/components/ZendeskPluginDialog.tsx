@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "@csa/ui";
@@ -82,8 +82,11 @@ export function ZendeskPluginDialog({
     clientId,
     projectKey
   ];
-  const account =
-    projectWide && status.data?.subdomain ? status.data.subdomain : subdomain;
+  useEffect(() => {
+    if (projectWide) setSubdomain(status.data?.subdomain ?? "");
+  }, [projectWide, status.data?.subdomain]);
+
+  const account = subdomain;
 
   async function save(method: "POST" | "DELETE") {
     setBusy(true);
@@ -259,7 +262,6 @@ export function ZendeskPluginDialog({
                     value={account}
                     onChange={(event) => setSubdomain(event.target.value)}
                     disabled={busy}
-                    readOnly={projectWide && !!status.data.subdomain}
                   />
                   <label htmlFor="plugin-zendesk-token">OAuth access token</label>
                   <Input
@@ -281,7 +283,8 @@ export function ZendeskPluginDialog({
                   </p>
                   {projectWide && (
                     <p className={styles.muted}>
-                      Updating credentials keeps the same account and enabled actions.
+                      Updating credentials keeps the enabled actions. You can also change
+                      the subdomain to move this project to another Zendesk account.
                       Reconnecting enables ticket reads and assistant search. Removing
                       Zendesk restores native tickets for this project.
                     </p>
