@@ -1288,7 +1288,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
         {error && (
           <div className="flex items-center gap-2 p-3 rounded-m-md bg-m-error-light text-m-error text-xs">
             <Icon name="alert-circle" size="xs" />
-            <span>Connection error — please try again.</span>
+            {/* ai-assist sends a safe plain-language reason for known failures (e.g. AI provider quota); anything else stays generic. */}
+            <span>{error.message?.startsWith("Assistant unavailable:") ? error.message : "Connection error — please try again."}</span>
           </div>
         )}
 
