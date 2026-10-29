@@ -5,9 +5,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request?: Request) {
-  const url = request ? new URL(request.url) : null;
-  const format = url ? url.searchParams.get("format") : null;
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const format = url.searchParams.get("format");
 
   if (format === "csv") {
     const templateBuffer = generateKnowledgeBaseCsvTemplate();

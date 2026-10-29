@@ -7,7 +7,8 @@ import {
 
 describe("Knowledge Base Endpoints & Utilities", () => {
   it("Template route returns valid binary Excel file with correct attachment headers", async () => {
-    const response = await getTemplateRoute();
+    const request = new Request("http://localhost:3000/api/organizations/org-123/knowledge-base/template");
+    const response = await getTemplateRoute(request);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe(
