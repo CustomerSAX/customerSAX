@@ -5,7 +5,7 @@ vi.mock("@csa/mongodb", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@csa/mongodb")>();
   return {
     ...actual,
-    getKnowledgeBaseByOrganization: vi.fn(async (clientId: string) => ({
+    getKnowledgeBaseByOrganization: vi.fn(async (_clientId: string) => ({
       faq: [
         {
           section: "Account",
@@ -19,7 +19,7 @@ vi.mock("@csa/mongodb", async (importOriginal) => {
         troubleshootCount: 0
       }
     })),
-    replaceKnowledgeBase: vi.fn(async (clientId: string, items: any[]) => ({
+    replaceKnowledgeBase: vi.fn(async (_clientId: string, items: any[]) => ({
       count: items.length,
       status: {
         lastUpdatedAt: new Date("2026-01-01T00:00:00.000Z"),
