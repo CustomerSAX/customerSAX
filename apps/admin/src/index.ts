@@ -3,7 +3,7 @@ import "./env.js";
 import { createLogger } from "@csa/logger";
 import { startSubgraph } from "@csa/service-bootstrap";
 import { resolvers, typeDefs } from "./schema.js";
-import { ensureClientsIndex, ensureProjectsIndex, ensureSmtpProfilesIndex, ensureUsersIndex } from "@csa/mongodb";
+import { ensureClientsIndex, ensureProjectsIndex, ensureSmtpProfilesIndex, ensureUsersIndex, ensureKnowledgeBasesIndexes } from "@csa/mongodb";
 import { recordAdminAudit } from "./audit/repository.js";
 
 const log = createLogger("admin");
@@ -19,7 +19,7 @@ await startSubgraph({
   port,
 });
 
-Promise.all([ensureClientsIndex(), ensureProjectsIndex(), ensureSmtpProfilesIndex(), ensureUsersIndex()]).catch(
+Promise.all([ensureClientsIndex(), ensureProjectsIndex(), ensureSmtpProfilesIndex(), ensureUsersIndex(), ensureKnowledgeBasesIndexes()]).catch(
   (error) => {
     log.warn("index setup warning (non-fatal)", { reason: error instanceof Error ? error.message : String(error) });
   }
@@ -89,7 +89,7 @@ const clientScopedAdminFields = new Set([
   // Reads scoped to the caller's own client
   "adminClient", "adminProject", "adminProjectsByClient", "adminUsersByClient",
   "adminRoles", "adminAiSettings", "adminSmtpProfilesByClient",
-  "adminProjectTicketing", "adminProjectTicketingSla",
+  "adminProjectTicketing", "adminProjectTicketingSla", "adminKnowledgeBase",
   // Client-scoped project & commerce management (Org Admin ownership)
   "adminCreateProject", "adminUpdateProject", "adminDeleteProject",
   "adminTestProjectCredentials", "adminTestProjectConnection",
@@ -102,7 +102,9 @@ const clientScopedAdminFields = new Set([
   "adminUpdateAiSettings", "adminCreateSmtpProfile", "adminUpdateSmtpProfile",
   "adminDeleteSmtpProfile", "adminSetProjectSmtp", "adminTestSmtpProfile",
   // Client-scoped Organization updates
-  "adminUpdateClient"
+  "adminUpdateClient",
+  // Client-scoped Knowledge Base management
+  "adminReplaceKnowledgeBase", "adminDeleteKnowledgeBase"
 ]);
 
 function authorize(field: string, args: Record<string, unknown>, context: AdminContext) {

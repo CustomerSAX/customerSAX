@@ -1,13 +1,28 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { replaceKnowledgeBase } from "@csa/mongodb";
 import { authorizeOrganizationAccess } from "@/features/knowledge-base/api/auth-guard";
+import { executeBffGraphql } from "@/features/knowledge-base/api/bff-client";
 import { parseAndValidateKnowledgeBaseExcel } from "@/features/knowledge-base/utils/excel";
+import type { KnowledgeBaseStatus } from "@/features/knowledge-base/types/knowledge-base-types";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = {
   params: Promise<{ organizationId: string }>;
 };
+
+const REPLACE_KNOWLEDGE_BASE_MUTATION = `
+  mutation ReplaceKnowledgeBase($clientId: ID!, $items: [KnowledgeBaseItemInput!]!) {
+    adminReplaceKnowledgeBase(clientId: $clientId, items: $items) {
+      ok
+      count
+      status {
+        lastUpdatedAt
+        faqCount
+        troubleshootCount
+      }
+    }
+  }
+`;
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const { organizationId } = await context.params;
@@ -100,28 +115,36 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    // Atomically replace existing Knowledge Base for this organization
-    const { count, status } = await replaceKnowledgeBase(
-      organizationId,
-      parseResult.items
+    // Atomically replace existing Knowledge Base for this organization via admin service
+    const result = await executeBffGraphql<{
+      adminReplaceKnowledgeBase: {
+        ok: boolean;
+        count: number;
+        status: KnowledgeBaseStatus;
+      };
+    }>(
+      REPLACE_KNOWLEDGE_BASE_MUTATION,
+      { clientId: organizationId, items: parseResult.items },
+      auth.user,
+      organizationId
     );
 
     return NextResponse.json(
       {
         ok: true,
         message: "Knowledge Base uploaded successfully.",
-        count,
-        status
+        count: result.adminReplaceKnowledgeBase.count,
+        status: result.adminReplaceKnowledgeBase.status
       },
       { status: 200 }
     );
-  } catch (dbError: any) {
-    console.error(`[knowledge-base] Failed to store KB for org ${organizationId}:`, dbError);
+  } catch (err: any) {
+    console.error(`[knowledge-base] Failed to store KB for org ${organizationId}:`, err);
     return NextResponse.json(
       {
         ok: false,
         error: "An error occurred while saving the knowledge base to the database.",
-        detail: dbError?.message || String(dbError)
+        detail: err?.message || String(err)
       },
       { status: 500 }
     );
