@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, CardContent, Icon } from "@csa/ui";
-import type { KnowledgeBaseGroupedData } from "@csa/mongodb";
+import type { KnowledgeBaseData } from "@/features/knowledge-base/types/knowledge-base-types";
 
 interface KnowledgeBaseAdminProps {
   clientId: string;
 }
 
 export function KnowledgeBaseAdmin({ clientId }: KnowledgeBaseAdminProps) {
-  const [data, setData] = useState<KnowledgeBaseGroupedData | null>(null);
+  const [data, setData] = useState<KnowledgeBaseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
