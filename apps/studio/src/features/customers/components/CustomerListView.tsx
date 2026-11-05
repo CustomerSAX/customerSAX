@@ -136,6 +136,7 @@ export function CustomerListView() {
   const [draftFilters, setDraftFilters] = useState<CustomerListFilters>(INITIAL_FILTERS);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
   const [visibleCustomerColumnKeys, setVisibleCustomerColumnKeys] = useState<CustomerColumnKey[]>(
     () =>
       readStoredColumnKeys(
@@ -185,36 +186,33 @@ export function CustomerListView() {
         return false;
       }
 
-      // 2. Search Text
+      // 2. Search Text — supports comma-separated terms (OR logic across terms)
       if (filters.searchText.trim()) {
-        const query = filters.searchText.toLowerCase().trim();
-        const option = filters.searchOption;
-
-        if (option === "email") {
-          if (!cust.email.toLowerCase().includes(query)) return false;
-        } else if (option === "firstName") {
-          if (!cust.firstName?.toLowerCase().includes(query)) return false;
-        } else if (option === "lastName") {
-          if (!cust.lastName?.toLowerCase().includes(query)) return false;
-        } else if (option === "companyName") {
-          if (!cust.companyName?.toLowerCase().includes(query)) return false;
-        } else if (option === "customerNumber") {
-          if (!cust.customerNumber?.toLowerCase().includes(query)) return false;
-        } else if (option === "externalId") {
-          if (!cust.externalId?.toLowerCase().includes(query)) return false;
-        } else if (option === "id") {
-          if (!cust.id.toLowerCase().includes(query)) return false;
-        } else {
-          // allFields
-          const match =
-            cust.email.toLowerCase().includes(query) ||
-            (cust.firstName && cust.firstName.toLowerCase().includes(query)) ||
-            (cust.lastName && cust.lastName.toLowerCase().includes(query)) ||
-            (cust.companyName && cust.companyName.toLowerCase().includes(query)) ||
-            (cust.customerNumber && cust.customerNumber.toLowerCase().includes(query)) ||
-            (cust.externalId && cust.externalId.toLowerCase().includes(query)) ||
-            cust.id.toLowerCase().includes(query);
-          if (!match) return false;
+        const terms = filters.searchText
+          .split(",")
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean);
+        if (terms.length > 0) {
+          const option = filters.searchOption;
+          const matchesTerm = (term: string): boolean => {
+            if (option === "email") return cust.email.toLowerCase().includes(term);
+            if (option === "firstName") return !!cust.firstName?.toLowerCase().includes(term);
+            if (option === "lastName") return !!cust.lastName?.toLowerCase().includes(term);
+            if (option === "companyName") return !!cust.companyName?.toLowerCase().includes(term);
+            if (option === "customerNumber") return !!cust.customerNumber?.toLowerCase().includes(term);
+            if (option === "externalId") return !!cust.externalId?.toLowerCase().includes(term);
+            if (option === "id") return cust.id.toLowerCase().includes(term);
+            return (
+              cust.email.toLowerCase().includes(term) ||
+              !!cust.firstName?.toLowerCase().includes(term) ||
+              !!cust.lastName?.toLowerCase().includes(term) ||
+              !!cust.companyName?.toLowerCase().includes(term) ||
+              !!cust.customerNumber?.toLowerCase().includes(term) ||
+              !!cust.externalId?.toLowerCase().includes(term) ||
+              cust.id.toLowerCase().includes(term)
+            );
+          };
+          if (!terms.some(matchesTerm)) return false;
         }
       }
 
@@ -252,7 +250,7 @@ export function CustomerListView() {
     rows: filteredCustomers,
     initialSortKey: "createdAt",
     initialSortDirection: "desc",
-    pageSize: 10,
+    pageSize,
   });
   const isLoading = loading || isRefreshing;
 
@@ -635,7 +633,9 @@ export function CustomerListView() {
                 page={currentPage}
                 totalPages={totalPages}
                 totalItems={totalItems}
+                pageSize={pageSize}
                 onPageChange={(page) => setCurrentPage(page)}
+                onPageSizeChange={(size) => { setPageSize(size); resetPage(); }}
               />
             </div>
           </>
