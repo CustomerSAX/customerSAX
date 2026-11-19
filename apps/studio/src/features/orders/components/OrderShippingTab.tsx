@@ -19,6 +19,7 @@ import {
 } from "@csa/ui";
 import type { OrderShippingTabProps } from "./order-tab-types";
 import type { TimelineItem } from "@csa/ui";
+import { formatOrderMoney } from "../utils/format-order-money";
 
 export function OrderShippingTab(props: OrderShippingTabProps & { orderTimeline: TimelineItem[] }) {
   const {
@@ -207,7 +208,7 @@ export function OrderShippingTab(props: OrderShippingTabProps & { orderTimeline:
                 <InfoRow label="Method" value={order.shippingInfo.shippingMethodName} />
                 <InfoRow label="Carrier" value={order.shippingInfo.carrier} />
                 <InfoRow label="Tax Rate" value={order.shippingInfo.taxRate} />
-                <InfoRow label="Shipping Cost" value={`$${order.shippingInfo.price.toFixed(2)}`} />
+                <InfoRow label="Shipping Cost" value={formatOrderMoney(order.shippingInfo.price, order.currencyCode)} />
               </InfoList>
             </SectionCard>
           </SideColumn>

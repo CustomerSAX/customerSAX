@@ -109,11 +109,13 @@ function toOrderState(state?: string | null): OrderState {
 function toShipmentState(state?: string | null): ShipmentState {
   if (
     state === "Shipped" ||
+    state === "Delivered" ||
     state === "Ready" ||
     state === "Pending" ||
     state === "Delayed" ||
     state === "Partial" ||
-    state === "Backorder"
+    state === "Backorder" ||
+    state === "Canceled"
   ) {
     return state;
   }

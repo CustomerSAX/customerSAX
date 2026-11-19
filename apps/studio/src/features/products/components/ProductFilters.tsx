@@ -138,7 +138,7 @@ export function ProductFilters({ list }: { list: UseProductListReturn }) {
               }}
             >
               <p className="text-xs text-m-text-muted">
-                {t("priceCurrency", { currency: facets?.price.currency ?? "USD" })}
+                {t("priceCurrency", { currency: facets?.price.currency || "--" })}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-m-text-muted">

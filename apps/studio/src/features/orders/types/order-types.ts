@@ -1,5 +1,7 @@
 export type OrderState = "Open" | "Confirmed" | "Complete" | "Cancelled";
-export type ShipmentState = "Shipped" | "Ready" | "Pending" | "Delayed" | "Partial" | "Backorder";
+// All commercetools ShipmentState values. Anything missing here used to be
+// coerced to "Pending" (e.g. Delivered orders showed as Pending).
+export type ShipmentState = "Shipped" | "Delivered" | "Ready" | "Pending" | "Delayed" | "Partial" | "Backorder" | "Canceled";
 export type PaymentState = "Paid" | "Pending" | "BalanceDue" | "Failed" | "CreditOwed";
 
 export interface OrderLineItem {

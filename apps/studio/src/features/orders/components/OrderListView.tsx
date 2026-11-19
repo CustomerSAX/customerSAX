@@ -4,6 +4,7 @@ import { Fragment, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import { formatOrderMoney } from "../utils/format-order-money";
 // Keep route-mode checks independent from the locale segment shown in the URL.
 import { projectPath } from "@/lib/project-url";
 import {
@@ -301,6 +302,8 @@ export function OrderListView() {
     switch (state) {
       case "Shipped":
         return <Badge variant="success" size="sm">{t("shipmentState.Shipped")}</Badge>;
+      case "Delivered":
+        return <Badge variant="success" size="sm">{t("shipmentState.Delivered")}</Badge>;
       case "Ready":
         return <Badge variant="info" size="sm">{t("shipmentState.Ready")}</Badge>;
       case "Pending":
@@ -308,6 +311,9 @@ export function OrderListView() {
       case "Delayed":
       case "Backorder":
         return <Badge variant="error" size="sm">{t(`shipmentState.${state}`)}</Badge>;
+      case "Partial":
+      case "Canceled":
+        return <Badge variant="neutral" size="sm">{t(`shipmentState.${state}`)}</Badge>;
       default:
         return <Badge variant="neutral" size="sm">{state}</Badge>;
     }
@@ -366,7 +372,7 @@ export function OrderListView() {
     }
 
     if (key === "grandTotal") {
-      return <TableCell className="font-bold text-m-text">{new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(order.grandTotal)}</TableCell>;
+      return <TableCell className="font-bold text-m-text">{formatOrderMoney(order.grandTotal, order.currencyCode, locale)}</TableCell>;
     }
 
     if (key === "lineItemCount") {
