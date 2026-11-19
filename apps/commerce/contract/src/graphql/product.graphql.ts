@@ -39,7 +39,10 @@ export const productTypeDefs = gql`
       text: String
       browse: Boolean = false
       locale: String = "en"
-      currency: String = "USD"
+      # No default: when omitted, the commercetools subgraph uses the
+      # selected project's own currency (a "USD" default here forced USD
+      # price selection for every project, e.g. AUD-priced ones).
+      currency: String
       limit: Int = 20
       offset: Int = 0
       sortKey: String
