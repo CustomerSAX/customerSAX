@@ -14,6 +14,16 @@ set -euo pipefail
 
 source /workspace/build_config.sh
 
+# Build FEDERATED_SERVICES JSON in pure bash. The cloud-sdk builder image no
+# longer ships python3 on PATH ("python3: command not found", exit 127).
+# Cloud Run service URLs only contain URL-safe characters, so no JSON escaping
+# is needed. Keys are added in a fixed order; empty URLs are skipped.
+fed_add() {
+  if [ -n "$2" ]; then
+    FED_SERVICES="${FED_SERVICES:+${FED_SERVICES},}\"$1\":\"$2/graphql\""
+  fi
+}
+
 if [ ! -s /workspace/services_to_deploy.txt ]; then
   echo "✅ No services to deploy — skipping."
   exit 0
@@ -114,27 +124,13 @@ deploy_service() {
       SUBSCRIPTIONS_URL=$(get_url "subscriptions")
       ADMIN_URL=$(get_url "admin")
       CRM_URL=$(get_url "crm")
-      FED_SERVICES="{}"
-      if [ -n "${CT_URL}" ]; then
-        FED_SERVICES=$(echo "${FED_SERVICES}" | \
-          python3 -c "import sys,json; d=json.load(sys.stdin); d['commerce-commercetools']='${CT_URL}/graphql'; print(json.dumps(d))")
-      fi
-      if [ -n "${TICK_URL}" ]; then
-        FED_SERVICES=$(echo "${FED_SERVICES}" | \
-          python3 -c "import sys,json; d=json.load(sys.stdin); d['ticketing']='${TICK_URL}/graphql'; print(json.dumps(d))")
-      fi
-      if [ -n "${SUBSCRIPTIONS_URL}" ]; then
-        FED_SERVICES=$(echo "${FED_SERVICES}" | \
-          python3 -c "import sys,json; d=json.load(sys.stdin); d['subscriptions']='${SUBSCRIPTIONS_URL}/graphql'; print(json.dumps(d))")
-      fi
-      if [ -n "${ADMIN_URL}" ]; then
-        FED_SERVICES=$(echo "${FED_SERVICES}" | \
-          python3 -c "import sys,json; d=json.load(sys.stdin); d['admin']='${ADMIN_URL}/graphql'; print(json.dumps(d))")
-      fi
-      if [ -n "${CRM_URL}" ]; then
-        FED_SERVICES=$(echo "${FED_SERVICES}" | \
-          python3 -c "import sys,json; d=json.load(sys.stdin); d['crm']='${CRM_URL}/graphql'; print(json.dumps(d))")
-      fi
+      FED_SERVICES=""
+      fed_add "commerce-commercetools" "${CT_URL}"
+      fed_add "ticketing" "${TICK_URL}"
+      fed_add "subscriptions" "${SUBSCRIPTIONS_URL}"
+      fed_add "admin" "${ADMIN_URL}"
+      fed_add "crm" "${CRM_URL}"
+      FED_SERVICES="{${FED_SERVICES}}"
       echo "🔗 FEDERATED_SERVICES: ${FED_SERVICES}"
       SVC_ENV="^|^NODE_ENV=production|SERVICE_NAME=${SVC}|ENVIRONMENT=${ENVIRONMENT}|FEDERATED_SERVICES=${FED_SERVICES}" ;;
   esac

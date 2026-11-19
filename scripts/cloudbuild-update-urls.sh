@@ -70,17 +70,22 @@ echo "🚀 Updating ${NAME_PREFIX}-bff with all downstream URLs..."
 
 BFF_ENV="NODE_ENV=production~SERVICE_NAME=bff~ENVIRONMENT=${ENVIRONMENT}"
 
-FED_SERVICES="{}"
-[ -n "${COMMERCE_CT_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
-  python3 -c "import sys,json; d=json.load(sys.stdin); d['commerce-commercetools']='${COMMERCE_CT_URL}/graphql'; print(json.dumps(d))")
-[ -n "${TICKETING_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
-  python3 -c "import sys,json; d=json.load(sys.stdin); d['ticketing']='${TICKETING_URL}/graphql'; print(json.dumps(d))")
-[ -n "${SUBSCRIPTIONS_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
-  python3 -c "import sys,json; d=json.load(sys.stdin); d['subscriptions']='${SUBSCRIPTIONS_URL}/graphql'; print(json.dumps(d))")
-[ -n "${ADMIN_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
-  python3 -c "import sys,json; d=json.load(sys.stdin); d['admin']='${ADMIN_URL}/graphql'; print(json.dumps(d))")
-[ -n "${CRM_URL}" ] && FED_SERVICES=$(echo "${FED_SERVICES}" | \
-  python3 -c "import sys,json; d=json.load(sys.stdin); d['crm']='${CRM_URL}/graphql'; print(json.dumps(d))")
+# Build FEDERATED_SERVICES JSON in pure bash. The cloud-sdk builder image no
+# longer ships python3 on PATH ("python3: command not found", exit 127).
+# Cloud Run service URLs only contain URL-safe characters, so no JSON escaping
+# is needed. Keys are added in a fixed order; empty URLs are skipped.
+fed_add() {
+  if [ -n "$2" ]; then
+    FED_SERVICES="${FED_SERVICES:+${FED_SERVICES},}\"$1\":\"$2/graphql\""
+  fi
+}
+FED_SERVICES=""
+fed_add "commerce-commercetools" "${COMMERCE_CT_URL}"
+fed_add "ticketing" "${TICKETING_URL}"
+fed_add "subscriptions" "${SUBSCRIPTIONS_URL}"
+fed_add "admin" "${ADMIN_URL}"
+fed_add "crm" "${CRM_URL}"
+FED_SERVICES="{${FED_SERVICES}}"
 
 BFF_ENV="${BFF_ENV}~FEDERATED_SERVICES=${FED_SERVICES}"
 
