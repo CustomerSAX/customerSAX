@@ -18,6 +18,7 @@ import {
 } from "@csa/ui";
 import type { OrderPayment } from "../types/order-types";
 import type { OrderPaymentsTabProps } from "./order-tab-types";
+import { formatOrderMoney } from "../utils/format-order-money";
 
 function statusTone(status?: string | null): StatusTone {
   if (!status || status === "--") return "neutral";
@@ -65,7 +66,7 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps) {
                     >
                       <TableCell className="font-mono text-xs font-bold text-m-primary">{p.id}</TableCell>
                       <TableCell className="font-mono text-xs text-m-text-muted">{p.interfaceId}</TableCell>
-                      <TableCell className="font-bold text-xs">${p.amountPlanned.toFixed(2)}</TableCell>
+                      <TableCell className="font-bold text-xs">{formatOrderMoney(p.amountPlanned, order.currencyCode)}</TableCell>
                       <TableCell className="text-xs text-m-text">
                         <div>Name: {p.method}</div>
                         <div>PSP: {p.psp}</div>
@@ -134,7 +135,7 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps) {
                   </div>
                   <div>
                     <span className="text-m-text-muted block">Amount Planned</span>
-                    <span className="font-bold text-m-text">${selectedPayment.amountPlanned.toFixed(2)}</span>
+                    <span className="font-bold text-m-text">{formatOrderMoney(selectedPayment.amountPlanned, order.currencyCode)}</span>
                   </div>
                   <div>
                     <span className="text-m-text-muted block">PSP Payment Status</span>
@@ -167,7 +168,7 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps) {
                           <TableCell>
                             <StatusPill tone={statusTone(txn.state)}>{txn.state}</StatusPill>
                           </TableCell>
-                          <TableCell className="font-bold text-xs">${txn.amount.toFixed(2)}</TableCell>
+                          <TableCell className="font-bold text-xs">{formatOrderMoney(txn.amount, order.currencyCode)}</TableCell>
                           <TableCell className="font-mono text-xs text-m-text-muted">{txn.interactionId}</TableCell>
                           <TableCell className="font-mono text-xs text-m-text-muted">{txn.id}</TableCell>
                         </TableRow>

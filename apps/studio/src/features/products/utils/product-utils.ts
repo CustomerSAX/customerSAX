@@ -134,15 +134,20 @@ export function firstLocalized(
 // Standalone prices
 // ---------------------------------------------------------------------------
 
-/** Picks the lowest USD price per SKU from standalone price results. */
+/**
+ * Picks the lowest price per SKU from standalone price results, in the
+ * project's currency when it is known. Without a known currency every real
+ * price is considered (never filter to an assumed currency such as USD).
+ */
 export function lowestPriceBySku(
-  results: StandalonePriceResult[]
+  results: StandalonePriceResult[],
+  currency?: string | null
 ): Map<string, CtMoneyValue> {
   const map = new Map<string, CtMoneyValue>();
   for (const row of results) {
     const value = row?.value;
     if (!row?.sku || !value || typeof value.centAmount !== "number") continue;
-    if (value.currencyCode && value.currencyCode !== "USD") continue;
+    if (currency && value.currencyCode && value.currencyCode !== currency) continue;
     const prev = map.get(row.sku);
     if (
       !prev ||

@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../../commercetools/client.js", () => ({ commercetoolsGraphql: vi.fn() }));
 vi.mock("../../../commercetools/api/index.js", () => ({ getProductByIdOrKey: vi.fn(), listProducts: vi.fn() }));
 vi.mock("./product.mapper.js", () => ({ mapProduct: vi.fn() }));
+vi.mock("../../../commercetools/project-pricing.js", () => ({ projectPricingDefaults: vi.fn(async () => ({})) }));
 
 import { commercetoolsGraphql } from "../../../commercetools/client.js";
+import { projectPricingDefaults } from "../../../commercetools/project-pricing.js";
 import { resolvers } from "./product.resolvers.js";
 
 function product(id: number, name = "Unrelated product") {
@@ -114,4 +116,19 @@ it("uses standalone prices in the selected currency for filtering and display", 
   expect(result.total).toBe(1);
   expect(result.results[0]).toHaveProperty("resolvedPrice.centAmount", 9900);
   expect(result).toHaveProperty("facets.price.min", 99);
+});
+
+it("defaults to the project's own currency instead of USD when none is requested", async () => {
+  vi.mocked(projectPricingDefaults).mockResolvedValue({ currency: "AUD", country: "AU" });
+  const base = product(1);
+  catalog([{ ...base, masterData: { current: { ...base.masterData.current,
+    masterVariant: { sku: "MASTER-1", prices: [
+      { value: { centAmount: 6000, currencyCode: "AUD", fractionDigits: 2 } },
+      { value: { centAmount: 100, currencyCode: "USD", fractionDigits: 2 } },
+    ] } } } } as ReturnType<typeof product>]);
+  const result = await resolvers.productSearch(null, { browse: true, includeFacets: true });
+  expect(result.results[0]).toHaveProperty("resolvedPrice.currencyCode", "AUD");
+  expect(result.results[0]).toHaveProperty("resolvedPrice.centAmount", 6000);
+  expect(result).toHaveProperty("currency", "AUD");
+  expect(result).toHaveProperty("facets.price.currency", "AUD");
 });

@@ -55,14 +55,19 @@ const SEARCH_DEBOUNCE_MS = 350;
 const skuPriceCache = new Map<string, { result: StandalonePriceResult | null; expiresAt: number }>();
 const skuPriceInFlight = new Map<string, Promise<StandalonePriceResult | null>>();
 
-async function fetchSkuPrice(sku: string): Promise<StandalonePriceResult | null> {
+async function fetchSkuPrice(
+  sku: string,
+  currency?: string | null
+): Promise<StandalonePriceResult | null> {
+  // Cache per SKU + currency: the same SKU can be priced differently per project currency.
+  const cacheKey = `${sku}|${currency ?? ""}`;
   const now = Date.now();
-  const cached = skuPriceCache.get(sku);
+  const cached = skuPriceCache.get(cacheKey);
   if (cached && cached.expiresAt > now) {
     return cached.result;
   }
 
-  const existingPromise = skuPriceInFlight.get(sku);
+  const existingPromise = skuPriceInFlight.get(cacheKey);
   if (existingPromise) {
     return existingPromise;
   }
@@ -80,27 +85,29 @@ async function fetchSkuPrice(sku: string): Promise<StandalonePriceResult | null>
         results?: StandalonePriceResult[];
       };
       const results = data?.results ?? [];
-      const usd = results.filter(
-        (r) =>
-          r?.value?.currencyCode === "USD" ||
-          !r?.value?.currencyCode
-      );
-      const sorted = (usd.length > 0 ? usd : results).sort(
+      // Prefer prices in the project's currency; with no known currency (or no
+      // match) fall back to the SKU's real prices rather than assuming USD.
+      const inCurrency = currency
+        ? results.filter(
+            (r) => r?.value?.currencyCode === currency || !r?.value?.currencyCode
+          )
+        : results;
+      const sorted = (inCurrency.length > 0 ? inCurrency : results).sort(
         (a, b) =>
           (a?.value?.centAmount ?? Infinity) -
           (b?.value?.centAmount ?? Infinity)
       );
       const best = sorted[0] ? { sku, value: sorted[0].value } : null;
-      skuPriceCache.set(sku, { result: best, expiresAt: Date.now() + 10 * 60_000 });
+      skuPriceCache.set(cacheKey, { result: best, expiresAt: Date.now() + 10 * 60_000 });
       return best;
     } catch {
       return null;
     } finally {
-      skuPriceInFlight.delete(sku);
+      skuPriceInFlight.delete(cacheKey);
     }
   })();
 
-  skuPriceInFlight.set(sku, fetchPromise);
+  skuPriceInFlight.set(cacheKey, fetchPromise);
   return fetchPromise;
 }
 
@@ -161,7 +168,7 @@ export function useProductList(): UseProductListReturn {
   // -------------------------------------------------------------------------
 
   const resolvePrices = useCallback(
-    async (rows: ProductListRow[]): Promise<ProductListRow[]> => {
+    async (rows: ProductListRow[], currency?: string | null): Promise<ProductListRow[]> => {
       const rawSkus = rows
         .map((r) => r.sku)
         .filter((sku) => sku && sku !== "--");
@@ -170,13 +177,13 @@ export function useProductList(): UseProductListReturn {
 
       try {
         const priceResults = await Promise.all(
-          uniqueSkus.map((sku) => fetchSkuPrice(sku))
+          uniqueSkus.map((sku) => fetchSkuPrice(sku, currency))
         );
 
         const flatResults = priceResults.filter(
           (r): r is StandalonePriceResult => r !== null
         );
-        const lowestBySku = lowestPriceBySku(flatResults);
+        const lowestBySku = lowestPriceBySku(flatResults, currency);
         if (lowestBySku.size === 0) return rows;
 
         return rows.map((row) => {
@@ -253,7 +260,7 @@ export function useProductList(): UseProductListReturn {
 
       const withPrices = rawResults.every((product) => product.resolvedPrice !== undefined)
         ? rows
-        : await resolvePrices(rows);
+        : await resolvePrices(rows, json.currency);
 
       return {
         products: withPrices,

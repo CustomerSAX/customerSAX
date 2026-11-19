@@ -62,6 +62,29 @@ export function matchesCatalogFilters(
   return true;
 }
 
+/**
+ * Lowest price in the requested currency. When no currency can be resolved
+ * (no explicit currency and the project lookup failed), use the currency of
+ * the product's first real price rather than assuming one. Returns null only
+ * when the product genuinely has no price in that currency.
+ */
+export function selectCatalogPrice(
+  prices: CatalogMoney[],
+  currency: string | undefined
+): CatalogMoney | null {
+  const target = currency ?? prices[0]?.currencyCode;
+  if (!target) return null;
+  return (
+    prices
+      .filter((price) => price.currencyCode === target)
+      .sort(
+        (a, b) =>
+          a.centAmount / 10 ** (a.fractionDigits ?? 2) -
+          b.centAmount / 10 ** (b.fractionDigits ?? 2)
+      )[0] ?? null
+  );
+}
+
 export function catalogFacets(
   products: FilterableProduct[],
   locale: string,

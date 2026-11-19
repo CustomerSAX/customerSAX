@@ -10,7 +10,9 @@
  * Body (POST):
  *   { field?, text?, browse?, locale?, currency?, limit?, offset?, sortKey?, sortOrder? }
  * Returns:
- *   { results: CtRawProduct[], total: number }
+ *   { results: CtRawProduct[], total: number, facets?, currency: string | null }
+ *   `currency` is the currency prices were resolved in (the project's own
+ *   currency unless the caller passed one).
  */
 
 import {
@@ -109,10 +111,12 @@ export async function POST(request: NextRequest) {
     typeof body.locale === "string" && body.locale
       ? body.locale
       : toCommerceLocale(uiLocale);
+  // No currency from the caller -> leave it unset so the commerce subgraph
+  // uses the selected project's own configured currency (never assume USD).
   const currency =
     typeof body.currency === "string" && body.currency
       ? body.currency
-      : "USD";
+      : undefined;
   const limit = Number.isFinite(Number(body.limit))
     ? Math.min(Math.max(Math.trunc(Number(body.limit)), 1), 100)
     : 20;
@@ -159,6 +163,7 @@ export async function POST(request: NextRequest) {
     results?: unknown[];
     total?: number;
     facets?: unknown;
+    currency?: string | null;
   } | null;
 
   if (!searchResult) {
@@ -166,7 +171,12 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { results: searchResult.results ?? [], total: searchResult.total ?? 0, facets: searchResult.facets },
+    {
+      results: searchResult.results ?? [],
+      total: searchResult.total ?? 0,
+      facets: searchResult.facets,
+      currency: searchResult.currency ?? null,
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

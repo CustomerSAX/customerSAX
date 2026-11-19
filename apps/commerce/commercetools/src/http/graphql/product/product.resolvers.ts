@@ -3,7 +3,8 @@ import { mapProduct } from "./product.mapper.js";
 import type { CtProduct } from "../../../commercetools/types.js";
 import { getProductByIdOrKey, listProducts } from "../../../commercetools/api/index.js";
 import { escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
-import { catalogFacets, matchesCatalogFilters, type CatalogMoney, type FilterableProduct } from "./product.filters.js";
+import { catalogFacets, matchesCatalogFilters, selectCatalogPrice, type CatalogMoney, type FilterableProduct } from "./product.filters.js";
+import { projectPricingDefaults } from "../../../commercetools/project-pricing.js";
 import type { ProductSearchArgs } from "./product.types.js";
 
 // Minimal fields for the basic Product contract type (quickSearch, product resolver).
@@ -343,7 +344,9 @@ async function productsRichPage(
 }
 
 async function filteredCatalogSearch(args: ProductSearchArgs, limit: number, offset: number) {
-  const currency = args.currency || "USD";
+  // Never assume USD: default to the project's own configured currency so
+  // non-USD projects (e.g. AUD) resolve real prices instead of null.
+  const currency = args.currency || (await projectPricingDefaults()).currency;
   const matches: Array<Record<string, unknown> & FilterableProduct> = [];
   let scanOffset = 0;
   const needle = args.text?.trim().toLowerCase();
@@ -364,8 +367,7 @@ async function filteredCatalogSearch(args: ProductSearchArgs, limit: number, off
           );
           prices = data.standalonePrices.results.map((price) => price.value);
         }
-        const resolvedPrice = prices.filter((price) => price.currencyCode === currency).sort((a, b) =>
-          a.centAmount / 10 ** (a.fractionDigits ?? 2) - b.centAmount / 10 ** (b.fractionDigits ?? 2))[0] ?? null;
+        const resolvedPrice = selectCatalogPrice(prices, currency);
         return { ...product, resolvedPrice };
       })));
     }
@@ -374,8 +376,9 @@ async function filteredCatalogSearch(args: ProductSearchArgs, limit: number, off
   }
   const filtered = matches.filter((product) => matchesCatalogFilters(product, args.filters ?? {}));
   const results = filtered.slice(offset, offset + limit);
-  return { count: results.length, offset, total: filtered.length, results,
-    facets: catalogFacets(matches, args.locale || "en", currency) };
+  const facetCurrency = currency ?? matches.find((product) => product.resolvedPrice)?.resolvedPrice?.currencyCode ?? "";
+  return { count: results.length, offset, total: filtered.length, results, currency: facetCurrency || null,
+    facets: catalogFacets(matches, args.locale || "en", facetCurrency) };
 }
 
 async function productRichTextScan(text: string, field: string | undefined, limit: number, offset: number) {

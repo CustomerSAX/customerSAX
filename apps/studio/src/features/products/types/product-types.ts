@@ -214,6 +214,8 @@ export interface CatalogFacets {
 
 export interface ProductSearchResponse {
   facets?: CatalogFacets;
+  /** Currency prices were resolved in (the project's own currency). */
+  currency?: string | null;
   results: CtRawProduct[];
   total: number;
   count?: number;

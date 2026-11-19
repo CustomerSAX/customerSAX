@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { catalogFacets, matchesCatalogFilters, type FilterableProduct } from "./product.filters.js";
+import { catalogFacets, matchesCatalogFilters, selectCatalogPrice, type FilterableProduct } from "./product.filters.js";
 
 const chair: FilterableProduct = {
   productType: { id: "furniture", name: "Furniture" },
@@ -32,5 +32,19 @@ describe("CT catalog filters", () => {
     expect(facets.categories).toEqual([{ value: "chairs", label: "Chairs", count: 2 }]);
     expect(facets.availability).toEqual({ inStock: 2, outOfStock: 0, unknown: 1 });
     expect(facets.price).toEqual({ min: 125, max: 125, currency: "USD" });
+  });
+  it("selects the lowest price in the requested (non-USD) currency", () => {
+    const aud = { centAmount: 6000, currencyCode: "AUD", fractionDigits: 2 };
+    const audLow = { centAmount: 4500, currencyCode: "AUD", fractionDigits: 2 };
+    const eur = { centAmount: 100, currencyCode: "EUR", fractionDigits: 2 };
+    expect(selectCatalogPrice([aud, eur, audLow], "AUD")).toEqual(audLow);
+    expect(selectCatalogPrice([aud], "USD")).toBeNull();
+    expect(selectCatalogPrice([], "AUD")).toBeNull();
+  });
+  it("falls back to the product's own first price currency when none is resolvable", () => {
+    const aud = { centAmount: 6000, currencyCode: "AUD", fractionDigits: 2 };
+    const eur = { centAmount: 100, currencyCode: "EUR", fractionDigits: 2 };
+    expect(selectCatalogPrice([aud, eur], undefined)).toEqual(aud);
+    expect(selectCatalogPrice([], undefined)).toBeNull();
   });
 });

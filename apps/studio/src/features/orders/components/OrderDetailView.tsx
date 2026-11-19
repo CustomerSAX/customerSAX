@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { formatOrderMoney } from "../utils/format-order-money";
 import { useTranslations } from "next-intl";
 import { projectPath } from "@/lib/project-url";
 import {
@@ -594,7 +595,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           <SummaryCard
             icon="dollar-sign"
             label="Total Amount"
-            value={`$${order.grandTotal.toFixed(2)}`}
+            value={formatOrderMoney(order.grandTotal, order.currencyCode)}
             sub={`${order.lineItems.length} items`}
           />
           <SummaryCard

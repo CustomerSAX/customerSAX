@@ -30,6 +30,7 @@ import {
 } from "@csa/ui";
 import type { OrderState, ShipmentState, PaymentState, OrderLineItem } from "../types/order-types";
 import type { OrderGeneralTabProps } from "./order-tab-types";
+import { formatOrderMoney } from "../utils/format-order-money";
 
 function ProductThumbnail({ src }: { src?: string }) {
   return (
@@ -54,7 +55,8 @@ const PAYMENT_STATE_OPTIONS = [
 ];
 const SHIPMENT_STATE_OPTIONS = [
   { value: "Ready", label: "Ready" }, { value: "Partial", label: "Partial" },
-  { value: "Shipped", label: "Shipped" }, { value: "Delayed", label: "Delayed" },
+  { value: "Shipped", label: "Shipped" }, { value: "Delivered", label: "Delivered" },
+  { value: "Delayed", label: "Delayed" },
   { value: "Backorder", label: "Backorder" },
 ];
 
@@ -182,31 +184,31 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                     <div className="divide-y divide-m-border text-xs">
                       <div className="flex justify-between items-center py-2.5">
                         <span className="text-m-text-muted font-medium">Order original subtotal</span>
-                        <span className="font-semibold text-m-text">${order.netTotal.toFixed(2)}</span>
+                        <span className="font-semibold text-m-text">{formatOrderMoney(order.netTotal, order.currencyCode)}</span>
                       </div>
                       <div className="flex justify-between items-center py-2.5">
                         <span className="text-m-text-muted font-medium">Tax (merchandise)</span>
-                        <span className="font-semibold text-m-text">+${order.taxTotal.toFixed(2)}</span>
+                        <span className="font-semibold text-m-text">+{formatOrderMoney(order.taxTotal, order.currencyCode)}</span>
                       </div>
                       <div className="flex justify-between items-center py-2.5">
                         <span className="text-m-text font-semibold">Merchandise total (gross)</span>
-                        <span className="font-bold text-m-text">${(order.netTotal + order.taxTotal).toFixed(2)}</span>
+                        <span className="font-bold text-m-text">{formatOrderMoney((order.netTotal + order.taxTotal), order.currencyCode)}</span>
                       </div>
                       <div className="flex justify-between items-center py-2.5">
                         <span className="text-m-text-muted font-medium">+ Shipping cost</span>
-                        <span className="font-semibold text-m-text">${order.shippingTotal.toFixed(2)}</span>
+                        <span className="font-semibold text-m-text">{formatOrderMoney(order.shippingTotal, order.currencyCode)}</span>
                       </div>
                       {order.discountTotal > 0 && (
                         <div className="flex justify-between items-center py-2.5 text-m-success">
                           <span className="font-medium">- Applied discounts</span>
-                          <span className="font-bold">-${order.discountTotal.toFixed(2)}</span>
+                          <span className="font-bold">-{formatOrderMoney(order.discountTotal, order.currencyCode)}</span>
                         </div>
                       )}
                     </div>
 
                     <div className="flex justify-between items-center pt-4 border-t-2 border-m-border mt-auto">
                       <span className="text-sm font-bold text-m-text">Order final total</span>
-                      <span className="text-xl font-extrabold text-m-primary">${order.grandTotal.toFixed(2)}</span>
+                      <span className="text-xl font-extrabold text-m-primary">{formatOrderMoney(order.grandTotal, order.currencyCode)}</span>
                     </div>
                   </div>
                 </SectionCard>
@@ -236,7 +238,7 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                         </Button>
                         {loyaltySavedDollars !== null && (
                           <div className="px-3 py-2 bg-m-success-light text-m-success-dark font-bold rounded-m-md border border-m-success-border text-xs">
-                            Amount Saved: ${loyaltySavedDollars.toFixed(2)}
+                            Amount Saved: {formatOrderMoney(loyaltySavedDollars, order.currencyCode)}
                           </div>
                         )}
                       </div>
@@ -339,7 +341,7 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-xs text-m-text">${item.unitPrice.toFixed(2)}</TableCell>
+                          <TableCell className="text-xs text-m-text">{formatOrderMoney(item.unitPrice, order.currencyCode)}</TableCell>
                           <TableCell>
                             <div className="w-20">
                               <Input
@@ -366,10 +368,10 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                               Update
                             </Button>
                           </TableCell>
-                          <TableCell className="text-xs font-medium">${item.subtotal.toFixed(2)}</TableCell>
-                          <TableCell className="text-xs text-m-text-muted">${item.tax.toFixed(2)}</TableCell>
+                          <TableCell className="text-xs font-medium">{formatOrderMoney(item.subtotal, order.currencyCode)}</TableCell>
+                          <TableCell className="text-xs text-m-text-muted">{formatOrderMoney(item.tax, order.currencyCode)}</TableCell>
                           <TableCell className="text-xs font-bold text-m-text text-right">
-                            ${item.totalGross.toFixed(2)}
+                            {formatOrderMoney(item.totalGross, order.currencyCode)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -429,7 +431,7 @@ export function OrderGeneralTab(props: OrderGeneralTabProps & {
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="text-xs font-semibold">${prod.unitPrice.toFixed(2)}</TableCell>
+                            <TableCell className="text-xs font-semibold">{formatOrderMoney(prod.unitPrice, order.currencyCode)}</TableCell>
                             <TableCell>
                               <div className="w-20">
                                 <Input
