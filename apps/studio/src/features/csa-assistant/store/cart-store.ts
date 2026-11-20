@@ -16,8 +16,13 @@ function formatMoney(value?: MoneyValue): string | undefined {
 /** Parse a currency code from an already-formatted price label like "$12.00" or "GBP 10.00" */
 function parseCurrencyFromLabel(label?: string): string | undefined {
   if (!label) return undefined;
-  const symbolToCode: Record<string, string> = { '$': 'USD', '£': 'GBP', '€': 'EUR' };
-  const m = label.trim().match(/^([A-Z]{3}|\$|£|€)/);
+  // Prices from ai-assist are Intl en-US formatted, so non-USD dollars carry a
+  // prefix ("A$18.00" = AUD). Without these, "A$" fell through to a USD cart.
+  const symbolToCode: Record<string, string> = {
+    '$': 'USD', '£': 'GBP', '€': 'EUR',
+    'A$': 'AUD', 'CA$': 'CAD', 'NZ$': 'NZD', 'HK$': 'HKD', 'MX$': 'MXN',
+  };
+  const m = label.trim().match(/^(A\$|CA\$|NZ\$|HK\$|MX\$|[A-Z]{3}|\$|£|€)/);
   if (!m) return undefined;
   return symbolToCode[m[1]] ?? m[1];
 }

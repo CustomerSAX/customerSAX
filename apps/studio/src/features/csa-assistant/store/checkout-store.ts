@@ -84,11 +84,39 @@ function addressToInput(addr: CustomerAddress): Record<string, unknown> | null {
   return out;
 }
 
+/**
+ * Turns a commercetools/BFF error into a specific message for the rep. Each
+ * rule matches what commercetools actually says, so the rep learns WHAT is
+ * missing in the store setup instead of a generic "missing a country" (which
+ * a tax error like "missing a tax rate for country 'NZ'" used to trigger).
+ */
 function humanizeError(raw: string): string {
-  if (raw.includes('country')) return 'The address is missing a country — please provide one.';
-  if (raw.includes('shipping')) return 'Unable to set shipping — please try a different method.';
-  if (raw.includes('version')) return 'The cart was updated elsewhere — please refresh.';
-  return raw.length > 120 ? 'Commerce backend error — please try again.' : raw;
+  // Drop transport prefixes so only commercetools' own reason remains.
+  const msg = raw
+    .replace(/^(commercetools GraphQL failed:|GraphQL error:|BFF HTTP \d+:?)\s*/i, '')
+    .trim();
+  const country = msg.match(/country\s*['"`]?([A-Z]{2})\b/)?.[1] ?? msg.match(/['"`]([A-Z]{2})['"`]/)?.[1];
+  const inCountry = country ? ` for ${country}` : ' for that country';
+
+  if (/tax\s*rate|taxrate|tax category/i.test(msg)) {
+    return `This store has no tax rate set up${inCountry}, so commercetools won't accept an address there. Add one in Merchant Center (Settings → Taxes) or use a country the store already taxes.`;
+  }
+  if (/country/i.test(msg) && /(not (?:be )?(?:defined|configured|supported|allowed)|project settings|is not one of)/i.test(msg)) {
+    return `${country ?? 'That country'} isn't one of this store's countries — please pick one of the store's countries.`;
+  }
+  if (/(no|missing) (?:matching )?price|price .*not found|no price/i.test(msg)) {
+    return `These items have no price${inCountry} in this cart's currency, so the address can't be used.`;
+  }
+  if (/shipping ?(?:zone|rate)|zone/i.test(msg)) {
+    return `This store doesn't ship${inCountry} (no shipping zone or rate is set up). Use another country or add a zone in Merchant Center.`;
+  }
+  if (/country/i.test(msg) && /(missing|required|must be|empty)/i.test(msg) && !/tax|price|zone/i.test(msg)) {
+    return 'The address is missing a country — please provide one.';
+  }
+  if (/shipping/i.test(msg)) return 'Unable to set shipping — please try a different method.';
+  if (/version/i.test(msg)) return 'The cart was updated elsewhere — please refresh.';
+  // Anything else: show commercetools' own reason (trimmed) rather than a generic line.
+  return msg.length > 220 ? `${msg.slice(0, 217)}…` : msg || 'Commerce backend error — please try again.';
 }
 
 // ─── Cart/customer API helpers ────────────────────────────────────────────────
@@ -210,8 +238,16 @@ interface CheckoutState {
   busy: boolean;
   error: string | null;
   order: CheckoutOrderResult | null;
+  /** Carts an order was placed from in this session — their chat cards stay read-only. Survives reset(). */
+  placedCartIds: string[];
 
   start: (cartId: string, customer: CheckoutCustomer | null) => void;
+  /**
+   * Open checkout for a cart shown in the chat (cart card Checkout button or the
+   * assistant's start_checkout). Same flow as start(); totals are read from that
+   * cart itself, since it may not be the cart the cart drawer is tracking.
+   */
+  startForCart: (cartId: string, customer: CheckoutCustomer | null) => void;
   confirmCustomer: (customer: CheckoutCustomer) => Promise<boolean>;
   useSavedAddress: (addr: CustomerAddress) => Promise<boolean>;
   useManualAddress: (addr: Record<string, unknown>, summary: string) => Promise<boolean>;
@@ -225,7 +261,7 @@ interface CheckoutState {
 }
 
 const INITIAL: Omit<CheckoutState,
-  'start' | 'confirmCustomer' | 'useSavedAddress' | 'useManualAddress' |
+  'placedCartIds' | 'start' | 'startForCart' | 'confirmCustomer' | 'useSavedAddress' | 'useManualAddress' |
   'chooseShippingMethod' | 'skipShipping' | 'setMarkPaid' | 'placeOrder' |
   'goTo' | 'close' | 'reset'
 > = {
@@ -248,6 +284,16 @@ const INITIAL: Omit<CheckoutState,
 
 export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   ...INITIAL,
+  placedCartIds: [],
+
+  startForCart: (cartId, customer) => {
+    // Already open for this cart: keep the rep's progress instead of restarting.
+    if (get().isOpen && get().cartId === cartId && get().step !== 'done') return;
+    get().start(cartId, customer);
+    void apiGetCart(cartId)
+      .then((cart) => { if (get().cartId === cartId) set(totalsFromCart(cart)); })
+      .catch(() => { /* keep the drawer totals already set by start() */ });
+  },
 
   start: (cartId, customer) => {
     set({
@@ -388,13 +434,17 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }
       }
 
-      // Clear cart state — the cart is now consumed.
-      useCartStore.setState({
-        cartId: null, items: [], subtotalLabel: null, discountLabel: null,
-        totalLabel: null, hasDiscount: false,
-      });
+      // Clear cart state — the cart is now consumed. Only when it is the cart the
+      // drawer tracks: a chat cart checked out here must not wipe a different one.
+      if (useCartStore.getState().cartId === cartId) {
+        useCartStore.setState({
+          cartId: null, items: [], subtotalLabel: null, discountLabel: null,
+          totalLabel: null, hasDiscount: false,
+        });
+      }
 
       set({
+        placedCartIds: [...get().placedCartIds, cartId],
         order: {
           id: result.id,
           orderNumber: result.orderNumber ?? null,

@@ -357,6 +357,32 @@ const crmContactCardTool = tool({
   })
 });
 
+const startCheckoutSchema = z.object({
+  cartId: z.string().describe("Real id of the cart to check out (from create_cart / view_cart this conversation)")
+});
+
+/**
+ * Opens the studio's checkout panel for a cart. The panel runs every checkout
+ * step itself (customer → address → shipping → review → place order) with the
+ * same buttons every time, so checkout never depends on which cards the model
+ * chooses to show. This tool only signals the studio; it changes nothing.
+ */
+const startCheckoutTool = tool({
+  description:
+    "Open the checkout panel for a cart when the rep wants to check out / place the order. The panel collects the customer, " +
+    "shipping address and shipping method and places the order itself — use this instead of collecting those in chat.",
+  inputSchema: startCheckoutSchema,
+  execute: async ({ cartId }: z.infer<typeof startCheckoutSchema>) => ({
+    success: true,
+    cartId,
+    displayed:
+      "The checkout panel is now open in the chat for this cart. The rep picks the customer, shipping address and shipping method and " +
+      "places the order there. Reply with ONE short line (e.g. 'Checkout is open — finish it in the panel below.'). In this reply do NOT " +
+      "call get_customer_addresses, update_cart_address, list_shipping_methods, update_cart_shipping_method, action_approval, " +
+      "cart_summary or place_order, and do not ask for an address or shipping method in text."
+  })
+});
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 //
 // approvalGate is a per-request shared flag.  When action_approval.execute
@@ -371,6 +397,14 @@ export function buildUiTools(approvalGate: { pending: boolean }) {
       "Request explicit agent approval before executing a write operation. Show a confirmation card with full details.",
     inputSchema: actionApprovalSchema,
     execute: async (_args: z.infer<typeof actionApprovalSchema>) => {
+      // One approval card per reply: a second one would put two competing
+      // decisions in front of the rep. The studio shows only the first.
+      if (approvalGate.pending) {
+        return {
+          error:
+            "ONE_APPROVAL_PER_REPLY: an approval card is already shown in this reply. Do not show another — stop now and wait for the rep's answer."
+        };
+      }
       // Set the gate — any write tool called later in this same step will see
       // pending === true and return a blocking error instead of executing.
       approvalGate.pending = true;
@@ -399,6 +433,7 @@ export function buildUiTools(approvalGate: { pending: boolean }) {
     get_resolution_reasons: getResolutionReasonsTool,
     case_briefing_card: caseBriefingCardTool,
     crm_contact_card: crmContactCardTool,
-    ticket_card: ticketCardTool
+    ticket_card: ticketCardTool,
+    start_checkout: startCheckoutTool
   }, log);
 }

@@ -2,6 +2,8 @@ import { gql } from "graphql-tag";
 
 export const orderTypeDefs = gql`
   type OrderAddress {
+    firstName: String
+    lastName: String
     streetName: String
     streetNumber: String
     city: String

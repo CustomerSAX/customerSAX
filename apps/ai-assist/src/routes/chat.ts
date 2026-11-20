@@ -134,6 +134,15 @@ function approvalFromMessage(raw: unknown): SystemPromptContext["approval"] {
       if (action.type === "return.confirm" && typeof action.orderId === "string" && action.orderId.trim()) {
         return { kind: "return_confirm", orderId: action.orderId.trim() };
       }
+      // The rep chose the address in the UI — the only non-card way a cart
+      // address may be set (see update_cart_address in write-guard.ts).
+      if (action.type === "order.use_address" || action.type === "order.set_address" || action.type === "order.reorder") {
+        return { kind: "address_choice" };
+      }
+      // The rep clicked a shipping method (chat shipping card / Create Order stepper).
+      if (action.type === "order.set_shipping_method") {
+        return { kind: "shipping_choice" };
+      }
     } catch {
       // Malformed hidden action — authorises nothing.
     }

@@ -20,6 +20,7 @@ import {
 import { ProductDetailDrawer } from "./ProductDetailDrawer";
 import { useCartStore } from "../store/cart-store";
 import { useConversationStore } from "../store/conversation-store";
+import { useCheckoutStore } from "../store/checkout-store";
 import { CrmBriefingStrip } from "./CrmCards";
 import { LiveTicketActions } from "./TicketCards";
 import { notify } from "@/features/notifications/notification-store";
@@ -435,8 +436,8 @@ export function CartSummaryCard({
   args,
   onSuggest,
   isLoading = false,
-  editable = false,
-  checkoutStarted = false,
+  editable: editableProp = false,
+  checkoutStarted: checkoutStartedProp = false,
 }: {
   args: CartSummaryArgs;
   /** Sends a message / hidden action through the chat — the AI runs the real cart update. */
@@ -450,6 +451,21 @@ export function CartSummaryCard({
   /** The rep clicked Checkout for this cart: show it as a read-only summary. */
   checkoutStarted?: boolean;
 }) {
+  // Checkout runs in the deterministic checkout panel (CheckoutFlow), not
+  // through the assistant, so every checkout follows the same steps.
+  const convCustomer = useConversationStore((s) => s.customer);
+  const panelOpenForCart = useCheckoutStore((s) => s.isOpen && s.step !== "done" && s.cartId === args.cartId);
+  const orderPlaced = useCheckoutStore((s) => s.placedCartIds.includes(args.cartId));
+  const openCheckout = () => {
+    const customer = convCustomer?.id || convCustomer?.email
+      ? { id: convCustomer?.id, email: convCustomer?.email, name: convCustomer?.name }
+      : args.customer?.email || args.customer?.name
+        ? { email: args.customer?.email, name: args.customer?.name }
+        : null;
+    useCheckoutStore.getState().startForCart(args.cartId, customer);
+  };
+  const checkoutStarted = (checkoutStartedProp || panelOpenForCart) && !orderPlaced;
+  const editable = editableProp && !orderPlaced;
   const canAct = editable && !checkoutStarted && !!onSuggest;
   const [promo, setPromo] = useState("");
   const codes = (args.discountCodes ?? []).filter((c) => c.code?.trim());
@@ -609,15 +625,15 @@ export function CartSummaryCard({
               className="flex-1"
               leftIcon={<Icon name="credit-card" size="xs" />}
               disabled={isLoading || args.items.length === 0}
-              onClick={() => send({ type: "order.checkout", cartId: args.cartId })}
+              onClick={openCheckout}
             >
               Checkout
             </Button>
           </div>
         )}
         {checkoutStarted && editable && onSuggest && (
-          // Items are locked during checkout, but the rep can always move it forward:
-          // the assistant picks up at the next missing step (address, shipping, approval).
+          // Items are locked during checkout, but the rep can always move it forward
+          // in the checkout panel (it keeps its progress if already open for this cart).
           <Button
             type="button"
             variant="primary"
@@ -625,7 +641,7 @@ export function CartSummaryCard({
             className="w-full mt-2"
             leftIcon={<Icon name="arrow-right" size="xs" />}
             disabled={isLoading}
-            onClick={() => send({ type: "order.checkout", cartId: args.cartId })}
+            onClick={openCheckout}
           >
             Continue checkout
           </Button>

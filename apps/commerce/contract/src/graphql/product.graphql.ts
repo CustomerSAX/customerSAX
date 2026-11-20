@@ -29,6 +29,8 @@ export const productTypeDefs = gql`
 
   extend type Query {
     availableCurrencies: [String!]!
+    "Country codes configured in the project's settings (the countries the store sells to), in project order."
+    availableCountries: [String!]!
     product(id: ID, key: String): Product
     products(limit: Int = 20, offset: Int = 0): [Product!]!
     productPage(limit: Int = 20, offset: Int = 0, sortKey: String, sortOrder: String): ProductPage!

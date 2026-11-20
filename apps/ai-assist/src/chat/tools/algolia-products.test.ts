@@ -43,6 +43,7 @@ it("keeps the native search and card response when Algolia is not selected", asy
     .mockResolvedValueOnce({
       projectConnectionHubProducts: { selected: false, results: [], total: null }
     })
+    .mockResolvedValueOnce({ availableCurrencies: ["USD", "EUR"] })
     .mockResolvedValueOnce({ productSearch: { results: [], total: 0 } });
   expect(await search()).toMatchObject({ products: [], total: 0, currency: "USD" });
   expect(bffQuery).toHaveBeenLastCalledWith(expect.stringContaining("productSearch("), {
@@ -52,6 +53,36 @@ it("keeps the native search and card response when Algolia is not selected", asy
     limit: 10,
     offset: 0
   });
+});
+it("uses the project's own currency when the requested one isn't configured", async () => {
+  vi.mocked(bffQuery)
+    .mockResolvedValueOnce({
+      projectConnectionHubProducts: { selected: false, results: [], total: null }
+    })
+    .mockResolvedValueOnce({ availableCurrencies: ["AUD"] })
+    .mockResolvedValueOnce({ productSearch: { results: [], total: 0 } });
+  expect(await search()).toMatchObject({ currency: "AUD" });
+  expect(bffQuery).toHaveBeenLastCalledWith(
+    expect.stringContaining("productSearch("),
+    expect.objectContaining({ currency: "AUD" })
+  );
+});
+it("prices cards in the currency the products actually carry when the requested one has no prices", async () => {
+  const aud = { value: { centAmount: 1800, currencyCode: "AUD", fractionDigits: 2 } };
+  vi.mocked(bffQuery)
+    .mockResolvedValueOnce({
+      projectConnectionHubProducts: { selected: false, results: [], total: null }
+    })
+    .mockResolvedValueOnce({ availableCurrencies: ["USD", "AUD"] })
+    .mockResolvedValueOnce({
+      productSearch: {
+        total: 1,
+        results: [{ id: "p1", masterData: { current: { masterVariant: { sku: "S1", prices: [aud] } } } }]
+      }
+    });
+  const result = await search();
+  expect(result).toMatchObject({ currency: "AUD" });
+  expect((result as { products: Array<{ price: unknown }> }).products[0].price).not.toBeNull();
 });
 it("reports Hub failures and never substitutes the native catalog or upstream secrets", async () => {
   vi.mocked(bffQuery).mockRejectedValue(new Error("secret-upstream"));

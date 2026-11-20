@@ -78,6 +78,7 @@ export const resolvers = {
     agentList: agentResolvers.agentList,
     activeCartCount: cartResolvers.activeCartCount,
     availableCurrencies: productResolvers.availableCurrencies,
+    availableCountries: productResolvers.availableCountries,
     b2bCarts: cartResolvers.b2bCarts,
     b2bCustomers: customerResolvers.b2bCustomers,
     b2bOrders: orderResolvers.b2bOrders,
