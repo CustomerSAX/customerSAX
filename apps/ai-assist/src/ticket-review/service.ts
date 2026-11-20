@@ -39,7 +39,7 @@ type Dependencies = {
   executeOrder?(
     order: ReviewOrder,
     action: OrderAction
-  ): Promise<{ id: string; version: number }>;
+  ): Promise<{ id: string; version: number; returnTrackingId?: string }>;
   order?(reference: string): Promise<ReviewOrder | null>;
   analyzeOrder?(ticket: ReviewTicket, order: ReviewOrder): Promise<OrderFindings>;
   execute(
@@ -48,7 +48,9 @@ type Dependencies = {
 };
 const digest = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const fingerprint = (ticket: ReviewTicket) => digest(ticket);
+const TICKET_ANALYSIS_VERSION = 4;
+const fingerprint = (ticket: ReviewTicket) =>
+  digest([TICKET_ANALYSIS_VERSION, ticket]);
 const normalizedEmail = (email?: string | null) => email?.trim().toLowerCase() ?? "";
 const addressWords = (value: string) =>
   value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
@@ -176,17 +178,6 @@ export function createReviewService(deps: Dependencies) {
     );
   }
 
-  async function requestMissingDetails(review: Review, ticket: ReviewTicket, scope: Scope, questions: CustomerQuestion[]): Promise<Review> {
-    if (!deps.requestInformation || !questions.length || ["closed", "resolved"].includes(ticket.status.toLowerCase())) return review;
-    try {
-      const informationRequest = await deps.requestInformation(ticket, questions);
-      if (!informationRequest) return review;
-      return (await change(review, scope, { informationRequest, informationRequestError: undefined }, "customer_information_email")) ?? review;
-    } catch {
-      return (await change(review, scope, { informationRequestError: "The information-request email could not be confirmed. Check the ticket email record and provider activity before retrying." }, "customer_information_email_unconfirmed")) ?? review;
-    }
-  }
-
   async function prepare(
     scope: Scope,
     ticketId: string,
@@ -234,6 +225,8 @@ export function createReviewService(deps: Dependencies) {
         approvedBy: undefined,
         approvedAt: undefined,
         result: undefined,
+        agentAssist: undefined,
+        informationQuestions: undefined,
         orderProposal: undefined,
         orderAction: undefined,
         orderResult: undefined,
@@ -264,7 +257,7 @@ export function createReviewService(deps: Dependencies) {
     }
 
     try {
-      if (ticket.category === "order_inquiry") {
+      if (["order_inquiry", "returns_refunds"].includes(ticket.category ?? "")) {
         if (!ticket.orderNumber || !ticket.customerId)
           return (await change(
             started,
@@ -273,7 +266,7 @@ export function createReviewService(deps: Dependencies) {
               status: "blocked",
               summary: ticket.subject,
               explanation:
-                "Link the customer and order to prepare an order inquiry review."
+                "Link the customer and order to prepare an executable order review."
             },
             "order_information_required"
           ))!;
@@ -296,15 +289,21 @@ export function createReviewService(deps: Dependencies) {
         if (!order) throw new Error("Order unavailable");
         const findings = await deps.analyzeOrder(ticket, order);
         const proposed = prepareOrderAction(ticket, order, findings);
+        const informationQuestions = findings.customerQuestions ?? [];
         const prepared = (await change(
           started,
           scope,
           {
             status:
-              ticket.status.toLowerCase() === "closed" || proposed.reason
+              ticket.status.toLowerCase() === "closed" ||
+              (proposed.reason && !informationQuestions.length)
                 ? "blocked"
                 : "pending",
             orderAction: proposed.action,
+            informationQuestions:
+              informationQuestions.length && !proposed.action
+                ? informationQuestions
+                : undefined,
             summary: findings.summary,
             orderProposal: {
               ...findings,
@@ -315,22 +314,45 @@ export function createReviewService(deps: Dependencies) {
                 Record<string, unknown> | undefined
             },
             explanation:
-              proposed.reason ??
-              (proposed.action
-                ? "Approve the exact order change below after checking applicable business policy. Customer messages and refunds are not included."
-                : "Review the findings, suggested next steps, and response draft. Approval records your review; customer messages must be handled separately.")
+              informationQuestions.length && !proposed.action
+                ? "Approve the information request below before it is sent to the customer. No order change will run."
+                : proposed.reason ??
+                  (proposed.action
+                    ? "Approve the exact order change below after checking applicable business policy. Customer messages and refunds are not included."
+                    : "Review the findings, suggested next steps, and response draft. Approval records your review; customer messages must be handled separately.")
           },
           "order_proposal_prepared"
         ))!;
-        return requestMissingDetails(prepared, ticket, scope, findings.customerQuestions ?? []);
+        if (prepared.orderAction?.kind === "change_shipping_address")
+          return decide(scope, ticketId, prepared.revision, "approve", true);
+        return prepared;
       }
       const analysis = await deps.analyze(ticket);
-      let applyRequestedAddress = false;
+      let autoApplyContactUpdate = false;
       const patch: Partial<Review> = {
         summary: analysis.summary,
         explanation: analysis.explanation,
+        agentAssist: {
+          queryAnswers: analysis.queryAnswers,
+          actions: analysis.actions,
+          responseDraft: analysis.responseDraft,
+          missingInformation: analysis.missingInformation
+        },
         status: "blocked"
       };
+      const informationQuestions =
+        analysis.intent === "needs_information"
+          ? analysis.customerQuestions ?? []
+          : [];
+      if (
+        informationQuestions.length &&
+        !["closed", "resolved"].includes(ticket.status.toLowerCase())
+      ) {
+        patch.status = "pending";
+        patch.informationQuestions = informationQuestions;
+        patch.explanation =
+          "Approve the information request below before it is sent to the customer. No customer or commerce record will be changed.";
+      }
       if (analysis.intent === "update_contact_number") {
         const source = `${ticket.subject}\n${ticket.message}`;
         const phone = groundedPhone(source, analysis.phone, analysis.evidence);
@@ -369,7 +391,7 @@ export function createReviewService(deps: Dependencies) {
                 "The selected address already has the requested number. No update is needed.";
             else {
               patch.status = "pending";
-              applyRequestedAddress = !addressId && matched?.id === target.id;
+              autoApplyContactUpdate = !addressId && matched?.id === target.id;
               patch.explanation =
                 "On approval, update only the phone field on the selected customer address in commercetools. Other address fields and the ticket status stay unchanged.";
               patch.action = {
@@ -386,10 +408,9 @@ export function createReviewService(deps: Dependencies) {
         }
       }
       const prepared = (await change(started, scope, patch, "proposal_prepared"))!;
-      if (applyRequestedAddress && prepared.status === "pending")
+      if (autoApplyContactUpdate && prepared.status === "pending")
         return decide(scope, ticketId, prepared.revision, "approve", true);
-      return requestMissingDetails(prepared, ticket, scope,
-        analysis.intent === "needs_information" ? analysis.customerQuestions ?? [] : []);
+      return prepared;
     } catch {
       return (await change(
         started,
@@ -427,6 +448,80 @@ export function createReviewService(deps: Dependencies) {
           "declined"
         )) ?? (await load(scope, ticketId))!
       );
+    if (review.informationQuestions?.length) {
+      const ticket = await deps.ticket(ticketId);
+      if (
+        ticket.status.toLowerCase() === "closed" ||
+        fingerprint(ticket) !== review.fingerprint
+      )
+        return (await change(
+          review,
+          scope,
+          {
+            status: "stale",
+            explanation:
+              "The ticket changed. Analyze again before requesting customer information."
+          },
+          "stale"
+        ))!;
+      const executing = await change(
+        review,
+        scope,
+        {
+          status: "executing",
+          approvedBy: scope.userEmail,
+          approvedAt: now(),
+          explanation: "Approved. Sending the saved information request…"
+        },
+        "information_request_approved"
+      );
+      if (!executing) return (await load(scope, ticketId))!;
+      try {
+        const informationRequest = await deps.requestInformation?.(
+          ticket,
+          review.informationQuestions
+        );
+        if (!informationRequest)
+          return (await change(
+            executing,
+            scope,
+            {
+              status: "blocked",
+              explanation:
+                "The information request was approved but email delivery is not configured. Send the saved response draft manually.",
+              informationQuestions: undefined
+            },
+            "customer_information_email_unavailable"
+          ))!;
+        return (await change(
+          executing,
+          scope,
+          {
+            status: "blocked",
+            informationRequest,
+            informationQuestions: undefined,
+            informationRequestError: undefined,
+            explanation:
+              "The approved information request was sent. Wait for the customer’s reply, then analyze the ticket again."
+          },
+          "customer_information_email"
+        ))!;
+      } catch {
+        return (await change(
+          executing,
+          scope,
+          {
+            status: "uncertain",
+            informationQuestions: undefined,
+            informationRequestError:
+              "The approved information-request email could not be confirmed. Check the ticket email record and provider activity before retrying.",
+            explanation:
+              "Email delivery could not be confirmed. Check provider activity before taking another action."
+          },
+          "customer_information_email_unconfirmed"
+        ))!;
+      }
+    }
     if (review.orderProposal) {
       const ticket = await deps.ticket(ticketId);
       const order = await deps.order?.(review.orderProposal.orderNumber);
@@ -456,11 +551,13 @@ export function createReviewService(deps: Dependencies) {
           scope,
           {
             status: "executing",
-            approvedBy: scope.userEmail,
-            approvedAt: now(),
-            explanation: "Approved. Applying the reviewed order change…"
+            approvedBy: automatic ? undefined : scope.userEmail,
+            approvedAt: automatic ? undefined : now(),
+            explanation: automatic
+              ? "Applying the validated low-risk order change…"
+              : "Approved. Applying the reviewed order change…"
           },
-          "order_action_approved"
+          automatic ? "safe_order_action_applied" : "order_action_approved"
         );
         if (!executing) return (await load(scope, ticketId))!;
         try {
@@ -470,7 +567,9 @@ export function createReviewService(deps: Dependencies) {
           const detail =
             review.orderAction.kind === "cancel_order"
               ? `Changed order ${review.orderProposal.orderNumber} from ${order.orderState} to Cancelled. No refund or customer notification was performed.`
-              : `Updated shipping address on order ${review.orderProposal.orderNumber}. Previous address: ${JSON.stringify(order.shippingAddress)}. Approved address fields: ${JSON.stringify(review.orderAction.address)}. No customer notification was performed.`;
+              : review.orderAction.kind === "start_return"
+                ? `Recorded the approved return on order ${review.orderProposal.orderNumber} for ${review.orderAction.lineItems.map((item) => `${item.quantity} × ${item.name}`).join(", ")}. Return tracking: ${result.returnTrackingId ?? "not provided"}. No refund or customer notification was performed.`
+                : `Updated shipping address on order ${review.orderProposal.orderNumber}. Previous address: ${JSON.stringify(order.shippingAddress)}. Approved address fields: ${JSON.stringify(review.orderAction.address)}. No customer notification was performed.`;
           return (await change(
             executing,
             scope,
@@ -548,9 +647,11 @@ export function createReviewService(deps: Dependencies) {
         status: "executing",
         approvedBy: automatic ? undefined : scope.userEmail,
         approvedAt: automatic ? undefined : now(),
-        explanation: "Updating the requested contact number in CT…"
+        explanation: automatic
+          ? "Applying the validated contact-number update…"
+          : "Updating the approved contact number in CT…"
       },
-      automatic ? "explicit_address_request_applied" : "approved"
+      automatic ? "safe_contact_update_applied" : "approved"
     );
     if (!executing) return (await load(scope, ticketId))!;
     try {

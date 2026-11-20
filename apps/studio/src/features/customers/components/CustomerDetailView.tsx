@@ -45,7 +45,6 @@ import {
   type StatusTone,
   QuickActions,
   QuickAction,
-  PrimaryButton,
   MoreActionsMenu,
   CardEmpty,
 } from "@csa/ui";
@@ -1013,9 +1012,6 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                 },
               ]}
             />
-            <PrimaryButton icon="pencil" onClick={() => setActiveTab("overview")}>
-              Edit Customer
-            </PrimaryButton>
           </>
         }
       />

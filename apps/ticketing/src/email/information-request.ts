@@ -8,7 +8,8 @@ const questions: Record<string, string> = {
   new_phone_number: "What is your new phone number, including the country code?",
   clarify_request: "Could you describe the change or help you need in a little more detail?",
   missing_items: "Which items are missing from your order, and what quantity of each is missing?",
-  shipping_address: "What is the complete new shipping address, including street, city, postal code, and country?"
+  shipping_address: "What is the complete new shipping address, including street, city, postal code, and country?",
+  return_details: "Which item(s) would you like to return, what quantity of each, and why are you returning them?"
 };
 export function aiFollowupEnabled() {
   return process.env.TICKET_EMAIL_ENABLED === "true" && process.env.TICKET_EMAIL_AI_FOLLOWUP_ENABLED !== "false";

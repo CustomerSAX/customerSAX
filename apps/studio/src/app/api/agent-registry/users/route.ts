@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requestLogger } from '@/lib/request-logger';
 import { projectScopedBffFetch, ProjectSessionError } from '@/lib/project-scoped-bff';
+import { getCurrentUser } from '@/lib/get-current-user';
 
 /**
  * GET /api/agent-registry/users[?q=partial+name]
  *
- * Returns CSA agents for the ticket assignment picker and the AI assistant's
- * list_assignees tool. Agents are registered in CommerceTools as custom
- * objects (container: "mc-user-info") — the same source the standalone
- * reference implementation uses (FETCH_USERS_LIST / CONSTANTS.USER_CONTAINER).
+ * Returns project users for the ticket assignment picker and the AI
+ * assistant's list_assignees tool. The platform user directory is the source
+ * of truth because it is also used by Admin Settings. The legacy CommerceTools
+ * custom-object registry remains a fallback for older projects.
  *
- * Architecture: studio → BFF GraphQL (port 4000) → CT subgraph agentList
- * resolver → commercetoolsGraphql("customObjects") → CommerceTools API.
- * No direct MongoDB or CT API calls from the studio.
+ * Architecture: studio → federated BFF GraphQL → Admin user directory, with
+ * the CT agentList resolver as a compatibility fallback. The Studio does not
+ * call MongoDB or the CommerceTools API directly.
  */
 
 const BFF_URL =
@@ -21,6 +22,22 @@ const BFF_URL =
   'http://localhost:4000/graphql';
 
 const AGENT_CONTAINER = 'mc-user-info';
+
+const PROJECT_USERS_QUERY = `
+  query GetProjectUsers($clientId: ID!) {
+    adminUsersByClient(clientId: $clientId) {
+      id
+      email
+      firstName
+      lastName
+      active
+      clientProjects {
+        projectKey
+        role
+      }
+    }
+  }
+`;
 
 const AGENT_LIST_QUERY = `
   query GetAgentList($container: String!) {
@@ -41,9 +58,89 @@ interface AgentUserGql {
   email: string;
 }
 
+interface ProjectUserGql {
+  id: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  active?: boolean | null;
+  clientProjects?: Array<{ projectKey: string; role: string }> | null;
+}
+
+type AssigneeUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
+function filterUsers(users: AssigneeUser[], query: string | undefined) {
+  if (!query) return users;
+  return users.filter((user) =>
+    `${user.name} ${user.email}`.toLowerCase().includes(query)
+  );
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { log, requestId } = requestLogger(request, 'api/agent-registry/users');
   try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Authentication required', users: [], total: 0 }, { status: 401 });
+    }
+
+    const clientId = currentUser.activeClientId;
+    const projectKey = currentUser.activeProjectKey ?? currentUser.projectKey;
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get('q')?.toLowerCase().trim() || undefined;
+
+    if (clientId && projectKey) {
+      const directoryResponse = await projectScopedBffFetch(BFF_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          query: PROJECT_USERS_QUERY,
+          variables: { clientId },
+        }),
+        cache: 'no-store',
+      }, requestId);
+
+      if (directoryResponse.ok) {
+        const directoryPayload = await directoryResponse.json() as {
+          data?: { adminUsersByClient?: ProjectUserGql[] };
+          errors?: unknown[];
+        };
+        if (!directoryPayload.errors?.length) {
+          const projectUsers = (directoryPayload.data?.adminUsersByClient ?? [])
+            .filter((user) =>
+              user.active !== false &&
+              user.clientProjects?.some((membership) => membership.projectKey === projectKey)
+            )
+            .map((user) => {
+              const membership = user.clientProjects?.find((entry) => entry.projectKey === projectKey);
+              const name = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+              return {
+                id: user.id,
+                name: name || user.email,
+                email: user.email,
+                role: membership?.role ?? 'member',
+              };
+            });
+          if (projectUsers.length > 0) {
+            const users = filterUsers(projectUsers, query);
+            return NextResponse.json(
+              { users, total: users.length },
+              { headers: { 'Cache-Control': 'no-store' } }
+            );
+          }
+        } else {
+          log.warn('project user directory GraphQL errors', { count: directoryPayload.errors.length });
+        }
+      } else {
+        log.warn('project user directory returned non-ok', { status: directoryResponse.status });
+      }
+    }
+
     const res = await projectScopedBffFetch(BFF_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -71,20 +168,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const agents = payload.data?.agentList?.results ?? [];
 
-    // Optional name/email filter (?q=...) for autocomplete
-    const { searchParams } = new URL(request.url);
-    const q = searchParams.get('q')?.toLowerCase().trim();
-    const filtered = q
-      ? agents.filter((a) => a.email.toLowerCase().includes(q))
-      : agents;
-
-    // Map to the shape the stepper and list_assignees tool expect
-    const users = filtered.map((a) => ({
+    // Map to the shape the ticket form and list_assignees tool expect.
+    const users = filterUsers(agents.map((a) => ({
       id: a.id,
       name: a.email,   // CT custom objects only store email; use it as display name
       email: a.email,
       role: 'agent',
-    }));
+    })), query);
 
     return NextResponse.json(
       { users, total: users.length },
