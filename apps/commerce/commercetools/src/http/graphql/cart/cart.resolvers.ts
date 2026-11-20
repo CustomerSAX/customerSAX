@@ -81,7 +81,8 @@ export const resolvers = {
         customerClause,
         args.businessUnitKey
           ? `businessUnit(key="${escapeWhere(args.businessUnitKey)}")`
-          : undefined
+          : undefined,
+        `cartState="Active"`
       ]),
       args
     );

@@ -332,7 +332,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
   // ── Real carts from BFF (filtered by customerId) ──────────────────────────
   type GqlCartLineItem = { id: string; name?: string | null; quantity: number };
-  type GqlCart = { id: string; key?: string | null; currencyCode: string; totalPrice: GqlMoney; lineItems: GqlCartLineItem[] };
+  type GqlCart = { id: string; key?: string | null; cartState?: string | null; currencyCode: string; totalPrice: GqlMoney; lineItems: GqlCartLineItem[] };
   const { data: cartsGqlData, refetch: refetchCarts } = useQuery<{
     b2bCarts: { total: number; results: GqlCart[] };
   }>(CUSTOMER_CARTS_QUERY, {
@@ -463,7 +463,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     () =>
       (cartsGqlData?.b2bCarts.results ?? []).map((c) => ({
         id: c.id,
-        cartState: "Active",
+        cartState: c.cartState ?? "Unknown",
         orderNumber: "--",
         totalPrice: formatMoney(c.totalPrice),
         lineItemsCount: c.lineItems?.length ?? 0,
@@ -1280,7 +1280,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
           <SideColumn>
             <SectionCard
-              title="Active & Saved Carts"
+              title="Active Carts"
               icon="shopping-cart"
               action={
                 <CardAction onClick={() => setShowOrderBehalfPanel((prev) => !prev)}>
