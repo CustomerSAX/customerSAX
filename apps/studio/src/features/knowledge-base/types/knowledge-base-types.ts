@@ -1,4 +1,12 @@
 export type KnowledgeBaseTabKey = "faq" | "troubleshoot";
+export type KnowledgeBaseType = "faq" | "troubleshoot";
+
+export interface KnowledgeBaseItemInput {
+  type: KnowledgeBaseType;
+  section: string;
+  question: string;
+  answer: string;
+}
 
 export interface KnowledgeBaseArticle {
   id: string;

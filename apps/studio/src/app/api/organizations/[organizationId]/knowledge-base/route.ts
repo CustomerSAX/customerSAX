@@ -1,9 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import {
-  getKnowledgeBaseByOrganization,
-  deleteKnowledgeBaseByOrganization
-} from "@csa/mongodb";
 import { authorizeOrganizationAccess } from "@/features/knowledge-base/api/auth-guard";
+import { executeBffGraphql } from "@/features/knowledge-base/api/bff-client";
+import type { KnowledgeBaseData } from "@/features/knowledge-base/types/knowledge-base-types";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +9,44 @@ type RouteContext = {
   params: Promise<{ organizationId: string }>;
 };
 
+const GET_KNOWLEDGE_BASE_QUERY = `
+  query GetKnowledgeBase($clientId: ID!) {
+    adminKnowledgeBase(clientId: $clientId) {
+      faq {
+        section
+        items {
+          id
+          question
+          answer
+        }
+      }
+      troubleshoot {
+        section
+        items {
+          id
+          question
+          answer
+        }
+      }
+      status {
+        lastUpdatedAt
+        faqCount
+        troubleshootCount
+      }
+    }
+  }
+`;
+
+const DELETE_KNOWLEDGE_BASE_MUTATION = `
+  mutation DeleteKnowledgeBase($clientId: ID!) {
+    adminDeleteKnowledgeBase(clientId: $clientId)
+  }
+`;
+
 export async function GET(_request: NextRequest, context: RouteContext) {
   const { organizationId } = await context.params;
 
-  const emptyResponse = {
+  const emptyResponse: KnowledgeBaseData = {
     faq: [],
     troubleshoot: [],
     status: { lastUpdatedAt: null, faqCount: 0, troubleshootCount: 0 }
@@ -30,8 +62,13 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const data = await getKnowledgeBaseByOrganization(organizationId);
-    return NextResponse.json(data, {
+    const result = await executeBffGraphql<{ adminKnowledgeBase: KnowledgeBaseData }>(
+      GET_KNOWLEDGE_BASE_QUERY,
+      { clientId: organizationId },
+      auth.user,
+      organizationId
+    );
+    return NextResponse.json(result.adminKnowledgeBase || emptyResponse, {
       status: 200,
       headers: {
         "Cache-Control": "no-store, max-age=0"
@@ -64,8 +101,13 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const result = await deleteKnowledgeBaseByOrganization(organizationId);
-    return NextResponse.json({ ok: true, deletedCount: result.deletedCount }, { status: 200 });
+    await executeBffGraphql<{ adminDeleteKnowledgeBase: boolean }>(
+      DELETE_KNOWLEDGE_BASE_MUTATION,
+      { clientId: organizationId },
+      auth.user,
+      organizationId
+    );
+    return NextResponse.json({ ok: true }, { status: 200 });
   } catch (error: any) {
     console.error(`[knowledge-base] Failed to delete KB for org ${organizationId}:`, error);
     return NextResponse.json(

@@ -1,5 +1,8 @@
 import * as XLSX from "xlsx";
-import type { KnowledgeBaseItemInput, KnowledgeBaseType } from "@csa/mongodb";
+import type {
+  KnowledgeBaseItemInput,
+  KnowledgeBaseType
+} from "../types/knowledge-base-types";
 
 export interface ParseResult {
   valid: boolean;
