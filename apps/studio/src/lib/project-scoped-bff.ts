@@ -5,6 +5,7 @@ type SessionPayload = {
   user?: {
     activeClientId?: string;
     activeProjectKey?: string;
+    email?: string;
     requiresProjectSelection?: boolean;
     role?: string;
   };
@@ -43,6 +44,8 @@ export async function projectScopedBffFetch(url: string, init: RequestInit = {},
   applyCsaHeaders(headers, {
     projectKey: user.activeProjectKey,
     clientId: user.activeClientId,
+    userRole: user.role,
+    userEmail: user.email,
     requestId
   });
 

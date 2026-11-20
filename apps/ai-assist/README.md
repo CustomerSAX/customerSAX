@@ -29,10 +29,16 @@ See `.env.example` in this folder.
 Opening a native ticket in Studio prepares a saved AI summary and proposal through
 `POST /api/tickets/ai-review` → AI Assist `/ticket-review` → the federated BFF.
 This is an on-demand workflow, not a background ticket-created subscription.
-The model only summarizes and extracts an explicit contact-number request; it
-has no write tools. Missing information and unsupported requests stay blocked.
+The model summarizes every distinct customer query, gives grounded agent guidance,
+suggests next steps, and drafts a response that addresses the full ticket. It has no
+direct write tools. It can prepare narrowly scoped, server-validated actions, but every
+write is governed by risk: an unambiguous phone update for one address named in the ticket
+and a same-destination shipping-address correction can run automatically. Returns,
+cancellations, ambiguous changes, and customer emails require agent approval.
+The analysis version is included in the review fingerprint so older, uncompleted cached
+summaries are regenerated when an agent next opens the ticket.
 
-The first supported action changes `phone` on one existing CT customer address.
+One supported action changes `phone` on one existing CT customer address.
 The customer must be linked to the ticket and its email must match. Multiple
 addresses require an explicit selection. The panel displays the address ID and
 old/new numbers before the agent clicks **Approve & update CT**. After CT confirms
@@ -75,11 +81,11 @@ CT credentials require customer read/update access. No live CT writes are made b
 the automated tests.
 
 
-### Order inquiry review and execution
+### Order-linked review and execution
 
-Creating a ticket opens its detail view, where native `order_inquiry` tickets receive a persisted summary, suggested next steps, missing information, and a customer response draft based on the verified linked commercetools order. Drafts are not sent to customers.
+Creating a ticket opens its detail view, where native `order_inquiry` and `returns_refunds` tickets receive a persisted summary, suggested next steps, missing information, and a customer response draft based on the verified linked commercetools order. Drafts are not sent to customers.
 
-Agent approval either records informational findings or executes the exact saved order change. Cancellation is supported for Open/Confirmed orders with Pending/Ready shipment, Pending payment, and no linked payments. Shipping address changes require explicit address fields in the ticket and preserve country, state, and postal code; other destination changes need manual tax/shipping review. Agents must check business policy before approval. Refunds and customer notifications are not executed.
+Agent approval either records informational findings, sends a constrained request for missing information, or executes the exact saved sensitive order change. Cancellation is supported for Open/Confirmed orders with Pending/Ready shipment, Pending payment, and no linked payments. Shipping address corrections can run automatically only when every field is explicit in the ticket and country, state, and postal code are unchanged; other destination changes need manual tax/shipping review. Returns require a verified linked order, paid and shipped status, the configured return window, exact ticket-grounded item/quantity/reason, remaining returnable quantity, and agent approval. Recording a return does not issue a refund or notify the customer.
 
 Order changes use the approved commercetools version and revalidate eligibility in the commerce service. Approval claims are atomic; uncertain writes cannot be repeated. Closing is a separate approval with editable resolution notes, ticket concurrency checks, and a fresh order check. Confirm outstanding follow-up is complete before closing informational inquiries.
 

@@ -1,9 +1,10 @@
 import { buildSubgraphSchema } from "@apollo/subgraph";
 import { startSubgraph } from "@csa/service-bootstrap";
+import type { DocumentNode } from "graphql";
 import { resolvers, typeDefs } from "./schema.js";
 
 const port = Number(process.env.PORT ?? process.env.SHOPIFY_PORT ?? 4320);
-const schemaModules = typeDefs.map((moduleTypeDefs, index) => ({
+const schemaModules = typeDefs.map((moduleTypeDefs: DocumentNode, index: number) => ({
   typeDefs: moduleTypeDefs,
   ...(index === 0 ? { resolvers } : {}),
 }));

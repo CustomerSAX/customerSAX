@@ -21,6 +21,7 @@ type Review = {
     createdAt: string;
   } | null;
   informationRequestError?: string;
+  informationQuestions?: string[];
   revision: string;
   status:
     | "analyzing"
@@ -39,6 +40,16 @@ type Review = {
     | "uncertain";
   summary: string;
   explanation: string;
+  agentAssist?: {
+    queryAnswers: Array<{
+      query: string;
+      answer: string;
+      status: "answered" | "needs_verification" | "needs_information";
+    }>;
+    actions: string[];
+    responseDraft: string;
+    missingInformation: string[];
+  };
   action: {
     customerEmail: string;
     addressId: string;
@@ -50,15 +61,29 @@ type Review = {
   orderProposal?: {
     orderNumber: string;
     previousAddress?: Record<string, unknown>;
+    queryAnswers?: Array<{
+      query: string;
+      answer: string;
+      status: "answered" | "needs_verification" | "needs_information";
+    }>;
     actions: string[];
     responseDraft: string;
     missingInformation: string[];
   };
-  orderAction?: {
-    kind: "cancel_order" | "change_shipping_address";
-    address?: Record<string, string>;
-  };
-  orderResult?: { id: string; version: number };
+  orderAction?:
+    | { kind: "cancel_order" }
+    | { kind: "change_shipping_address"; address: Record<string, string> }
+    | {
+        kind: "start_return";
+        reason: string;
+        lineItems: Array<{
+          lineItemId: string;
+          quantity: number;
+          name: string;
+          sku?: string;
+        }>;
+      };
+  orderResult?: { id: string; version: number; returnTrackingId?: string };
   findingsApproved?: boolean;
   approvedBy?: string;
   approvedAt?: string;
@@ -72,7 +97,7 @@ const labels: Record<Review["status"], string> = {
   analyzing: "Analyzing ticket",
   pending: "Awaiting approval",
   blocked: "Needs review",
-  executing: "Updating CT",
+  executing: "Executing approved action",
   succeeded: "Review completed",
   closing: "Closing ticket",
   closed: "Ticket closed",
@@ -204,7 +229,7 @@ export function TicketAIReview({
               AI summary & actions
             </h2>
             <p className="mt-0.5 text-xs text-m-text-muted">
-              Review requested changes and confirm ticket closure
+              Review every customer query, suggested actions, and reply draft
             </p>
           </div>
         </div>
@@ -263,11 +288,78 @@ export function TicketAIReview({
           {ticket.message || "No customer message provided."}
         </blockquote>
 
+        {review?.agentAssist && (
+          <div className="space-y-4 rounded-xl border border-m-border p-4">
+            <div>
+              <h3 className="text-sm font-semibold">Customer queries & guidance</h3>
+              <div className="mt-3 space-y-3">
+                {review.agentAssist.queryAnswers.map((item, index) => (
+                  <div key={index} className="rounded-lg bg-m-surface-2 p-3 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="font-semibold text-m-text">{item.query}</p>
+                      <span className="rounded-full border border-m-border bg-m-surface px-2 py-0.5 text-[10px] font-semibold text-m-text-muted">
+                        {item.status === "answered"
+                          ? "Answered"
+                          : item.status === "needs_information"
+                            ? "Customer detail needed"
+                            : "Verify before replying"}
+                      </span>
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap leading-relaxed text-m-text">
+                      {item.answer}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {!!review.agentAssist.actions.length && (
+              <div>
+                <h4 className="text-xs font-semibold">Suggested agent actions</h4>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+                  {review.agentAssist.actions.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {!!review.agentAssist.missingInformation.length && (
+              <div>
+                <h4 className="text-xs font-semibold">Information to request</h4>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {review.agentAssist.missingInformation.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div>
+              <h4 className="text-xs font-semibold">
+                Customer response draft · Not sent
+              </h4>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">
+                {review.agentAssist.responseDraft}
+              </p>
+            </div>
+          </div>
+        )}
+
         {review?.orderProposal && (
           <div className="space-y-4 rounded-xl border border-m-border p-4">
             <h3 className="text-sm font-semibold">
               Order {review.orderProposal.orderNumber} · Suggested actions
             </h3>
+            {!!review.orderProposal.queryAnswers?.length && (
+              <div className="space-y-3">
+                {review.orderProposal.queryAnswers.map((item, index) => (
+                  <div key={index} className="rounded-lg bg-m-surface-2 p-3 text-sm">
+                    <p className="font-semibold">{item.query}</p>
+                    <p className="mt-2 whitespace-pre-wrap leading-relaxed">
+                      {item.answer}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
             <ol className="list-decimal space-y-2 pl-5 text-sm">
               {review.orderProposal.actions.map((item, index) => (
                 <li key={index}>{item}</li>
@@ -303,6 +395,31 @@ export function TicketAIReview({
                     Set order status to Cancelled. No refund or customer message is
                     included.
                   </p>
+                ) : review.orderAction.kind === "start_return" ? (
+                  <div className="mt-2 space-y-2">
+                    <p>
+                      Record the following merchandise return. This does not issue a
+                      refund or send a customer message.
+                    </p>
+                    <ul className="list-disc space-y-1 pl-5">
+                      {review.orderAction.lineItems.map((item) => (
+                        <li key={item.lineItemId}>
+                          {item.quantity} × {item.name}
+                          {item.sku ? ` · ${item.sku}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                    <p>
+                      <span className="font-medium">Customer’s reason:</span>{" "}
+                      {review.orderAction.reason}
+                    </p>
+                    {review.orderResult?.returnTrackingId && (
+                      <p>
+                        <span className="font-medium">Return tracking:</span>{" "}
+                        {review.orderResult.returnTrackingId}
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <>
                     <p className="mt-2">
@@ -456,11 +573,11 @@ export function TicketAIReview({
             aria-hidden="true"
           />
           <p>
-            Explicit phone update requests naming one matching customer address are
-            applied automatically. Other proposals require approval. Review applicable
-            business policy before approving. Actions and results are saved with this
-            ticket. When automatic email is enabled, requests for missing customer details
-            are sent and recorded here. Other response drafts are not sent automatically.
+            AI guidance covers every identified customer query. Validated contact-number
+            changes for one address named in the ticket and same-destination shipping
+            corrections can run automatically. Returns, cancellations, ambiguous changes,
+            and customer emails require agent approval. Actions and results are saved with
+            this ticket. Response drafts are not sent automatically.
           </p>
         </div>
 
@@ -559,11 +676,17 @@ export function TicketAIReview({
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 focus-visible:outline-blue-600 disabled:opacity-40"
               >
                 <Check size={15} aria-hidden="true" />
-                {review.orderAction
-                  ? "Approve & apply order change"
+                {review.informationQuestions?.length
+                  ? "Approve & request information"
+                  : review.orderAction
+                  ? review.orderAction.kind === "start_return"
+                    ? "Approve & record return"
+                    : "Approve & apply order change"
                   : review.orderProposal
                     ? "Approve findings"
-                    : "Approve"}
+                    : review.action
+                      ? "Approve & update phone"
+                      : "Approve"}
               </button>
               <button
                 type="button"

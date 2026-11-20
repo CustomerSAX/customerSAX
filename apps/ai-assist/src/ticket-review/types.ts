@@ -1,4 +1,4 @@
-export type CustomerQuestion = "new_phone_number" | "clarify_request" | "missing_items" | "shipping_address";
+export type CustomerQuestion = "new_phone_number" | "clarify_request" | "missing_items" | "shipping_address" | "return_details";
 export type InformationRequest = { status: string; recipient: string; subject: string; text: string; createdAt: string; messageId?: string };
 export type Scope = { clientId: string; projectKey: string; userEmail: string };
 export type ReviewTicket = {
@@ -22,19 +22,43 @@ export type ReviewOrder = {
   lastModifiedAt?: string | null;
   [key: string]: unknown;
 };
-export type OrderFindings = {
-  customerQuestions?: CustomerQuestion[];
-  summary: string;
+export type QueryAnswer = {
+  query: string;
+  answer: string;
+  status: "answered" | "needs_verification" | "needs_information";
+};
+export type AgentAssist = {
+  queryAnswers: QueryAnswer[];
   actions: string[];
   responseDraft: string;
   missingInformation: string[];
-  requestedAction?: "cancel_order" | "change_shipping_address" | null;
+};
+export type OrderFindings = {
+  customerQuestions?: CustomerQuestion[];
+  summary: string;
+  queryAnswers?: QueryAnswer[];
+  actions: string[];
+  responseDraft: string;
+  missingInformation: string[];
+  requestedAction?: "cancel_order" | "change_shipping_address" | "start_return" | null;
   address?: Record<string, string> | null;
+  returnReason?: string | null;
+  returnReasonEvidence?: string | null;
+  returnItems?: Array<{ lineItemId: string; quantity: number; evidence: string }>;
 };
-export type OrderAction = {
-  kind: "cancel_order" | "change_shipping_address";
-  address?: Record<string, string>;
-};
+export type OrderAction =
+  | { kind: "cancel_order" }
+  | { kind: "change_shipping_address"; address: Record<string, string> }
+  | {
+      kind: "start_return";
+      reason: string;
+      lineItems: Array<{
+        lineItemId: string;
+        quantity: number;
+        name: string;
+        sku?: string;
+      }>;
+    };
 export type ContactTarget = { id: string; label: string; phone: string };
 export type ContactCustomer = {
   id: string;
@@ -45,6 +69,10 @@ export type ContactCustomer = {
 export type Analysis = {
   customerQuestions?: CustomerQuestion[];
   summary: string;
+  queryAnswers: QueryAnswer[];
+  actions: string[];
+  responseDraft: string;
+  missingInformation: string[];
   intent: "update_contact_number" | "unsupported" | "needs_information";
   phone: string | null;
   evidence: string | null;
@@ -77,6 +105,7 @@ export type ReviewStatus =
 export type Review = {
   informationRequest?: InformationRequest | null;
   informationRequestError?: string;
+  informationQuestions?: CustomerQuestion[];
   _id: string;
   clientId: string;
   projectKey: string;
@@ -86,6 +115,7 @@ export type Review = {
   status: ReviewStatus;
   summary: string;
   explanation: string;
+  agentAssist?: AgentAssist;
   action: ContactAction | null;
   targets: ContactTarget[];
   updatedAt: string;
@@ -97,7 +127,7 @@ export type Review = {
   };
   findingsApproved?: boolean;
   orderAction?: OrderAction;
-  orderResult?: { id: string; version: number };
+  orderResult?: { id: string; version: number; returnTrackingId?: string };
   approvedBy?: string;
   approvedAt?: string;
   closeApprovedBy?: string;

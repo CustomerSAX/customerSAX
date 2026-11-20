@@ -32,7 +32,7 @@ customer email. Watch ticketing logs for “Ticket email accepted by provider”
 check the inbox/spam folder and SendGrid Email Activity. HTTP 202 means accepted,
 not confirmed delivery. No tunnel or Vercel deployment is required for sending.
 
-### Automatic requests for missing details
+### Agent-approved requests for missing details
 
 With email enabled, `TICKET_EMAIL_AI_FOLLOWUP_ENABLED` defaults to true. Native
 GraphQL ticket creation asks AI Assist to analyze the ticket using the active
@@ -42,15 +42,16 @@ AI Assist requires its existing MongoDB and model configuration. Restart BFF
 **after ticketing** to compose the new `requestTicketInformation` mutation.
 
 The AI selects supported missing-detail categories (new phone number, unclear
-request, missing order items/quantities, or incomplete new shipping address).
-Ticketing uses those selections to construct a customer-facing email; internal
+request, missing/return order items and quantities, return reason, or incomplete
+new shipping address). The ticket panel shows the proposal and requires an agent
+to approve it before ticketing constructs and sends a customer-facing email; internal
 summaries, worklogs, and model-generated response drafts are never sent. Complete
 requests get the generic confirmation instead. Account/order changes still
 require the existing approval flow. Set `TICKET_EMAIL_AI_FOLLOWUP_ENABLED=false`
 to restore generic confirmations without automatic analysis on creation.
 
-A record on the ticket claims the information-request send atomically before
-calling the email provider. Only one automatic information request is attempted
+A record on the ticket claims the approved information-request send atomically before
+calling the email provider. Only one information request is attempted
 per ticket, even across repeated analysis or different question wording. Accepted,
 rejected, and unknown outcomes are recorded with the exact recipient and message.
 Accepted emails put an unchanged ticket in Pending (waiting for the customer).
@@ -66,8 +67,9 @@ the AI panel / Analyze again to recover failed analysis; inspect existing email
 records first. Analysis is synchronous in this local pilot, not a durable job queue.
 
 To test, create a native ticket with your own customer email and the message
-“Please update my phone number” without a new number. Confirm a single request
-email, Pending status, and the recorded content. Analyze again and verify no
+“Please update my phone number” without a new number. Confirm no request is sent
+until the agent approves it, then confirm a single email, Pending status, and the
+recorded content. Analyze again and verify no
 second email. Existing cached analyses may need Analyze again once to use the
 new question extraction.
 
