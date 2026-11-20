@@ -24,6 +24,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  DetailPage,
 } from "@csa/ui";
 import { useTicketStore } from "../hooks/use-tickets";
 import { useAssignees } from "../hooks/use-assignees";
@@ -275,7 +276,7 @@ export function TicketCreateView() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <DetailPage>
       <div>
         <Link
           href={customerIdContext ? `/customers/${customerIdContext}` : "/tickets"}
@@ -613,6 +614,6 @@ export function TicketCreateView() {
           </Button>
         </div>
       </form>
-    </div>
+    </DetailPage>
   );
 }

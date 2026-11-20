@@ -27,6 +27,21 @@ it("claims once under concurrent calls and saves the exact email on the ticket",
   await requestTicketInformation(t.id, updated.lastModifiedAt!, ["clarify_request"], "test", scope);
   expect(request).toHaveBeenCalledTimes(1);
 });
+it("constructs a constrained return-details question", async () => {
+  const t = await ticket();
+  await requestTicketInformation(
+    t.id,
+    t.lastModifiedAt!,
+    ["return_details"],
+    "test",
+    scope
+  );
+  const updated = (await getTicket(t.id, "test", scope))!;
+  expect(updated.informationRequest?.text).toContain(
+    "Which item(s) would you like to return"
+  );
+  expect(request).toHaveBeenCalledTimes(1);
+});
 it("does not resend rejected or uncertain requests and does not mark them Pending", async () => {
   for (const outcome of ["rejected", "unknown"]) {
     request.mockReset();

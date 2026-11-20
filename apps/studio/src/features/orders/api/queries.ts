@@ -79,6 +79,7 @@ export const CUSTOMER_CARTS_QUERY = gql`
       results {
         id
         key
+        cartState
         currencyCode
         totalPrice {
           centAmount

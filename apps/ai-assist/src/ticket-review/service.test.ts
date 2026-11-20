@@ -52,6 +52,14 @@ function fixture() {
   };
   const analysis: Analysis = {
     summary: "Customer requests a contact-number change.",
+    queryAnswers: [{
+      query: "Update my contact number",
+      answer: "Update the phone field on the customer's selected address.",
+      status: "answered"
+    }],
+    actions: ["Confirm the customer address to update."],
+    responseDraft: "I can help update the phone number on your customer address.",
+    missingInformation: [],
     intent: "update_contact_number",
     phone: "14692466072",
     evidence: ticket.message,
@@ -77,7 +85,10 @@ function fixture() {
     orderNumber: "1001",
     orderState: "Open",
     shipmentState: "Pending",
-    paymentState: "Pending"
+    paymentState: "Pending",
+    createdAt: new Date().toISOString(),
+    lineItems: [{ id: "line-1", name: "Quilt Cover", sku: "QUILT-1", quantity: 1 }],
+    returnInfo: []
   };
   const findings: OrderFindings = {
     summary: "Order inquiry",
@@ -85,9 +96,15 @@ function fixture() {
     responseDraft: "Your order is awaiting shipment.",
     missingInformation: []
   };
-  const executeOrder = vi.fn(async () => {
+  const executeOrder = vi.fn(async (_order: ReviewOrder, action: import("./types.js").OrderAction) => {
     order.version = 5;
-    return { id: order.id, version: 5 };
+    return {
+      id: order.id,
+      version: 5,
+      ...(action.kind === "start_return"
+        ? { returnTrackingId: "CSA-RETURN-123" }
+        : {})
+    };
   });
   const requestInformation = vi.fn(async () => ({ status: "accepted", recipient: ticket.customerEmail, subject: "More details", text: "Please provide the new phone number.", createdAt: "2026-10-08" }));
   const service = createReviewService({
@@ -124,6 +141,45 @@ function fixture() {
 }
 
 describe("persistent ticket proposal approval", () => {
+  it("persists guidance and a response draft for every query when no action can be automated", async () => {
+    const f = fixture();
+    f.ticket.subject = "Return and refund questions";
+    f.ticket.message = "How do I return order 1001, and when would the refund be issued?";
+    Object.assign(f.analysis, {
+      summary: "Customer asks how to return an order and when its refund would be issued.",
+      queryAnswers: [
+        {
+          query: "How do I return order 1001?",
+          answer: "Verify return eligibility, then start the approved Returns workflow.",
+          status: "needs_verification"
+        },
+        {
+          query: "When would the refund be issued?",
+          answer: "Check the applicable refund policy before giving a timeframe.",
+          status: "needs_verification"
+        }
+      ],
+      actions: [
+        "Open order 1001 and verify return eligibility.",
+        "Check the applicable refund timing policy."
+      ],
+      responseDraft: "I can help with the return and refund timing. I’ll first verify the order’s eligibility and the applicable refund policy.",
+      missingInformation: [],
+      intent: "unsupported",
+      phone: null,
+      evidence: null,
+      explanation: "Review both requests and use the suggested reply."
+    });
+
+    const review = await f.service.prepare(scope, f.ticket.id);
+
+    expect(review.status).toBe("blocked");
+    expect(review.agentAssist?.queryAnswers).toHaveLength(2);
+    expect(review.agentAssist?.responseDraft).toContain("return and refund timing");
+    expect(review.agentAssist?.actions).toEqual(f.analysis.actions);
+    expect(f.execute).not.toHaveBeenCalled();
+  });
+
   it("prepares the reported international number despite reformatted AI evidence", async () => {
     const f = fixture();
     f.ticket.subject = "Update contact details";
@@ -436,7 +492,7 @@ describe("persistent ticket proposal approval", () => {
     expect(f.execute).not.toHaveBeenCalled();
   });
 
-  it("applies a uniquely named address once and waits for permission to close", async () => {
+  it("automatically applies a grounded phone update for one address named in the ticket", async () => {
     const f = fixture();
     f.customer.targets.push({ id: "address-2", label: "Newmarket, US", phone: "2222222222" });
     f.ticket.message = "Please update my contact details for NEWMARKET address to 14692466072";
@@ -446,7 +502,7 @@ describe("persistent ticket proposal approval", () => {
     expect(completed.result?.phone).toBe("14692466072");
     expect(f.execute).toHaveBeenCalledWith(expect.objectContaining({ addressId: "address-2" }));
     expect(completed.approvedBy).toBeUndefined();
-    expect(completed.audit.some(event => event.event === "explicit_address_request_applied")).toBe(true);
+    expect(completed.audit.some(event => event.event === "safe_contact_update_applied")).toBe(true);
     expect(f.closeTicket).not.toHaveBeenCalled();
     await f.service.prepare(scope, f.ticket.id, true);
     expect(f.execute).toHaveBeenCalledTimes(1);
@@ -455,7 +511,7 @@ describe("persistent ticket proposal approval", () => {
     expect(f.closeTicket).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["duplicate", "substring", "both", "closed", "uncertain"])("handles named addresses without unsafe execution: %s", async condition => {
+  it.each(["duplicate", "substring", "both", "closed"])("handles named addresses without unsafe execution: %s", async condition => {
     const f = fixture();
     f.customer.targets.push({ id: "address-2", label: "Newmarket, US", phone: "2222222222" });
     f.ticket.message = "Update my Newmarket address phone to 14692466072";
@@ -463,12 +519,11 @@ describe("persistent ticket proposal approval", () => {
     if (condition === "substring") f.ticket.message = "Update my Newmarketville address phone to 14692466072";
     if (condition === "both") f.ticket.message = "Update Main Street and Newmarket to 14692466072";
     if (condition === "closed") f.ticket.status = "Closed";
-    if (condition === "uncertain") f.execute.mockRejectedValue(new Error("Timeout"));
     f.analysis.evidence = f.ticket.message;
     const result = await f.service.prepare(scope, f.ticket.id);
-    expect(result.status).toBe(condition === "uncertain" ? "uncertain" : "blocked");
+    expect(result.status).toBe("blocked");
     await f.service.prepare(scope, f.ticket.id, true);
-    expect(f.execute).toHaveBeenCalledTimes(condition === "uncertain" ? 1 : 0);
+    expect(f.execute).not.toHaveBeenCalled();
     expect(f.closeTicket).not.toHaveBeenCalled();
   });
 
@@ -638,6 +693,87 @@ describe("order inquiry approval", () => {
     );
     expect(f.closeTicket).toHaveBeenCalledTimes(1);
   });
+  it("automatically applies a grounded same-destination shipping correction", async () => {
+    const f = orderFixture();
+    const address = {
+      streetName: "New Street",
+      streetNumber: "12",
+      city: "Austin",
+      state: "TX",
+      postalCode: "78701",
+      country: "US"
+    };
+    f.ticket.subject = "Correct shipping street";
+    f.ticket.message = "Please ship to 12 New Street, Austin, TX 78701, US";
+    f.order.shipmentState = "Ready";
+    f.order.shippingAddress = {
+      ...address,
+      streetName: "Old Street",
+      streetNumber: "1"
+    };
+    Object.assign(f.findings, {
+      requestedAction: "change_shipping_address",
+      address
+    });
+
+    const completed = await f.service.prepare(scope, f.ticket.id);
+
+    expect(completed.status).toBe("succeeded");
+    expect(f.executeOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ id: f.order.id }),
+      { kind: "change_shipping_address", address }
+    );
+    expect(completed.approvedBy).toBeUndefined();
+    expect(
+      completed.audit.some((event) => event.event === "safe_order_action_applied")
+    ).toBe(true);
+  });
+  it("prepares and records a return only after agent approval", async () => {
+    const f = orderFixture();
+    f.ticket.category = "returns_refunds";
+    f.ticket.subject = "Return Quilt Cover";
+    f.ticket.message =
+      "I'd like to return the Quilt Cover. It doesn't suit what I need.";
+    Object.assign(f.order, {
+      orderState: "Complete",
+      shipmentState: "Delivered",
+      paymentState: "Paid"
+    });
+    Object.assign(f.findings, {
+      requestedAction: "start_return",
+      returnReason: "It doesn't suit what I need",
+      returnReasonEvidence: "It doesn't suit what I need.",
+      returnItems: [
+        {
+          lineItemId: "line-1",
+          quantity: 1,
+          evidence: "return the Quilt Cover"
+        }
+      ]
+    });
+
+    const proposal = await f.service.prepare(scope, f.ticket.id);
+
+    expect(proposal.status).toBe("pending");
+    expect(proposal.orderAction).toMatchObject({
+      kind: "start_return",
+      reason: "It doesn't suit what I need",
+      lineItems: [{ lineItemId: "line-1", quantity: 1 }]
+    });
+    expect(f.executeOrder).not.toHaveBeenCalled();
+
+    const completed = await f.service.decide(
+      scope,
+      f.ticket.id,
+      proposal.revision,
+      "approve"
+    );
+
+    expect(f.executeOrder).toHaveBeenCalledTimes(1);
+    expect(completed.orderResult?.returnTrackingId).toBe("CSA-RETURN-123");
+    expect(completed.resolutionDraft).toContain("No refund");
+    expect(completed.approvedBy).toBe(scope.userEmail);
+  });
   it("blocks automated cancellation with payment activity", async () => {
     const f = orderFixture();
     f.findings.requestedAction = "cancel_order";
@@ -688,14 +824,24 @@ describe("order inquiry approval", () => {
 });
 
 
-describe("automatic missing-information email", () => {
-  it("requests missing phone details without executing any account change", async () => {
+describe("agent-approved missing-information email", () => {
+  it("requests missing phone details only after approval", async () => {
     const f = fixture();
     f.ticket.message = "Please update my phone number";
     Object.assign(f.analysis, { intent: "needs_information", phone: null, evidence: null, customerQuestions: ["new_phone_number"] });
-    const review = await f.service.prepare(scope, f.ticket.id);
+    const proposal = await f.service.prepare(scope, f.ticket.id);
+    expect(proposal.status).toBe("pending");
+    expect(proposal.informationQuestions).toEqual(["new_phone_number"]);
+    expect(f.requestInformation).not.toHaveBeenCalled();
+    const review = await f.service.decide(
+      scope,
+      f.ticket.id,
+      proposal.revision,
+      "approve"
+    );
     expect(f.requestInformation).toHaveBeenCalledWith(f.ticket, ["new_phone_number"]);
     expect(review.informationRequest?.status).toBe("accepted");
+    expect(review.approvedBy).toBe(scope.userEmail);
     expect(f.execute).not.toHaveBeenCalled();
     await f.service.prepare(scope, f.ticket.id);
     expect(f.requestInformation).toHaveBeenCalledTimes(1);
@@ -713,8 +859,14 @@ describe("automatic missing-information email", () => {
     const f = fixture();
     Object.assign(f.analysis, { intent: "needs_information", customerQuestions: ["clarify_request"] });
     f.requestInformation.mockRejectedValue(new Error("unavailable"));
-    const review = await f.service.prepare(scope, f.ticket.id);
-    expect(review.status).toBe("blocked");
+    const proposal = await f.service.prepare(scope, f.ticket.id);
+    const review = await f.service.decide(
+      scope,
+      f.ticket.id,
+      proposal.revision,
+      "approve"
+    );
+    expect(review.status).toBe("uncertain");
     expect(review.informationRequestError).toContain("could not be confirmed");
     expect(f.execute).not.toHaveBeenCalled();
   });
@@ -763,7 +915,7 @@ it("matches an unlinked Zendesk requester by email and prepares the CT change", 
   expect(f.closeTicket).not.toHaveBeenCalled();
 });
 
-it("applies an unlinked Zendesk request naming one matched CT address, leaving resolution for approval", async () => {
+it("automatically applies an unlinked Zendesk request naming one matched CT address", async () => {
   const f = fixture();
   f.ticket.id = "zendesk:account:2";
   f.ticket.customerId = null;

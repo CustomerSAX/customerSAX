@@ -42,6 +42,7 @@ type ApiCart = {
 
 type ApiCartListResponse = {
   results?: ApiCart[];
+  total?: number;
 };
 
 function moneyToNumber(money?: ApiMoney | null) {
@@ -114,22 +115,45 @@ export function useCartStore() {
   } = useQuery<Cart[]>({
     queryKey: ["carts"],
     queryFn: async () => {
-      const response = await fetch("/api/carts?limit=100");
-      const payload = (await response.json().catch(() => ({}))) as ApiCartListResponse & {
-        error?: string;
-      };
+      const allCarts: ApiCart[] = [];
+      const pageSize = 100;
+      let offset = 0;
+      let total = 0;
 
-      if (!response.ok) {
-        throw new Error(payload.error || `Failed to load carts (${response.status})`);
-      }
+      do {
+        const params = new URLSearchParams({
+          limit: String(pageSize),
+          offset: String(offset),
+          sortKey: "lastModifiedAt",
+          sortOrder: "desc"
+        });
+        const response = await fetch(`/api/carts?${params.toString()}`, {
+          cache: "no-store"
+        });
+        const payload = (await response.json().catch(() => ({}))) as ApiCartListResponse & {
+          error?: string;
+        };
 
-      const mapped = (payload.results ?? []).map(mapApiCart);
+        if (!response.ok) {
+          throw new Error(payload.error || `Failed to load carts (${response.status})`);
+        }
+
+        const page = payload.results ?? [];
+        allCarts.push(...page);
+        total = payload.total ?? allCarts.length;
+        offset += page.length;
+
+        if (page.length < pageSize) break;
+      } while (offset < total);
+
+      const mapped = allCarts.map(mapApiCart);
       mapped.forEach((c) => {
         queryClient.setQueryData(["cart", c.id], c);
       });
       return mapped;
     },
     staleTime: 60_000,
+    refetchOnMount: "always",
   });
 
   const error = queryError ? (queryError instanceof Error ? queryError.message : "Failed to load carts.") : null;

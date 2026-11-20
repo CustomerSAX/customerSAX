@@ -66,3 +66,78 @@ describe("grounded shipping address proposals", () => {
     ).toContain("tax");
   });
 });
+
+describe("grounded return proposals", () => {
+  const returnTicket: ReviewTicket = {
+    ...ticket,
+    category: "returns_refunds",
+    subject: "Return Quilt Cover",
+    message:
+      "I'd like to return the Jolly & Joy Christmas Highland Quilt Cover Set. It doesn't suit what I need.",
+    orderNumber: "1001"
+  };
+  const returnOrder: ReviewOrder = {
+    ...order,
+    orderState: "Complete",
+    shipmentState: "Delivered",
+    paymentState: "Paid",
+    createdAt: new Date().toISOString(),
+    lineItems: [
+      {
+        id: "line-1",
+        name: "Jolly & Joy Christmas Highland Quilt Cover Set",
+        sku: "QUILT-1",
+        quantity: 1
+      }
+    ],
+    returnInfo: []
+  };
+  const returnFindings: OrderFindings = {
+    summary: "Customer requests a return.",
+    actions: ["Record the return after approval."],
+    responseDraft: "We can help with your return.",
+    missingInformation: [],
+    requestedAction: "start_return",
+    returnReason: "It doesn't suit what I need",
+    returnReasonEvidence: "It doesn't suit what I need.",
+    returnItems: [
+      {
+        lineItemId: "line-1",
+        quantity: 1,
+        evidence: "return the Jolly & Joy Christmas Highland Quilt Cover Set"
+      }
+    ]
+  };
+
+  it("prepares an exact eligible return from ticket evidence", () => {
+    expect(prepareOrderAction(returnTicket, returnOrder, returnFindings).action).toEqual({
+      kind: "start_return",
+      reason: "It doesn't suit what I need",
+      lineItems: [
+        {
+          lineItemId: "line-1",
+          quantity: 1,
+          name: "Jolly & Joy Christmas Highland Quilt Cover Set",
+          sku: "QUILT-1"
+        }
+      ]
+    });
+  });
+
+  it("blocks invented reasons and ineligible orders", () => {
+    expect(
+      prepareOrderAction(returnTicket, returnOrder, {
+        ...returnFindings,
+        returnReason: "Damaged",
+        returnReasonEvidence: "Damaged"
+      }).action
+    ).toBeUndefined();
+    expect(
+      prepareOrderAction(
+        returnTicket,
+        { ...returnOrder, shipmentState: "Pending" },
+        returnFindings
+      ).reason
+    ).toContain("not currently eligible");
+  });
+});

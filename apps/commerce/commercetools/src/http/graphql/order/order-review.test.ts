@@ -17,6 +17,9 @@ const order = {
   orderState: "Open",
   shipmentState: "Pending",
   paymentState: "Pending",
+  createdAt: new Date().toISOString(),
+  lineItems: [{ id: "line-1", quantity: 1, name: { "en-US": "Quilt Cover" } }],
+  returnInfo: [],
   shippingAddress: {
     country: "US",
     state: "TX",
@@ -92,6 +95,75 @@ describe("approved order writes", () => {
     expect(JSON.parse(fetcher.mock.calls[1][1].body).actions).toEqual([
       { action: "setShippingAddress", address: { ...order.shippingAddress, ...address } }
     ]);
+  });
+  it("records exactly the approved return items after rechecking eligibility", async () => {
+    const returnable = {
+      ...order,
+      orderState: "Complete",
+      shipmentState: "Delivered",
+      paymentState: "Paid"
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(returnable))
+      .mockImplementationOnce(async (_url, init) => {
+        const body = JSON.parse(init.body);
+        const tracking = body.actions[0].returnTrackingId;
+        return Response.json({
+          ...returnable,
+          version: 4,
+          returnInfo: [{ returnTrackingId: tracking, items: body.actions[0].items }]
+        });
+      });
+    vi.stubGlobal("fetch", fetcher);
+
+    const result = await updateReviewedOrder({
+      ...args,
+      action: {
+        kind: "start_return",
+        reason: "It does not suit what I need",
+        lineItems: [{ lineItemId: "line-1", quantity: 1 }]
+      }
+    });
+
+    const body = JSON.parse(fetcher.mock.calls[1][1].body);
+    expect(body.version).toBe(3);
+    expect(body.actions[0]).toMatchObject({
+      action: "addReturnInfo",
+      items: [{
+        lineItemId: "line-1",
+        quantity: 1,
+        shipmentState: "Returned",
+        comment: "It does not suit what I need"
+      }]
+    });
+    expect(result.returnTrackingId).toMatch(/^CSA-RETURN-/);
+  });
+  it("rejects duplicate return lines before writing", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        ...order,
+        orderState: "Complete",
+        shipmentState: "Delivered",
+        paymentState: "Paid"
+      })
+    );
+    vi.stubGlobal("fetch", fetcher);
+
+    await expect(
+      updateReviewedOrder({
+        ...args,
+        action: {
+          kind: "start_return",
+          reason: "No longer needed",
+          lineItems: [
+            { lineItemId: "line-1", quantity: 1 },
+            { lineItemId: "line-1", quantity: 1 }
+          ]
+        }
+      })
+    ).rejects.toThrow("quantity");
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it("rejects address changes that need tax review", async () => {
     const fetcher = vi.fn().mockResolvedValue(Response.json(order));

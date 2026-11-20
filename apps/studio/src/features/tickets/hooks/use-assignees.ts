@@ -36,7 +36,8 @@ export function useAssignees(currentAssignee?: string | null) {
       }
       return [...unique.values()].sort((a, b) => a.label.localeCompare(b.label));
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes team list cache
+    staleTime: 30 * 1000,
+    refetchOnMount: "always",
   });
 
   const options = useMemo(() => {
