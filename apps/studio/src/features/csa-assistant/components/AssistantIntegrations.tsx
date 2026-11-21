@@ -11,6 +11,9 @@ import { ZendeskPluginDialog, useZendeskPluginStatus } from "./ZendeskPluginDial
 import { AlgoliaPluginDialog, useAlgoliaPluginStatus } from "./AlgoliaPluginDialog";
 type Connector = { id: string; name: string; description: string };
 export type AssistantAttachment = { id: string; name: string; text: string };
+// Files (attach text files to a message) is hidden for now. The upload code
+// below is kept; set this to true to show the button again.
+const SHOW_FILES_BUTTON = false;
 export function AssistantIntegrations({
   disabled,
   attachments,
@@ -179,14 +182,16 @@ export function AssistantIntegrations({
               "Choose project"}
           </span>
         </button>
-        <button
-          type="button"
-          disabled={reading || disabled}
-          onClick={() => fileRef.current?.click()}
-        >
-          <FileText size={19} />
-          Files{attachments.length > 0 && ` (${attachments.length})`}
-        </button>
+        {SHOW_FILES_BUTTON && (
+          <button
+            type="button"
+            disabled={reading || disabled}
+            onClick={() => fileRef.current?.click()}
+          >
+            <FileText size={19} />
+            Files{attachments.length > 0 && ` (${attachments.length})`}
+          </button>
+        )}
         <Popover.Root open={pluginsOpen} onOpenChange={setPluginsOpen}>
           <Popover.Trigger asChild>
             <button type="button" className={pluginsOpen ? styles.selected : ""}>

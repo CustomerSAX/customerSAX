@@ -58,6 +58,8 @@ export type CtCart = {
 };
 
 export type CtAddress = {
+  firstName?: string;
+  lastName?: string;
   streetName?: string;
   streetNumber?: string;
   apartment?: string;

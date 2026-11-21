@@ -139,6 +139,8 @@ export interface ProductCardArgs {
   variantId?: string;
   /** Formatted price; empty when the product has no price in the conversation's currency. */
   price: string;
+  /** ISO code `price` is in (from the catalog result) — the cart must be created in it. */
+  currency?: string;
   /** "Out of stock" / "12 in stock"; absent or empty when there is no inventory record — unknown, not "in stock". */
   stock?: string;
   image?: string;

@@ -41,6 +41,7 @@ import { SuggestedActions } from "./SuggestedActions";
 import { Markdown } from "./Markdown";
 import { CheckoutFlow } from "./CheckoutFlow";
 import { useCartStore } from "../store/cart-store";
+import { useCheckoutStore } from "../store/checkout-store";
 import type { CsaChat } from "../hooks/use-csa-chat";
 import { useVoiceChat } from "../hooks/use-voice-chat";
 import type { VoicePhase } from "../hooks/use-voice-chat";
@@ -109,7 +110,9 @@ const VISIBLE_TOOLS = new Set([
   "action_approval",
   "suggested_actions",
   "render_refund_action",
-  "product_card"
+  "product_card",
+  // Opens the checkout panel (CheckoutFlow) — the panel is the visible result.
+  "start_checkout"
 ]);
 
 type ToolPart = { type: string; toolName?: string; state?: string; output?: unknown; errorText?: string };
@@ -211,6 +214,7 @@ function ToolCallCard({
   isLoading,
   resolution,
   isLatest,
+  actionable = isLatest,
   checkoutCartIds
 }: {
   toolName: string;
@@ -222,6 +226,8 @@ function ToolCallCard({
   isLoading: boolean;
   resolution: ApprovalResolution;
   isLatest: boolean;
+  /** False when this reply also holds an approval card: its other cards are read-only. */
+  actionable?: boolean;
   /** Carts the rep has started checking out — their cards are read-only. */
   checkoutCartIds: ReadonlySet<string>;
 }) {
@@ -239,7 +245,7 @@ function ToolCallCard({
           args={args as CartSummaryArgs}
           onSuggest={onSuggest}
           isLoading={isLoading}
-          editable={isLatest}
+          editable={actionable}
           checkoutStarted={checkoutCartIds.has((args as CartSummaryArgs).cartId)}
         />
       );
@@ -360,6 +366,9 @@ function MessageBubble({
         sku: cardArgs.sku,
         name: cardArgs.name,
         quantity: 1,
+        // The currency the card's price is in, so the cart is created in it
+        // (create_cart otherwise defaults to USD and an AUD-only product fails).
+        ...(cardArgs.currency ? { currency: cardArgs.currency } : {}),
       })}`
     );
   }
@@ -397,6 +406,14 @@ function MessageBubble({
       .filter((cart) => !replyParts.some((later, j) => j > partIdx && (later.cartId === cart.cartId || cartIdOf(later.output) === cart.cartId) && CART_CHANGING_PARTS.has(later.name)))
       .map((args) => ({ args, key: `${message.id}-cart-${partIdx}-${args.cartId}` }));
   });
+  // One decision at a time: a reply shows at most one approval card (the first
+  // — the server refuses any later one), and while it has one, the reply's other
+  // action cards (cart, addresses, shipping…) are read-only, so the rep never
+  // faces competing buttons for the same step.
+  const firstApprovalIdx = replyParts.findIndex(
+    (p) => p.name === "action_approval" && (p.state === "output-available" || p.state === "input-available")
+  );
+  const actionable = isLatest && firstApprovalIdx === -1;
   // Latest shipping-method lookup in this reply (null when there was none).
   const shippingMethods = replyParts.reduce<ShippingMethod[] | null>(
     (latest, p) => (p.name === "list_shipping_methods" && p.state === "output-available" ? shippingMethodsFromOutput(p.output) ?? latest : latest),
@@ -574,6 +591,9 @@ function MessageBubble({
           // Handled in the horizontal scroll row below
           if (toolName === "product_card") return null;
 
+          // Only the first approval card in a reply (see firstApprovalIdx).
+          if (toolName === "action_approval" && partIdx !== firstApprovalIdx) return null;
+
           if (toolName === "get_crm_contact_details" && crmFromDetails && partIdx === crmFromDetails.partIdx) {
             return (
               <div key={`${message.id}-crm-details`} className="w-full">
@@ -631,6 +651,7 @@ function MessageBubble({
               isLoading={isLoading}
               resolution={resolution}
               isLatest={isLatest}
+              actionable={actionable}
               checkoutCartIds={checkoutCartIds}
             />
           );
@@ -640,7 +661,7 @@ function MessageBubble({
           ? <OrderSummaryTable orders={orderBlock} onSuggest={onSuggest} isLoading={isLoading} />
           : <OrderSummaryCard args={orderBlock[0]} onSuggest={onSuggest} isLoading={isLoading} />)}
 
-        {refundStatus && <RefundStatusCard status={refundStatus} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} />}
+        {refundStatus && <RefundStatusCard status={refundStatus} onSuggest={onSuggest} isLoading={isLoading} editable={actionable} />}
 
         {customerOverviews.map(({ result, key }) => (
           <CustomerOverviewCard key={key} result={result} onSuggest={onSuggest} isLoading={isLoading} />
@@ -650,21 +671,21 @@ function MessageBubble({
           <TeamStatsCard key={key} stats={stats} onSuggest={onSuggest} isLoading={isLoading} />
         ))}
 
-        {returnForm && <ReturnRequestCard key={returnForm.orderId} form={returnForm} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} />}
+        {returnForm && <ReturnRequestCard key={returnForm.orderId} form={returnForm} onSuggest={onSuggest} isLoading={isLoading} editable={actionable} />}
 
         {lookedUpCarts.map(({ args, key }) => (
-          <CartSummaryCard key={key} args={args} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} checkoutStarted={checkoutCartIds.has(args.cartId)} />
+          <CartSummaryCard key={key} args={args} onSuggest={onSuggest} isLoading={isLoading} editable={actionable} checkoutStarted={checkoutCartIds.has(args.cartId)} />
         ))}
         {olderCarts.length > 0 && (
-          <OlderCartsCard carts={olderCarts} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} />
+          <OlderCartsCard carts={olderCarts} onSuggest={onSuggest} isLoading={isLoading} editable={actionable} />
         )}
 
         {addressBook && (
-          <AddressBookCard book={addressBook} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} checkoutCartId={[...checkoutCartIds].at(-1) ?? null} />
+          <AddressBookCard book={addressBook} onSuggest={onSuggest} isLoading={isLoading} editable={actionable} checkoutCartId={[...checkoutCartIds].at(-1) ?? null} />
         )}
 
         {shippingMethods && (
-          <ShippingMethodsCard methods={shippingMethods} onSuggest={onSuggest} isLoading={isLoading} editable={isLatest} cartId={[...checkoutCartIds].at(-1) ?? null} />
+          <ShippingMethodsCard methods={shippingMethods} onSuggest={onSuggest} isLoading={isLoading} editable={actionable} cartId={[...checkoutCartIds].at(-1) ?? null} />
         )}
 
         {/* ── Horizontal product card scroll row with ← → arrows ── */}
@@ -988,6 +1009,7 @@ function ShippingMethodsCard({
 function catalogProductsToCards(output: unknown): ProductCardArgs[] {
   const products = (output as { products?: unknown } | null)?.products;
   if (!Array.isArray(products)) return [];
+  const currency = (output as { currency?: unknown }).currency;
   return products.flatMap((raw) => {
     const p = raw as {
       productId?: string; sku?: string | null; variantId?: string; name?: string; description?: string | null;
@@ -999,6 +1021,7 @@ function catalogProductsToCards(output: unknown): ProductCardArgs[] {
       sku: p.sku,
       variantId: p.variantId,
       price: p.price ?? "",
+      currency: p.price && typeof currency === "string" ? currency : undefined,
       stock: p.stock ?? undefined,
       image: p.image ?? undefined,
       slug: p.productId,
@@ -1105,6 +1128,31 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
 
   useChatToolEffects(messages, isLoading);
   useActionNotifications(messages, isLoading);
+
+  // The assistant's start_checkout opens the checkout panel for that cart.
+  // Only for a call seen while the reply is streaming, so restoring an old
+  // conversation (messages loaded with no stream) never re-opens a checkout.
+  const liveCheckoutCalls = useRef(new Set<string>());
+  const openedCheckoutCalls = useRef(new Set<string>());
+  useEffect(() => {
+    const last = messages.at(-1);
+    if (!last || last.role !== "assistant") return;
+    for (const part of last.parts ?? []) {
+      const p = part as { type: string; toolName?: string; toolCallId?: string; state?: string; input?: unknown };
+      const name = p.type === "dynamic-tool" ? p.toolName : p.type.startsWith("tool-") ? p.type.slice(5) : null;
+      if (name !== "start_checkout" || !p.toolCallId) continue;
+      if (isLoading) liveCheckoutCalls.current.add(p.toolCallId);
+      if (p.state !== "output-available" || !liveCheckoutCalls.current.has(p.toolCallId)) continue;
+      if (openedCheckoutCalls.current.has(p.toolCallId)) continue;
+      openedCheckoutCalls.current.add(p.toolCallId);
+      const cartId = (p.input as { cartId?: unknown } | undefined)?.cartId;
+      if (typeof cartId !== "string" || !cartId.trim()) continue;
+      useCheckoutStore.getState().startForCart(
+        cartId.trim(),
+        customer?.id || customer?.email ? { id: customer?.id, email: customer?.email, name: customer?.name } : null,
+      );
+    }
+  }, [messages, isLoading, customer]);
 
   const locale = useLocale();
   // Carts the rep clicked Checkout on: from then on their cards are read-only
@@ -1295,8 +1343,8 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
 
         {/* Checkout flow — rendered inline inside the chat scroll list */}
         <CheckoutFlow
-          onViewOrder={(orderNumber) => {
-            sendSuggestion(`[hidden-action] ${JSON.stringify({ type: 'order.view', orderNumber })}`);
+          onViewOrder={(orderNumber, orderId) => {
+            sendSuggestion(`[hidden-action] ${JSON.stringify({ type: 'order.view', orderNumber, ...(orderId ? { orderId } : {}) })}`);
           }}
         />
 
@@ -1313,7 +1361,19 @@ export function ChatStream({ chat, sessionCustomerName }: ChatStreamProps) {
               <button 
                 onClick={() => {
                   window.__csaClearBriefing?.();
-                  window.location.reload(); // Simple clear for now
+                  // Previously this reloaded the page, but index.tsx restores the
+                  // transcript from storage on mount, so the messages came straight
+                  // back. Clear in place instead: stop any stream, drop the persisted
+                  // transcript (same keys index.tsx uses), and start a fresh session
+                  // ID so the next message isn't appended to the cleared one.
+                  // Customer, cart and panels are left as-is — that's "New Conversation".
+                  chat.stop();
+                  try {
+                    localStorage.removeItem("csa-chat-messages");
+                    if (activeTicketId) sessionStorage.removeItem(`csa-ticket-msgs-${activeTicketId}`);
+                  } catch { /* storage unavailable — in-memory clear below still applies */ }
+                  chat.setMessages([]);
+                  chat.clearSession();
                 }}
                 className="text-[10px] text-m-text-muted hover:text-m-text flex items-center gap-1 transition-colors"
               >

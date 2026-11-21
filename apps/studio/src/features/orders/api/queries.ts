@@ -35,6 +35,8 @@ export const CUSTOMER_ORDERS_QUERY = gql`
           }
         }
         shippingAddress {
+          firstName
+          lastName
           streetName
           streetNumber
           city
@@ -43,6 +45,8 @@ export const CUSTOMER_ORDERS_QUERY = gql`
           country
         }
         billingAddress {
+          firstName
+          lastName
           streetName
           streetNumber
           city
@@ -141,6 +145,8 @@ export const ORDERS_PAGE_QUERY = gql`
           }
         }
         shippingAddress {
+          firstName
+          lastName
           streetName
           streetNumber
           city
@@ -149,6 +155,8 @@ export const ORDERS_PAGE_QUERY = gql`
           country
         }
         billingAddress {
+          firstName
+          lastName
           streetName
           streetNumber
           city
@@ -205,6 +213,8 @@ export const ORDER_QUERY = gql`
         }
       }
       shippingAddress {
+        firstName
+        lastName
         streetName
         streetNumber
         city
@@ -213,6 +223,8 @@ export const ORDER_QUERY = gql`
         country
       }
       billingAddress {
+        firstName
+        lastName
         streetName
         streetNumber
         city

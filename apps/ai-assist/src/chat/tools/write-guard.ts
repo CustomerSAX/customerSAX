@@ -32,7 +32,12 @@ type WritePermission =
 
 type WriteRule = {
   permission: WritePermission;
-  approval: "none" | "approval_card" | "approval_card_or_return_confirm";
+  approval:
+    | "none"
+    | "approval_card"
+    | "approval_card_or_return_confirm"
+    | "approval_card_or_address_choice"
+    | "approval_card_or_shipping_choice";
 };
 
 /** One rule per write tool. A tool missing here is a read and passes through untouched. */
@@ -45,8 +50,13 @@ const WRITE_RULES: Record<string, WriteRule> = {
   apply_discount_code: { permission: "canUpdateCarts", approval: "none" },
   remove_discount_code: { permission: "canUpdateCarts", approval: "none" },
   delete_cart: { permission: "canUpdateCarts", approval: "approval_card" },
-  update_cart_address: { permission: "canUpdateCarts", approval: "none" },
-  update_cart_shipping_method: { permission: "canUpdateCarts", approval: "none" },
+  // The address must come from the rep — the submitted address form (approval
+  // card) or an address they picked — never one the model filled in itself
+  // (a plain "yes" used to set an address the rep never saw).
+  update_cart_address: { permission: "canUpdateCarts", approval: "approval_card_or_address_choice" },
+  // Same for the shipping method: the rep picks it (shipping card / stepper);
+  // the model never chooses one on its own.
+  update_cart_shipping_method: { permission: "canUpdateCarts", approval: "approval_card_or_shipping_choice" },
   // Orders
   place_order: { permission: "canCreateOrders", approval: "approval_card" },
   cancel_order: { permission: "canUpdateOrders", approval: "approval_card" },
@@ -77,6 +87,14 @@ const APPROVAL_GATE_ERROR =
   "You must NOT call a write tool until the agent explicitly clicks Approve in the UI. " +
   "Stop your response now and wait for the next user message.";
 
+const ADDRESS_REQUIRED_ERROR =
+  "ADDRESS_REQUIRED: a cart address can only be set from an address the rep chose or entered — never one you filled in. " +
+  "If this is a checkout, call start_checkout with the cart id instead: the checkout panel collects the address. Then stop.";
+
+const SHIPPING_REQUIRED_ERROR =
+  "SHIPPING_REQUIRED: a shipping method can only be set from the method the rep clicked — never one you chose. " +
+  "If this is a checkout, call start_checkout with the cart id instead: the checkout panel lets the rep pick the method. Then stop.";
+
 function approvalRequiredError(toolName: string) {
   return (
     `APPROVAL_REQUIRED: ${toolName} changes real data and needs the rep's approval first, and the rep's current message is not an approval. ` +
@@ -106,10 +124,17 @@ function guardWrite<T extends AnyTool>(name: string, rule: WriteRule, original: 
           approval?.kind === "approval_card" ||
           (rule.approval === "approval_card_or_return_confirm" &&
             approval?.kind === "return_confirm" &&
-            approval.orderId === input.orderId);
+            approval.orderId === input.orderId) ||
+          (rule.approval === "approval_card_or_address_choice" && approval?.kind === "address_choice") ||
+          (rule.approval === "approval_card_or_shipping_choice" && approval?.kind === "shipping_choice");
         if (!approved) {
           log.info(`write:${name}`, { ok: false, blocked: "approval" });
-          return { error: approvalRequiredError(name) };
+          return {
+            error:
+              rule.approval === "approval_card_or_address_choice" ? ADDRESS_REQUIRED_ERROR
+              : rule.approval === "approval_card_or_shipping_choice" ? SHIPPING_REQUIRED_ERROR
+              : approvalRequiredError(name)
+          };
         }
       }
       return execute(...args);

@@ -54,6 +54,7 @@ const richProductListFields = `#graphql
         prices { value { centAmount currencyCode fractionDigits } }
         availability {
           noChannel { isOnStock availableQuantity }
+          channels { results { availability { isOnStock availableQuantity } } }
         }
       }
       allVariants {
@@ -64,6 +65,7 @@ const richProductListFields = `#graphql
         prices { value { centAmount currencyCode fractionDigits } }
         availability {
           noChannel { isOnStock availableQuantity }
+          channels { results { availability { isOnStock availableQuantity } } }
         }
       }
     }
@@ -94,6 +96,7 @@ const richProductDetailFields = `#graphql
         prices { value { centAmount currencyCode fractionDigits } }
         availability {
           noChannel { isOnStock availableQuantity }
+          channels { results { availability { isOnStock availableQuantity } } }
         }
       }
       allVariants {
@@ -104,6 +107,7 @@ const richProductDetailFields = `#graphql
         prices { value { centAmount currencyCode fractionDigits } }
         availability {
           noChannel { isOnStock availableQuantity }
+          channels { results { availability { isOnStock availableQuantity } } }
         }
       }
     }
@@ -120,6 +124,16 @@ export const resolvers = {
       `
     );
     return data.project.currencies ?? [];
+  },
+  availableCountries: async () => {
+    const data = await commercetoolsGraphql<{ project: { countries?: string[] } }>(
+      `#graphql
+        query AvailableCountries {
+          project { countries }
+        }
+      `
+    );
+    return data.project.countries ?? [];
   },
   product: (_parent: unknown, args: { id?: string; key?: string }) => getProductByIdOrKey(args),
   products: async (_parent: unknown, args: PagingArgs) => {

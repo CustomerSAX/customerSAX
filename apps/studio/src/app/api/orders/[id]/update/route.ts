@@ -33,17 +33,22 @@ export async function POST(
 
     for (const action of actions) {
       if ('changePaymentState' in action) {
-        // The BFF schema might not support changeOrderPaymentState directly yet,
-        // but we'll try it if it exists.
+        // updateOrder returns a Json scalar, so it takes no selection set — the
+        // old `{ id }` selection made GraphQL reject every call, and the error was
+        // swallowed while this route still reported success (checkout showed
+        // "Paid" but the order stayed Pending). Actions go in as a variable.
         try {
           await bff(
-            `mutation ChangePaymentState($id: ID!, $paymentState: String!) {
-              updateOrder(id: $id, actions: [{ changePaymentState: { paymentState: $paymentState } }]) { id }
+            `mutation ChangePaymentState($id: ID!, $actions: Json!) {
+              updateOrder(id: $id, actions: $actions)
             }`,
-            { id, paymentState: action.changePaymentState.paymentState }
+            { id, actions: [{ changePaymentState: { paymentState: action.changePaymentState.paymentState } }] }
           );
         } catch (e) {
-          log.warn("updateOrder mutation failed or missing in BFF", { reason: e instanceof Error ? e.message : String(e) });
+          const reason = e instanceof Error ? e.message : String(e);
+          log.warn("updateOrder changePaymentState failed", { reason });
+          // Report the failure so the caller shows the real payment state.
+          return NextResponse.json({ error: 'Could not update the payment state.' }, { status: 502 });
         }
       }
     }

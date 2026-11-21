@@ -38,6 +38,8 @@ type CommerceOrderLineItem = {
 };
 
 type CommerceOrderAddress = {
+  firstName?: string | null;
+  lastName?: string | null;
   streetName?: string | null;
   streetNumber?: string | null;
   city?: string | null;
@@ -137,6 +139,12 @@ function toPaymentState(state?: string | null): PaymentState {
   return "Pending";
 }
 
+/** "First Last" from an order address, or undefined when it carries no name. */
+function addressName(addr?: CommerceOrderAddress | null): string | undefined {
+  const name = [addr?.firstName, addr?.lastName].map((p) => p?.trim()).filter(Boolean).join(" ");
+  return name || undefined;
+}
+
 function normalizeOrder(order: CommerceOrder, customerNames: Map<string, string>): Order {
   const lineItems = (order.lineItems ?? []).map((item) => {
     const total = moneyToNumber(item.totalPrice);
@@ -175,7 +183,14 @@ function normalizeOrder(order: CommerceOrder, customerNames: Map<string, string>
     createdAt: order.createdAt ?? "",
     customerEmail: order.customerEmail ?? "",
     customerId: order.customerId ?? undefined,
-    customerName: (order.customerId ? customerNames.get(order.customerId) : undefined) ?? order.customerEmail ?? "--",
+    // Account name → order email → (guest orders) the name on the billing /
+    // shipping address, which is where checkout records a guest's name.
+    customerName:
+      (order.customerId ? customerNames.get(order.customerId) : undefined) ??
+      (order.customerEmail || undefined) ??
+      addressName(order.billingAddress) ??
+      addressName(order.shippingAddress) ??
+      "--",
     discountCodes: [],
     discountTotal: 0,
     grandTotal,

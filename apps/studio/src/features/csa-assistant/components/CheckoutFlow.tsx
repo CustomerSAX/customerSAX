@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   useCheckoutStore,
   addressSummary,
@@ -106,7 +106,7 @@ function Row({ label, value }: { label: string; value: string }) {
 
 // ─── CheckoutFlow ─────────────────────────────────────────────────────────────
 
-export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: string) => void }) {
+export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: string, orderId?: string) => void }) {
   const co = useCheckoutStore();
   const convCustomer = useConversationStore((s) => s.customer);
 
@@ -117,16 +117,20 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
   const [selectedShip, setSelectedShip] = useState<string | null>(null);
   const [countries, setCountries] = useState<string[]>([]);
 
-  // Load configured countries when the address step is reached.
+  // Load the project's own countries (commercetools project settings) when the
+  // address step is reached — commercetools rejects an address in any other
+  // country (e.g. US on an AU store). Falls back to the built-in list if the
+  // lookup fails or the project has none configured.
   useEffect(() => {
     if (co.step !== 'address') return;
     if (countries.length > 0) return;
-    fetch('/api/shipping-methods')
-      .then(() => {
-        // We reuse a simple hardcoded country list for now; CT doesn't expose a
-        // "configured countries" endpoint. The real countries come from the first
-        // address the rep sets — we just want to show a dropdown.
-        const list = Object.keys(COUNTRY_NAMES);
+    fetch('/api/project-countries', { headers: { Accept: 'application/json' } })
+      .then(async (res) => {
+        const data = res.ok ? await res.json().catch(() => null) : null;
+        const projectList = Array.isArray(data)
+          ? data.filter((c): c is string => typeof c === 'string' && c.trim().length > 0).map((c) => c.trim().toUpperCase())
+          : [];
+        const list = projectList.length > 0 ? projectList : Object.keys(COUNTRY_NAMES);
         setCountries(list);
         setManualAddr((prev) => prev.country ? prev : { ...prev, country: list[0] ?? '' });
       })
@@ -157,13 +161,29 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [co.isOpen]);
 
+  // Bring the panel into view when it opens — it sits at the end of the chat,
+  // which may be off-screen when Checkout was clicked on an earlier cart card.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!co.isOpen) return;
+    const raf = requestAnimationFrame(() => rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+    return () => cancelAnimationFrame(raf);
+  }, [co.isOpen, co.cartId]);
+
   if (!co.isOpen) return null;
+
+  // Close the panel and show the placed order as a card in the chat.
+  const closeWithOrderCard = () => {
+    const order = co.order;
+    co.reset();
+    if (order && onViewOrder) onViewOrder(order.orderNumber ?? order.id, order.id);
+  };
 
   const stepOrder = ['customer', 'address', 'shipping', 'review'] as const;
   const currentIdx = stepOrder.indexOf(co.step as typeof stepOrder[number]);
 
   return (
-    <div style={{
+    <div ref={rootRef} style={{
       margin: '10px 16px 16px', border: `1px solid ${BORDER}`, borderRadius: 12,
       overflow: 'hidden', backgroundColor: 'var(--color-surface-1)', boxShadow: 'var(--shadow-md)', maxWidth: 560,
     }}>
@@ -440,17 +460,12 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-              <button
-                style={ghostBtn}
-                onClick={() => {
-                  const ref = co.order?.orderNumber ?? co.order?.id;
-                  co.reset();
-                  if (ref && onViewOrder) onViewOrder(ref);
-                }}
-              >
+              <button style={ghostBtn} onClick={closeWithOrderCard}>
                 View order
               </button>
-              <button style={primaryBtn(false)} onClick={() => co.reset()}>Done</button>
+              {/* Done also leaves the placed order's card in the chat — closing the
+                  panel used to leave no trace of the order in the conversation. */}
+              <button style={primaryBtn(false)} onClick={closeWithOrderCard}>Done</button>
             </div>
           </div>
         )}

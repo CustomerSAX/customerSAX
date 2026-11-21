@@ -259,7 +259,8 @@ export function ProductDetailDrawer({
 
   // No inventory record → stock is unknown, which must not read as "In Stock".
   const stockText = activeStock?.trim() ?? '';
-  const stockUnknown = !stockText;
+  // "--" is what availableQuantity() returns when there's no inventory record.
+  const stockUnknown = !stockText || stockText === '--';
   const stockIsOut = stockText.toLowerCase().includes('out') || stockText === '0';
   const stockIsLow = stockText.toLowerCase().includes('low');
   const inStock = !stockIsOut;
@@ -424,6 +425,8 @@ export function ProductDetailDrawer({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {displayProduct.variants.map((v, idx) => {
                     const vStockOut = v.stock.toLowerCase().includes('out') || v.stock === '0';
+                    // "--" = no inventory record (same rule as the header badge above).
+                    const vStockUnknown = !v.stock.trim() || v.stock === '--';
                     const isSelected = idx === selectedVariantIdx;
                     const vImage = v.images?.[0] ?? heroImage;
                     return (
@@ -451,8 +454,8 @@ export function ProductDetailDrawer({
                         {v.price && (
                           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-success)', flexShrink: 0 }}>{v.price}</div>
                         )}
-                        <div style={{ fontSize: 10, fontWeight: 600, color: vStockOut ? 'var(--color-error)' : 'var(--color-success)', flexShrink: 0 }}>
-                          {vStockOut ? 'Out of Stock' : 'In Stock'}
+                        <div style={{ fontSize: 10, fontWeight: 600, color: vStockUnknown ? 'var(--color-text-muted)' : vStockOut ? 'var(--color-error)' : 'var(--color-success)', flexShrink: 0 }}>
+                          {vStockUnknown ? 'Stock unknown' : vStockOut ? 'Out of Stock' : 'In Stock'}
                         </div>
                         {isSelected && (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>

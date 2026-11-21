@@ -507,7 +507,10 @@ type RawCatalogProduct = {
         sku?: string | null;
         images?: Array<{ url: string }>;
         prices?: Array<{ value: { centAmount: number; currencyCode: string; fractionDigits?: number } }>;
-        availability?: { noChannel?: { isOnStock?: boolean; availableQuantity?: number | null } | null } | null;
+        availability?: {
+          noChannel?: { isOnStock?: boolean; availableQuantity?: number | null } | null;
+          channels?: { results?: Array<{ availability?: { isOnStock?: boolean; availableQuantity?: number | null } | null }> } | null;
+        } | null;
       };
     };
   };
@@ -532,11 +535,33 @@ function localized(values: LocalizedValue[] | undefined): string | null {
   return (values.find((v) => v.locale === "en-US") ?? values.find((v) => v.locale.startsWith("en")) ?? values[0]).value;
 }
 
+type RawAvailability = NonNullable<NonNullable<NonNullable<NonNullable<RawCatalogProduct["masterData"]>["current"]>["masterVariant"]>["availability"]>;
+
+/**
+ * Channel-less inventory when commercetools has it; otherwise the supply-channel
+ * entries combined (in stock if any channel is, quantities summed) — the same
+ * fallback the studio Products page uses. null still means no inventory record.
+ */
+function channelAwareInventory(availability: RawAvailability | null | undefined) {
+  if (availability?.noChannel) return availability.noChannel;
+  const entries = (availability?.channels?.results ?? [])
+    .map((r) => r?.availability)
+    .filter((a): a is NonNullable<typeof a> => !!a);
+  if (entries.length === 0) return null;
+  const quantities = entries
+    .map((a) => a.availableQuantity)
+    .filter((q): q is number => typeof q === "number");
+  return {
+    isOnStock: entries.some((a) => a.isOnStock !== false && (a.availableQuantity ?? 1) > 0),
+    availableQuantity: quantities.length > 0 ? quantities.reduce((sum, q) => sum + q, 0) : null
+  };
+}
+
 function toCatalogProduct(raw: RawCatalogProduct, currency: string): CatalogProduct {
   const current = raw.masterData?.current;
   const variant = current?.masterVariant;
   const price = variant?.prices?.find((p) => p.value.currencyCode === currency);
-  const inventory = variant?.availability?.noChannel;
+  const inventory = channelAwareInventory(variant?.availability);
   const quantity = inventory?.availableQuantity;
   const description = localized(current?.descriptionAllLocales);
   return {
@@ -577,14 +602,16 @@ async function catalogSearch(args: { text?: string; currency: string; limit: num
       display: "These are records from the project's selected Algolia connector. Summarize the returned fields as text. Report missing prices, currency or stock honestly. Algolia objectIDs are not commerce product IDs: do not create native product cards, Details links or cart actions from these IDs."
     };
   }
-  const currency = args.currency.trim().toUpperCase();
+  const requested = await projectCurrency(args.currency);
   const data = await bffQuery<{ productSearch: { results: RawCatalogProduct[]; total: number } }>(
     `query CatalogSearch($text: String, $browse: Boolean, $currency: String, $limit: Int, $offset: Int) {
       productSearch(text: $text, browse: $browse, currency: $currency, limit: $limit, offset: $offset)
     }`,
-    { text: args.text ? singularSearchText(args.text) : undefined, browse: !args.text, currency, limit: args.limit, offset: args.offset }
+    { text: args.text ? singularSearchText(args.text) : undefined, browse: !args.text, currency: requested, limit: args.limit, offset: args.offset }
   );
-  const products = (data.productSearch?.results ?? []).map((p) => toCatalogProduct(p, currency));
+  const raws = data.productSearch?.results ?? [];
+  const currency = pricedCurrency(raws, requested);
+  const products = raws.map((p) => toCatalogProduct(p, currency));
   return {
     total: data.productSearch?.total ?? products.length,
     count: products.length,
@@ -595,9 +622,50 @@ async function catalogSearch(args: { text?: string; currency: string; limit: num
       products.length > 0
         ? "These products are ALREADY shown to the rep as product cards (name, price, stock, Add to cart, Details). " +
           "Reply with ONE sentence only, e.g. 'Here are 10 of 37 matching products.' — say 'products', not the search term, because matches " +
-          "include products whose description mentions it. Do NOT list, number or describe the products, and do NOT call product_card for them."
+          "include products whose description mentions it. Do NOT list, number or describe the products, and do NOT call product_card for them. " +
+          `Prices are in ${currency}: any cart for these products must be created with create_cart currency "${currency}" (not USD or a list_regions default).`
         : "No products matched."
   };
+}
+
+/**
+ * Project settings can list a currency (e.g. USD) the catalog isn't actually
+ * priced in (e.g. every price is AUD) — then no card would get a price even
+ * though the Products page shows one. If none of the returned products has a
+ * price in `requested`, use the currency these products ARE priced in (the
+ * most common one). Real commercetools prices only; nothing is converted.
+ */
+function pricedCurrency(raws: RawCatalogProduct[], requested: string): string {
+  const counts = new Map<string, number>();
+  for (const raw of raws) {
+    for (const p of raw.masterData?.current?.masterVariant?.prices ?? []) {
+      const code = p.value.currencyCode;
+      if (code === requested) return requested;
+      counts.set(code, (counts.get(code) ?? 0) + 1);
+    }
+  }
+  let best = requested;
+  let max = 0;
+  for (const [code, n] of counts) if (n > max) { best = code; max = n; }
+  return best;
+}
+
+/**
+ * The model picks `currency`, usually from list_regions — whose fallback list
+ * starts with USD whatever the project sells in. A currency the project doesn't
+ * use matches no price, so every card read "Not priced" (e.g. an AUD project
+ * asked for USD). Keep the requested currency when the project uses it;
+ * otherwise use the project's first configured currency. If the lookup fails,
+ * the request is unchanged.
+ */
+async function projectCurrency(requested: string): Promise<string> {
+  const wanted = requested.trim().toUpperCase();
+  try {
+    const data = await bffQuery<{ availableCurrencies?: string[] }>(`query ProjectCurrencies { availableCurrencies }`);
+    const currencies = (data?.availableCurrencies ?? []).map((c) => c.toUpperCase());
+    if (currencies.length > 0 && !currencies.includes(wanted)) return currencies[0];
+  } catch { /* keep the requested currency */ }
+  return wanted;
 }
 
 /**
