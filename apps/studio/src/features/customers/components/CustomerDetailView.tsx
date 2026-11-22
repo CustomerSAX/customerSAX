@@ -1376,13 +1376,27 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-base font-bold text-m-text">Quote requests</h2>
-              <ColumnManager
-                columns={QUOTE_COLUMNS}
-                defaultVisibleKeys={DEFAULT_QUOTE_COLUMN_KEYS}
-                title="Quote columns"
-                visibleKeys={quoteColumnKeys}
-                onChange={handleQuoteColumnChange}
-              />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Icon name="plus" size="xs" />}
+                  onClick={() =>
+                    router.push(
+                      `/customers/${encodeURIComponent(customer?.id || id)}/quotes/create`
+                    )
+                  }
+                >
+                  Create quote
+                </Button>
+                <ColumnManager
+                  columns={QUOTE_COLUMNS}
+                  defaultVisibleKeys={DEFAULT_QUOTE_COLUMN_KEYS}
+                  title="Quote columns"
+                  visibleKeys={quoteColumnKeys}
+                  onChange={handleQuoteColumnChange}
+                />
+              </div>
             </div>
             {quotes.length === 0 ? (
               <CardEmpty icon="file-text" title="No quotes on file" hint="No quote requests have been submitted for this customer." />
