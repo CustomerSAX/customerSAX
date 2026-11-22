@@ -70,7 +70,13 @@ export async function ensureDefaultProjectSelection<T extends SessionUserWithPro
   user: T | null | undefined
 ): Promise<T | null | undefined> {
   if (!user) return user;
-  if (user.activeProjectKey && user.activeClientId) return user;
+  const hasAccessToActive =
+    user.activeProjectKey &&
+    (user.role === "superadmin" ||
+      user.role === "admin" ||
+      user.projects?.some((p: any) => p.projectKey === user.activeProjectKey));
+
+  if (user.activeProjectKey && user.activeClientId && hasAccessToActive) return user;
 
   const defaultProject =
     user.projects?.find((project) => project.projectKey && project.clientId) ||

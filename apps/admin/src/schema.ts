@@ -318,6 +318,8 @@ export const typeDefs = gql`
     firstName: String
     lastName: String
     password: String
+    role: String
+    active: Boolean
     projects: [AdminUserProjectInput!]
   }
 
@@ -832,6 +834,19 @@ export const resolvers = {
       if (!modeCheck)
         throw new Error("Select either the B2C shell or the B2B shell for this project.");
 
+      const cleanKey = args.input.projectKey.trim();
+      if (!cleanKey) {
+        throw new Error("Project key is required");
+      }
+      const existingProjects = await projectsRepo.listProjectsByClient(args.clientId);
+      if (
+        existingProjects.some(
+          (p) => p.projectKey.toLowerCase() === cleanKey.toLowerCase()
+        )
+      ) {
+        throw new Error(`A project with key "${cleanKey}" already exists in this organization.`);
+      }
+
       const project = await projectsRepo.createProject({
         clientId: args.clientId,
         platform: args.input.platform,
@@ -954,7 +969,9 @@ export const resolvers = {
       return deleteProjectScoped(context, args.id);
     },
 
-    adminTestProjectConnection: async (_p: unknown, args: { id: string }) => {
+    adminTestProjectConnection: async (_p: unknown, args: { id: string }, context: unknown) => {
+      const existing = await findProjectScoped(context, args.id);
+      if (!existing) throw new Error("Project not found");
       return testProjectConnection(args.id, log);
     },
 
@@ -1088,12 +1105,23 @@ export const resolvers = {
         }
       }
 
+      const roleToSet = args.input.role?.trim() || "agent";
+      if (roleToSet === "admin") {
+        const existingUsers = await usersRepo.listUsersByClient(args.clientId);
+        const hasOrgAdmin = existingUsers.some((u) => u.role === "admin");
+        if (hasOrgAdmin) {
+          throw new Error(
+            "An Organization Admin already exists for this organization. Only one Organization Admin is permitted per organization."
+          );
+        }
+      }
+
       const user = await usersRepo.createUser({
         email: args.input.email,
         password: args.input.password,
         firstName: args.input.firstName,
         lastName: args.input.lastName,
-        role: args.input.role ?? "admin",
+        role: roleToSet,
         clientId: args.clientId,
         projects: projectsToAssign,
         grantedBy: args.grantedBy
@@ -1145,14 +1173,30 @@ export const resolvers = {
           firstName?: string;
           lastName?: string;
           password?: string;
+          role?: string;
+          active?: boolean;
           projects?: { projectKey: string; role: string }[];
         };
       }
     ) => {
       await requireClient(args.clientId);
 
+      if (args.input.role === "admin") {
+        const existingUsers = await usersRepo.listUsersByClient(args.clientId);
+        const existingOtherAdmin = existingUsers.find(
+          (u) =>
+            u.role === "admin" &&
+            u.email.toLowerCase() !== args.input.email.toLowerCase()
+        );
+        if (existingOtherAdmin) {
+          throw new Error(
+            "An Organization Admin already exists for this organization. Cannot promote another user to Organization Admin."
+          );
+        }
+      }
+
       const existingUser = await usersRepo.findUserByEmail(args.input.email);
-      if (existingUser && args.input.projects) {
+      if (existingUser && args.input.projects && args.input.role !== "admin") {
         for (const membership of existingUser.projects.filter(
           (item) => item.clientId === args.clientId && item.role === "admin"
         )) {
@@ -1201,6 +1245,8 @@ export const resolvers = {
         firstName: args.input.firstName,
         lastName: args.input.lastName,
         password: args.input.password,
+        role: args.input.role,
+        active: args.input.active,
         projects: args.input.projects,
         grantedBy: args.grantedBy
       });
@@ -1219,6 +1265,11 @@ export const resolvers = {
       _p: unknown,
       args: { clientId: string; email: string }
     ) => {
+      await requireClient(args.clientId);
+      const user = await usersRepo.findUserByEmail(args.email);
+      if (user && user.role === "admin") {
+        throw new Error("Cannot remove the Organization Admin account.");
+      }
       return usersRepo.removeUserFromClient(args.email, args.clientId);
     },
     adminUpdateClientContact: async (

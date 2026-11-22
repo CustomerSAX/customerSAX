@@ -32,6 +32,10 @@ function sanitizeCtApiOriginForProjectPaths(raw: string): string {
   return trimmed.replace(/\/graphql\/?$/i, "").replace(/\/$/, "");
 }
 
+function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function projectPlatform(doc: CsaProject): CommercePlatform {
   return doc.platform ?? "commercetools";
 }
@@ -208,6 +212,49 @@ export async function createProject(data: {
   const now = new Date();
   const platform: CommercePlatform = data.platform ?? "commercetools";
 
+  const cleanKey = data.projectKey.trim();
+  if (!cleanKey) {
+    throw new Error("Project key is required");
+  }
+
+  // Multi-level uniqueness validation:
+  // 1. Check if a project with this projectKey already exists (case-insensitive)
+  const existingByKey = await col.findOne({
+    projectKey: { $regex: new RegExp(`^${escapeRegExp(cleanKey)}$`, "i") }
+  });
+  if (existingByKey) {
+    if (existingByKey.clientId === data.clientId) {
+      throw new Error(`A project with key "${cleanKey}" already exists in this organization.`);
+    } else {
+      throw new Error(`A project with key "${cleanKey}" already exists.`);
+    }
+  }
+
+  // 2. Platform-specific configuration uniqueness within this client
+  if (platform === "shopify" && data.shopifyStoreDomain?.trim()) {
+    const storeDomainClean = data.shopifyStoreDomain.trim().toLowerCase();
+    const existingShopify = await col.findOne({
+      clientId: data.clientId,
+      "credentials.shopify.storeDomain": { $regex: new RegExp(`^${escapeRegExp(storeDomainClean)}$`, "i") }
+    });
+    if (existingShopify) {
+      throw new Error(
+        `A Shopify project with store domain "${data.shopifyStoreDomain.trim()}" already exists in this organization.`
+      );
+    }
+  } else if (platform === "bigcommerce" && data.bigcommerceStoreHash?.trim()) {
+    const storeHashClean = data.bigcommerceStoreHash.trim().toLowerCase();
+    const existingBc = await col.findOne({
+      clientId: data.clientId,
+      "credentials.bigcommerce.storeHash": { $regex: new RegExp(`^${escapeRegExp(storeHashClean)}$`, "i") }
+    });
+    if (existingBc) {
+      throw new Error(
+        `A BigCommerce project with store hash "${data.bigcommerceStoreHash.trim()}" already exists in this organization.`
+      );
+    }
+  }
+
   let credentials: ProjectCredentials;
   let ctApiUrl = "";
   let ctAuthUrl = "";
@@ -275,7 +322,14 @@ export async function createProject(data: {
     updatedAt: now
   };
 
-  await col.insertOne(doc as never);
+  try {
+    await col.insertOne(doc as never);
+  } catch (err: any) {
+    if (err?.code === 11000) {
+      throw new Error(`A project with key "${cleanKey}" already exists.`);
+    }
+    throw err;
+  }
   return doc;
 }
 
@@ -402,6 +456,6 @@ export async function deleteProjectsByClient(clientId: string): Promise<number> 
 
 export async function ensureProjectsIndex(): Promise<void> {
   const col = await getProjectsCollection();
-  await col.createIndex({ clientId: 1, projectKey: 1 });
+  await col.createIndex({ clientId: 1, projectKey: 1 }, { unique: true });
   await col.createIndex({ projectKey: 1 });
 }

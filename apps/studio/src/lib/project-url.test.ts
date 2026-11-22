@@ -17,7 +17,22 @@ it("preserves native B2B route detection and ticket detail IDs", () => {
 it("keeps login and organization administration outside project URLs", () => {
   expect(isProjectPage("/en-us/login")).toBe(false);
   expect(isProjectPage("/en-us/superadmin/clients")).toBe(false);
+  expect(isProjectPage("/organization")).toBe(false);
+  expect(isProjectPage("/en-us/organization")).toBe(false);
+  expect(isProjectPage("/spotlightstores-demo/organization")).toBe(false);
+  expect(isProjectPage("/en-us/spotlightstores-demo/organization")).toBe(false);
+  expect(isProjectPage("/en-us/spotlightstores-demo/spotlightstores-demo/organization")).toBe(false);
+
   expect(projectHref("/en-us/login?callbackUrl=abc", { projectKey: "b2c-csa" })).toBe("/en-us/login?callbackUrl=abc");
+  expect(projectHref("/organization", { projectKey: "spotlightstores-demo" })).toBe("/organization");
+  expect(projectHref("/en-us/organization", { projectKey: "spotlightstores-demo" })).toBe("/en-us/organization");
+  expect(projectHref("/en-us/spotlightstores-demo/organization", { projectKey: "spotlightstores-demo" })).toBe("/en-us/organization");
+  expect(projectHref("/en-us/spotlightstores-demo/spotlightstores-demo/organization", { projectKey: "spotlightstores-demo" })).toBe("/en-us/organization");
+
+  expect(projectPath("/organization")).toEqual({ projectKey: null, pathname: "/organization" });
+  expect(projectPath("/en-us/organization")).toEqual({ projectKey: null, pathname: "/organization" });
+  expect(projectPath("/en-us/spotlightstores-demo/organization")).toEqual({ projectKey: null, pathname: "/organization" });
+  expect(projectPath("/en-us/spotlightstores-demo/spotlightstores-demo/organization")).toEqual({ projectKey: null, pathname: "/organization" });
 });
 
 it("disambiguates identical project keys across clients without duplicating prefixes", () => {

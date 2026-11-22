@@ -165,7 +165,7 @@ export function SuperadminOnboardingWizard() {
         });
       }
 
-      // 3. Create initial Organization Admin
+      // 3. Create initial Organization Admin (Org Admin) with organization-level access
       await createClientUser({
         variables: {
           clientId: newClientId,
@@ -176,7 +176,7 @@ export function SuperadminOnboardingWizard() {
             firstName: state.adminFirstName.trim() || undefined,
             lastName: state.adminLastName.trim() || undefined,
             role: "admin",
-            projects: createdProjectKey ? [{ projectKey: createdProjectKey, role: "admin" }] : []
+            projects: []
           }
         }
       });
@@ -581,7 +581,7 @@ export function SuperadminOnboardingWizard() {
             <div className="rounded-m-lg border border-m-primary-200 bg-m-primary-50 p-3.5 text-xs text-m-primary flex items-start gap-2.5">
               <Icon name="sparkles" size="sm" className="shrink-0 mt-0.5" />
               <div>
-                <strong>Organization-Level User:</strong> This user will have the <span className="font-mono font-bold">admin</span> role and will be able to log in even if no project exists yet. They can create additional projects, manage team members, and configure connectors.
+                <strong>Organization Admin (Org Admin):</strong> This user is established as an Organization Admin with organization-wide access. They automatically have access to all projects belonging to the organization and all projects created in the future, without requiring manual project-access assignment.
               </div>
             </div>
 

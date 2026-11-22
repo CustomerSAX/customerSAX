@@ -1462,7 +1462,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         id: "settings",
                         label: t("organizationSettings"),
                         icon: "settings",
-                        onClick: () => router.push(localizePathname("/admin-settings/organization", currentLocale))
+                        onClick: () => router.push(localizePathname("/organization", currentLocale))
                       }
                     ]
                     : []),

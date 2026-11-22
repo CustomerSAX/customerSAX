@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { createLogger } from "@csa/logger";
-import { findClientById, findClientBySlug } from "@csa/mongodb";
+import { findClientById, findClientBySlug, listProjectsByClient } from "@csa/mongodb";
 import { createSessionToken, hashSessionToken } from "../security/tokens.js";
 import { verifyPassword } from "../security/passwords.js";
 import {
@@ -58,14 +58,44 @@ async function enrichUserWithOrg(publicUser: PublicUser, tenantId?: string): Pro
   }
 
   if (client) {
+    const resolvedClientId = client._id?.toHexString ? client._id.toHexString() : String(client._id || clientId);
     const theme = client.uiTheme || "csa-custom";
     publicUser.uiTheme = theme;
     publicUser.organization = {
-      id: client._id?.toHexString ? client._id.toHexString() : String(client._id || clientId),
+      id: resolvedClientId,
       name: client.name,
       slug: client.slug,
       uiTheme: theme
     };
+    if (!publicUser.activeClientId) {
+      publicUser.activeClientId = resolvedClientId;
+    }
+
+    // Organization Admin: automatically has access to all projects belonging to the organization
+    if (publicUser.role === "admin") {
+      try {
+        const orgProjects = await listProjectsByClient(resolvedClientId);
+        publicUser.projects = orgProjects.map((p) => ({
+          clientId: resolvedClientId,
+          projectKey: p.projectKey,
+          displayName: p.displayName,
+          role: "admin",
+          shellMode: p.standaloneB2bEnabled ? "b2b" : "b2c"
+        }));
+        if (!publicUser.activeProjectKey && publicUser.projects.length > 0) {
+          publicUser.activeProjectKey = publicUser.projects[0].projectKey;
+          publicUser.activeProjectShellMode = publicUser.projects[0].shellMode;
+          publicUser.projectKey = publicUser.projects[0].projectKey;
+        } else if (publicUser.activeProjectKey) {
+          const activeProj = publicUser.projects.find((p) => p.projectKey === publicUser.activeProjectKey);
+          if (activeProj) {
+            publicUser.activeProjectShellMode = activeProj.shellMode;
+          }
+        }
+      } catch (err) {
+        log.warn("failed to list projects for org admin", { err });
+      }
+    }
   }
 
   return publicUser;
@@ -93,8 +123,19 @@ export async function loginWithPassword(email: string, password: string) {
         projects.find((p) => p.projectKey === user.projectKey)
       : undefined) ||
     projects.find((p) => p.clientId);
-  const activeProjectKey = defaultProject?.projectKey;
+  let activeProjectKey = defaultProject?.projectKey;
   const activeClientId = defaultProject?.clientId || (user as any).clientId || (user.tenantId !== "csa" ? user.tenantId : undefined);
+
+  if (user.role === "admin" && activeClientId && !activeProjectKey) {
+    try {
+      const orgProjects = await listProjectsByClient(activeClientId);
+      if (orgProjects.length > 0) {
+        activeProjectKey = orgProjects[0].projectKey;
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   await createSession({
     createdAt: now,
@@ -138,8 +179,19 @@ export async function loginWithSso(email: string) {
         projects.find((p) => p.projectKey === user.projectKey)
       : undefined) ||
     projects.find((p) => p.clientId);
-  const activeProjectKey = defaultProject?.projectKey;
+  let activeProjectKey = defaultProject?.projectKey;
   const activeClientId = defaultProject?.clientId || (user as any).clientId || (user.tenantId !== "csa" ? user.tenantId : undefined);
+
+  if (user.role === "admin" && activeClientId && !activeProjectKey) {
+    try {
+      const orgProjects = await listProjectsByClient(activeClientId);
+      if (orgProjects.length > 0) {
+        activeProjectKey = orgProjects[0].projectKey;
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   await createSession({
     createdAt: now,
@@ -201,22 +253,47 @@ export async function selectSessionProject(request: IncomingMessage, projectKey:
   if (!session) return null;
   const user = await findUserById(session.userId);
   if (!user) return null;
-  const matchingProjects = projectsForUser(user).filter((candidate) => candidate.projectKey === projectKey);
-  const project = clientId
-    ? matchingProjects.find((candidate) => candidate.clientId === clientId)
-    : matchingProjects.length === 1
-      ? matchingProjects[0]
-      : matchingProjects.find((candidate) => candidate.clientId) || matchingProjects[0];
-  if (!project) return { forbidden: true as const };
-  const effectiveClientId = project.clientId || clientId || projectsForUser(user).find((p) => p.clientId)?.clientId;
-  await setSessionProject(tokenHash, project.projectKey, effectiveClientId);
+
+  let effectiveClientId = clientId || session.activeClientId || (user as any).clientId || (user.tenantId !== "csa" ? user.tenantId : undefined);
+
+  let allowed = false;
+
+  // Organization Admin: automatically has access to all projects in the organization
+  if (user.role === "admin" && effectiveClientId) {
+    try {
+      const orgProjects = await listProjectsByClient(effectiveClientId);
+      const orgMatch = orgProjects.find((p) => p.projectKey === projectKey);
+      if (orgMatch) {
+        allowed = true;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!allowed) {
+    const matchingProjects = projectsForUser(user).filter((candidate) => candidate.projectKey === projectKey);
+    const project = clientId
+      ? matchingProjects.find((candidate) => candidate.clientId === clientId)
+      : matchingProjects.length === 1
+        ? matchingProjects[0]
+        : matchingProjects.find((candidate) => candidate.clientId) || matchingProjects[0];
+    if (project) {
+      allowed = true;
+      effectiveClientId = project.clientId || effectiveClientId || projectsForUser(user).find((p) => p.clientId)?.clientId;
+    }
+  }
+
+  if (!allowed) return { forbidden: true as const };
+
+  await setSessionProject(tokenHash, projectKey, effectiveClientId);
   log.child({ module: "auth" }).info("active project changed", {
     userId: user.id || String(user._id),
-    projectKey: project.projectKey,
+    projectKey: projectKey,
     clientId: effectiveClientId
   });
   const publicUser = await enrichUserWithOrg(
-    toPublicUser(user, project.projectKey, effectiveClientId),
+    toPublicUser(user, projectKey, effectiveClientId),
     user.tenantId
   );
   return { expiresAt: session.expiresAt.toISOString(), user: publicUser };

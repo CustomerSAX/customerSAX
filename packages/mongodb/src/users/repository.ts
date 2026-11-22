@@ -70,7 +70,17 @@ export async function countUsersByClient(clientId: string): Promise<number> {
 
 export async function countUsersByProjectRole(clientId: string, projectKey: string, role: string): Promise<number> {
   const col = await getUsersCollection();
-  return col.countDocuments({ projects: { $elemMatch: { clientId, projectKey, role } } });
+  if (role === "admin") {
+    return col.countDocuments({
+      active: true,
+      $or: [
+        { projects: { $elemMatch: { clientId, projectKey, role: "admin" } } },
+        { role: "admin", clientId },
+        { role: "admin", tenantId: clientId }
+      ]
+    });
+  }
+  return col.countDocuments({ active: true, projects: { $elemMatch: { clientId, projectKey, role } } });
 }
 
 export async function countUsersAssignedRole(clientId: string, projectKey: string, role: string): Promise<number> {
@@ -100,6 +110,18 @@ export async function createUser(data: {
     throw new Error(`A user with email '${email}' already exists`);
   }
 
+  if (data.role?.trim() === "admin" && data.clientId) {
+    const existingAdmin = await col.findOne({
+      role: "admin",
+      $or: [{ clientId: data.clientId }, { tenantId: data.clientId }]
+    });
+    if (existingAdmin) {
+      throw new Error(
+        `An Organization Admin already exists for this organization. Only one Organization Admin is permitted per organization.`
+      );
+    }
+  }
+
   const now = new Date();
   const passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
 
@@ -117,7 +139,7 @@ export async function createUser(data: {
     passwordHash,
     firstName: data.firstName?.trim() || undefined,
     lastName: data.lastName?.trim() || undefined,
-    role: data.role?.trim() || primary?.role || "admin",
+    role: data.role?.trim() || primary?.role || "agent",
     projectKey: primary?.projectKey ?? "",
     defaultProjectKey: primary?.projectKey,
     projects: memberships,
@@ -198,6 +220,8 @@ export async function updateClientUser(data: {
   firstName?: string;
   lastName?: string;
   password?: string;
+  role?: string;
+  active?: boolean;
   projects?: { projectKey: string; role: string }[];
   grantedBy: string;
 }): Promise<CsaUser | null> {
@@ -226,9 +250,31 @@ export async function updateClientUser(data: {
     const combined = [...otherClientsProjects, ...thisClientProjects];
     set.projects = combined;
     if (combined.length > 0) {
-      set.role = combined[0].role;
+      if (!data.role) {
+        set.role = combined[0].role;
+      }
       set.projectKey = combined[0].projectKey;
     }
+  }
+
+  if (data.role !== undefined) {
+    const trimmedRole = data.role.trim();
+    if (trimmedRole === "admin" && existing.role !== "admin") {
+      const existingAdmin = await col.findOne({
+        email: { $ne: email },
+        role: "admin",
+        $or: [{ clientId: data.clientId }, { tenantId: data.clientId }]
+      });
+      if (existingAdmin) {
+        throw new Error(
+          `An Organization Admin already exists for this organization. Cannot promote another user to Organization Admin.`
+        );
+      }
+    }
+    set.role = trimmedRole;
+  }
+  if (data.active !== undefined) {
+    set.active = data.active;
   }
 
   await col.updateOne({ email }, { $set: set });
@@ -250,10 +296,35 @@ export async function removeUserFromProject(email: string, clientId: string, pro
 export async function removeUserFromClient(email: string, clientId: string): Promise<boolean> {
   const col = await getUsersCollection();
   const emailNorm = email.toLowerCase().trim();
-  const result = await col.updateOne(
-    { email: emailNorm, "projects.clientId": clientId },
-    { $pull: { projects: { clientId } } as never, $set: { updatedAt: new Date() } }
+  const existing = await col.findOne({
+    email: emailNorm,
+    $or: [{ "projects.clientId": clientId }, { clientId }, { tenantId: clientId }]
+  });
+  if (!existing) return false;
+
+  const otherClientsProjects = ((existing.projects ?? []) as CsaUserProject[]).filter(
+    (p) => p.clientId !== clientId
   );
+
+  const setObj: Record<string, unknown> = {
+    projects: otherClientsProjects,
+    updatedAt: new Date()
+  };
+
+  const unsetObj: Record<string, unknown> = {};
+  if (existing.clientId === clientId) unsetObj.clientId = "";
+  if (existing.tenantId === clientId) unsetObj.tenantId = "";
+
+  if (otherClientsProjects.length === 0) {
+    setObj.active = false;
+  }
+
+  const updateDoc: Record<string, unknown> = { $set: setObj };
+  if (Object.keys(unsetObj).length > 0) {
+    updateDoc.$unset = unsetObj;
+  }
+
+  const result = await col.updateOne({ email: emailNorm }, updateDoc as never);
   return result.matchedCount > 0;
 }
 
