@@ -125,6 +125,19 @@ type SubscriptionLineItemForm = {
   unitPrice: string;
 };
 
+function pendingLineItem(form: FormState): SubscriptionLineItemForm | null {
+  const sku = form.sku.trim();
+  if (!sku) return null;
+
+  return {
+    id: `line-${Date.now()}-${form.lineItems.length + 1}`,
+    sku,
+    name: form.productName.trim() || sku,
+    quantity: String(Math.max(1, Number(form.quantity) || 1)),
+    unitPrice: String(Math.max(0, Number(form.unitPrice) || 0))
+  };
+}
+
 type CustomerSearchResult = {
   id: string;
   name: string;
@@ -688,24 +701,18 @@ export function SubscriptionManagementView({
       unitPrice,
       currencyCode: product.price?.currencyCode || prev.currencyCode
     }));
+    setFormError("");
     setProductSearchOpen(false);
     setProductSearchResults([]);
     setProductSearchError("");
   };
 
   const addLineItem = () => {
-    if (!form.sku.trim()) {
+    const nextItem = pendingLineItem(form);
+    if (!nextItem) {
       setFormError(t("errors.skuRequired"));
       return;
     }
-
-    const nextItem: SubscriptionLineItemForm = {
-      id: `line-${Date.now()}-${form.lineItems.length + 1}`,
-      sku: form.sku.trim(),
-      name: form.productName.trim() || form.sku.trim(),
-      quantity: String(Math.max(1, Number(form.quantity) || 1)),
-      unitPrice: String(Math.max(0, Number(form.unitPrice) || 0))
-    };
 
     setForm((previous) => ({
       ...previous,
@@ -759,18 +766,34 @@ export function SubscriptionManagementView({
       setFormError(t("errors.customerRequired"));
       return;
     }
-    if (form.lineItems.length === 0) {
-      setFormError(t("errors.skuRequired"));
+
+    // A populated item editor is valid input even if the user did not click
+    // "Add item" before saving. Commit it as part of this submission so the
+    // visible SKU is not ignored by line-item validation.
+    const pendingItem = pendingLineItem(form);
+    const formToSave = pendingItem
+      ? {
+          ...form,
+          productName: "",
+          sku: "",
+          quantity: "1",
+          unitPrice: "",
+          lineItems: [...form.lineItems, pendingItem]
+        }
+      : form;
+
+    if (formToSave.lineItems.length === 0) {
+      setFormError(lineItemsT("empty"));
       return;
     }
-    if (!form.currencyCode) {
+    if (!formToSave.currencyCode) {
       setFormError(t("errors.currencyRequired"));
       return;
     }
     if (
-      !form.nextDeliveryDate ||
-      !form.shippingAddress.trim() ||
-      !form.paymentMethod.trim()
+      !formToSave.nextDeliveryDate ||
+      !formToSave.shippingAddress.trim() ||
+      !formToSave.paymentMethod.trim()
     ) {
       setFormError(
         t("errors.deliveryRequired")
@@ -778,7 +801,8 @@ export function SubscriptionManagementView({
       return;
     }
 
-    const draft = toDraft(form);
+    if (pendingItem) setForm(formToSave);
+    const draft = toDraft(formToSave);
     try {
       if (editing) {
         await updateSubscription(editing.id, draft);
@@ -1412,6 +1436,7 @@ export function SubscriptionManagementView({
                 value={form.sku}
                 onChange={(event) => {
                   setProductSearchOpen(true);
+                  setFormError("");
                   setForm((prev) => ({ ...prev, sku: event.target.value }));
                 }}
               />

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useFormatter, useNow, useTranslations } from "next-intl";
+import Link from "next/link";
 import { Badge } from "@csa/ui";
 import { AppShell } from "../../components/shell/AppShell";
 import { PageHeader } from "../workspace/PageHeader";
@@ -74,7 +75,9 @@ type ServiceHealth = { name: string; status: ServiceStatus };
 type HealthState =
   { phase: "loading" } | { phase: "ok"; services: ServiceHealth[] } | { phase: "error" };
 
-function useServiceHealth(): HealthState {
+const showLocalDashboardSidebar = process.env.NODE_ENV === "development";
+
+function useServiceHealth(enabled: boolean): HealthState {
   const { data, isLoading, isError } = useQuery<{ ok?: boolean; services?: ServiceHealth[] } | null>({
     queryKey: ["serviceHealth"],
     queryFn: async () => {
@@ -82,9 +85,11 @@ function useServiceHealth(): HealthState {
       if (!res.ok) throw new Error("Health check failed");
       return (await res.json().catch(() => null)) as { ok?: boolean; services?: ServiceHealth[] } | null;
     },
+    enabled,
     staleTime: 30 * 1000, // 30 seconds
   });
 
+  if (!enabled) return { phase: "loading" };
   if (isLoading) return { phase: "loading" };
   if (isError || !data?.ok || !Array.isArray(data?.services)) return { phase: "error" };
   return { phase: "ok", services: data.services };
@@ -122,7 +127,7 @@ export function Dashboard() {
     };
   }, [tickets]);
 
-  const health = useServiceHealth();
+  const health = useServiceHealth(showLocalDashboardSidebar);
   const aiStats = useAiStats();
 
   // Locale-aware relative time from a real timestamp. `useNow` supplies the
@@ -196,7 +201,13 @@ export function Dashboard() {
         </SummaryGrid>
 
         {/* Main grid */}
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div
+          className={`grid grid-cols-1 gap-5${
+            showLocalDashboardSidebar
+              ? " xl:grid-cols-[minmax(0,1fr)_360px]"
+              : ""
+          }`}
+        >
           <SectionCard
             title={t("activeWorkQueue")}
             icon="list"
@@ -212,13 +223,14 @@ export function Dashboard() {
               <p className="p-4 text-xs text-m-text-muted">{t("noOpenTickets")}</p>
             ) : (
               queue.map((item) => (
-                <div
-                  className="flex items-center justify-between gap-4 p-4 transition-colors hover:bg-m-surface-2/40"
+                <Link
+                  className="group flex items-center justify-between gap-4 p-4 transition-colors hover:bg-m-surface-2/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-m-primary"
+                  href={`/tickets/${item.id}`}
                   key={item.id}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex items-center gap-2">
-                      <span className="text-xs font-bold text-m-primary">
+                      <span className="text-xs font-bold text-m-primary group-hover:underline">
                         {item.ticketNumber}
                       </span>
                       <span className="truncate text-xs font-semibold text-m-text">
@@ -237,59 +249,61 @@ export function Dashboard() {
                       {relativeTime(item.lastModifiedAt ?? item.createdAt)}
                     </span>
                   </div>
-                </div>
+                </Link>
               ))
             )}
           </SectionCard>
 
-          {/* Sidebar */}
-          <aside className="flex flex-col gap-5">
-            <SectionCard title={t("assistantTitle")} icon="sparkles">
-              <p className="text-xs leading-relaxed text-m-text-muted">
-                {t("assistantDescription")}
-              </p>
-            </SectionCard>
+          {/* Local-only implementation details and service diagnostics. */}
+          {showLocalDashboardSidebar ? (
+            <aside className="flex flex-col gap-5">
+              <SectionCard title={t("assistantTitle")} icon="sparkles">
+                <p className="text-xs leading-relaxed text-m-text-muted">
+                  {t("assistantDescription")}
+                </p>
+              </SectionCard>
 
-            <SectionCard
-              title={t("serviceHealth")}
-              icon="activity"
-              bodyClassName="p-0 divide-y divide-m-border/60"
-            >
-              {health.phase === "loading" ? (
-                <p className="px-4 py-3 text-xs text-m-text-muted">
-                  {t("checkingServices")}
-                </p>
-              ) : health.phase === "error" ? (
-                <p className="px-4 py-3 text-xs text-m-text-muted">
-                  {t("statusUnavailable")}
-                </p>
-              ) : (
-                health.services.map((service) => (
-                  <div
-                    className="flex items-center justify-between px-4 py-3"
-                    key={service.name}
-                  >
-                    <span className="text-xs font-medium text-m-text">
-                      {service.name}
-                    </span>
-                    <Badge
-                      variant={
-                        service.status === "online"
-                          ? "success"
-                          : service.status === "offline"
-                            ? "error"
-                            : "neutral"
-                      }
-                      size="sm"
-                      dot
+              <SectionCard
+                title={t("serviceHealth")}
+                icon="activity"
+                bodyClassName="p-0 divide-y divide-m-border/60"
+              >
+                {health.phase === "loading" ? (
+                  <p className="px-4 py-3 text-xs text-m-text-muted">
+                    {t("checkingServices")}
+                  </p>
+                ) : health.phase === "error" ? (
+                  <p className="px-4 py-3 text-xs text-m-text-muted">
+                    {t("statusUnavailable")}
+                  </p>
+                ) : (
+                  health.services.map((service) => (
+                    <div
+                      className="flex items-center justify-between px-4 py-3"
+                      key={service.name}
                     >
-                      {t(`status.${service.status}`)}
-                    </Badge>
-                  </div>
-                ))
-              )}
-            </SectionCard>
-          </aside>
+                      <span className="text-xs font-medium text-m-text">
+                        {service.name}
+                      </span>
+                      <Badge
+                        variant={
+                          service.status === "online"
+                            ? "success"
+                            : service.status === "offline"
+                              ? "error"
+                              : "neutral"
+                        }
+                        size="sm"
+                        dot
+                      >
+                        {t(`status.${service.status}`)}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </SectionCard>
+            </aside>
+          ) : null}
         </div>
       </div>
     </AppShell>

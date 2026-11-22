@@ -235,7 +235,7 @@ jsonPayload.durationMs>=2000
 | Auth | `GET /health` | Auth process is responding | It is not a full dependency readiness check |
 | Studio | `GET /api/health` | Studio can actively reach the BFF GraphQL endpoint and AI Assist | Only these two services are probed; each probe times out after 2.5 seconds |
 
-The Studio Dashboard's **Core Service Health** card calls `/api/health` once when the dashboard loads. It displays `online`, `offline`, or `status unavailable` for Experience BFF and AI Assist. It is a user-facing point-in-time reachability view, not a continuously sampled monitoring system.
+In the local development environment, the Studio Dashboard's **Core Service Health** card calls `/api/health` once when the dashboard loads. It displays `online`, `offline`, or `status unavailable` for Experience BFF and AI Assist. The card and the adjacent CSA Assistant implementation-details card are hidden in higher environments. This is a point-in-time reachability view, not a continuously sampled monitoring system.
 
 ### 5.2 Platform telemetry
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { useQuery } from "@apollo/client";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { DEFAULT_LOCALE, isSupportedLocale, toCommerceLocale } from "@csa/i18n";
@@ -23,22 +24,35 @@ import { useEmployees } from "@/features/employees/hooks/use-employees";
 import type { QuoteLineItem } from "../types/quote-types";
 import type { CompanyAddress } from "@/features/companies/types/company-types";
 import type { EmployeeAddress } from "@/features/employees/types/employee-types";
+import { CUSTOMER_ADDRESSES_QUERY } from "@/features/orders/api/queries";
+import { useCustomerDetail } from "@/features/customers/hooks/use-customers";
 import { localizePathname } from "@/i18n/routing";
+
+interface QuoteCreateViewProps {
+  customerContextId?: string;
+}
 
 interface ProductSearchHit {
   sku: string;
   name: string;
   price: number;
+  currencyCode?: string;
   taxCategoryName?: string | null;
 }
 
 type ProductSearchResponse = {
+  currency?: string | null;
   results?: Array<{
     id?: string;
     key?: string;
     sku?: string;
     name?: string;
     price?: number | string;
+    resolvedPrice?: {
+      centAmount?: number;
+      currencyCode?: string;
+      fractionDigits?: number;
+    } | null;
     inStock?: boolean;
     taxCategory?: { name?: string | null } | null;
     masterData?: {
@@ -64,12 +78,32 @@ type QuoteAddress = {
   country: string;
 };
 
+type CustomerQuoteAddresses = {
+  addresses: Array<QuoteAddress & { id: string }>;
+  defaultBillingAddressId: string | null;
+  defaultShippingAddressId: string | null;
+  billingAddressIds: string[];
+  shippingAddressIds: string[];
+};
+
 type AuthoredQuoteLineItem = {
   id: string;
   name: string;
   quantity: string;
   sku: string;
   unitPrice: string;
+};
+
+const CURRENCY_BY_COUNTRY: Record<string, string> = {
+  AU: "AUD",
+  CA: "CAD",
+  DE: "EUR",
+  FR: "EUR",
+  GB: "GBP",
+  IN: "INR",
+  JP: "JPY",
+  NZ: "NZD",
+  US: "USD"
 };
 
 function quoteAddressFrom(address?: EmployeeAddress | CompanyAddress | QuoteAddress | null): QuoteAddress | null {
@@ -115,7 +149,13 @@ function mapProductSearchHit(
   const name = product.name ? String(product.name) : localeName || sku;
 
   let price = 0;
-  if (typeof product.price === "number") {
+  const resolvedPrice = product.resolvedPrice;
+  let currencyCode: string | undefined;
+  if (typeof resolvedPrice?.centAmount === "number") {
+    const fractionDigits = resolvedPrice.fractionDigits ?? 2;
+    price = resolvedPrice.centAmount / 10 ** fractionDigits;
+    currencyCode = resolvedPrice.currencyCode;
+  } else if (typeof product.price === "number") {
     price = product.price;
   } else if (masterVariant?.prices?.[0]?.value) {
     const value = masterVariant.prices[0].value;
@@ -130,12 +170,13 @@ function mapProductSearchHit(
         sku,
         name,
         price,
+        currencyCode,
         taxCategoryName: product.taxCategory?.name || null
       }
     : null;
 }
 
-export function QuoteCreateView() {
+export function QuoteCreateView({ customerContextId = "" }: QuoteCreateViewProps) {
   const router = useRouter();
   const t = useTranslations("QuoteCreate");
   const locale = useLocale();
@@ -143,12 +184,24 @@ export function QuoteCreateView() {
   const commerceLocale = toCommerceLocale(currentLocale);
   const { allCompanies } = useCompanies();
   const { allEmployees } = useEmployees();
+  const {
+    customer: contextCustomer,
+    loading: contextCustomerLoading
+  } = useCustomerDetail(customerContextId);
+  const { data: contextAddressesData, loading: contextAddressesLoading } = useQuery<{
+    customerAddresses: CustomerQuoteAddresses;
+  }>(CUSTOMER_ADDRESSES_QUERY, {
+    variables: { id: customerContextId },
+    skip: !customerContextId,
+    fetchPolicy: "cache-first"
+  });
 
   const [companyId, setCompanyId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [discountPctInput, setDiscountPctInput] = useState("10");
   const [validUntil, setValidUntil] = useState("");
   const [note, setNote] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("USD");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState("");
 
@@ -184,18 +237,46 @@ export function QuoteCreateView() {
   ];
   const selectedCompany = allCompanies.find((company) => company.id === companyId);
   const selectedEmployee = allEmployees.find((employee) => employee.id === customerId);
+  const contextAddresses = contextAddressesData?.customerAddresses;
+  const contextShippingAddress =
+    contextAddresses?.addresses.find(
+      (address) => address.id === contextAddresses.defaultShippingAddressId
+    ) ||
+    contextAddresses?.addresses.find((address) =>
+      contextAddresses.shippingAddressIds.includes(address.id)
+    ) ||
+    contextAddresses?.addresses[0];
+  const contextBillingAddress =
+    contextAddresses?.addresses.find(
+      (address) => address.id === contextAddresses.defaultBillingAddressId
+    ) ||
+    contextAddresses?.addresses.find((address) =>
+      contextAddresses.billingAddressIds.includes(address.id)
+    );
   const selectedShippingAddress = quoteAddressFrom(
-    selectedEmployee?.addresses.find((address) => address.isDefaultShipping) ||
-      selectedEmployee?.addresses[0] ||
-      selectedCompany?.addresses.find((address) => address.isDefaultShipping) ||
-      selectedCompany?.addresses[0]
+    customerContextId
+      ? contextShippingAddress
+      : selectedEmployee?.addresses.find((address) => address.isDefaultShipping) ||
+          selectedEmployee?.addresses[0] ||
+          selectedCompany?.addresses.find((address) => address.isDefaultShipping) ||
+          selectedCompany?.addresses[0]
   );
   const selectedBillingAddress = quoteAddressFrom(
-    selectedEmployee?.addresses.find((address) => address.isDefaultBilling) ||
-      selectedShippingAddress ||
-      selectedCompany?.addresses.find((address) => address.isDefaultBilling) ||
-      selectedCompany?.addresses[0]
+    customerContextId
+      ? contextBillingAddress || contextShippingAddress
+      : selectedEmployee?.addresses.find((address) => address.isDefaultBilling) ||
+          selectedShippingAddress ||
+          selectedCompany?.addresses.find((address) => address.isDefaultBilling) ||
+          selectedCompany?.addresses[0]
   );
+  const contextCustomerName =
+    [contextCustomer?.firstName, contextCustomer?.lastName].filter(Boolean).join(" ") ||
+    contextCustomer?.email ||
+    customerContextId;
+  const addressCurrency = selectedShippingAddress?.country
+    ? CURRENCY_BY_COUNTRY[selectedShippingAddress.country.toUpperCase()]
+    : undefined;
+  const quoteCurrency = addressCurrency || currencyCode;
 
   const activeProductQuery = activeSearchLineId ? productQueries[activeSearchLineId] || "" : "";
 
@@ -215,7 +296,12 @@ export function QuoteCreateView() {
         const response = await fetch("/api/product-search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: trimmed, limit: 8, offset: 0 })
+          body: JSON.stringify({
+            text: trimmed,
+            currency: quoteCurrency,
+            limit: 8,
+            offset: 0
+          })
         });
 
         if (!response.ok) {
@@ -228,7 +314,10 @@ export function QuoteCreateView() {
           .map((product) => mapProductSearchHit(product, commerceLocale))
           .filter((product): product is ProductSearchHit => Boolean(product));
 
-        if (!cancelled) setProductSearchResults(results);
+        if (!cancelled) {
+          setProductSearchResults(results);
+          if (data.currency) setCurrencyCode(data.currency);
+        }
       } catch (error) {
         console.error("Quote product search failed:", error);
         if (!cancelled) setProductSearchResults([]);
@@ -241,7 +330,7 @@ export function QuoteCreateView() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [activeProductQuery, activeSearchLineId, commerceLocale]);
+  }, [activeProductQuery, activeSearchLineId, commerceLocale, quoteCurrency]);
 
   const handleAddLineItem = () => {
     const newItem: QuoteLineItem = {
@@ -355,8 +444,11 @@ export function QuoteCreateView() {
   const today = new Date().toISOString().slice(0, 10);
   const hasValidDate = Boolean(validUntil && validUntil >= today);
   const hasSelectedProducts = lineItems.length > 0 && lineItems.every((item) => item.sku && item.quantity > 0);
+  const hasBuyerContext = customerContextId
+    ? Boolean(contextCustomer?.id)
+    : Boolean(companyId);
   const canSubmitQuote = Boolean(
-    companyId &&
+    hasBuyerContext &&
       hasSelectedProducts &&
       hasValidDate &&
       hasValidDiscount &&
@@ -379,10 +471,10 @@ export function QuoteCreateView() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          currency: "USD",
-          businessUnitKey: selectedCompany?.key,
-          customerId: selectedEmployee?.id,
-          customerEmail: selectedEmployee?.email
+          currency: quoteCurrency,
+          businessUnitKey: customerContextId ? undefined : selectedCompany?.key,
+          customerId: customerContextId ? contextCustomer?.id : selectedEmployee?.id,
+          customerEmail: customerContextId ? contextCustomer?.email : selectedEmployee?.email
         })
       });
       const cartPayload = (await cartResponse.json().catch(() => ({}))) as {
@@ -419,7 +511,7 @@ export function QuoteCreateView() {
         note.trim() ? `Buyer note: ${note.trim()}` : "",
         `Valid until: ${validUntil}`,
         `Requested discount: ${discountPct}%`,
-        `Negotiated total shown in Studio: $${negotiatedTotal.toFixed(2)}`
+        `Negotiated total shown in Studio: ${quoteCurrency} ${negotiatedTotal.toFixed(2)}`
       ].filter(Boolean).join("\n");
 
       const quoteResponse = await fetch("/api/quotes/requests", {
@@ -469,7 +561,12 @@ export function QuoteCreateView() {
       }
 
       router.push(
-        localizePathname(`/b2b/quotes/${encodeURIComponent(quotePayload.id)}`, currentLocale)
+        customerContextId
+          ? quoteListPath
+          : localizePathname(
+              `/b2b/quotes/${encodeURIComponent(quotePayload.id)}`,
+              currentLocale
+            )
       );
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : t("errors.submit"));
@@ -477,10 +574,15 @@ export function QuoteCreateView() {
     }
   };
 
-  const quoteListPath = localizePathname("/b2b/quotes", currentLocale);
+  const quoteListPath = localizePathname(
+    customerContextId
+      ? `/customers/${encodeURIComponent(customerContextId)}?tab=quotes`
+      : "/b2b/quotes",
+    currentLocale
+  );
   const formatMoney = (value: number) =>
     new Intl.NumberFormat(currentLocale, {
-      currency: "USD",
+      currency: quoteCurrency,
       style: "currency"
     }).format(value);
 
@@ -514,33 +616,66 @@ export function QuoteCreateView() {
       />
 
       {/* Panel 1: Target Buyer & Company */}
-      <Panel title={t("buyerContext")}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
-          <div>
-            <label className="text-xs font-semibold text-m-text mb-1 block">
-              {t("targetCompany")} <span className="text-m-danger">*</span>
-            </label>
-            <Select
-              value={companyId}
-              options={companyOptions}
-              onChange={(e) => {
-                setCompanyId(e.target.value);
-                setCustomerId("");
-              }}
-            />
+      <Panel title={customerContextId ? "1. Customer Context" : t("buyerContext")}>
+        {customerContextId ? (
+          <div className="p-5">
+            <div className="rounded-m-lg border border-m-border bg-m-surface-1 p-4">
+              {contextCustomerLoading ? (
+                <p className="text-sm text-m-text-muted">Loading customer…</p>
+              ) : contextCustomer ? (
+                <>
+                  <p className="text-sm font-semibold text-m-text">{contextCustomerName}</p>
+                  <p className="mt-1 text-xs text-m-text-muted">{contextCustomer.email}</p>
+                  {contextAddressesLoading ? (
+                    <p className="mt-3 text-xs text-m-text-muted">Loading delivery address…</p>
+                  ) : selectedShippingAddress ? (
+                    <p className="mt-3 text-xs text-m-text-muted">
+                      {[
+                        selectedShippingAddress.streetNumber,
+                        selectedShippingAddress.streetName,
+                        selectedShippingAddress.city,
+                        selectedShippingAddress.country
+                      ].filter(Boolean).join(", ")}
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-xs font-semibold text-m-error">
+                      Add a complete shipping address to this customer before creating a quote.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm font-semibold text-m-error">Customer not found.</p>
+              )}
+            </div>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
+            <div>
+              <label className="text-xs font-semibold text-m-text mb-1 block">
+                {t("targetCompany")} <span className="text-m-danger">*</span>
+              </label>
+              <Select
+                value={companyId}
+                options={companyOptions}
+                onChange={(e) => {
+                  setCompanyId(e.target.value);
+                  setCustomerId("");
+                }}
+              />
+            </div>
 
-          <div>
-            <label className="text-xs font-semibold text-m-text mb-1 block">
-              {t("customerAssociate")}
-            </label>
-            <Select
-              value={customerId}
-              options={customerOptions}
-              onChange={(e) => setCustomerId(e.target.value)}
-            />
+            <div>
+              <label className="text-xs font-semibold text-m-text mb-1 block">
+                {t("customerAssociate")}
+              </label>
+              <Select
+                value={customerId}
+                options={customerOptions}
+                onChange={(e) => setCustomerId(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </Panel>
 
       {/* Panel 2: Line Items Builder */}
@@ -564,9 +699,15 @@ export function QuoteCreateView() {
                 <TableHead>{t("columns.productName")}</TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead className="w-24">{t("columns.quantity")}</TableHead>
-                <TableHead className="w-32">{t("columns.listPrice")}</TableHead>
-                <TableHead className="w-36">{t("columns.negotiatedUnit")}</TableHead>
-                <TableHead className="w-32 text-right">{t("columns.lineTotal")}</TableHead>
+                <TableHead className="w-32">
+                  {t("columns.listPrice", { currency: quoteCurrency })}
+                </TableHead>
+                <TableHead className="w-36">
+                  {t("columns.negotiatedUnit", { currency: quoteCurrency })}
+                </TableHead>
+                <TableHead className="w-32 text-right">
+                  {t("columns.lineTotal", { currency: quoteCurrency })}
+                </TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
