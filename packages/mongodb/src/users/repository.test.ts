@@ -43,7 +43,6 @@ describe("users repository enhancements", () => {
 
       db.findOne
         .mockResolvedValueOnce(existing) // for existing lookup
-        .mockResolvedValueOnce(null) // for existing admin check (none exists)
         .mockResolvedValueOnce({
           ...existing,
           role: "admin",
@@ -141,6 +140,7 @@ describe("users repository enhancements", () => {
         email: "existing-admin@acme.com",
         passwordHash: "hash",
         role: "admin",
+        isOrgAdmin: true,
         active: true,
         clientId: "client-1",
         tenantId: "client-1",
@@ -156,9 +156,45 @@ describe("users repository enhancements", () => {
           email: "member@acme.com",
           clientId: "client-1",
           role: "admin",
+          isOrgAdmin: true,
           grantedBy: "superadmin"
         })
       ).rejects.toThrow("An Organization Admin already exists for this organization. Cannot promote another user to Organization Admin.");
+    });
+
+    it("allows promoting a member to regular Admin even when Org Admin exists", async () => {
+      const existingMember: CsaUser = {
+        _id: new ObjectId(),
+        email: "member@acme.com",
+        passwordHash: "hash",
+        role: "agent",
+        active: true,
+        clientId: "client-1",
+        tenantId: "client-1",
+        projects: [{ clientId: "client-1", projectKey: "proj-1", role: "agent" }]
+      };
+
+      db.findOne
+        .mockResolvedValueOnce(existingMember)
+        .mockResolvedValueOnce({ ...existingMember, role: "admin" });
+      db.updateOne.mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      const updated = await updateClientUser({
+        email: "member@acme.com",
+        clientId: "client-1",
+        role: "admin",
+        grantedBy: "superadmin"
+      });
+
+      expect(db.updateOne).toHaveBeenCalledWith(
+        { email: "member@acme.com" },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            role: "admin"
+          })
+        })
+      );
+      expect(updated?.role).toBe("admin");
     });
   });
 
@@ -166,7 +202,7 @@ describe("users repository enhancements", () => {
     it("rejects creating an additional Organization Admin when one already exists for the client", async () => {
       db.findOne
         .mockResolvedValueOnce(null) // no existing user with this email
-        .mockResolvedValueOnce({ _id: new ObjectId(), role: "admin", clientId: "client-1" }); // existing admin found
+        .mockResolvedValueOnce({ _id: new ObjectId(), role: "admin", isOrgAdmin: true, clientId: "client-1" }); // existing admin found
 
       await expect(
         createUser({
@@ -174,6 +210,7 @@ describe("users repository enhancements", () => {
           password: "password123",
           clientId: "client-1",
           role: "admin",
+          isOrgAdmin: true,
           grantedBy: "superadmin"
         })
       ).rejects.toThrow("An Organization Admin already exists for this organization. Only one Organization Admin is permitted per organization.");
@@ -190,11 +227,36 @@ describe("users repository enhancements", () => {
         password: "password123",
         clientId: "new-client",
         role: "admin",
+        isOrgAdmin: true,
         grantedBy: "superadmin"
       });
 
       expect(created.email).toBe("initial-admin@acme.com");
       expect(created.role).toBe("admin");
+      expect(created.isOrgAdmin).toBe(true);
+    });
+
+    it("allows creating regular Admin (role=admin, isOrgAdmin=false) when Org Admin already exists", async () => {
+      db.findOne
+        .mockResolvedValueOnce(null); // no existing user with this email
+      db.insertOne.mockResolvedValueOnce({ insertedId: new ObjectId() });
+
+      const created = await createUser({
+        email: "regular-admin@acme.com",
+        password: "password123",
+        clientId: "client-1",
+        role: "admin",
+        isOrgAdmin: false,
+        projects: [{ projectKey: "proj-1", role: "admin" }],
+        grantedBy: "superadmin"
+      });
+
+      expect(created.email).toBe("regular-admin@acme.com");
+      expect(created.role).toBe("admin");
+      expect(created.isOrgAdmin).toBe(false);
+      expect(created.projects).toEqual([
+        { clientId: "client-1", projectKey: "proj-1", role: "admin" }
+      ]);
     });
   });
 

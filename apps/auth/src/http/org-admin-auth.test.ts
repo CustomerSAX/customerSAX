@@ -209,5 +209,42 @@ describe("Organization Admin vs Scoped User Access Control", () => {
         clientId
       );
     });
+
+    it("restricts regular Admin (role=admin, isOrgAdmin=false) to assigned projects only", async () => {
+      const regularAdmin = {
+        _id: new ObjectId(),
+        id: "user-admin-regular",
+        email: "regular-admin@acme.com",
+        role: "admin",
+        isOrgAdmin: false,
+        active: true,
+        clientId,
+        tenantId: clientId,
+        projects: [{ clientId, projectKey: "acme-us", role: "admin" }]
+      };
+
+      mockUsers.findUserByEmail.mockResolvedValue(regularAdmin);
+
+      const loginRes = await loginWithPassword("regular-admin@acme.com", "password123");
+      expect(loginRes).not.toBeNull();
+      expect(loginRes?.user.role).toBe("admin");
+      expect(loginRes?.user.isOrgAdmin).toBe(false);
+      // Only the assigned project, NOT automatically all org projects
+      expect(loginRes?.user.projects).toHaveLength(1);
+      expect(loginRes?.user.projects[0].projectKey).toBe("acme-us");
+
+      // Attempt switching to unassigned project
+      mockUsers.findActiveSessionByTokenHash.mockResolvedValue({
+        userId: "user-admin-regular",
+        activeClientId: clientId,
+        activeProjectKey: "acme-us",
+        expiresAt: new Date(Date.now() + 3600000)
+      });
+      mockUsers.findUserById.mockResolvedValue(regularAdmin);
+
+      const req = { headers: { authorization: "Bearer valid-token" } } as any;
+      const switchRes = await selectSessionProject(req, "acme-eu", clientId);
+      expect(switchRes).toEqual({ forbidden: true });
+    });
   });
 });

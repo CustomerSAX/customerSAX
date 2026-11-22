@@ -6,6 +6,7 @@ export type CurrentUser = {
   id: string;
   name: string;
   role: "agent" | "admin" | "superadmin";
+  isOrgAdmin?: boolean;
   tenantId: string;
   activeClientId?: string;
   activeProjectKey?: string;

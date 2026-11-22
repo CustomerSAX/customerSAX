@@ -25,7 +25,8 @@ export async function POST(request: Request) {
       projectKey: session.user?.activeProjectKey,
       clientId: activeClientId,
       userRole: session.user?.role,
-      userEmail: session.user?.email
+      userEmail: session.user?.email,
+      userIsOrgAdmin: session.user?.isOrgAdmin ? "true" : "false"
     });
     const requestBody = await request.text();
     const response = await fetch(bffUrl, {

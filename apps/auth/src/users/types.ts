@@ -21,6 +21,7 @@ export type AuthUser = {
   defaultProjectKey?: string;
   projectKey?: string;
   role: AuthRole;
+  isOrgAdmin?: boolean;
   tenantId: string;
 };
 
@@ -46,6 +47,7 @@ export type PublicUser = {
   projects: AuthUserProject[];
   requiresProjectSelection: boolean;
   role: AuthRole;
+  isOrgAdmin?: boolean;
   tenantId: string;
   uiTheme?: string;
   organization?: {
@@ -94,6 +96,10 @@ export function toPublicUser(user: AuthUser, activeProjectKey?: string, activeCl
         ? "admin"
         : "agent";
 
+  const isOrgAdmin = Boolean(
+    user.isOrgAdmin ?? (user.role === "admin" && (!projects.length || (user as any).isOrgAdmin))
+  );
+
   return {
     email: user.email,
     id,
@@ -104,6 +110,7 @@ export function toPublicUser(user: AuthUser, activeProjectKey?: string, activeCl
     projects,
     requiresProjectSelection: user.role !== "superadmin" && projects.length > 1 && !effectiveProjectKey,
     role: effectiveRole,
+    isOrgAdmin,
     tenantId: user.tenantId
   };
 }

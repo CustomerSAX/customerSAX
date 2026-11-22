@@ -74,6 +74,7 @@ export const ADMIN_CLIENT_QUERY = gql`
       firstName
       lastName
       role
+      isOrgAdmin
       active
       clientProjects {
         projectKey

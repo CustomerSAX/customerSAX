@@ -176,6 +176,7 @@ export function SuperadminOnboardingWizard() {
             firstName: state.adminFirstName.trim() || undefined,
             lastName: state.adminLastName.trim() || undefined,
             role: "admin",
+            isOrgAdmin: true,
             projects: []
           }
         }

@@ -56,40 +56,64 @@ describe("Organization Settings Portal — Architecture & Logic", () => {
   });
 
   describe("Role-Based Visibility & Route Protection", () => {
-    it("determines profile dropdown Org Settings visibility by role", () => {
-      const getProfileMenuItems = (role: string) => {
-        const isAdmin = role === "admin" || role === "superadmin";
+    it("determines profile dropdown Org Settings visibility by isOrgAdmin flag", () => {
+      const getProfileMenuItems = (user: { role: string; isOrgAdmin?: boolean }) => {
+        const isOrgAdmin = Boolean(user.isOrgAdmin) || user.role === "superadmin";
         return [
           { id: "profile", label: "My Profile" },
-          ...(isAdmin ? [{ id: "settings", label: "Org Settings", href: "/organization" }] : []),
+          ...(isOrgAdmin ? [{ id: "settings", label: "Org Settings", href: "/organization" }] : []),
           { id: "logout", label: "Sign Out" }
         ];
       };
 
       // Organization Admin sees Org Settings
-      const adminMenu = getProfileMenuItems("admin");
-      expect(adminMenu.some((item) => item.id === "settings")).toBe(true);
-      expect(adminMenu.find((item) => item.id === "settings")?.href).toBe("/organization");
+      const orgAdminMenu = getProfileMenuItems({ role: "admin", isOrgAdmin: true });
+      expect(orgAdminMenu.some((item) => item.id === "settings")).toBe(true);
+      expect(orgAdminMenu.find((item) => item.id === "settings")?.href).toBe("/organization");
 
       // Superadmin sees Org Settings
-      const superadminMenu = getProfileMenuItems("superadmin");
+      const superadminMenu = getProfileMenuItems({ role: "superadmin" });
       expect(superadminMenu.some((item) => item.id === "settings")).toBe(true);
 
+      // Regular Admin (role === "admin", isOrgAdmin === false) does NOT see Org Settings in profile dropdown
+      const regularAdminMenu = getProfileMenuItems({ role: "admin", isOrgAdmin: false });
+      expect(regularAdminMenu.some((item) => item.id === "settings")).toBe(false);
+
       // Agent / Member does NOT see Org Settings
-      const agentMenu = getProfileMenuItems("agent");
+      const agentMenu = getProfileMenuItems({ role: "agent", isOrgAdmin: false });
       expect(agentMenu.some((item) => item.id === "settings")).toBe(false);
       expect(agentMenu.map((i) => i.id)).toEqual(["profile", "logout"]);
     });
 
-    it("restricts layout access to Organization Admin and Superadmin", () => {
-      const isRouteAllowed = (role: string | undefined | null) => {
-        return role === "admin" || role === "superadmin";
+    it("determines sidebar Admin Settings visibility for Admin and Superadmin roles", () => {
+      const canAccessAdminSettings = (user: { role: string; isOrgAdmin?: boolean }) => {
+        return user.role === "admin" || user.role === "superadmin";
       };
 
-      expect(isRouteAllowed("admin")).toBe(true);
-      expect(isRouteAllowed("superadmin")).toBe(true);
-      expect(isRouteAllowed("agent")).toBe(false);
-      expect(isRouteAllowed("customer")).toBe(false);
+      // Both Org Admin and Regular Admin have role === "admin" and see Admin Settings in sidebar
+      expect(canAccessAdminSettings({ role: "admin", isOrgAdmin: true })).toBe(true);
+      expect(canAccessAdminSettings({ role: "admin", isOrgAdmin: false })).toBe(true);
+      expect(canAccessAdminSettings({ role: "superadmin" })).toBe(true);
+
+      // Agent / Member does NOT see Admin Settings in sidebar
+      expect(canAccessAdminSettings({ role: "agent", isOrgAdmin: false })).toBe(false);
+    });
+
+    it("restricts /organization layout access to Organization Admin and Superadmin only", () => {
+      const isRouteAllowed = (user?: { role: string; isOrgAdmin?: boolean } | null) => {
+        if (!user) return false;
+        return Boolean(user.isOrgAdmin) || user.role === "superadmin";
+      };
+
+      // Org Admin and Superadmin are allowed
+      expect(isRouteAllowed({ role: "admin", isOrgAdmin: true })).toBe(true);
+      expect(isRouteAllowed({ role: "superadmin" })).toBe(true);
+
+      // Regular Admin (role === "admin", isOrgAdmin === false) is redirected/denied from /organization
+      expect(isRouteAllowed({ role: "admin", isOrgAdmin: false })).toBe(false);
+
+      // Agent / Member is denied
+      expect(isRouteAllowed({ role: "agent", isOrgAdmin: false })).toBe(false);
       expect(isRouteAllowed(null)).toBe(false);
       expect(isRouteAllowed(undefined)).toBe(false);
     });
@@ -199,33 +223,57 @@ describe("Organization Settings Portal — Architecture & Logic", () => {
   });
 
   describe("User Management & Single Org Admin Restriction", () => {
-    it("restricts user creation to Member / Agent role only", () => {
-      const createUserPayload = (input: { email: string; firstName?: string }) => {
-        // Only 1 Org Admin per org is permitted; newly created users are fixed to "agent"
+    it("allows creating either Admin or Member / Agent role with project assignments", () => {
+      const createUserPayload = (input: {
+        email: string;
+        role: "admin" | "agent";
+        projectKeys: string[];
+      }) => {
         return {
-          ...input,
-          role: "agent" as const
+          email: input.email,
+          role: input.role,
+          projects: input.projectKeys.map((pk) => ({ projectKey: pk, role: input.role }))
         };
       };
 
-      const user = createUserPayload({ email: "worker@example.com", firstName: "Jane" });
-      expect(user.role).toBe("agent");
+      const regularAdmin = createUserPayload({
+        email: "projectadmin@example.com",
+        role: "admin",
+        projectKeys: ["store-1", "store-2"]
+      });
+      expect(regularAdmin.role).toBe("admin");
+      expect(regularAdmin.projects).toEqual([
+        { projectKey: "store-1", role: "admin" },
+        { projectKey: "store-2", role: "admin" }
+      ]);
+
+      const agent = createUserPayload({
+        email: "worker@example.com",
+        role: "agent",
+        projectKeys: ["store-1"]
+      });
+      expect(agent.role).toBe("agent");
+      expect(agent.projects).toEqual([{ projectKey: "store-1", role: "agent" }]);
     });
 
-    it("protects Organization Admin account from removal", () => {
-      const canRemoveUser = (targetUser: { email: string; role: string }) => {
-        if (targetUser.role === "admin") {
+    it("protects Organization Admin account from removal or role demotion", () => {
+      const canRemoveUser = (targetUser: { email: string; role: string; isOrgAdmin?: boolean }) => {
+        if (targetUser.isOrgAdmin) {
           return { allowed: false, reason: "Cannot remove the Organization Admin account." };
         }
         return { allowed: true };
       };
 
-      expect(canRemoveUser({ email: "admin@corp.com", role: "admin" })).toEqual({
+      expect(canRemoveUser({ email: "admin@corp.com", role: "admin", isOrgAdmin: true })).toEqual({
         allowed: false,
         reason: "Cannot remove the Organization Admin account."
       });
 
-      expect(canRemoveUser({ email: "agent@corp.com", role: "agent" })).toEqual({
+      expect(canRemoveUser({ email: "padmin@corp.com", role: "admin", isOrgAdmin: false })).toEqual({
+        allowed: true
+      });
+
+      expect(canRemoveUser({ email: "agent@corp.com", role: "agent", isOrgAdmin: false })).toEqual({
         allowed: true
       });
     });
@@ -250,16 +298,20 @@ describe("Organization Settings Portal — Architecture & Logic", () => {
       expect(selected).toEqual(["proj-2"]);
     });
 
-    it("exempts Organization Admin from manual project assignment", () => {
-      const computeUserProjectAssignment = (role: string, selectedProjects: string[]) => {
-        if (role === "admin") {
+    it("exempts Organization Admin from manual project assignment while regular Admins require it", () => {
+      const computeUserProjectAssignment = (role: string, isOrgAdmin: boolean, selectedProjects: string[]) => {
+        if (isOrgAdmin) {
           return undefined; // Org Admin automatically has organization-wide access
         }
-        return selectedProjects.map((pk) => ({ projectKey: pk, role: "agent" }));
+        return selectedProjects.map((pk) => ({ projectKey: pk, role }));
       };
 
-      expect(computeUserProjectAssignment("admin", ["p1", "p2"])).toBeUndefined();
-      expect(computeUserProjectAssignment("agent", ["p1", "p2"])).toEqual([
+      expect(computeUserProjectAssignment("admin", true, ["p1", "p2"])).toBeUndefined();
+      expect(computeUserProjectAssignment("admin", false, ["p1", "p2"])).toEqual([
+        { projectKey: "p1", role: "admin" },
+        { projectKey: "p2", role: "admin" }
+      ]);
+      expect(computeUserProjectAssignment("agent", false, ["p1", "p2"])).toEqual([
         { projectKey: "p1", role: "agent" },
         { projectKey: "p2", role: "agent" }
       ]);

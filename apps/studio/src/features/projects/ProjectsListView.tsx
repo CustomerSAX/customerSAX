@@ -13,7 +13,12 @@ import Link from "next/link";
 export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
   const { user, loading: userLoading } = useCurrentUser();
   const clientId = user?.activeClientId || user?.organization?.id;
-  const isOrgAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isOrgAdmin = Boolean(user?.isOrgAdmin) || user?.role === "superadmin";
+  const isAllowed = user?.role === "admin" || user?.role === "superadmin";
+  const activeProjectKey = user?.activeProjectKey || user?.projectKey;
+  const isAuthorizedForActiveProject = Boolean(
+    activeProjectKey && user?.projects?.some((p) => p.projectKey === activeProjectKey)
+  );
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [configuringProject, setConfiguringProject] = useState<any | null>(null);
@@ -21,7 +26,7 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
 
   const { data, loading, error, refetch } = useQuery(ADMIN_CLIENT_QUERY, {
     variables: { id: clientId },
-    skip: !clientId || !isOrgAdmin,
+    skip: !clientId || !isAllowed,
     fetchPolicy: "cache-first"
   });
 
@@ -37,7 +42,13 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
     );
   });
 
+  // Regular Admins only see the currently selected, authorized project
+  const displayedProjects = isOrgAdmin
+    ? filteredProjects
+    : projects.filter((p) => p.projectKey === activeProjectKey && isAuthorizedForActiveProject);
+
   const handleSwitchProject = async (targetProjectKey: string) => {
+    if (!isOrgAdmin) return;
     try {
       const res = await fetch("/api/auth/switch-project", {
         method: "POST",
@@ -70,11 +81,14 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
                 : "text-2xl font-bold text-m-text"
             }
           >
-            {client?.name ? `${client.name} Projects` : "Projects"}
+            {isOrgAdmin
+              ? client?.name ? `${client.name} Projects` : "Projects"
+              : "Project Settings"}
           </h2>
           <p className="mt-0.5 text-xs text-m-text-muted">
-            Manage your commerce environments, platform credentials, and connector
-            configurations.
+            {isOrgAdmin
+              ? "Manage your commerce environments, platform credentials, and connector configurations."
+              : "View and manage platform credentials and configuration for the currently selected project."}
           </p>
         </div>
         {isOrgAdmin && (
@@ -89,8 +103,8 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
         )}
       </div>
 
-      {/* Search & Filter */}
-      {projects.length > 0 && (
+      {/* Search & Filter - Org Admin only */}
+      {isOrgAdmin && projects.length > 0 && (
         <div className="flex items-center justify-between gap-4">
           <div className="w-full max-w-sm">
             <Input
@@ -116,33 +130,43 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-6 text-sm text-red-600 dark:text-red-400">
           Error loading projects: {error.message}
         </div>
-      ) : projects.length === 0 ? (
-        /* Empty State - Requirement 4 */
+      ) : displayedProjects.length === 0 ? (
+        /* Empty / Restricted State */
         <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-m-border bg-m-surface/40 p-12 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-m-primary/10 text-m-primary mb-4">
-            <Icon name="folder-plus" size="lg" />
+            <Icon name={isOrgAdmin ? "folder-plus" : "shield"} size="lg" />
           </div>
-          <h3 className="text-lg font-bold text-m-text">No projects found</h3>
+          <h3 className="text-lg font-bold text-m-text">
+            {isOrgAdmin
+              ? "No projects found"
+              : !activeProjectKey
+                ? "No project selected"
+                : "Project access restricted"}
+          </h3>
           <p className="mt-1 max-w-md text-sm text-m-text-muted">
-            No projects have been configured for this organization yet. Create your first
-            project to connect your commerce platform and start managing your customer
-            operations.
+            {isOrgAdmin
+              ? "No projects have been configured for this organization yet. Create your first project to connect your commerce platform and start managing your customer operations."
+              : !activeProjectKey
+                ? "Please select an active project from the project switcher in the header to view its settings."
+                : "You do not have administrative access to manage the currently selected project."}
           </p>
-          <div className="mt-6">
-            <Button
-              variant="primary"
-              onClick={() => setIsCreateOpen(true)}
-              className="flex items-center gap-2"
-            >
-              <Icon name="plus" size="sm" />
-              <span>Create Your First Project</span>
-            </Button>
-          </div>
+          {isOrgAdmin && (
+            <div className="mt-6">
+              <Button
+                variant="primary"
+                onClick={() => setIsCreateOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Icon name="plus" size="sm" />
+                <span>Create Your First Project</span>
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         /* Projects Grid */
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredProjects.map((proj) => {
+          {displayedProjects.map((proj) => {
             const isActive = user?.activeProjectKey === proj.projectKey;
             const isConfigured =
               proj.isConfigured !== false && proj.status !== "setup_required";
@@ -219,7 +243,11 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
                     className="flex items-center gap-1.5"
                   >
                     <Icon name="settings" size="xs" />
-                    <span>{isConfigured ? "Edit Platform" : "Configure Platform"}</span>
+                    <span>
+                      {!isOrgAdmin
+                        ? isConfigured ? "Edit Project" : "Configure Project"
+                        : isConfigured ? "Edit Platform" : "Configure Platform"}
+                    </span>
                   </Button>
 
                   <Link href="/admin-settings/connection-hub">
@@ -233,7 +261,7 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
                     </Button>
                   </Link>
 
-                  {!isActive && isConfigured && (
+                  {isOrgAdmin && !isActive && isConfigured && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -253,14 +281,16 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
 
   const modals = (
     <>
-      <CreateProjectModal
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onSuccess={() => {
-          setIsCreateOpen(false);
-          refetch();
-        }}
-      />
+      {isOrgAdmin && (
+        <CreateProjectModal
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+          onSuccess={() => {
+            setIsCreateOpen(false);
+            refetch();
+          }}
+        />
+      )}
 
       <ProjectConfigureModal
         isOpen={Boolean(configuringProject)}

@@ -33,17 +33,18 @@ describe("@csa/headers", () => {
 
   it("applyCsaHeaders writes only present fields (undefined never forwarded)", () => {
     const out: Record<string, string> = {};
-    applyCsaHeaders(out, { projectKey: "p", clientId: undefined, requestId: "r" });
+    applyCsaHeaders(out, { projectKey: "p", clientId: undefined, requestId: "r", userIsOrgAdmin: "true" });
     expect(out[CSA_HEADERS.projectKey]).toBe("p");
     expect(out[CSA_HEADERS.requestId]).toBe("r");
+    expect(out[CSA_HEADERS.userIsOrgAdmin]).toBe("true");
     expect(CSA_HEADERS.clientId in out).toBe(false);
   });
 
   it("round-trips apply → read across a fetch Headers", () => {
     const wire = new Headers();
-    applyCsaHeaders(wire, { projectKey: "p", userEmail: "a@b.com", requestId: "rid" });
+    applyCsaHeaders(wire, { projectKey: "p", userEmail: "a@b.com", requestId: "rid", userIsOrgAdmin: "true" });
     const ctx = readCsaContext({ headers: wire });
-    expect(ctx).toMatchObject({ projectKey: "p", userEmail: "a@b.com", requestId: "rid" });
+    expect(ctx).toMatchObject({ projectKey: "p", userEmail: "a@b.com", requestId: "rid", userIsOrgAdmin: "true" });
     expect(ctx.clientId).toBeUndefined();
   });
 });

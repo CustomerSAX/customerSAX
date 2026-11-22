@@ -17,7 +17,7 @@ import { ADMIN_CLIENT_QUERY, ADMIN_UPDATE_CLIENT } from "@/features/superadmin/a
 export function OrganizationSettingsView({ embedded }: { embedded?: boolean } = {}) {
   const { user } = useCurrentUser();
   const clientId = user?.activeClientId || user?.organization?.id;
-  const isOrgAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isOrgAdmin = Boolean(user?.isOrgAdmin) || user?.role === "superadmin";
 
   const { data, loading, error, refetch } = useQuery(ADMIN_CLIENT_QUERY, {
     variables: { id: clientId },
@@ -71,6 +71,14 @@ export function OrganizationSettingsView({ embedded }: { embedded?: boolean } = 
   const client = data?.adminClient;
   const projects = data?.adminProjectsByClient || [];
   const users = data?.adminUsersByClient || [];
+
+  if (!isOrgAdmin) {
+    return (
+      <div className="rounded-xl border border-m-border bg-m-surface p-12 text-center text-sm text-m-text-muted">
+        Organization settings are only accessible to Organization Administrators.
+      </div>
+    );
+  }
 
   const content = (
     <div className={embedded ? "space-y-6 max-w-4xl" : "space-y-6 p-6 max-w-4xl"}>

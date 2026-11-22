@@ -19,33 +19,39 @@ describe("Superadmin Management Logic", () => {
   });
 
   describe("User Role & Project Assignment Mapping", () => {
-    it("determines project payload based on role", () => {
+    it("determines project payload based on role and isOrgAdmin", () => {
       const selectedProjectKeys = ["proj-a", "proj-b"];
-      const getProjectsPayload = (role: string, keys: string[]) =>
-        role === "admin" ? [] : keys.map((pk) => ({ projectKey: pk, role: "agent" }));
+      const getProjectsPayload = (role: string, isOrgAdmin: boolean, keys: string[]) =>
+        isOrgAdmin ? [] : keys.map((pk) => ({ projectKey: pk, role }));
 
       // For Org Admin: project selection is not assigned manually (org-wide access derived from role)
-      expect(getProjectsPayload("admin", selectedProjectKeys)).toEqual([]);
+      expect(getProjectsPayload("admin", true, selectedProjectKeys)).toEqual([]);
 
-      // For Member/Agent: project selection must be explicitly assigned
-      expect(getProjectsPayload("agent", selectedProjectKeys)).toEqual([
+      // For Regular Admin: assigned with role "admin"
+      expect(getProjectsPayload("admin", false, selectedProjectKeys)).toEqual([
+        { projectKey: "proj-a", role: "admin" },
+        { projectKey: "proj-b", role: "admin" }
+      ]);
+
+      // For Member/Agent: assigned with role "agent"
+      expect(getProjectsPayload("agent", false, selectedProjectKeys)).toEqual([
         { projectKey: "proj-a", role: "agent" },
         { projectKey: "proj-b", role: "agent" }
       ]);
     });
 
     it("requires at least one project for non-Org Admin when organization has projects", () => {
-      const validateUserCreation = (role: string, selectedProjects: string[], orgProjectCount: number) => {
-        if (role === "agent" && orgProjectCount > 0 && selectedProjects.length === 0) {
-          return "Select at least one project for this member.";
+      const validateUserCreation = (isOrgAdmin: boolean, selectedProjects: string[], orgProjectCount: number) => {
+        if (!isOrgAdmin && orgProjectCount > 0 && selectedProjects.length === 0) {
+          return "Select at least one project for this user.";
         }
         return null;
       };
 
-      expect(validateUserCreation("admin", [], 2)).toBeNull();
-      expect(validateUserCreation("agent", [], 2)).toBe("Select at least one project for this member.");
-      expect(validateUserCreation("agent", ["proj-1"], 2)).toBeNull();
-      expect(validateUserCreation("agent", [], 0)).toBeNull(); // Org has no projects yet
+      expect(validateUserCreation(true, [], 2)).toBeNull();
+      expect(validateUserCreation(false, [], 2)).toBe("Select at least one project for this user.");
+      expect(validateUserCreation(false, ["proj-1"], 2)).toBeNull();
+      expect(validateUserCreation(false, [], 0)).toBeNull(); // Org has no projects yet
     });
 
     it("supports adding, removing, and replacing project assignments for existing users", () => {

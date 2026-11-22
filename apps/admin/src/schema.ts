@@ -42,6 +42,7 @@ function clientUserView(user: CsaUser, clientId: string) {
   return {
     ...rest,
     id: _id.toHexString(),
+    isOrgAdmin: Boolean(user.isOrgAdmin),
     createdAt: iso(user.createdAt),
     updatedAt: iso(user.updatedAt),
     clientProjects: usersRepo.clientProjectsForUser(user, clientId)
@@ -68,25 +69,43 @@ function clientViewIso(doc: Parameters<typeof clientsRepo.clientView>[0]) {
  * the header-trust boundary note in `index.ts`). `superadmin` crosses clients;
  * a client-scoped `admin` is bound to a single `clientId`.
  */
-type ResolverContext = { clientId?: string; userRole?: string };
+type ResolverContext = {
+  clientId?: string;
+  projectKey?: string;
+  userRole?: string;
+  userEmail?: string;
+  userIsOrgAdmin?: boolean;
+};
 
 /**
  * Look up a project for an admin resolver with correct tenant scope. A
- * superadmin legitimately reads across clients (unscoped variant); any other
- * caller is constrained to their own organisation's projects, so it can never
- * read another tenant's project by id. A missing `clientId` fails closed
- * (scoped lookup on `""` matches nothing).
+ * superadmin legitimately reads across clients (unscoped variant); an Org Admin
+ * is constrained to their own organisation's projects; a regular Admin is
+ * constrained to their explicitly assigned projects.
  */
-function findProjectScoped(context: unknown, id: string) {
+async function findProjectScoped(context: unknown, id: string) {
   const ctx = (context ?? {}) as ResolverContext;
-  return ctx.userRole === "superadmin"
-    ? projectsRepo.findProjectByIdAnyClient(id)
-    : projectsRepo.findProjectById(id, ctx.clientId ?? "");
+  const doc =
+    ctx.userRole === "superadmin"
+      ? await projectsRepo.findProjectByIdAnyClient(id)
+      : await projectsRepo.findProjectById(id, ctx.clientId ?? "");
+  if (!doc) return null;
+  if (ctx.userRole !== "superadmin" && !ctx.userIsOrgAdmin) {
+    const userDoc = ctx.userEmail ? await usersRepo.findUserByEmail(ctx.userEmail) : null;
+    const assignedKeys = new Set((userDoc?.projects || []).map((p) => p.projectKey));
+    if (!assignedKeys.has(doc.projectKey)) {
+      return null;
+    }
+  }
+  return doc;
 }
 
-/** Tenant-scoped project delete, mirroring {@link findProjectScoped}. */
-function deleteProjectScoped(context: unknown, id: string) {
+/** Tenant-scoped project delete, requiring Organization Admin or Superadmin. */
+async function deleteProjectScoped(context: unknown, id: string) {
   const ctx = (context ?? {}) as ResolverContext;
+  if (ctx.userRole !== "superadmin" && !ctx.userIsOrgAdmin) {
+    throw new Error("Organization Administrator access is required");
+  }
   return ctx.userRole === "superadmin"
     ? projectsRepo.deleteProjectAnyClient(id)
     : projectsRepo.deleteProject(id, ctx.clientId ?? "");
@@ -287,6 +306,7 @@ export const typeDefs = gql`
     firstName: String
     lastName: String
     role: String!
+    isOrgAdmin: Boolean
     active: Boolean!
     clientProjects: [AdminUserProject!]!
     grantedBy: String
@@ -305,6 +325,7 @@ export const typeDefs = gql`
     firstName: String
     lastName: String
     role: String
+    isOrgAdmin: Boolean
     projects: [AdminUserProjectInput!]
   }
 
@@ -319,6 +340,7 @@ export const typeDefs = gql`
     lastName: String
     password: String
     role: String
+    isOrgAdmin: Boolean
     active: Boolean
     projects: [AdminUserProjectInput!]
   }
@@ -640,9 +662,15 @@ export const resolvers = {
       return { ...clientViewIso(c), projectCount, userCount };
     },
 
-    adminProjectsByClient: async (_p: unknown, args: { clientId: string }) => {
+    adminProjectsByClient: async (_p: unknown, args: { clientId: string }, context: unknown) => {
       await requireClient(args.clientId);
+      const ctx = (context ?? {}) as ResolverContext;
       const docs = await projectsRepo.listProjectsByClient(args.clientId);
+      if (ctx.userRole !== "superadmin" && !ctx.userIsOrgAdmin) {
+        const userDoc = ctx.userEmail ? await usersRepo.findUserByEmail(ctx.userEmail) : null;
+        const assignedKeys = new Set((userDoc?.projects || []).map((p) => p.projectKey));
+        return docs.filter((p) => assignedKeys.has(p.projectKey)).map(projectViewIso);
+      }
       return docs.map(projectViewIso);
     },
 
@@ -736,8 +764,13 @@ export const resolvers = {
         contactEmail?: string;
         uiTheme?: string;
         ssoConfig?: unknown;
-      }
+      },
+      context: unknown
     ) => {
+      const ctx = (context ?? {}) as ResolverContext;
+      if (ctx.userRole !== "superadmin" && !ctx.userIsOrgAdmin) {
+        throw new Error("Organization Administrator access is required");
+      }
       const patch: {
         name?: string;
         contactEmail?: string;
@@ -815,8 +848,13 @@ export const resolvers = {
           standaloneB2cEnabled?: boolean;
           standaloneB2bEnabled?: boolean;
         };
-      }
+      },
+      context: unknown
     ) => {
+      const ctx = (context ?? {}) as ResolverContext;
+      if (ctx.userRole !== "superadmin" && !ctx.userIsOrgAdmin) {
+        throw new Error("Only Organization Administrators or Superadmins can create projects");
+      }
       const client = await requireClient(args.clientId);
       if (client.status === "blocked")
         throw new Error("Cannot add projects to a blocked client");
@@ -1081,10 +1119,18 @@ export const resolvers = {
           firstName?: string;
           lastName?: string;
           role?: string;
+          isOrgAdmin?: boolean;
           projects?: { projectKey: string; role: string }[];
         };
-      }
+      },
+      context: unknown
     ) => {
+      const ctx = (context ?? {}) as ResolverContext;
+      if (args.input.isOrgAdmin && ctx.userRole !== "superadmin" && !ctx.userIsOrgAdmin) {
+        throw new Error(
+          "Only Organization Administrators or Superadmins can create or promote an Organization Admin"
+        );
+      }
       const client = await requireClient(args.clientId);
       if (client.status === "blocked")
         throw new Error("Cannot add users to a blocked client");
@@ -1106,9 +1152,10 @@ export const resolvers = {
       }
 
       const roleToSet = args.input.role?.trim() || "agent";
-      if (roleToSet === "admin") {
+      const isOrgAdminToSet = Boolean(args.input.isOrgAdmin);
+      if (isOrgAdminToSet) {
         const existingUsers = await usersRepo.listUsersByClient(args.clientId);
-        const hasOrgAdmin = existingUsers.some((u) => u.role === "admin");
+        const hasOrgAdmin = existingUsers.some((u) => u.isOrgAdmin);
         if (hasOrgAdmin) {
           throw new Error(
             "An Organization Admin already exists for this organization. Only one Organization Admin is permitted per organization."
@@ -1122,6 +1169,7 @@ export const resolvers = {
         firstName: args.input.firstName,
         lastName: args.input.lastName,
         role: roleToSet,
+        isOrgAdmin: isOrgAdminToSet,
         clientId: args.clientId,
         projects: projectsToAssign,
         grantedBy: args.grantedBy
@@ -1174,18 +1222,26 @@ export const resolvers = {
           lastName?: string;
           password?: string;
           role?: string;
+          isOrgAdmin?: boolean;
           active?: boolean;
           projects?: { projectKey: string; role: string }[];
         };
-      }
+      },
+      context: unknown
     ) => {
+      const ctx = (context ?? {}) as ResolverContext;
+      if (args.input.isOrgAdmin && ctx.userRole !== "superadmin" && !ctx.userIsOrgAdmin) {
+        throw new Error(
+          "Only Organization Administrators or Superadmins can create or promote an Organization Admin"
+        );
+      }
       await requireClient(args.clientId);
 
-      if (args.input.role === "admin") {
+      if (args.input.isOrgAdmin === true) {
         const existingUsers = await usersRepo.listUsersByClient(args.clientId);
         const existingOtherAdmin = existingUsers.find(
           (u) =>
-            u.role === "admin" &&
+            u.isOrgAdmin &&
             u.email.toLowerCase() !== args.input.email.toLowerCase()
         );
         if (existingOtherAdmin) {
@@ -1246,6 +1302,7 @@ export const resolvers = {
         lastName: args.input.lastName,
         password: args.input.password,
         role: args.input.role,
+        isOrgAdmin: args.input.isOrgAdmin,
         active: args.input.active,
         projects: args.input.projects,
         grantedBy: args.grantedBy
@@ -1274,8 +1331,13 @@ export const resolvers = {
     },
     adminUpdateClientContact: async (
       _p: unknown,
-      args: { clientId: string; contactEmail: string }
+      args: { clientId: string; contactEmail: string },
+      context: unknown
     ) => {
+      const ctx = (context ?? {}) as ResolverContext;
+      if (ctx.userRole !== "superadmin" && !ctx.userIsOrgAdmin) {
+        throw new Error("Organization Administrator access is required");
+      }
       await clientsRepo.updateClient(args.clientId, {
         contactEmail: args.contactEmail.trim()
       });

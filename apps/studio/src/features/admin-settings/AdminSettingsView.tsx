@@ -339,8 +339,16 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
     return "organization";
   };
 
-  const [activeSection, setActiveSection] = useState<AdminSettingsTab>(normalizeSection(section));
   const { user, loading: userLoading } = useCurrentUser();
+  const isOrgAdmin = Boolean(user?.isOrgAdmin) || user?.role === "superadmin";
+  const visibleTabs = useMemo(() => {
+    return ADMIN_TABS.filter((tab) => isOrgAdmin || tab.id !== "organization");
+  }, [isOrgAdmin]);
+
+  const [activeSection, setActiveSection] = useState<AdminSettingsTab>(() => {
+    const normalized = normalizeSection(section);
+    return normalized;
+  });
   const clientId = user?.activeClientId || user?.organization?.id || "";
   const projectKey = user?.activeProjectKey ?? "";
   const allowed = user?.role === "admin" || user?.role === "superadmin";
@@ -354,8 +362,14 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
   );
 
   useEffect(() => {
-    setActiveSection(normalizeSection(section));
-  }, [section]);
+    const nextSec = normalizeSection(section);
+    if (!userLoading && !isOrgAdmin && nextSec === "organization") {
+      setActiveSection("projects");
+      router.replace(localizePathname("/admin-settings/projects", currentLocale));
+    } else {
+      setActiveSection(nextSec);
+    }
+  }, [section, isOrgAdmin, userLoading, currentLocale, router]);
 
   const handleTabChange = (tabId: AdminSettingsTab) => {
     setActiveSection(tabId);
@@ -393,7 +407,7 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
         {/* Tab Navigation */}
         <div className="border-b border-m-border">
           <nav className="flex space-x-6 sm:space-x-8 -mb-px overflow-x-auto" aria-label="Admin Settings Tabs">
-            {ADMIN_TABS.map((tab) => {
+            {visibleTabs.map((tab) => {
               const isActive = activeSection === tab.id;
               return (
                 <button
@@ -417,7 +431,7 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
 
         {/* Tab Content */}
         <div className="pt-1">
-          {activeSection === "organization" && <OrganizationSettingsView embedded />}
+          {activeSection === "organization" && isOrgAdmin && <OrganizationSettingsView embedded />}
           {activeSection === "projects" && <ProjectsListView embedded />}
           {activeSection === "connection-hub" && <ConnectionHubCatalogView />}
           {activeSection === "connectors" && <StudioConnectorsView embedded />}

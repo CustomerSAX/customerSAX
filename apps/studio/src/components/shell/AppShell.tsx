@@ -1,12 +1,13 @@
 "use client";
 
 import { NotificationBell } from "@/features/notifications/NotificationBell";
-import { apolloClient } from "@/graphql/client";
+import { NotificationToaster } from "@/features/notifications/NotificationCenter";
+import { CreateProjectModal } from "@/features/projects/CreateProjectModal";
 import { TicketAIHelper } from "@/features/tickets/components/TicketAIHelper";
+import { apolloClient } from "@/graphql/client";
 import { localizeHref, localizePathname } from "@/i18n/routing";
-import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
 import { projectHref, projectPath } from "@/lib/project-url";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCurrentUser, type CurrentUser } from "@/lib/use-current-user";
 import { gql, useQuery } from "@apollo/client";
 import {
   DEFAULT_LOCALE,
@@ -27,12 +28,11 @@ import {
   TopBar,
   useDialogAccessibility
 } from "@csa/ui";
-import { CreateProjectModal } from "@/features/projects/CreateProjectModal";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NotificationToaster } from "@/features/notifications/NotificationCenter";
 
 const sidebarGroups: SidebarGroup[] = [
   {
@@ -697,7 +697,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               ? [
                 {
                   id: "admin-settings",
-                  href: "/admin-settings/organization",
+                  href: Boolean(currentUser.isOrgAdmin) || currentUser.role === "superadmin"
+                    ? "/admin-settings/organization"
+                    : "/admin-settings/projects",
                   label: "Admin Settings",
                   icon: "settings"
                 } as SidebarItem
@@ -727,7 +729,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           .map((item) => ({ ...item, label: t(`navigation.${item.id}`) }))
       }))
       .filter((group) => group.items.length > 0);
-  }, [canViewNavigationItem, currentUser.role, isB2bMode, t]);
+  }, [canViewNavigationItem, currentUser.role, currentUser.isOrgAdmin, isB2bMode, t]);
 
   const navigateCommands = useMemo(
     () =>
@@ -1070,7 +1072,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     window.location.assign(projectHref(`${pathname || "/dashboard"}${window.location.search}${window.location.hash}`, project, currentUser.projects));
   };
 
-  const isAdmin = currentUser.role === "admin" || currentUser.role === "superadmin";
+  const isOrgAdmin = Boolean(currentUser.isOrgAdmin) || currentUser.role === "superadmin";
 
   // The projects list can legitimately contain exact duplicates (the same
   // clientId:projectKey returned twice) and distinct projects that happen to
@@ -1242,16 +1244,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           brandOrBreadcrumbs={
             <div className="csa-topbar-project flex min-w-0 flex-wrap items-center gap-3">
               <button
-          type="button"
-          ref={navigationToggleRef}
-          className="csa-navigation-toggle flex h-10 w-10 shrink-0 items-center justify-center rounded-md md:hidden"
-          aria-expanded={isNavigationOpen}
-          aria-controls="studio-navigation"
-          onClick={() => setIsNavigationOpen((open) => !open)}
-        >
-          <Icon name={isNavigationOpen ? "x" : "menu"} size="sm" />
-          <span className="sr-only">{isNavigationOpen ? t("collapseSidebar") : t("expandSidebar")}</span>
-        </button>
+                type="button"
+                ref={navigationToggleRef}
+                className="csa-navigation-toggle flex h-10 w-10 shrink-0 items-center justify-center rounded-md md:hidden"
+                aria-expanded={isNavigationOpen}
+                aria-controls="studio-navigation"
+                onClick={() => setIsNavigationOpen((open) => !open)}
+              >
+                <Icon name={isNavigationOpen ? "x" : "menu"} size="sm" />
+                <span className="sr-only">{isNavigationOpen ? t("collapseSidebar") : t("expandSidebar")}</span>
+              </button>
               {currentUser.projects.length > 0 ? (
                 <select
                   aria-label={t("project")}
@@ -1456,7 +1458,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     icon: "user",
                     onClick: () => router.push(localizePathname("/profile", currentLocale))
                   },
-                  ...(isAdmin
+                  ...(isOrgAdmin
                     ? [
                       {
                         id: "settings",
@@ -1567,8 +1569,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                               type="button"
                               onClick={() => openCommand(item)}
                               className={`flex w-full items-center gap-3 rounded-m-lg px-3 py-2.5 text-left transition ${activeCommandIndex === index
-                                  ? "bg-m-surface-2"
-                                  : "hover:bg-m-surface-2"
+                                ? "bg-m-surface-2"
+                                : "hover:bg-m-surface-2"
                                 }`}
                             >
                               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-m-md bg-m-surface-2 text-m-text-muted">
@@ -1615,8 +1617,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                                   type="button"
                                   onClick={() => openCommand(item)}
                                   className={`flex w-full items-center gap-3 rounded-m-lg px-3 py-2.5 text-left transition ${activeCommandIndex === commandIndex
-                                      ? "bg-m-surface-2"
-                                      : "hover:bg-m-surface-2"
+                                    ? "bg-m-surface-2"
+                                    : "hover:bg-m-surface-2"
                                     }`}
                                 >
                                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-m-md bg-m-surface-2 text-m-text-muted">
@@ -1661,8 +1663,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                                 type="button"
                                 onClick={() => openCommand(item)}
                                 className={`flex items-center gap-3 rounded-m-lg border border-m-border px-3 py-3 text-left transition ${activeCommandIndex === commandIndex
-                                    ? "bg-m-surface-2"
-                                    : "hover:bg-m-surface-2"
+                                  ? "bg-m-surface-2"
+                                  : "hover:bg-m-surface-2"
                                   }`}
                               >
                                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-m-lg bg-m-surface-2 text-m-primary">
@@ -1722,9 +1724,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           }}
         >
           {currentUser.role === "admin" &&
-          currentUser.projects.length === 0 &&
-          !appPathname.startsWith("/admin/") &&
-          !appPathname.startsWith("/admin-settings") ? (
+            currentUser.projects.length === 0 &&
+            !appPathname.startsWith("/admin/") &&
+            !appPathname.startsWith("/admin-settings") ? (
             <div className="flex flex-1 flex-col items-center justify-center p-8 text-center my-auto">
               <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-m-primary/10 text-m-primary mb-6 shadow-sm">
                 <Icon name="folder-plus" size="xl" />

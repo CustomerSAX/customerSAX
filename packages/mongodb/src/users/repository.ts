@@ -99,6 +99,7 @@ export async function createUser(data: {
   lastName?: string;
   clientId: string;
   role?: string;
+  isOrgAdmin?: boolean;
   projects?: { projectKey: string; role: string }[];
   grantedBy: string;
 }): Promise<CsaUser> {
@@ -110,7 +111,11 @@ export async function createUser(data: {
     throw new Error(`A user with email '${email}' already exists`);
   }
 
-  if (data.role?.trim() === "admin" && data.clientId) {
+  const isCreatingOrgAdmin =
+    data.isOrgAdmin === true ||
+    (data.role?.trim() === "admin" && data.isOrgAdmin !== false && (!data.projects || data.projects.length === 0));
+
+  if (isCreatingOrgAdmin && data.clientId) {
     const existingAdmin = await col.findOne({
       role: "admin",
       $or: [{ clientId: data.clientId }, { tenantId: data.clientId }]
@@ -140,6 +145,7 @@ export async function createUser(data: {
     firstName: data.firstName?.trim() || undefined,
     lastName: data.lastName?.trim() || undefined,
     role: data.role?.trim() || primary?.role || "agent",
+    isOrgAdmin: isCreatingOrgAdmin,
     projectKey: primary?.projectKey ?? "",
     defaultProjectKey: primary?.projectKey,
     projects: memberships,
@@ -221,6 +227,7 @@ export async function updateClientUser(data: {
   lastName?: string;
   password?: string;
   role?: string;
+  isOrgAdmin?: boolean;
   active?: boolean;
   projects?: { projectKey: string; role: string }[];
   grantedBy: string;
@@ -257,9 +264,8 @@ export async function updateClientUser(data: {
     }
   }
 
-  if (data.role !== undefined) {
-    const trimmedRole = data.role.trim();
-    if (trimmedRole === "admin" && existing.role !== "admin") {
+  if (data.isOrgAdmin !== undefined) {
+    if (data.isOrgAdmin === true) {
       const existingAdmin = await col.findOne({
         email: { $ne: email },
         role: "admin",
@@ -270,6 +276,14 @@ export async function updateClientUser(data: {
           `An Organization Admin already exists for this organization. Cannot promote another user to Organization Admin.`
         );
       }
+    }
+    set.isOrgAdmin = data.isOrgAdmin;
+  }
+
+  if (data.role !== undefined) {
+    const trimmedRole = data.role.trim();
+    if (existing.isOrgAdmin && trimmedRole !== "admin") {
+      throw new Error("Cannot demote an Organization Admin to a non-admin role.");
     }
     set.role = trimmedRole;
   }

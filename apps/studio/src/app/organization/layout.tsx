@@ -29,7 +29,8 @@ export default async function OrganizationLayout({ children }: OrganizationLayou
   }
 
   // Strict role enforcement: only Organization Admins and Superadmins can access
-  if (user.role !== ROLES.admin && user.role !== ROLES.superadmin) {
+  const isOrgAdmin = Boolean(user.isOrgAdmin) || user.role === ROLES.superadmin;
+  if (!isOrgAdmin) {
     redirect("/dashboard");
   }
 

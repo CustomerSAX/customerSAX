@@ -42,6 +42,7 @@ interface ClientUserRow {
   firstName?: string | null;
   lastName?: string | null;
   role: string;
+  isOrgAdmin?: boolean;
   active: boolean;
   clientProjects: Array<{
     projectKey: string;
@@ -66,6 +67,7 @@ export function SuperadminClientDetailsView({
   const [createLastName, setCreateLastName] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createPassword, setCreatePassword] = useState("");
+  const [createRole, setCreateRole] = useState<"admin" | "agent">("agent");
   const [createSelectedProjects, setCreateSelectedProjects] = useState<string[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
@@ -183,6 +185,7 @@ export function SuperadminClientDetailsView({
     setCreateLastName("");
     setCreateEmail("");
     setCreatePassword("");
+    setCreateRole("agent");
     setCreateSelectedProjects(uniqueProjects.length > 0 ? [uniqueProjects[0].projectKey] : []);
     setCreateError(null);
     setIsCreateUserOpen(true);
@@ -203,7 +206,7 @@ export function SuperadminClientDetailsView({
       return;
     }
     if (uniqueProjects.length > 0 && createSelectedProjects.length === 0) {
-      setCreateError("Select at least one project for this member.");
+      setCreateError("Select at least one project for this user.");
       return;
     }
 
@@ -218,8 +221,8 @@ export function SuperadminClientDetailsView({
             password: createPassword,
             firstName: createFirstName.trim() || undefined,
             lastName: createLastName.trim() || undefined,
-            role: "agent",
-            projects: createSelectedProjects.map((pk) => ({ projectKey: pk, role: "agent" }))
+            role: createRole,
+            projects: createSelectedProjects.map((pk) => ({ projectKey: pk, role: createRole }))
           }
         }
       });
@@ -260,8 +263,9 @@ export function SuperadminClientDetailsView({
       setEditError("Password must be at least 8 characters long if provided.");
       return;
     }
-    if (editRole === "agent" && uniqueProjects.length > 0 && editSelectedProjects.length === 0) {
-      setEditError("Select at least one project for this member.");
+    const isTargetOrgAdmin = Boolean(editingUser.isOrgAdmin);
+    if (!isTargetOrgAdmin && uniqueProjects.length > 0 && editSelectedProjects.length === 0) {
+      setEditError("Select at least one project for this user.");
       return;
     }
 
@@ -276,12 +280,11 @@ export function SuperadminClientDetailsView({
             firstName: editFirstName.trim() || undefined,
             lastName: editLastName.trim() || undefined,
             password: editPassword.trim() ? editPassword.trim() : undefined,
-            role: editRole,
-            active: editActive,
-            projects:
-              editRole === "admin"
-                ? []
-                : editSelectedProjects.map((pk) => ({ projectKey: pk, role: "agent" }))
+            role: isTargetOrgAdmin ? "admin" : editRole,
+            active: isTargetOrgAdmin ? true : editActive,
+            projects: isTargetOrgAdmin
+              ? []
+              : editSelectedProjects.map((pk) => ({ projectKey: pk, role: editRole }))
           }
         }
       });
@@ -618,16 +621,22 @@ export function SuperadminClientDetailsView({
                       {u.email}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={u.role === "admin" ? "primary" : "neutral"}
-                        appearance="subtle"
-                        size="sm"
-                      >
-                        {u.role === "admin" ? "Organization Admin" : "Member / Agent"}
-                      </Badge>
+                      {u.isOrgAdmin ? (
+                        <Badge variant="primary" appearance="subtle" size="sm">
+                          Organization Admin
+                        </Badge>
+                      ) : u.role === "admin" ? (
+                        <Badge variant="primary" appearance="outline" size="sm">
+                          Admin
+                        </Badge>
+                      ) : (
+                        <Badge variant="neutral" appearance="subtle" size="sm">
+                          Member / Agent
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
-                      {u.role === "admin" ? (
+                      {u.isOrgAdmin ? (
                         <span className="text-xs text-m-text-muted italic">
                           All Projects (Org Level)
                         </span>
@@ -782,23 +791,51 @@ export function SuperadminClientDetailsView({
 
               <div>
                 <label className="block text-xs font-bold text-m-text mb-2">Role *</label>
-                <div className="p-3 rounded-m-md border border-m-primary bg-m-primary-50/40 flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="createRole"
-                    value="agent"
-                    checked={true}
-                    readOnly
-                    className="mt-0.5 text-m-primary focus:ring-m-primary"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-m-text">
-                      Member / CSA Agent
+                <div className="grid grid-cols-2 gap-3">
+                  <label
+                    className={`p-3 rounded-m-md border cursor-pointer transition-colors flex items-start gap-2.5 ${
+                      createRole === "admin"
+                        ? "border-m-primary bg-m-primary-50/40"
+                        : "border-m-border bg-m-surface hover:bg-m-neutral-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="createRole"
+                      value="admin"
+                      checked={createRole === "admin"}
+                      onChange={() => setCreateRole("admin")}
+                      className="mt-0.5 text-m-primary focus:ring-m-primary"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-m-text">Admin</div>
+                      <div className="text-[11px] text-m-text-muted mt-0.5">
+                        Full access to assigned projects and Studio Admin Settings.
+                      </div>
                     </div>
-                    <div className="text-[11px] text-m-text-muted mt-0.5">
-                      Scoped project access. Select which projects this user can access below. (The organization&apos;s initial Organization Admin was established during onboarding).
+                  </label>
+                  <label
+                    className={`p-3 rounded-m-md border cursor-pointer transition-colors flex items-start gap-2.5 ${
+                      createRole === "agent"
+                        ? "border-m-primary bg-m-primary-50/40"
+                        : "border-m-border bg-m-surface hover:bg-m-neutral-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="createRole"
+                      value="agent"
+                      checked={createRole === "agent"}
+                      onChange={() => setCreateRole("agent")}
+                      className="mt-0.5 text-m-primary focus:ring-m-primary"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-m-text">Member / CSA Agent</div>
+                      <div className="text-[11px] text-m-text-muted mt-0.5">
+                        Scoped project access to assigned commerce projects.
+                      </div>
                     </div>
-                  </div>
+                  </label>
                 </div>
               </div>
 
@@ -996,10 +1033,10 @@ export function SuperadminClientDetailsView({
                 </div>
               </div>
 
-              {/* Role Display */}
+              {/* Role Display / Selection */}
               <div>
                 <label className="block text-xs font-bold text-m-text mb-2">Role</label>
-                {editRole === "admin" ? (
+                {editingUser?.isOrgAdmin ? (
                   <div className="p-3 rounded-m-md border border-m-primary bg-m-primary-50/40 flex items-start gap-3">
                     <Badge variant="primary" appearance="subtle" size="sm" className="mt-0.5 shrink-0">
                       Org Admin
@@ -1014,24 +1051,57 @@ export function SuperadminClientDetailsView({
                     </div>
                   </div>
                 ) : (
-                  <div className="p-3 rounded-m-md border border-m-border bg-m-neutral-50 flex items-start gap-3">
-                    <Badge variant="neutral" appearance="subtle" size="sm" className="mt-0.5 shrink-0">
-                      Member
-                    </Badge>
-                    <div>
-                      <div className="text-xs font-bold text-m-text">
-                        Member / CSA Agent
+                  <div className="grid grid-cols-2 gap-3">
+                    <label
+                      className={`p-3 rounded-m-md border cursor-pointer transition-colors flex items-start gap-2.5 ${
+                        editRole === "admin"
+                          ? "border-m-primary bg-m-primary-50/40"
+                          : "border-m-border bg-m-surface hover:bg-m-neutral-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="editRole"
+                        value="admin"
+                        checked={editRole === "admin"}
+                        onChange={() => setEditRole("admin")}
+                        className="mt-0.5 text-m-primary focus:ring-m-primary"
+                      />
+                      <div>
+                        <div className="text-xs font-bold text-m-text">Admin</div>
+                        <div className="text-[11px] text-m-text-muted mt-0.5">
+                          Full access to assigned projects and Studio Admin Settings.
+                        </div>
                       </div>
-                      <div className="text-[11px] text-m-text-muted mt-0.5">
-                        Scoped project access. Control which projects this member can access below.
+                    </label>
+                    <label
+                      className={`p-3 rounded-m-md border cursor-pointer transition-colors flex items-start gap-2.5 ${
+                        editRole === "agent"
+                          ? "border-m-primary bg-m-primary-50/40"
+                          : "border-m-border bg-m-surface hover:bg-m-neutral-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="editRole"
+                        value="agent"
+                        checked={editRole === "agent"}
+                        onChange={() => setEditRole("agent")}
+                        className="mt-0.5 text-m-primary focus:ring-m-primary"
+                      />
+                      <div>
+                        <div className="text-xs font-bold text-m-text">Member / CSA Agent</div>
+                        <div className="text-[11px] text-m-text-muted mt-0.5">
+                          Scoped project access to assigned commerce projects.
+                        </div>
                       </div>
-                    </div>
+                    </label>
                   </div>
                 )}
               </div>
 
               {/* Project Access */}
-              {editRole === "admin" ? (
+              {editingUser?.isOrgAdmin ? (
                 <div className="rounded-m-lg border border-m-primary-200 bg-m-primary-50 p-3 text-xs text-m-primary flex items-start gap-2">
                   <Icon name="sparkles" size="xs" className="shrink-0 mt-0.5" />
                   <span>

@@ -55,6 +55,7 @@ interface ClientUserRow {
   firstName?: string | null;
   lastName?: string | null;
   role: string;
+  isOrgAdmin?: boolean;
   active: boolean;
   clientProjects: Array<{
     projectKey: string;
@@ -68,7 +69,7 @@ export function OrgSettingsPortalView() {
   const [activeTab, setActiveTab] = useState<"organization" | "projects" | "users">("organization");
 
   const organizationId = user?.activeClientId || user?.organization?.id;
-  const isOrgAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isOrgAdmin = Boolean(user?.isOrgAdmin) || user?.role === "superadmin";
 
   // Tab 1: Organization State
   const [name, setName] = useState("");
@@ -87,6 +88,7 @@ export function OrgSettingsPortalView() {
   const [createLastName, setCreateLastName] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createPassword, setCreatePassword] = useState("");
+  const [createRole, setCreateRole] = useState<"admin" | "agent">("agent");
   const [createSelectedProjects, setCreateSelectedProjects] = useState<string[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
@@ -95,6 +97,7 @@ export function OrgSettingsPortalView() {
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editRole, setEditRole] = useState<"admin" | "agent">("agent");
   const [editActive, setEditActive] = useState<boolean>(true);
   const [editSelectedProjects, setEditSelectedProjects] = useState<string[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
@@ -228,6 +231,7 @@ export function OrgSettingsPortalView() {
     setCreateLastName("");
     setCreateEmail("");
     setCreatePassword("");
+    setCreateRole("agent");
     setCreateSelectedProjects(uniqueProjects.length > 0 ? [uniqueProjects[0].projectKey] : []);
     setCreateError(null);
     setIsCreateUserOpen(true);
@@ -248,7 +252,7 @@ export function OrgSettingsPortalView() {
       return;
     }
     if (uniqueProjects.length > 0 && createSelectedProjects.length === 0) {
-      setCreateError("Select at least one project for this member.");
+      setCreateError("Select at least one project for this user.");
       return;
     }
 
@@ -263,8 +267,8 @@ export function OrgSettingsPortalView() {
             password: createPassword,
             firstName: createFirstName.trim() || undefined,
             lastName: createLastName.trim() || undefined,
-            role: "agent",
-            projects: createSelectedProjects.map((pk) => ({ projectKey: pk, role: "agent" }))
+            role: createRole,
+            projects: createSelectedProjects.map((pk) => ({ projectKey: pk, role: createRole }))
           }
         }
       });
@@ -287,6 +291,7 @@ export function OrgSettingsPortalView() {
     setEditFirstName(targetUser.firstName || "");
     setEditLastName(targetUser.lastName || "");
     setEditPassword("");
+    setEditRole((targetUser.role === "admin" ? "admin" : "agent") as "admin" | "agent");
     setEditActive(targetUser.active !== false);
     setEditSelectedProjects(
       targetUser.clientProjects ? targetUser.clientProjects.map((cp) => cp.projectKey) : []
@@ -305,9 +310,9 @@ export function OrgSettingsPortalView() {
       return;
     }
 
-    const isTargetAdmin = editingUser.role === "admin";
-    if (!isTargetAdmin && uniqueProjects.length > 0 && editSelectedProjects.length === 0) {
-      setEditError("Select at least one project for this member.");
+    const isTargetOrgAdmin = Boolean(editingUser.isOrgAdmin);
+    if (!isTargetOrgAdmin && uniqueProjects.length > 0 && editSelectedProjects.length === 0) {
+      setEditError("Select at least one project for this user.");
       return;
     }
 
@@ -322,11 +327,11 @@ export function OrgSettingsPortalView() {
             firstName: editFirstName.trim() || undefined,
             lastName: editLastName.trim() || undefined,
             password: editPassword.trim() || undefined,
-            role: editingUser.role,
-            active: isTargetAdmin ? true : editActive,
-            projects: isTargetAdmin
+            role: isTargetOrgAdmin ? "admin" : editRole,
+            active: isTargetOrgAdmin ? true : editActive,
+            projects: isTargetOrgAdmin
               ? undefined
-              : editSelectedProjects.map((pk) => ({ projectKey: pk, role: "agent" }))
+              : editSelectedProjects.map((pk) => ({ projectKey: pk, role: editRole }))
           }
         }
       });
@@ -733,16 +738,22 @@ export function OrgSettingsPortalView() {
                           {u.email}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={isUserAdmin ? "primary" : "neutral"}
-                            appearance="subtle"
-                            size="sm"
-                          >
-                            {isUserAdmin ? "Organization Admin" : "Member / Agent"}
-                          </Badge>
+                          {u.isOrgAdmin ? (
+                            <Badge variant="primary" appearance="subtle" size="sm">
+                              Organization Admin
+                            </Badge>
+                          ) : u.role === "admin" ? (
+                            <Badge variant="primary" appearance="outline" size="sm">
+                              Admin
+                            </Badge>
+                          ) : (
+                            <Badge variant="neutral" appearance="subtle" size="sm">
+                              Member / Agent
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
-                          {isUserAdmin ? (
+                          {u.isOrgAdmin ? (
                             <span className="text-xs italic text-m-text-muted">
                               All Projects (Org Level)
                             </span>
@@ -910,14 +921,53 @@ export function OrgSettingsPortalView() {
 
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider text-m-text-muted">
-                User Role
+                User Role <span className="text-red-500">*</span>
               </label>
-              <div className="mt-1 flex items-center gap-2 rounded border border-m-border bg-m-neutral-50 p-2.5">
-                <Icon name="user" size="xs" className="text-m-text-muted" />
-                <span className="text-xs font-semibold text-m-text">Member / Agent</span>
-                <span className="text-[11px] text-m-text-muted">
-                  (Single Organization Admin restriction active)
-                </span>
+              <div className="mt-1 grid grid-cols-2 gap-3">
+                <label
+                  className={`flex cursor-pointer items-start gap-2.5 rounded border p-3 transition-colors ${
+                    createRole === "admin"
+                      ? "border-m-primary bg-m-primary-50/40"
+                      : "border-m-border bg-m-surface hover:bg-m-neutral-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="orgCreateRole"
+                    value="admin"
+                    checked={createRole === "admin"}
+                    onChange={() => setCreateRole("admin")}
+                    className="mt-0.5 text-m-primary focus:ring-m-primary"
+                  />
+                  <div>
+                    <div className="text-xs font-semibold text-m-text">Admin</div>
+                    <div className="mt-0.5 text-[11px] text-m-text-muted">
+                      Full access to assigned projects and Studio Admin Settings.
+                    </div>
+                  </div>
+                </label>
+                <label
+                  className={`flex cursor-pointer items-start gap-2.5 rounded border p-3 transition-colors ${
+                    createRole === "agent"
+                      ? "border-m-primary bg-m-primary-50/40"
+                      : "border-m-border bg-m-surface hover:bg-m-neutral-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="orgCreateRole"
+                    value="agent"
+                    checked={createRole === "agent"}
+                    onChange={() => setCreateRole("agent")}
+                    className="mt-0.5 text-m-primary focus:ring-m-primary"
+                  />
+                  <div>
+                    <div className="text-xs font-semibold text-m-text">Member / Agent</div>
+                    <div className="mt-0.5 text-[11px] text-m-text-muted">
+                      Standard access to assigned commerce projects.
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
 
@@ -1064,27 +1114,72 @@ export function OrgSettingsPortalView() {
               <label className="text-xs font-semibold uppercase tracking-wider text-m-text-muted">
                 Role
               </label>
-              <div className="mt-1 flex items-center gap-2 rounded border border-m-border bg-m-neutral-50 p-2.5">
-                <Icon
-                  name={editingUser?.role === "admin" ? "shield-check" : "user"}
-                  size="xs"
-                  className="text-m-text-muted"
-                />
-                <span className="text-xs font-semibold text-m-text">
-                  {editingUser?.role === "admin"
-                    ? "Organization Admin (Primary)"
-                    : "Member / Agent"}
-                </span>
-                <span className="text-[11px] text-m-text-muted">
-                  {editingUser?.role === "admin"
-                    ? "(Organization-level administrator)"
-                    : "(Project-scoped access)"}
-                </span>
-              </div>
+              {editingUser?.isOrgAdmin ? (
+                <div className="mt-1 flex items-center gap-2 rounded border border-m-border bg-m-neutral-50 p-2.5">
+                  <Icon
+                    name="shield-check"
+                    size="xs"
+                    className="text-m-primary"
+                  />
+                  <span className="text-xs font-semibold text-m-text">
+                    Organization Admin (Primary)
+                  </span>
+                  <span className="text-[11px] text-m-text-muted">
+                    (Organization-level administrator)
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-1 grid grid-cols-2 gap-3">
+                  <label
+                    className={`flex cursor-pointer items-start gap-2.5 rounded border p-3 transition-colors ${
+                      editRole === "admin"
+                        ? "border-m-primary bg-m-primary-50/40"
+                        : "border-m-border bg-m-surface hover:bg-m-neutral-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="orgEditRole"
+                      value="admin"
+                      checked={editRole === "admin"}
+                      onChange={() => setEditRole("admin")}
+                      className="mt-0.5 text-m-primary focus:ring-m-primary"
+                    />
+                    <div>
+                      <div className="text-xs font-semibold text-m-text">Admin</div>
+                      <div className="mt-0.5 text-[11px] text-m-text-muted">
+                        Full access to assigned projects and Studio Admin Settings.
+                      </div>
+                    </div>
+                  </label>
+                  <label
+                    className={`flex cursor-pointer items-start gap-2.5 rounded border p-3 transition-colors ${
+                      editRole === "agent"
+                        ? "border-m-primary bg-m-primary-50/40"
+                        : "border-m-border bg-m-surface hover:bg-m-neutral-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="orgEditRole"
+                      value="agent"
+                      checked={editRole === "agent"}
+                      onChange={() => setEditRole("agent")}
+                      className="mt-0.5 text-m-primary focus:ring-m-primary"
+                    />
+                    <div>
+                      <div className="text-xs font-semibold text-m-text">Member / Agent</div>
+                      <div className="mt-0.5 text-[11px] text-m-text-muted">
+                        Standard access to assigned commerce projects.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              )}
             </div>
 
-            {/* Account Status Toggle (Non-Admin only) */}
-            {editingUser?.role !== "admin" && (
+            {/* Account Status Toggle (Non-Org-Admin only) */}
+            {!editingUser?.isOrgAdmin && (
               <div className="flex items-center gap-2 pt-1">
                 <input
                   type="checkbox"
@@ -1105,7 +1200,7 @@ export function OrgSettingsPortalView() {
               <label className="text-xs font-semibold uppercase tracking-wider text-m-text-muted">
                 Project Access Assignment
               </label>
-              {editingUser?.role === "admin" ? (
+              {editingUser?.isOrgAdmin ? (
                 <div className="mt-1.5 flex items-center gap-2 rounded border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-700 dark:text-emerald-300">
                   <Icon name="check-circle" size="xs" />
                   <span>

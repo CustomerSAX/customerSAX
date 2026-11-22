@@ -34,6 +34,8 @@ export interface CsaUser {
   lastName?: string;
   /** Legacy single-project role — kept for backward compat with apps/auth's session claims. */
   role: string;
+  /** Whether this user is the primary Organization Admin created during onboarding. */
+  isOrgAdmin?: boolean;
   /** Primary/legacy project key. */
   projectKey?: string;
   /** Default project key for switcher/session purposes. */

@@ -72,7 +72,7 @@ async function enrichUserWithOrg(publicUser: PublicUser, tenantId?: string): Pro
     }
 
     // Organization Admin: automatically has access to all projects belonging to the organization
-    if (publicUser.role === "admin") {
+    if (publicUser.isOrgAdmin) {
       try {
         const orgProjects = await listProjectsByClient(resolvedClientId);
         publicUser.projects = orgProjects.map((p) => ({
@@ -126,7 +126,11 @@ export async function loginWithPassword(email: string, password: string) {
   let activeProjectKey = defaultProject?.projectKey;
   const activeClientId = defaultProject?.clientId || (user as any).clientId || (user.tenantId !== "csa" ? user.tenantId : undefined);
 
-  if (user.role === "admin" && activeClientId && !activeProjectKey) {
+  const isOrgAdmin = Boolean(
+    user.isOrgAdmin ?? (user.role === "admin" && (!projects.length || (user as any).isOrgAdmin))
+  );
+
+  if (isOrgAdmin && activeClientId && !activeProjectKey) {
     try {
       const orgProjects = await listProjectsByClient(activeClientId);
       if (orgProjects.length > 0) {
@@ -182,7 +186,11 @@ export async function loginWithSso(email: string) {
   let activeProjectKey = defaultProject?.projectKey;
   const activeClientId = defaultProject?.clientId || (user as any).clientId || (user.tenantId !== "csa" ? user.tenantId : undefined);
 
-  if (user.role === "admin" && activeClientId && !activeProjectKey) {
+  const isOrgAdmin = Boolean(
+    user.isOrgAdmin ?? (user.role === "admin" && (!projects.length || (user as any).isOrgAdmin))
+  );
+
+  if (isOrgAdmin && activeClientId && !activeProjectKey) {
     try {
       const orgProjects = await listProjectsByClient(activeClientId);
       if (orgProjects.length > 0) {
@@ -259,7 +267,10 @@ export async function selectSessionProject(request: IncomingMessage, projectKey:
   let allowed = false;
 
   // Organization Admin: automatically has access to all projects in the organization
-  if (user.role === "admin" && effectiveClientId) {
+  const isOrgAdminUser = Boolean(
+    user.isOrgAdmin ?? (user.role === "admin" && (!projectsForUser(user).length || (user as any).isOrgAdmin))
+  );
+  if (isOrgAdminUser && effectiveClientId) {
     try {
       const orgProjects = await listProjectsByClient(effectiveClientId);
       const orgMatch = orgProjects.find((p) => p.projectKey === projectKey);
