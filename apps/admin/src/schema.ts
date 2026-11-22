@@ -17,9 +17,12 @@ import {
   testSmtpProfile,
   usersRepo,
   getProjectTicketingSla,
-  saveProjectTicketingSla
+  saveProjectTicketingSla,
+  getKnowledgeBaseByOrganization,
+  replaceKnowledgeBase,
+  deleteKnowledgeBaseByOrganization
 } from "@csa/mongodb";
-import type { ClientSsoConfigStored, CsaUser, SlaTargetInput } from "@csa/mongodb";
+import type { ClientSsoConfigStored, CsaUser, SlaTargetInput, KnowledgeBaseItemInput } from "@csa/mongodb";
 import { del as cacheDel, ctProjectConfig } from "@csa/cache";
 import { createLogger } from "@csa/logger";
 import * as rolesRepo from "./roles/repository.js";
@@ -454,6 +457,43 @@ export const typeDefs = gql`
     success: Boolean!
     message: String!
   }
+
+  type KnowledgeBaseItem {
+    id: ID!
+    question: String!
+    answer: String!
+  }
+
+  type KnowledgeBaseSectionGroup {
+    section: String!
+    items: [KnowledgeBaseItem!]!
+  }
+
+  type KnowledgeBaseStatus {
+    lastUpdatedAt: String
+    faqCount: Int!
+    troubleshootCount: Int!
+  }
+
+  type KnowledgeBaseData {
+    faq: [KnowledgeBaseSectionGroup!]!
+    troubleshoot: [KnowledgeBaseSectionGroup!]!
+    status: KnowledgeBaseStatus
+  }
+
+  input KnowledgeBaseItemInput {
+    type: String!
+    section: String!
+    question: String!
+    answer: String!
+  }
+
+  type ReplaceKnowledgeBaseResult {
+    ok: Boolean!
+    count: Int!
+    status: KnowledgeBaseStatus
+  }
+
   extend type Query {
     projectConnectionHubProducts(
       query: String = ""
@@ -474,6 +514,7 @@ export const typeDefs = gql`
     adminSmtpProfilesByClient(clientId: ID!): [AdminSmtpProfile!]!
     adminRoles(clientId: ID!, projectKey: String!): [AdminRole!]!
     adminAiSettings(clientId: ID!): AdminAiSettings!
+    adminKnowledgeBase(clientId: ID!): KnowledgeBaseData!
   }
 
   extend type Mutation {
@@ -593,6 +634,11 @@ export const typeDefs = gql`
       projectKey: String!
       smtpProfileId: String
     ): Boolean!
+    adminReplaceKnowledgeBase(
+      clientId: ID!
+      items: [KnowledgeBaseItemInput!]!
+    ): ReplaceKnowledgeBaseResult!
+    adminDeleteKnowledgeBase(clientId: ID!): Boolean!
   }
 `;
 
@@ -663,7 +709,17 @@ export const resolvers = {
     adminRoles: (_p: unknown, args: { clientId: string; projectKey: string }) =>
       rolesRepo.listRoles(args.clientId, args.projectKey),
     adminAiSettings: (_p: unknown, args: { clientId: string }) =>
-      aiSettingsRepo.getAiSettings(args.clientId)
+      aiSettingsRepo.getAiSettings(args.clientId),
+    adminKnowledgeBase: async (_p: unknown, args: { clientId: string }) => {
+      const data = await getKnowledgeBaseByOrganization(args.clientId);
+      return {
+        ...data,
+        status: {
+          ...data.status,
+          lastUpdatedAt: iso(data.status?.lastUpdatedAt)
+        }
+      };
+    }
   },
 
   Mutation: {
@@ -1351,6 +1407,27 @@ export const resolvers = {
       return projectsRepo.updateProject(project._id.toHexString(), {
         smtpProfileId: args.smtpProfileId ?? null
       });
+    },
+    adminReplaceKnowledgeBase: async (
+      _p: unknown,
+      args: { clientId: string; items: KnowledgeBaseItemInput[] }
+    ) => {
+      const { count, status } = await replaceKnowledgeBase(args.clientId, args.items);
+      return {
+        ok: true,
+        count,
+        status: {
+          ...status,
+          lastUpdatedAt: iso(status?.lastUpdatedAt)
+        }
+      };
+    },
+    adminDeleteKnowledgeBase: async (
+      _p: unknown,
+      args: { clientId: string }
+    ) => {
+      await deleteKnowledgeBaseByOrganization(args.clientId);
+      return true;
     }
   }
 };
