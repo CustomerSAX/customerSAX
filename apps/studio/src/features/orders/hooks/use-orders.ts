@@ -13,6 +13,7 @@ import type {
   OrderAddress,
   OrderReturnItem,
   OrderComment,
+  OrderPaymentTransaction,
   CustomFieldEntry,
 } from "../types/order-types";
 
@@ -506,6 +507,59 @@ export function useOrderStore() {
     );
   }, []);
 
+  const processOrderRefund = useCallback((orderId: string, refundAmount: number, reason: string, notes?: string) => {
+    const refundTxn: OrderPaymentTransaction = {
+      id: "txn_ref_" + Date.now(),
+      type: "Refund",
+      state: "Success",
+      amount: refundAmount,
+      interactionId: "REF-" + Date.now().toString().slice(-6),
+      timestamp: new Date().toISOString(),
+    };
+    const refundComment: OrderComment = {
+      id: "cmt_ref_" + Date.now(),
+      text: `Refund of $${refundAmount.toFixed(2)} processed (${reason})${notes ? `: ${notes}` : ""}`,
+      author: "CSA System",
+      createdAt: new Date().toISOString(),
+    };
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== orderId && o.orderNumber !== orderId) return o;
+        const payments = o.payments && o.payments.length > 0
+          ? o.payments.map((p, idx) => idx === 0 ? {
+              ...p,
+              transactions: [refundTxn, ...p.transactions],
+              lastModifiedAt: new Date().toISOString(),
+            } : p)
+          : [{
+              id: "pay_ref_" + Date.now(),
+              interfaceId: "pi_simulated_" + Date.now().toString().slice(-8),
+              method: "Credit Card (Refund)",
+              psp: "Simulated Gateway",
+              amountPlanned: refundAmount,
+              pspPaymentStatus: "refunded",
+              createdAt: new Date().toISOString(),
+              transactions: [refundTxn],
+            }];
+        const returnInfo = (o.returnInfo || []).map((ret) => ({
+          ...ret,
+          items: ret.items.map((it) => ({
+            ...it,
+            paymentState: "Refunded" as const,
+          })),
+        }));
+        return {
+          ...o,
+          paymentState: "Refunded" as PaymentState,
+          payments,
+          comments: [refundComment, ...(o.comments || [])],
+          returnInfo,
+          lastModifiedAt: new Date().toISOString(),
+        };
+      })
+    );
+  }, []);
+
   return {
     orders,
     error,
@@ -528,6 +582,7 @@ export function useOrderStore() {
     sendPaymentLink,
     addOrderComment,
     updateCustomFields,
+    processOrderRefund,
   };
 }
 

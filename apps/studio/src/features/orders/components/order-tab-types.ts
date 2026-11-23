@@ -9,6 +9,7 @@ import type {
   PaymentState,
   OrderAddress,
   OrderPayment,
+  OrderReturnInfo,
 } from "../types/order-types";
 
 export interface CatalogProduct {
@@ -117,6 +118,7 @@ export interface OrderReturnsTabProps {
   returnDrawerError: string;
   returnTrackingIdPreview: string;
   handleSubmitReturn: () => void;
+  handleOpenRefundDrawer?: (returnInfo?: OrderReturnInfo) => void;
 }
 
 // ── Payments Tab ────────────────────────────────────────────────────
@@ -129,6 +131,7 @@ export interface OrderPaymentsTabProps {
   paymentActionFeedback: string;
   handleGetLatestPspStatus: (paymentId: string) => void;
   handleSendPaymentLink: (paymentId: string) => void;
+  handleOpenRefundDrawer?: () => void;
 }
 
 // ── Comments Tab ────────────────────────────────────────────────────

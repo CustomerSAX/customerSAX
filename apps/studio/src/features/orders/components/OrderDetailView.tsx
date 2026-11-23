@@ -16,6 +16,12 @@ import {
   type TimelineItem,
   type TimelineState,
   PrimaryButton,
+  Button,
+  Input,
+  Select,
+  FormField,
+  Label,
+  Drawer,
   MoreActionsMenu,
   SummaryGrid,
   SummaryCard,
@@ -29,6 +35,7 @@ import type {
   ShipmentState,
   PaymentState,
   OrderReturnItem,
+  OrderReturnInfo,
   OrderAddress,
 } from "../types/order-types";
 import type { CatalogProduct, ShippingMethodOption } from "./order-tab-types";
@@ -180,6 +187,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     refreshPaymentPspStatus,
     sendPaymentLink,
     addOrderComment,
+    processOrderRefund,
   } = useOrderStore();
 
   const fallbackOrder = useMemo(() => createEmptyOrder(id), [id]);
@@ -479,6 +487,38 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     }
   };
 
+  // ── Refund State & Handlers ────────────────────────────────────
+  const [isRefundDrawerOpen, setIsRefundDrawerOpen] = useState(false);
+  const [refundTargetReturn, setRefundTargetReturn] = useState<OrderReturnInfo | undefined>();
+  const [refundAmountInput, setRefundAmountInput] = useState("");
+  const [refundReasonInput, setRefundReasonInput] = useState("Customer Return");
+  const [refundNotesInput, setRefundNotesInput] = useState("");
+  const [refundMethodInput, setRefundMethodInput] = useState("Original Payment Method");
+  const [refundFeedback, setRefundFeedback] = useState("");
+
+  const handleOpenRefundDrawer = (returnInfo?: OrderReturnInfo, _paymentId?: string) => {
+    setRefundTargetReturn(returnInfo);
+    setRefundAmountInput(order.grandTotal ? String(order.grandTotal.toFixed(2)) : "0.00");
+    setRefundReasonInput(returnInfo ? "Customer Return" : "Goodwill Gesture");
+    setRefundNotesInput(returnInfo?.returnTrackingId ? `Refund for RMA ${returnInfo.returnTrackingId}` : "");
+    setRefundMethodInput("Original Payment Method");
+    setIsRefundDrawerOpen(true);
+  };
+
+  const handleSubmitRefund = () => {
+    const amount = parseFloat(refundAmountInput) || order.grandTotal || 0;
+    processOrderRefund(order.id, amount, refundReasonInput, refundNotesInput);
+    setIsRefundDrawerOpen(false);
+    const formattedAmt = formatOrderMoney(amount, order.currencyCode);
+    setRefundFeedback(`Refund of ${formattedAmt} recorded successfully.`);
+    notify({
+      variant: "success",
+      title: "Refund Processed",
+      description: `Refund of ${formattedAmt} recorded for order ${order.orderNumber}.`,
+    });
+    setTimeout(() => setRefundFeedback(""), 5000);
+  };
+
   // ── Derived View Data ──────────────────────────────────────────
 
   const selectedPayment = selectedPaymentId
@@ -541,6 +581,10 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
                   onClick: () => { setActiveTab("Returns"); handleOpenReturnDrawer(); },
                 },
                 {
+                  id: "issue-refund", label: "Issue Refund", icon: "dollar-sign",
+                  onClick: () => handleOpenRefundDrawer(),
+                },
+                {
                   id: "add-comment", label: "Add Comment", icon: "message-square",
                   disabled: true,
                   onClick: () => undefined,
@@ -565,6 +609,12 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           {error
             ? "Unable to load this order from the BFF. Showing available local order state."
             : "Loading order data from the BFF..."}
+        </div>
+      )}
+
+      {refundFeedback && (
+        <div className="p-3 bg-m-success-light text-m-success border border-m-success-border text-xs font-semibold rounded-m-md">
+          {refundFeedback}
         </div>
       )}
 
@@ -667,6 +717,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           returnComment={returnComment} setReturnComment={setReturnComment}
           returnDrawerError={returnDrawerError} returnTrackingIdPreview={returnTrackingIdPreview}
           handleSubmitReturn={handleSubmitReturn}
+          handleOpenRefundDrawer={handleOpenRefundDrawer}
         />
       )}
 
@@ -677,6 +728,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           selectedPaymentId={selectedPaymentId} setSelectedPaymentId={setSelectedPaymentId}
           selectedPayment={selectedPayment} paymentActionFeedback={paymentActionFeedback}
           handleGetLatestPspStatus={handleGetLatestPspStatus} handleSendPaymentLink={handleSendPaymentLink}
+          handleOpenRefundDrawer={() => handleOpenRefundDrawer()}
         />
       )}
 
@@ -689,6 +741,98 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
           handleAddComment={handleAddComment}
         />
       )}
+
+      {/* ── Issue Refund Side Drawer ── */}
+      <Drawer
+        isOpen={isRefundDrawerOpen}
+        onClose={() => setIsRefundDrawerOpen(false)}
+        size="md"
+        position="right"
+      >
+        <Drawer.Header
+          title="Issue Order Refund"
+          subtitle={refundTargetReturn ? `RMA: ${refundTargetReturn.returnTrackingId} • Order #${order.orderNumber}` : `Order #${order.orderNumber}`}
+          onClose={() => setIsRefundDrawerOpen(false)}
+        />
+        <Drawer.Content className="space-y-4">
+          <div className="rounded-m-lg bg-m-surface-2 p-3.5 border border-m-border space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-m-text-muted">Order Total:</span>
+              <span className="font-bold text-m-text">{formatOrderMoney(order.grandTotal, order.currencyCode)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-m-text-muted">Payment State:</span>
+              <StatusPill tone={statusTone(order.paymentState)}>{order.paymentState}</StatusPill>
+            </div>
+            {refundTargetReturn && (
+              <div className="flex justify-between border-t border-m-border/60 pt-2">
+                <span className="text-m-text-muted">Return Items:</span>
+                <span className="font-semibold text-m-text">{refundTargetReturn.items.length} item(s)</span>
+              </div>
+            )}
+          </div>
+
+          <FormField>
+            <Label>Refund Amount ({order.currencyCode || "USD"})</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={refundAmountInput}
+              onChange={(e) => setRefundAmountInput(e.target.value)}
+              placeholder="0.00"
+            />
+          </FormField>
+
+          <FormField>
+            <Label>Refund Reason</Label>
+            <Select
+              value={refundReasonInput}
+              onChange={(e) => setRefundReasonInput(e.target.value)}
+              options={[
+                { value: "Customer Return", label: "Customer Return (RMA)" },
+                { value: "Damaged / Defective", label: "Damaged or Defective Item" },
+                { value: "Order Cancellation", label: "Order Cancellation" },
+                { value: "Goodwill Gesture", label: "Goodwill / Customer Satisfaction" },
+                { value: "Shipping Fee Refund", label: "Shipping Fee Adjustment" },
+                { value: "Price Match / Discount", label: "Price Match / Post-purchase Discount" },
+              ]}
+            />
+          </FormField>
+
+          <FormField>
+            <Label>Refund Destination</Label>
+            <Select
+              value={refundMethodInput}
+              onChange={(e) => setRefundMethodInput(e.target.value)}
+              options={[
+                { value: "Original Payment Method", label: "Original Payment Method (Card / PSP)" },
+                { value: "Store Credit", label: "Customer Store Credit" },
+                { value: "Manual Bank Transfer", label: "Manual Bank Transfer (Offline)" },
+              ]}
+            />
+          </FormField>
+
+          <FormField>
+            <Label>Internal Note / Audit Reason</Label>
+            <textarea
+              className="w-full p-2.5 border border-m-border rounded-m-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
+              rows={3}
+              value={refundNotesInput}
+              onChange={(e) => setRefundNotesInput(e.target.value)}
+              placeholder="Internal justification or ticket reference..."
+            />
+          </FormField>
+        </Drawer.Content>
+        <Drawer.Footer>
+          <Button variant="secondary" size="md" onClick={() => setIsRefundDrawerOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="md" onClick={handleSubmitRefund}>
+            Confirm & Process Refund
+          </Button>
+        </Drawer.Footer>
+      </Drawer>
     </DetailPage>
   );
 }

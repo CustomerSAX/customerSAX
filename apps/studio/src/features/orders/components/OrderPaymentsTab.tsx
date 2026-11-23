@@ -33,7 +33,7 @@ function statusTone(status?: string | null): StatusTone {
 export function OrderPaymentsTab(props: OrderPaymentsTabProps) {
   const {
     order, fmtDate, selectedPaymentId, setSelectedPaymentId,
-    selectedPayment, paymentActionFeedback,
+    selectedPayment, paymentActionFeedback, handleOpenRefundDrawer,
   } = props;
 
   return (
@@ -44,7 +44,23 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps) {
             </div>
           )}
 
-          <SectionCard title="Payment Transactions" icon="credit-card" bodyClassName={order.payments && order.payments.length > 0 ? "p-0" : undefined}>
+          <SectionCard
+            title="Payment Transactions"
+            icon="credit-card"
+            action={
+              handleOpenRefundDrawer ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Icon name="dollar-sign" size="xs" />}
+                  onClick={() => handleOpenRefundDrawer()}
+                >
+                  Issue Refund
+                </Button>
+              ) : undefined
+            }
+            bodyClassName={order.payments && order.payments.length > 0 ? "p-0" : undefined}
+          >
             {order.payments && order.payments.length > 0 ? (
               <Table>
                 <TableHeader>
@@ -101,6 +117,16 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps) {
                   <Button variant="secondary" size="sm" onClick={() => setSelectedPaymentId(null)}>
                     Close
                   </Button>
+                  {handleOpenRefundDrawer && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={<Icon name="dollar-sign" size="xs" />}
+                      onClick={() => handleOpenRefundDrawer()}
+                    >
+                      Issue Refund
+                    </Button>
+                  )}
                   <Button variant="secondary" size="sm" disabled>
                     PSP Sync Not Configured
                   </Button>
