@@ -1,6 +1,6 @@
 FROM node:26-slim AS build
 WORKDIR /app
-RUN corepack enable
+RUN npm install --global pnpm@9.6.0
 COPY package.json pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml pnpm-workspace.yaml
 COPY apps/bff/package.json apps/bff/package.json
@@ -23,7 +23,6 @@ RUN pnpm --filter @csa/bff... --if-present build
 FROM node:26-slim
 WORKDIR /app
 ENV NODE_ENV=production
-RUN corepack enable
 COPY --from=build /app/package.json /app/package.json
 COPY --from=build /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
 COPY --from=build /app/node_modules /app/node_modules
