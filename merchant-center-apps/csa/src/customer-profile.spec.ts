@@ -48,6 +48,23 @@ describe('customer profile updates', () => {
     ]);
   });
 
+  it('creates update actions for the extended customer profile fields', () => {
+    expect(
+      buildCustomerProfileUpdateActions(customer, {
+        ...customerToProfileValues(customer),
+        title: 'Dr',
+        salutation: 'Dr Thakur',
+        middleName: 'Kumar',
+        vatId: 'AU123456789',
+      })
+    ).toEqual([
+      { action: 'setTitle', title: 'Dr' },
+      { action: 'setSalutation', salutation: 'Dr Thakur' },
+      { action: 'setMiddleName', middleName: 'Kumar' },
+      { action: 'setVatId', vatId: 'AU123456789' },
+    ]);
+  });
+
   it('validates email and ISO date values', () => {
     expect(
       validateCustomerProfile({

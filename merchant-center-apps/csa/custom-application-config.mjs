@@ -35,7 +35,13 @@ const config = {
   additionalOAuthScopes: [
     {
       name: PERMISSION_GROUPS.customers,
-      view: ['view_customers'],
+      // Customer 360 includes promotion assignment and usage details.
+      view: [
+        'view_customers',
+        'view_cart_discounts',
+        'view_discount_codes',
+        'view_types',
+      ],
       manage: ['manage_customers'],
     },
     {
@@ -58,7 +64,9 @@ const config = {
     },
     {
       name: PERMISSION_GROUPS.shoppingLists,
-      view: ['view_shopping_lists'],
+      // Wishlist agents also need catalogue access to find product variants
+      // before adding them to a customer's shopping list.
+      view: ['view_shopping_lists', 'view_products'],
       manage: ['manage_shopping_lists'],
     },
     {

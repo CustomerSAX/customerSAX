@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Redirect,
   Route,
@@ -38,9 +38,14 @@ import PrimaryButton from '@commercetools-uikit/primary-button';
 import Spacings from '@commercetools-uikit/spacings';
 import Text from '@commercetools-uikit/text';
 import TextField from '@commercetools-uikit/text-field';
-import { CART_DETAIL_QUERY, CARTS_QUERY } from '../graphql';
+import SelectField from '@commercetools-uikit/select-field';
+import {
+  CART_CUSTOMER_ADDRESSES_QUERY,
+  CART_DETAIL_QUERY,
+  CARTS_QUERY,
+} from '../graphql';
 import { PERMISSIONS } from '../constants';
-import type { Cart, QueryPage } from '../types';
+import type { Address, Cart, Customer, QueryPage } from '../types';
 import {
   exactSearchPredicate,
   formatAddress,
@@ -57,6 +62,7 @@ import {
 
 type CartsData = { carts: QueryPage<Cart> };
 type CartDetailData = { cart: Cart | null };
+type CartCustomerAddressesData = { customer: Customer | null };
 
 type ProductProjectionVariant = {
   id: number;
@@ -89,6 +95,97 @@ type ProductVariantSearchRow = {
   sku?: string;
   price?: Cart['totalPrice'];
   availableQuantity?: number;
+};
+
+type CartAddressForm = {
+  firstName: string;
+  lastName: string;
+  company: string;
+  streetNumber: string;
+  streetName: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  email: string;
+  phone: string;
+};
+
+const addressToForm = (address?: Address | null): CartAddressForm => ({
+  firstName: address?.firstName ?? '',
+  lastName: address?.lastName ?? '',
+  company: address?.company ?? '',
+  streetNumber: address?.streetNumber ?? '',
+  streetName: address?.streetName ?? '',
+  city: address?.city ?? '',
+  state: address?.state ?? '',
+  postalCode: address?.postalCode ?? '',
+  country: address?.country ?? '',
+  email: address?.email ?? '',
+  phone: address?.phone ?? '',
+});
+
+const hasAddressValues = (address: CartAddressForm) =>
+  Object.values(address).some((value) => value.trim().length > 0);
+
+const formToAddress = (form: CartAddressForm): Address =>
+  Object.fromEntries(
+    Object.entries({
+      ...form,
+      country: form.country.trim().toUpperCase(),
+    })
+      .map(([key, value]) => [key, value.trim()])
+      .filter(([, value]) => value.length > 0)
+  );
+
+const validateAddress = (label: string, address: CartAddressForm) => {
+  if (!hasAddressValues(address)) return undefined;
+  if (!/^[A-Za-z]{2}$/.test(address.country.trim()))
+    return `${label} country must be a two-letter ISO code, for example AU.`;
+  return undefined;
+};
+
+const savedAddressOptionLabel = (
+  address: Address,
+  index: number,
+  customer?: Customer | null
+) => {
+  const labels = [
+    address.id === customer?.defaultShippingAddressId
+      ? 'Default shipping'
+      : undefined,
+    address.id === customer?.defaultBillingAddressId
+      ? 'Default billing'
+      : undefined,
+  ].filter(Boolean);
+  const formattedAddress = formatAddress(address).replace(/\n/g, ', ');
+
+  return [labels.join(' & '), formattedAddress || `Saved address ${index + 1}`]
+    .filter(Boolean)
+    .join(' — ');
+};
+
+const isProductSearchDeactivatedError = (error: unknown) =>
+  getErrorMessage(error)
+    .toLocaleLowerCase()
+    .includes('endpoint is deactivated');
+
+const productProjectionMatches = (
+  product: ProductProjection,
+  searchTerm: string
+) => {
+  const normalizedSearchTerm = searchTerm.toLocaleLowerCase();
+  const variants = [product.masterVariant, ...(product.variants ?? [])];
+  const searchableValues = [
+    product.id,
+    product.key,
+    ...Object.values(product.name),
+    ...variants.flatMap((variant) => [variant.sku, variant.key]),
+  ];
+
+  return searchableValues.some((value) =>
+    value?.toLocaleLowerCase().includes(normalizedSearchTerm)
+  );
 };
 
 const Carts = () => {
@@ -321,31 +418,307 @@ const CartGeneral = (props: {
       </PageState>
     </CollapsiblePanel>
     <AddLineItems cart={props.cart} onSaved={props.onSaved} />
-    <CollapsiblePanel header="Addresses" isDefaultClosed={false}>
-      <Grid gridGap="24px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
-        <Grid.Item>
-          <Text.Subheadline as="h4">Shipping address</Text.Subheadline>
-          <Text.Body>
-            <span style={{ whiteSpace: 'pre-line' }}>
-              {formatAddress(props.cart.shippingAddress)}
-            </span>
-          </Text.Body>
-        </Grid.Item>
-        <Grid.Item>
-          <Text.Subheadline as="h4">Billing address</Text.Subheadline>
-          <Text.Body>
-            <span style={{ whiteSpace: 'pre-line' }}>
-              {formatAddress(props.cart.billingAddress)}
-            </span>
-          </Text.Body>
-        </Grid.Item>
-      </Grid>
-    </CollapsiblePanel>
+    <CartAddresses cart={props.cart} onSaved={props.onSaved} />
     <CollapsiblePanel header="Custom attributes" isDefaultClosed>
       <CustomFieldsTable fields={props.cart.custom?.customFieldsRaw} />
     </CollapsiblePanel>
   </Spacings.Stack>
 );
+
+const CartAddressFields = (props: {
+  prefix: string;
+  title: string;
+  value: CartAddressForm;
+  onChange: (value: CartAddressForm) => void;
+  savedAddressOptions: Array<{ value: string; label: string }>;
+  selectedAddressId: string;
+  onSelectAddress: (addressId: string) => void;
+  isLoadingSavedAddresses: boolean;
+  isDisabled: boolean;
+}) => {
+  const updateField = (field: keyof CartAddressForm, value: string) =>
+    props.onChange({ ...props.value, [field]: value });
+
+  const field = (
+    name: keyof CartAddressForm,
+    title: string,
+    placeholder?: string
+  ) => (
+    <TextField
+      name={`${props.prefix}-${name}`}
+      title={title}
+      value={props.value[name]}
+      onChange={(event) => updateField(name, event.target.value)}
+      placeholder={placeholder}
+      isDisabled={props.isDisabled}
+      horizontalConstraint="scale"
+    />
+  );
+
+  return (
+    <Spacings.Stack scale="m">
+      <Text.Subheadline as="h4">{props.title}</Text.Subheadline>
+      <SelectField
+        name={`${props.prefix}-saved-address`}
+        title="Saved customer address"
+        value={props.selectedAddressId || null}
+        options={props.savedAddressOptions}
+        onChange={(event) =>
+          props.onSelectAddress(String(event.target.value ?? ''))
+        }
+        placeholder={
+          props.isLoadingSavedAddresses
+            ? 'Loading saved addresses…'
+            : props.savedAddressOptions.length > 0
+            ? 'Select a saved address'
+            : 'No saved addresses available'
+        }
+        isClearable
+        isDisabled={
+          props.isDisabled ||
+          props.isLoadingSavedAddresses ||
+          props.savedAddressOptions.length === 0
+        }
+        horizontalConstraint="scale"
+      />
+      <Grid gridGap="16px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
+        <Grid.Item>{field('firstName', 'First name')}</Grid.Item>
+        <Grid.Item>{field('lastName', 'Last name')}</Grid.Item>
+        <Grid.Item>{field('company', 'Company')}</Grid.Item>
+        <Grid.Item>{field('phone', 'Phone')}</Grid.Item>
+        <Grid.Item>{field('streetNumber', 'Street number')}</Grid.Item>
+        <Grid.Item>{field('streetName', 'Street name')}</Grid.Item>
+        <Grid.Item>{field('city', 'City')}</Grid.Item>
+        <Grid.Item>{field('state', 'State / region')}</Grid.Item>
+        <Grid.Item>{field('postalCode', 'Postal code')}</Grid.Item>
+        <Grid.Item>
+          {field('country', 'Country', 'Two-letter code, e.g. AU')}
+        </Grid.Item>
+        <Grid.Item>{field('email', 'Email')}</Grid.Item>
+      </Grid>
+    </Spacings.Stack>
+  );
+};
+
+const CartAddresses = (props: {
+  cart: Cart;
+  onSaved: () => Promise<unknown>;
+}) => {
+  const projectKey = useApplicationContext((context) => context.project?.key);
+  const dispatch = useAsyncDispatch();
+  const showNotification = useShowNotification();
+  const canManage = useIsAuthorized({
+    demandedPermissions: [PERMISSIONS.ManageCarts],
+  });
+  const [shippingAddress, setShippingAddress] = useState<CartAddressForm>(() =>
+    addressToForm(props.cart.shippingAddress)
+  );
+  const [billingAddress, setBillingAddress] = useState<CartAddressForm>(() =>
+    addressToForm(props.cart.billingAddress)
+  );
+  const [selectedShippingAddressId, setSelectedShippingAddressId] =
+    useState('');
+  const [selectedBillingAddressId, setSelectedBillingAddressId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const isActive = props.cart.cartState === 'Active';
+  const isDisabled = !canManage || !isActive || saving;
+  const {
+    data: customerAddressesData,
+    loading: loadingCustomerAddresses,
+    error: customerAddressesError,
+  } = useMcQuery<CartCustomerAddressesData>(CART_CUSTOMER_ADDRESSES_QUERY, {
+    variables: { id: props.cart.customerId ?? '' },
+    context: { target: GRAPHQL_TARGETS.COMMERCETOOLS_PLATFORM },
+    fetchPolicy: 'cache-and-network',
+    skip: !props.cart.customerId,
+  });
+  const savedAddresses = useMemo<Address[]>(
+    () => customerAddressesData?.customer?.addresses ?? [],
+    [customerAddressesData?.customer?.addresses]
+  );
+  const savedAddressOptions = useMemo<Array<{ value: string; label: string }>>(
+    () =>
+      savedAddresses.map((address, index) => ({
+        value: address.id ?? `saved-address-${index}`,
+        label: savedAddressOptionLabel(
+          address,
+          index,
+          customerAddressesData?.customer
+        ),
+      })),
+    [customerAddressesData?.customer, savedAddresses]
+  );
+
+  useEffect(() => {
+    setShippingAddress(addressToForm(props.cart.shippingAddress));
+    setBillingAddress(addressToForm(props.cart.billingAddress));
+    setSelectedShippingAddressId('');
+    setSelectedBillingAddressId('');
+    setError(undefined);
+  }, [props.cart]);
+
+  const selectSavedAddress = (
+    addressId: string,
+    setSelectedAddressId: (value: string) => void,
+    setAddress: (value: CartAddressForm) => void
+  ) => {
+    setSelectedAddressId(addressId);
+    if (!addressId) return;
+
+    const selectedIndex = savedAddressOptions.findIndex(
+      (option) => option.value === addressId
+    );
+    const selectedAddress = savedAddresses[selectedIndex];
+    if (selectedAddress) setAddress(addressToForm(selectedAddress));
+  };
+
+  const saveAddresses = async () => {
+    if (!projectKey || !canManage || !isActive) return;
+
+    const shippingError = validateAddress('Shipping address', shippingAddress);
+    const billingError = validateAddress('Billing address', billingAddress);
+    if (shippingError || billingError) {
+      setError(new Error(shippingError ?? billingError));
+      return;
+    }
+
+    const updateActions = [
+      ...(hasAddressValues(shippingAddress)
+        ? [
+            {
+              action: 'setShippingAddress',
+              address: formToAddress(shippingAddress),
+            },
+          ]
+        : []),
+      ...(hasAddressValues(billingAddress)
+        ? [
+            {
+              action: 'setBillingAddress',
+              address: formToAddress(billingAddress),
+            },
+          ]
+        : []),
+    ];
+
+    if (updateActions.length === 0) {
+      setError(new Error('Enter a shipping or billing address to save.'));
+      return;
+    }
+
+    setSaving(true);
+    setError(undefined);
+    try {
+      await dispatch(
+        actions.post({
+          mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+          uri: `/${projectKey}/carts/${props.cart.id}`,
+          payload: {
+            version: props.cart.version,
+            actions: updateActions,
+          },
+        })
+      );
+      await props.onSaved();
+      showNotification({
+        domain: NOTIFICATION_DOMAINS.SIDE,
+        kind: NOTIFICATION_KINDS_SIDE.success,
+        text: 'Cart addresses updated.',
+      });
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <CollapsiblePanel header="Addresses" isDefaultClosed={false}>
+      <Spacings.Stack scale="l">
+        {!isActive ? (
+          <ContentNotification type="info">
+            <Text.Body>
+              Addresses can only be updated while the cart is active.
+            </Text.Body>
+          </ContentNotification>
+        ) : !canManage ? (
+          <ContentNotification type="warning">
+            <Text.Body>
+              You can view these addresses, but your CSA role cannot update
+              carts.
+            </Text.Body>
+          </ContentNotification>
+        ) : null}
+        {customerAddressesError ? (
+          <ContentNotification type="warning">
+            <Text.Body>
+              Saved customer addresses could not be loaded. You can still enter
+              an address manually: {getErrorMessage(customerAddressesError)}
+            </Text.Body>
+          </ContentNotification>
+        ) : null}
+        <Grid gridGap="32px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
+          <Grid.Item>
+            <CartAddressFields
+              prefix="shipping-address"
+              title="Shipping address"
+              value={shippingAddress}
+              onChange={setShippingAddress}
+              savedAddressOptions={savedAddressOptions}
+              selectedAddressId={selectedShippingAddressId}
+              onSelectAddress={(addressId) =>
+                selectSavedAddress(
+                  addressId,
+                  setSelectedShippingAddressId,
+                  setShippingAddress
+                )
+              }
+              isLoadingSavedAddresses={loadingCustomerAddresses}
+              isDisabled={isDisabled}
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <CartAddressFields
+              prefix="billing-address"
+              title="Billing address"
+              value={billingAddress}
+              onChange={setBillingAddress}
+              savedAddressOptions={savedAddressOptions}
+              selectedAddressId={selectedBillingAddressId}
+              onSelectAddress={(addressId) =>
+                selectSavedAddress(
+                  addressId,
+                  setSelectedBillingAddressId,
+                  setBillingAddress
+                )
+              }
+              isLoadingSavedAddresses={loadingCustomerAddresses}
+              isDisabled={isDisabled}
+            />
+          </Grid.Item>
+        </Grid>
+        <Spacings.Inline scale="m">
+          <TabularDetailPage.FormSecondaryButton
+            label="Use shipping as billing"
+            onClick={() => setBillingAddress({ ...shippingAddress })}
+            isDisabled={isDisabled || !hasAddressValues(shippingAddress)}
+          />
+          <TabularDetailPage.FormPrimaryButton
+            label={saving ? 'Saving…' : 'Save addresses'}
+            onClick={() => void saveAddresses()}
+            isDisabled={isDisabled}
+          />
+        </Spacings.Inline>
+        {error ? (
+          <ContentNotification type="error">
+            <Text.Body>{getErrorMessage(error)}</Text.Body>
+          </ContentNotification>
+        ) : null}
+      </Spacings.Stack>
+    </CollapsiblePanel>
+  );
+};
 
 const AddLineItems = (props: {
   cart: Cart;
@@ -388,18 +761,42 @@ const AddLineItems = (props: {
     setHasSearched(true);
     setError(undefined);
     try {
-      const query = new URLSearchParams({
-        staged: 'true',
-        limit: '40',
-        markMatchingVariants: 'true',
-      });
-      query.set(`text.${locale}`, value);
-      const result = (await dispatch(
-        actions.get({
-          mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
-          uri: `/${projectKey}/product-projections/search?${query.toString()}`,
-        })
-      )) as ProductProjectionSearchResponse;
+      let result: ProductProjectionSearchResponse;
+
+      try {
+        const query = new URLSearchParams({
+          staged: 'true',
+          limit: '40',
+          markMatchingVariants: 'true',
+        });
+        query.set(`text.${locale}`, value);
+        result = (await dispatch(
+          actions.get({
+            mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+            uri: `/${projectKey}/product-projections/search?${query.toString()}`,
+          })
+        )) as ProductProjectionSearchResponse;
+      } catch (caught) {
+        if (!isProductSearchDeactivatedError(caught)) throw caught;
+
+        const query = new URLSearchParams({
+          staged: 'true',
+          limit: '500',
+          withTotal: 'false',
+        });
+        const fallbackResult = (await dispatch(
+          actions.get({
+            mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+            uri: `/${projectKey}/product-projections?${query.toString()}`,
+          })
+        )) as ProductProjectionSearchResponse;
+        result = {
+          results: fallbackResult.results
+            .filter((product) => productProjectionMatches(product, value))
+            .slice(0, 40),
+        };
+      }
+
       const nextRows = result.results.flatMap((product) =>
         [product.masterVariant, ...(product.variants ?? [])].map((variant) => ({
           id: `${product.id}-${variant.id}`,
