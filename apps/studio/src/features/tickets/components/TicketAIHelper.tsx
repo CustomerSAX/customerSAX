@@ -30,6 +30,7 @@ const buttonStyle =
 /** UI-only prototype: all messages and drafts stay in component state. */
 export function TicketAIHelper() {
   const [open, setOpen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([greeting]);
   const [input, setInput] = useState("");
   const [step, setStep] = useState<Step>("issue");
@@ -112,7 +113,7 @@ export function TicketAIHelper() {
     "mt-1 w-full rounded-lg border border-m-border bg-m-surface px-3 py-2 text-sm font-normal text-m-text outline-none focus:border-m-primary focus:ring-2 focus:ring-m-primary/20";
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
+    <div className="fixed bottom-4 right-4 z-30 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
       {open && (
         <section
           id="ticket-ai-helper"
@@ -355,23 +356,54 @@ export function TicketAIHelper() {
         </section>
       )}
 
-      <button
-        ref={launcherRef}
-        type="button"
-        onClick={() => (open ? close() : setOpen(true))}
-        aria-label={open ? "Close ticket AI helper" : "Open ticket AI helper"}
-        aria-expanded={open}
-        aria-controls={open ? "ticket-ai-helper" : undefined}
-        title="Ticket AI helper"
-        className="group flex h-14 items-center gap-2 rounded-full border border-white/20 bg-gradient-to-br from-blue-600 to-blue-800 px-4 text-white shadow-lg shadow-blue-800/25 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600 motion-reduce:transform-none"
-      >
-        {open ? (
-          <X size={22} aria-hidden="true" />
-        ) : (
-          <Sparkles size={22} aria-hidden="true" />
-        )}
-        {!open && <span className="text-sm font-semibold">AI helper</span>}
-      </button>
+      {open ? (
+        <button
+          ref={launcherRef}
+          type="button"
+          onClick={close}
+          aria-label="Close ticket AI helper"
+          className="group flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-lg shadow-blue-800/25 transition hover:scale-105 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600 motion-reduce:transform-none"
+        >
+          <X size={20} aria-hidden="true" />
+        </button>
+      ) : isMinimized ? (
+        <button
+          ref={launcherRef}
+          type="button"
+          onClick={() => { setIsMinimized(false); setOpen(true); }}
+          aria-label="Open ticket AI helper"
+          title="Open Ticket AI helper (click to expand)"
+          className="group flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-lg shadow-blue-800/25 transition hover:scale-105 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600 motion-reduce:transform-none"
+        >
+          <Sparkles size={18} aria-hidden="true" />
+        </button>
+      ) : (
+        <div className="group inline-flex items-center rounded-full border border-white/20 bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-lg shadow-blue-800/25 transition hover:shadow-xl">
+          <button
+            ref={launcherRef}
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Open ticket AI helper"
+            title="Ticket AI helper"
+            className="flex h-12 items-center gap-2 pl-4 pr-2 text-white focus-visible:outline-none"
+          >
+            <Sparkles size={18} aria-hidden="true" />
+            <span className="text-sm font-semibold">AI helper</span>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMinimized(true);
+            }}
+            title="Minimize to icon"
+            aria-label="Minimize AI helper to icon"
+            className="mr-2 p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/20 transition focus-visible:outline-none"
+          >
+            <ChevronDown size={14} className="rotate-90" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

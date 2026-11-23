@@ -43,6 +43,11 @@ export function Modal({
   const titleId = `${generatedId}-title`;
   const descriptionId = `${generatedId}-description`;
   const dialogRef = useDialogAccessibility<HTMLDivElement>({ isOpen, onClose, closeOnEsc });
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -55,12 +60,12 @@ export function Modal({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   return createPortal(
     <div
       ref={dialogRef}
-      className="fixed inset-0 z-[var(--z-modal)] flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 z-[var(--z-modal,500)] flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-label={ariaLabel}

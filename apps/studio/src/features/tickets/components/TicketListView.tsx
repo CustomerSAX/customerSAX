@@ -381,7 +381,7 @@ export function TicketListView() {
             </TableBody>
           </Table>
 
-          <div className="border-t border-m-border/60 px-4 py-3">
+          <div className="border-t border-m-border/60 px-4 py-3 pr-28 sm:pr-36">
             <TablePagination
               page={currentPage}
               totalPages={totalPages}

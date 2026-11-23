@@ -201,13 +201,14 @@
   /* ----------------------------------------------------------
      Z-INDEX SCALE
      ---------------------------------------------------------- */
-  --z-raised:  10;
-  --z-dropdown:100;
-  --z-sticky:  200;
-  --z-overlay: 300;
-  --z-modal:   400;
-  --z-toast:   500;
-  --z-tooltip: 600;
+  --z-raised:   10;
+  --z-dropdown: 100;
+  --z-sticky:   200;
+  --z-overlay:  300;
+  --z-drawer:   450;
+  --z-modal:    500;
+  --z-toast:    600;
+  --z-tooltip:  700;
 
   /* ----------------------------------------------------------
      BACKWARD-COMPAT ALIASES
@@ -289,6 +290,7 @@
   --m-z-dropdown: var(--z-dropdown);
   --m-z-sticky:   var(--z-sticky);
   --m-z-overlay:  var(--z-overlay);
+  --m-z-drawer:   var(--z-drawer);
   --m-z-modal:    var(--z-modal);
   --m-z-toast:    var(--z-toast);
   --m-z-tooltip:  var(--z-tooltip);

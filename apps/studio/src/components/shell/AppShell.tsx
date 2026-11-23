@@ -1720,6 +1720,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             }`}
           style={{
             padding: appPathname === "/csa-assistant" ? 0 : "var(--studio-page-padding, 28px 32px)",
+            paddingBottom:
+              appPathname === "/tickets" || appPathname.startsWith("/tickets/")
+                ? "96px"
+                : undefined,
             background: "var(--color-bg)"
           }}
         >
