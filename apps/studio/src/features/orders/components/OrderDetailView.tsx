@@ -406,8 +406,12 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   };
 
   const handleOpenReturnDrawer = () => {
-    if (order.orderState !== "Complete" || order.shipmentState !== "Shipped") {
-      alert("Returns can only be created once the order status is Complete and the shipment status is Shipped.");
+    const isComplete = order.orderState === "Complete" || order.orderState?.toLowerCase() === "complete";
+    const shipment = (order.shipmentState || "").toLowerCase();
+    const isDeliveredOrShipped = shipment === "delivered" || shipment === "shipped";
+
+    if (!isComplete || !isDeliveredOrShipped) {
+      alert("Returns can only be created once the order status is Complete and the shipment status is Delivered or Shipped.");
       return;
     }
     const initialSelected: Record<string, boolean> = {};

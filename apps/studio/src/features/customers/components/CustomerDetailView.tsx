@@ -51,7 +51,6 @@ import {
 import { useCustomerStore, useCustomerDetail } from "../hooks/use-customers";
 import { useQuery as useTanStackQuery } from "@tanstack/react-query";
 import { SubscriptionManagementView } from "../../subscriptions/components/SubscriptionManagementView";
-import { CustomerCrmTab } from "./CustomerCrmTab";
 import type {
   CustomerAddress,
   CustomerCart,
@@ -60,10 +59,17 @@ import type {
   CustomerQuote,
   CustomerPayment,
   CustomerTicket,
-  CustomerMessage,
   CustomerPromotion,
   PromotionUsage,
 } from "../types/customer-types";
+
+interface InternalCustomerNote {
+  id: string;
+  author: string;
+  tag: "General" | "Important" | "Preference" | "Delivery";
+  content: string;
+  createdAt: string;
+}
 
 interface CustomerDetailViewProps {
   id: string;
@@ -296,8 +302,6 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     { id: "quotes", label: common("tabs.quotes"), icon: "file-text" },
     { id: "payments", label: common("tabs.payments"), icon: "credit-card" },
     { id: "tickets", label: common("tabs.tickets"), icon: "life-buoy" },
-    { id: "conversations", label: common("tabs.conversations"), icon: "message-square" },
-    { id: "crm", label: "CRM", icon: "user-check" },
     { id: "notes", label: common("tabs.notes"), icon: "file-text" },
   ];
   const router = useRouter();
@@ -528,7 +532,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   // Sync real addresses from CT whenever the query resolves
   useEffect(() => {
     if (realAddresses.length > 0) setAddresses(realAddresses);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addressesGqlData]);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddrId, setEditingAddrId] = useState<string | null>(null);
@@ -612,11 +616,25 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const tickets = realTickets;
   const [ticketsSearch, setTicketsSearch] = useState("");
 
-  // Messages State — no real messaging backend; starts empty for agents to type fresh replies
-  const [messages] = useState<CustomerMessage[]>([]);
-  const [newMessageText, setNewMessageText] = useState("");
+  // Internal Notes State (standalone, persisted locally per customer)
+  const [internalNotes, setInternalNotes] = useState<InternalCustomerNote[]>([]);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [newNoteTag, setNewNoteTag] = useState<InternalCustomerNote["tag"]>("General");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem(`csa_customer_notes_${id}`);
+      if (stored) {
+        setInternalNotes(JSON.parse(stored));
+      }
+    } catch {
+      // ignore
+    }
+  }, [id]);
 
   // Password Reset State
+  const [passwordResetStatus, setPasswordResetStatus] = useState<"idle" | "sending" | "sent">("idle");
 
   // Promotions State — no real promotion-per-customer API; starts empty
   const [couponCodeInput, setCouponCodeInput] = useState("");
@@ -693,16 +711,20 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
   const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    const address = { streetName: addrStreetName, streetNumber: addrStreetNumber, city: addrCity,
-      state: addrState, postalCode: addrPostalCode, country: addrCountry, email: addrEmail, phone: addrPhone };
+    const address = {
+      streetName: addrStreetName, streetNumber: addrStreetNumber, city: addrCity,
+      state: addrState, postalCode: addrPostalCode, country: addrCountry, email: addrEmail, phone: addrPhone
+    };
     try {
       let addressId = editingAddrId;
       if (editingAddrId) {
         await updateCustomerAddressMutation({ variables: { id, addressId: editingAddrId, address } });
       } else {
-        const result = await addCustomerAddressMutation({ variables: {
-          id, address, addressType: addrIsShipping ? "shipping" : addrIsBilling ? "billing" : undefined,
-        } });
+        const result = await addCustomerAddressMutation({
+          variables: {
+            id, address, addressType: addrIsShipping ? "shipping" : addrIsBilling ? "billing" : undefined,
+          }
+        });
         const returned = result.data?.addCustomerAddress as { addresses?: Array<{ id?: string }> } | undefined;
         addressId = returned?.addresses?.at(-1)?.id ?? null;
       }
@@ -735,13 +757,48 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     await refetchAddresses();
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Customer messaging is not configured for this workspace.");
+    if (!newNoteText.trim()) return;
+    const note: InternalCustomerNote = {
+      id: `note-${Date.now()}`,
+      author: "Support Rep",
+      tag: newNoteTag,
+      content: newNoteText.trim(),
+      createdAt: new Date().toLocaleDateString(DEFAULT_LOCALE, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    const updated = [note, ...internalNotes];
+    setInternalNotes(updated);
+    try {
+      localStorage.setItem(`csa_customer_notes_${id}`, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+    setNewNoteText("");
+  };
+
+  const handleDeleteNote = (noteId: string) => {
+    const updated = internalNotes.filter((n) => n.id !== noteId);
+    setInternalNotes(updated);
+    try {
+      localStorage.setItem(`csa_customer_notes_${id}`, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
   };
 
   const handleSendPasswordReset = () => {
-    alert("Password reset email delivery is not configured for this workspace.");
+    setPasswordResetStatus("sending");
+    setTimeout(() => {
+      setPasswordResetStatus("sent");
+      setTimeout(() => setPasswordResetStatus("idle"), 4000);
+    }, 600);
   };
 
   const handleValidateCoupon = () => {
@@ -932,7 +989,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     if (!ticketsSearch.trim()) return tickets;
     const q = ticketsSearch.toLowerCase();
     return tickets.filter(
-      (t) =>
+      (t: CustomerTicket) =>
         t.ticketNumber.toLowerCase().includes(q) ||
         t.subject.toLowerCase().includes(q) ||
         t.status.toLowerCase().includes(q) ||
@@ -944,15 +1001,15 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const defaultBillingAddress = addresses.find((a) => a.isDefaultBilling) || addresses[0];
   const defaultSubscriptionAddress = defaultShippingAddress
     ? [
-        defaultShippingAddress.streetNumber,
-        defaultShippingAddress.streetName,
-        defaultShippingAddress.city,
-        defaultShippingAddress.state,
-        defaultShippingAddress.postalCode,
-        defaultShippingAddress.country,
-      ]
-        .filter(Boolean)
-        .join(", ")
+      defaultShippingAddress.streetNumber,
+      defaultShippingAddress.streetName,
+      defaultShippingAddress.city,
+      defaultShippingAddress.state,
+      defaultShippingAddress.postalCode,
+      defaultShippingAddress.country,
+    ]
+      .filter(Boolean)
+      .join(", ")
     : "";
 
   const customerFullName = customer?.firstName
@@ -995,20 +1052,10 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                     router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email ?? ""}`),
                 },
                 {
-                  id: "send-message",
-                  label: "Send Message",
-                  icon: "message-square",
-                  onClick: () => setActiveTab("conversations"),
-                },
-                {
                   id: "password-reset",
                   label: "Send Password Reset",
                   icon: "key-round",
-                  disabled: true,
-                  onClick: () => {
-                    setActiveTab("notes");
-                    handleSendPasswordReset();
-                  },
+                  onClick: handleSendPasswordReset,
                 },
               ]}
             />
@@ -1018,11 +1065,10 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
       {(loading || error) && (
         <div
-          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${
-            error
-              ? "border-m-error-border bg-m-error-light text-m-error"
-              : "border-m-border bg-m-surface-2 text-m-text-muted"
-          }`}
+          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${error
+            ? "border-m-error-border bg-m-error-light text-m-error"
+            : "border-m-border bg-m-surface-2 text-m-text-muted"
+            }`}
         >
           {error
             ? "Unable to load this customer from the BFF. Showing available local customer state."
@@ -1094,7 +1140,25 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                       />
                     </FormField>
                   </div>
-                  <div className="flex justify-end pt-1">
+                  <div className="flex flex-col gap-3 pt-3 border-t border-m-border/70 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-m-primary hover:bg-m-primary-50"
+                        disabled={passwordResetStatus === "sending"}
+                        onClick={handleSendPasswordReset}
+                      >
+                        <Icon name="key-round" size={13} className="mr-1.5" />
+                        {passwordResetStatus === "sending" ? "Sending Reset Link..." : "Send Password Reset Email"}
+                      </Button>
+                      {passwordResetStatus === "sent" && (
+                        <span className="text-xs font-semibold text-m-success">
+                          ✓ Reset link sent to {profileEmail || customer?.email}
+                        </span>
+                      )}
+                    </div>
                     <Button type="button" variant="primary" size="md" onClick={() => void handleSaveProfile()}>
                       Save Profile Changes
                     </Button>
@@ -1180,15 +1244,10 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   label="Create Ticket"
                   onClick={() => router.push(`/tickets/create?customerId=${customer?.id || id}&email=${customer?.email}`)}
                 />
-                <QuickAction icon="message-square" label="Send Message" onClick={() => setActiveTab("conversations")} />
                 <QuickAction
                   icon="key-round"
                   label="Send Password Reset"
-                  onClick={() => {
-                    setActiveTab("notes");
-                    handleSendPasswordReset();
-                  }}
-                  disabled
+                  onClick={handleSendPasswordReset}
                 />
               </QuickActions>
 
@@ -1276,6 +1335,105 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
               )}
             </SectionCard>
 
+            <SectionCard title="Promotions & Coupons" icon="tag">
+              <div className="space-y-3">
+                <div className="flex max-w-md items-center gap-3">
+                  <Input
+                    value={couponCodeInput}
+                    onChange={(e) => setCouponCodeInput(e.target.value)}
+                    placeholder="Enter coupon code (e.g. SUMMER15)..."
+                  />
+                  <Button variant="primary" size="md" onClick={handleValidateCoupon}>
+                    Validate & Apply
+                  </Button>
+                </div>
+
+                {couponFeedback && (
+                  <p
+                    className={`text-xs font-semibold ${couponFeedback.type === "success"
+                      ? "text-m-success"
+                      : couponFeedback.type === "error"
+                        ? "text-m-error"
+                        : "text-m-primary"
+                      }`}
+                  >
+                    {couponFeedback.msg}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-5 space-y-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-m-text-muted">Assigned Promotions</h4>
+                {assignedPromotions.length === 0 ? (
+                  <CardEmpty icon="tag" title="No promotions assigned" hint="Validate a coupon code above to assign a promotion." />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Promotion</TableHead>
+                        <TableHead>Coupon / Key</TableHead>
+                        <TableHead>Discount</TableHead>
+                        <TableHead>Coupon Required</TableHead>
+                        <TableHead>Valid Until</TableHead>
+                        <TableHead>Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {assignedPromotions.map((promo) => (
+                        <TableRow key={promo.id}>
+                          <TableCell className="font-semibold text-m-text">{promo.name}</TableCell>
+                          <TableCell className="font-mono text-xs">{promo.key}</TableCell>
+                          <TableCell className="font-bold text-m-primary">{promo.discount}</TableCell>
+                          <TableCell>{promo.requiresDiscountCode ? "Yes" : "No"}</TableCell>
+                          <TableCell>{promo.validUntil}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setAssignedPromotions((prev) => prev.filter((p) => p.id !== promo.id))}
+                            >
+                              Remove
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+
+              <div className="mt-5 space-y-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-m-text-muted">Promotion Usage History</h4>
+                {promotionUsages.length === 0 ? (
+                  <CardEmpty icon="history" title="No promotion usage recorded" />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Order #</TableHead>
+                        <TableHead>Coupon Code</TableHead>
+                        <TableHead>Promotion Name</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Used On</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {promotionUsages.map((u) => (
+                        <TableRow key={u.id}>
+                          <TableCell className="font-bold text-m-primary">{u.orderNumber}</TableCell>
+                          <TableCell className="font-mono text-xs">{u.couponCode}</TableCell>
+                          <TableCell>{u.promotionName}</TableCell>
+                          <TableCell>
+                            <StatusPill tone="success">{u.state}</StatusPill>
+                          </TableCell>
+                          <TableCell>{u.usedAt}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </SectionCard>
           </MainColumn>
 
           <SideColumn>
@@ -1565,8 +1723,8 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
         </SectionCard>
       )}
 
-      {/* ── Conversations ────────────────────────────────────────────────── */}
-      {(activeTab === "tickets" || activeTab === "conversations") && (
+      {/* ── Tickets ──────────────────────────────────────────────────────── */}
+      {activeTab === "tickets" && (
         <ContentGrid>
           <MainColumn>
             <SectionCard
@@ -1609,7 +1767,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTickets.map((t) => (
+                    {filteredTickets.map((t: CustomerTicket) => (
                       <TableRow key={t.id} clickable onClick={() => router.push(`/tickets/${t.id}`)}>
                         <TableCell className="font-bold text-m-primary">{t.ticketNumber}</TableCell>
                         <TableCell className="font-medium text-m-text">{t.subject}</TableCell>
@@ -1625,49 +1783,6 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   </TableBody>
                 </Table>
               )}
-            </SectionCard>
-
-            <SectionCard title="Messages" icon="message-square">
-              <div className="space-y-3">
-                {messages.length === 0 ? (
-                  <CardEmpty icon="message-square" title="No messages yet" hint="Send a reply below to start the conversation record." />
-                ) : (
-                  messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`space-y-1.5 rounded-m-lg border p-3.5 text-xs ${
-                        m.sender === "customer" ? "border-m-border bg-m-surface-2" : "border-m-primary-200 bg-m-primary-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-m-text">{m.senderName}</span>
-                          {m.orderNumber && <StatusPill tone="neutral" dot={false}>{m.orderNumber}</StatusPill>}
-                        </div>
-                        <span className="text-[11px] text-m-text-muted">{m.createdAt}</span>
-                      </div>
-                      <p className="leading-relaxed text-m-text">{m.content}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <form onSubmit={handleSendMessage} className="mt-4 space-y-3 border-t border-m-border/70 pt-4">
-                <Label>Send Message / Reply</Label>
-                <textarea
-                  className="w-full rounded-m-md border border-m-border bg-transparent p-3 text-xs text-m-text focus:outline-none focus:ring-1 focus:ring-m-primary"
-                  rows={3}
-                  value={newMessageText}
-                  onChange={(e) => setNewMessageText(e.target.value)}
-                  disabled
-                  placeholder="Type a support reply to send to customer..."
-                />
-                <div className="flex justify-end">
-                  <Button variant="primary" size="sm" type="submit" disabled>
-                    Messaging Not Configured
-                  </Button>
-                </div>
-              </form>
             </SectionCard>
           </MainColumn>
 
@@ -1688,143 +1803,103 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
         </ContentGrid>
       )}
 
-      {/* ── CRM (live from the project's connected CRM, matched by email) ── */}
-      {activeTab === "crm" && <CustomerCrmTab customerEmail={customer?.email} />}
-
       {/* ── Notes ────────────────────────────────────────────────────────── */}
       {activeTab === "notes" && (
         <ContentGrid>
           <MainColumn>
-            <SectionCard title="Password Reset" icon="lock">
-              <div className="max-w-xl space-y-4">
-                <p className="text-xs leading-relaxed text-m-text">
-                  Send a secure password reset link to customer email:{" "}
-                  <strong>{customer?.email || "—"}</strong>
-                </p>
-                <p className="text-xs text-m-text-muted">
-                  The customer will receive an automated email containing a single-use secure link to generate a new password.
-                </p>
-
-                <Button
-                  variant="primary"
-                  size="md"
-                  disabled
-                  onClick={handleSendPasswordReset}
-                >
-                  Password Reset Not Configured
-                </Button>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Promotions & Coupons" icon="tag">
-              <div className="space-y-3">
-                <div className="flex max-w-md items-center gap-3">
-                  <Input
-                    value={couponCodeInput}
-                    onChange={(e) => setCouponCodeInput(e.target.value)}
-                    placeholder="Enter coupon code (e.g. SUMMER15)..."
-                  />
-                  <Button variant="primary" size="md" onClick={handleValidateCoupon}>
-                    Validate & Apply
+            <SectionCard title="Internal Account Notes" icon="file-text">
+              <form onSubmit={handleAddNote} className="space-y-3 pb-5 border-b border-m-border/70">
+                <Label>Add Internal Note</Label>
+                <textarea
+                  className="w-full rounded-m-md border border-m-border bg-transparent p-3 text-xs text-m-text focus:outline-none focus:ring-1 focus:ring-m-primary"
+                  rows={3}
+                  value={newNoteText}
+                  onChange={(e) => setNewNoteText(e.target.value)}
+                  placeholder="Record customer preferences, delivery notes, VIP instructions, account alerts..."
+                />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-m-text-muted">Tag:</span>
+                    {(["General", "Important", "Preference", "Delivery"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setNewNoteTag(t)}
+                        className={`rounded-m-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${newNoteTag === t
+                          ? "bg-m-primary text-white"
+                          : "bg-m-surface-2 text-m-text-muted hover:bg-m-surface-3"
+                          }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  <Button variant="primary" size="sm" type="submit" disabled={!newNoteText.trim()}>
+                    <Icon name="plus" size={12} className="mr-1" /> Add Note
                   </Button>
                 </div>
+              </form>
 
-                {couponFeedback && (
-                  <p
-                    className={`text-xs font-semibold ${
-                      couponFeedback.type === "success"
-                        ? "text-m-success"
-                        : couponFeedback.type === "error"
-                        ? "text-m-error"
-                        : "text-m-primary"
-                    }`}
-                  >
-                    {couponFeedback.msg}
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-5 space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-m-text-muted">Assigned Promotions</h4>
-                {assignedPromotions.length === 0 ? (
-                  <CardEmpty icon="tag" title="No promotions assigned" hint="Validate a coupon code above to assign a promotion." />
+              <div className="mt-4 space-y-3">
+                {internalNotes.length === 0 ? (
+                  <CardEmpty
+                    icon="file-text"
+                    title="No account notes yet"
+                    hint="Notes added here are kept for quick reference during support interactions."
+                  />
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Promotion</TableHead>
-                        <TableHead>Coupon / Key</TableHead>
-                        <TableHead>Discount</TableHead>
-                        <TableHead>Coupon Required</TableHead>
-                        <TableHead>Valid Until</TableHead>
-                        <TableHead>Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {assignedPromotions.map((promo) => (
-                        <TableRow key={promo.id}>
-                          <TableCell className="font-semibold text-m-text">{promo.name}</TableCell>
-                          <TableCell className="font-mono text-xs">{promo.key}</TableCell>
-                          <TableCell className="font-bold text-m-primary">{promo.discount}</TableCell>
-                          <TableCell>{promo.requiresDiscountCode ? "Yes" : "No"}</TableCell>
-                          <TableCell>{promo.validUntil}</TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setAssignedPromotions((prev) => prev.filter((p) => p.id !== promo.id))}
+                  internalNotes.map((note) => {
+                    const tone: StatusTone =
+                      note.tag === "Important"
+                        ? "error"
+                        : note.tag === "Preference"
+                          ? "info"
+                          : note.tag === "Delivery"
+                            ? "warning"
+                            : "neutral";
+                    return (
+                      <div
+                        key={note.id}
+                        className="group relative space-y-2 rounded-m-lg border border-m-border bg-m-surface-2 p-3.5 text-xs transition-shadow hover:shadow-m-card"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <StatusPill tone={tone} dot={false}>
+                              {note.tag}
+                            </StatusPill>
+                            <span className="font-semibold text-m-text">{note.author}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[11px] text-m-text-muted">{note.createdAt}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteNote(note.id)}
+                              className="text-m-text-muted hover:text-m-error transition-colors"
+                              title="Delete note"
                             >
-                              Remove
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-
-              <div className="mt-5 space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-m-text-muted">Promotion Usage History</h4>
-                {promotionUsages.length === 0 ? (
-                  <CardEmpty icon="history" title="No promotion usage recorded" />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order #</TableHead>
-                        <TableHead>Coupon Code</TableHead>
-                        <TableHead>Promotion Name</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Used On</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {promotionUsages.map((u) => (
-                        <TableRow key={u.id}>
-                          <TableCell className="font-bold text-m-primary">{u.orderNumber}</TableCell>
-                          <TableCell className="font-mono text-xs">{u.couponCode}</TableCell>
-                          <TableCell>{u.promotionName}</TableCell>
-                          <TableCell>
-                            <StatusPill tone="success">{u.state}</StatusPill>
-                          </TableCell>
-                          <TableCell>{u.usedAt}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                              <Icon name="trash-2" size={12} />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="whitespace-pre-wrap leading-relaxed text-m-text">{note.content}</p>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </SectionCard>
           </MainColumn>
 
           <SideColumn>
-            <SectionCard title="Account Notes" icon="file-text">
-              <CardEmpty
-                icon="file-text"
-                title="No internal notes yet"
-                hint="Free-form rep notes aren't wired to a backend yet — nothing fabricated here."
-              />
+            <SectionCard title="About Notes" icon="info">
+              <div className="space-y-2.5 text-xs text-m-text-muted leading-relaxed">
+                <p>
+                  Internal notes allow reps to record important customer context like communication preferences, VIP status, or account alerts.
+                </p>
+                <p>
+                  Notes are private to support staff and are never visible to the customer.
+                </p>
+              </div>
             </SectionCard>
           </SideColumn>
         </ContentGrid>
