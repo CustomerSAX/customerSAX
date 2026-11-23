@@ -145,6 +145,24 @@ export async function findProjectByIdAnyClient(id: string): Promise<CsaProject |
   return (await projects.findById(id)) as CsaProject | null;
 }
 
+/**
+ * UNSCOPED project lookup by commercetools project key. ONLY for trusted
+ * server-internal entry points that have already authenticated the project key
+ * independently (for example, a verified Merchant Center exchange token).
+ *
+ * Project keys are globally unique in this collection (see `createProject`),
+ * so the matching document safely supplies the owning CSA `clientId` without
+ * accepting a tenant id from an external caller.
+ */
+export async function findProjectByKeyAnyClient(
+  projectKey: string
+): Promise<CsaProject | null> {
+  const cleanKey = projectKey.trim();
+  if (!cleanKey) return null;
+  const col = await getProjectsCollection();
+  return (await col.findOne({ projectKey: cleanKey })) as CsaProject | null;
+}
+
 export async function countProjectsByClient(clientId: string): Promise<number> {
   const col = await getProjectsCollection();
   return col.countDocuments({ clientId });

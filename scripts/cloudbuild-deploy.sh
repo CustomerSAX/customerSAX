@@ -88,6 +88,8 @@ deploy_service() {
       SECRETS="COMMERCETOOLS_CLIENT_ID=${NAME_PREFIX}-commercetools-client-id:latest,COMMERCETOOLS_CLIENT_SECRET=${NAME_PREFIX}-commercetools-client-secret:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
     admin)
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest,SUPERADMIN_ENCRYPTION_KEY=${NAME_PREFIX}-superadmin-encryption-key:latest" ;;
+    bff)
+      SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     ticketing|crm|subscriptions|auth)
       SECRETS="MONGO_URI=${NAME_PREFIX}-ticketing-mongo-uri:latest" ;;
     *)
@@ -124,6 +126,7 @@ deploy_service() {
       SUBSCRIPTIONS_URL=$(get_url "subscriptions")
       ADMIN_URL=$(get_url "admin")
       CRM_URL=$(get_url "crm")
+      BFF_PUBLIC_URL=$(get_url "bff")
       FED_SERVICES=""
       fed_add "commerce-commercetools" "${CT_URL}"
       fed_add "ticketing" "${TICK_URL}"
@@ -132,7 +135,10 @@ deploy_service() {
       fed_add "crm" "${CRM_URL}"
       FED_SERVICES="{${FED_SERVICES}}"
       echo "🔗 FEDERATED_SERVICES: ${FED_SERVICES}"
-      SVC_ENV="^|^NODE_ENV=production|SERVICE_NAME=${SVC}|ENVIRONMENT=${ENVIRONMENT}|FEDERATED_SERVICES=${FED_SERVICES}" ;;
+      SVC_ENV="^|^NODE_ENV=production|SERVICE_NAME=${SVC}|ENVIRONMENT=${ENVIRONMENT}|FEDERATED_SERVICES=${FED_SERVICES}|MONGO_ADMIN_DB=csa-admin|MONGO_PROJECTS_COLLECTION=csa_projects"
+      if [ -n "${BFF_PUBLIC_URL}" ]; then
+        SVC_ENV="${SVC_ENV}|MC_TICKETS_AUDIENCE=${BFF_PUBLIC_URL}"
+      fi ;;
   esac
 
   # ── Build gcloud run deploy command ───────────────────────────────────────

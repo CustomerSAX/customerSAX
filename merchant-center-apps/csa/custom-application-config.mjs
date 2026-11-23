@@ -25,6 +25,9 @@ const config = {
       url: applicationUrl,
     },
   },
+  additionalEnv: {
+    csaTicketApiUrl: process.env.CSA_MC_TICKET_API_URL || '',
+  },
   oAuthScopes: {
     view: ['view_customers', 'view_orders'],
     manage: [],

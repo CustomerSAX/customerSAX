@@ -8,6 +8,7 @@ import "./server/env.js";
 import { apolloContext, apolloLoggingPlugin, createLogger } from "@csa/logger";
 import { buildGateway, type GatewayContext } from "./server/federation.js";
 import { localSchema } from "./server/local-schema.js";
+import { mountMerchantCenterTickets } from "./server/merchant-center-tickets.js";
 
 const log = createLogger("bff");
 // Cloud Run sets PORT=8080. BFF_PORT is a legacy fallback kept for local dev.
@@ -38,6 +39,14 @@ const httpServer = http.createServer(app);
 
 // ── Health check: responds immediately so Cloud Run startup probe passes ──────
 app.get("/healthz", (_req, res) => res.json({ status: "ok" }));
+
+// Merchant Center calls this endpoint through `/proxy/forward-to`. The route
+// validates the exchange JWT, resolves the CSA tenant from its verified
+// project key, and then uses the existing ticketing subgraph/Mongo repository.
+mountMerchantCenterTickets(app, {
+  audience: process.env.MC_TICKETS_AUDIENCE,
+  graphqlUrl: `http://127.0.0.1:${port}/graphql`
+});
 
 // ── Start HTTP server immediately — Cloud Run sees port 8080 right away ───────
 await new Promise<void>((resolve) => httpServer.listen({ port, host }, resolve));
