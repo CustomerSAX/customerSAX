@@ -1,20 +1,28 @@
 import type { Customer } from './types';
 
 export type CustomerProfileValues = {
+  title: string;
+  salutation: string;
   firstName: string;
+  middleName: string;
   lastName: string;
   email: string;
   companyName: string;
+  vatId: string;
   locale: string;
   customerGroupId: string;
   dateOfBirth: string;
 };
 
 export type CustomerUpdateAction =
+  | { action: 'setTitle'; title?: string }
+  | { action: 'setSalutation'; salutation?: string }
   | { action: 'setFirstName'; firstName?: string }
+  | { action: 'setMiddleName'; middleName?: string }
   | { action: 'setLastName'; lastName?: string }
   | { action: 'changeEmail'; email: string }
   | { action: 'setCompanyName'; companyName?: string }
+  | { action: 'setVatId'; vatId?: string }
   | { action: 'setLocale'; locale?: string }
   | {
       action: 'setCustomerGroup';
@@ -27,10 +35,14 @@ const trimmed = (value?: string | null) => value?.trim() ?? '';
 export const customerToProfileValues = (
   customer: Customer
 ): CustomerProfileValues => ({
+  title: trimmed(customer.title),
+  salutation: trimmed(customer.salutation),
   firstName: trimmed(customer.firstName),
+  middleName: trimmed(customer.middleName),
   lastName: trimmed(customer.lastName),
   email: trimmed(customer.email),
   companyName: trimmed(customer.companyName),
+  vatId: trimmed(customer.vatId),
   locale: trimmed(customer.locale),
   customerGroupId: customer.customerGroup?.id ?? '',
   dateOfBirth: trimmed(customer.dateOfBirth),
@@ -43,20 +55,39 @@ export const buildCustomerProfileUpdateActions = (
   const current = customerToProfileValues(customer);
   const next = {
     ...values,
+    title: trimmed(values.title),
+    salutation: trimmed(values.salutation),
     firstName: trimmed(values.firstName),
+    middleName: trimmed(values.middleName),
     lastName: trimmed(values.lastName),
     email: trimmed(values.email),
     companyName: trimmed(values.companyName),
+    vatId: trimmed(values.vatId),
     locale: trimmed(values.locale),
     customerGroupId: trimmed(values.customerGroupId),
     dateOfBirth: trimmed(values.dateOfBirth),
   };
   const actions: CustomerUpdateAction[] = [];
 
+  if (next.title !== current.title)
+    actions.push({
+      action: 'setTitle',
+      ...(next.title ? { title: next.title } : {}),
+    });
+  if (next.salutation !== current.salutation)
+    actions.push({
+      action: 'setSalutation',
+      ...(next.salutation ? { salutation: next.salutation } : {}),
+    });
   if (next.firstName !== current.firstName)
     actions.push({
       action: 'setFirstName',
       ...(next.firstName ? { firstName: next.firstName } : {}),
+    });
+  if (next.middleName !== current.middleName)
+    actions.push({
+      action: 'setMiddleName',
+      ...(next.middleName ? { middleName: next.middleName } : {}),
     });
   if (next.lastName !== current.lastName)
     actions.push({
@@ -69,6 +100,11 @@ export const buildCustomerProfileUpdateActions = (
     actions.push({
       action: 'setCompanyName',
       ...(next.companyName ? { companyName: next.companyName } : {}),
+    });
+  if (next.vatId !== current.vatId)
+    actions.push({
+      action: 'setVatId',
+      ...(next.vatId ? { vatId: next.vatId } : {}),
     });
   if (next.locale !== current.locale)
     actions.push({

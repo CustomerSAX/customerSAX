@@ -50,19 +50,16 @@ import {
 import type { Cart, Customer, CustomerGroup, Order, QueryPage } from '../types';
 import {
   displayName,
+  formatAddress,
   formatDate,
   formatMoney,
   getErrorMessage,
   idInPredicate,
 } from '../utils';
-import {
-  CustomFieldsTable,
-  KeyValueGrid,
-  ListPage,
-  PageState,
-} from '../components/common';
+import { KeyValueGrid, ListPage, PageState } from '../components/common';
 import {
   CustomerAddresses,
+  CustomerCustomAttributes,
   CustomerPassword,
   CustomerPayments,
   CustomerPromotions,
@@ -592,11 +589,16 @@ const CustomerDetail = (props: { onClose: () => void }) => {
               />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/carts`}>
-              <CartTable
+              <CustomerCarts
+                customer={customer}
                 rows={data?.carts.results ?? []}
                 onRowClick={(cartId) =>
                   history.push(`${applicationBase}/carts/${cartId}/general`)
                 }
+                onCreated={async (cartId) => {
+                  await refetch();
+                  history.push(`${applicationBase}/carts/${cartId}/general`);
+                }}
               />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/orders`}>
@@ -611,7 +613,10 @@ const CustomerDetail = (props: { onClose: () => void }) => {
               <CustomerReturns rows={data?.orders.results ?? []} />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/payments`}>
-              <CustomerPayments customerId={customer.id} />
+              <CustomerPayments
+                customerId={customer.id}
+                baseUrl={`${base}/payments`}
+              />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/addresses`}>
               <CustomerAddresses
@@ -629,10 +634,10 @@ const CustomerDetail = (props: { onClose: () => void }) => {
               <CustomerWishlists customerId={customer.id} />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/promotions`}>
-              <CustomerPromotions customerId={customer.id} />
+              <CustomerPromotions customer={customer} onSaved={refetch} />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/custom-attributes`}>
-              <CustomFieldsTable fields={customer.custom?.customFieldsRaw} />
+              <CustomerCustomAttributes customer={customer} onSaved={refetch} />
             </SuspendedRoute>
             <Redirect to={`${base}/summary`} />
           </Switch>
@@ -812,6 +817,18 @@ const CustomerProfile = (props: {
     value: group.id,
     label: group.name ?? group.key ?? group.id,
   }));
+  const addresses = props.customer.addresses ?? [];
+  const defaultShippingAddress = addresses.find(
+    (address) => address.id === props.customer.defaultShippingAddressId
+  );
+  const defaultBillingAddress = addresses.find(
+    (address) => address.id === props.customer.defaultBillingAddressId
+  );
+  const primaryPhone =
+    defaultShippingAddress?.phone ??
+    defaultBillingAddress?.phone ??
+    addresses.find((address) => address.phone)?.phone ??
+    '';
 
   const reset = () => {
     setValues(customerToProfileValues(props.customer));
@@ -869,114 +886,183 @@ const CustomerProfile = (props: {
           </Text.Body>
         </ContentNotification>
       ) : null}
-      <Grid gridGap="24px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
-        <Grid.Item>
-          <TextField
-            name="firstName"
-            title="First name"
-            value={values.firstName}
-            onChange={(event) => updateValue('firstName', event.target.value)}
-            isDisabled={fieldsDisabled}
-            horizontalConstraint="scale"
-          />
-        </Grid.Item>
-        <Grid.Item>
-          <TextField
-            name="lastName"
-            title="Last name"
-            value={values.lastName}
-            onChange={(event) => updateValue('lastName', event.target.value)}
-            isDisabled={fieldsDisabled}
-            horizontalConstraint="scale"
-          />
-        </Grid.Item>
-        <Grid.Item>
-          <TextField
-            name="email"
-            title="Email"
-            hint="Changing the email marks it as unverified."
-            value={values.email}
-            onChange={(event) => updateValue('email', event.target.value)}
-            isRequired
-            isDisabled={fieldsDisabled}
-            touched={attemptedSubmit}
-            errors={{
-              missing: validation.emailMissing,
-              invalidEmail: validation.emailInvalid,
-            }}
-            renderError={(key) =>
-              key === 'invalidEmail' ? 'Enter a valid email address.' : null
-            }
-            horizontalConstraint="scale"
-          />
-        </Grid.Item>
-        <Grid.Item>
-          <TextField
-            name="companyName"
-            title="Company name"
-            value={values.companyName}
-            onChange={(event) => updateValue('companyName', event.target.value)}
-            isDisabled={fieldsDisabled}
-            horizontalConstraint="scale"
-          />
-        </Grid.Item>
-        <Grid.Item>
-          <SelectField
-            name="locale"
-            title="Preferred language"
-            value={values.locale || null}
-            options={languageOptions}
-            onChange={(event) =>
-              updateValue('locale', String(event.target.value ?? ''))
-            }
-            isClearable
-            isDisabled={fieldsDisabled}
-            horizontalConstraint="scale"
-          />
-        </Grid.Item>
-        <Grid.Item>
-          <SelectField
-            name="customerGroupId"
-            title="Customer group"
-            value={values.customerGroupId || null}
-            options={customerGroupOptions}
-            onChange={(event) =>
-              updateValue('customerGroupId', String(event.target.value ?? ''))
-            }
-            isClearable
-            isDisabled={fieldsDisabled}
-            horizontalConstraint="scale"
-          />
-        </Grid.Item>
-        <Grid.Item>
-          <TextField
-            name="dateOfBirth"
-            title="Date of birth"
-            value={values.dateOfBirth}
-            placeholder="YYYY-MM-DD"
-            onChange={(event) => updateValue('dateOfBirth', event.target.value)}
-            isDisabled={fieldsDisabled}
-            touched={attemptedSubmit}
-            errors={{ invalidDate: validation.dateInvalid }}
-            renderError={(key) =>
-              key === 'invalidDate'
-                ? 'Use a valid date in YYYY-MM-DD format.'
-                : null
-            }
-            horizontalConstraint="scale"
-          />
-        </Grid.Item>
-        <Grid.Item>
-          <TextField
-            name="customerNumber"
-            title="Customer number"
-            value={props.customer.customerNumber ?? ''}
-            isReadOnly
-            hint="Customer numbers cannot be changed after they are assigned."
-            horizontalConstraint="scale"
-          />
-        </Grid.Item>
-      </Grid>
+      <CollapsiblePanel header="Profile information" isDefaultClosed={false}>
+        <Grid gridGap="24px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
+          <Grid.Item>
+            <TextField
+              name="title"
+              title="Title"
+              value={values.title}
+              onChange={(event) => updateValue('title', event.target.value)}
+              isDisabled={fieldsDisabled}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="salutation"
+              title="Salutation"
+              value={values.salutation}
+              onChange={(event) =>
+                updateValue('salutation', event.target.value)
+              }
+              isDisabled={fieldsDisabled}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="firstName"
+              title="First name"
+              value={values.firstName}
+              onChange={(event) => updateValue('firstName', event.target.value)}
+              isDisabled={fieldsDisabled}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="middleName"
+              title="Middle name"
+              value={values.middleName}
+              onChange={(event) =>
+                updateValue('middleName', event.target.value)
+              }
+              isDisabled={fieldsDisabled}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="lastName"
+              title="Last name"
+              value={values.lastName}
+              onChange={(event) => updateValue('lastName', event.target.value)}
+              isDisabled={fieldsDisabled}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="dateOfBirth"
+              title="Date of birth"
+              value={values.dateOfBirth}
+              placeholder="YYYY-MM-DD"
+              onChange={(event) =>
+                updateValue('dateOfBirth', event.target.value)
+              }
+              isDisabled={fieldsDisabled}
+              touched={attemptedSubmit}
+              errors={{ invalidDate: validation.dateInvalid }}
+              renderError={(key) =>
+                key === 'invalidDate'
+                  ? 'Use a valid date in YYYY-MM-DD format.'
+                  : null
+              }
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="email"
+              title="Email"
+              hint="Changing the email marks it as unverified."
+              value={values.email}
+              onChange={(event) => updateValue('email', event.target.value)}
+              isRequired
+              isDisabled={fieldsDisabled}
+              touched={attemptedSubmit}
+              errors={{
+                missing: validation.emailMissing,
+                invalidEmail: validation.emailInvalid,
+              }}
+              renderError={(key) =>
+                key === 'invalidEmail' ? 'Enter a valid email address.' : null
+              }
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="phone"
+              title="Phone number"
+              value={primaryPhone}
+              isReadOnly
+              hint="Phone numbers are managed on customer addresses."
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="companyName"
+              title="Company name"
+              value={values.companyName}
+              onChange={(event) =>
+                updateValue('companyName', event.target.value)
+              }
+              isDisabled={fieldsDisabled}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="vatId"
+              title="VAT ID"
+              value={values.vatId}
+              onChange={(event) => updateValue('vatId', event.target.value)}
+              isDisabled={fieldsDisabled}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <SelectField
+              name="locale"
+              title="Preferred language"
+              value={values.locale || null}
+              options={languageOptions}
+              onChange={(event) =>
+                updateValue('locale', String(event.target.value ?? ''))
+              }
+              isClearable
+              isDisabled={fieldsDisabled}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <SelectField
+              name="customerGroupId"
+              title="Customer group"
+              value={values.customerGroupId || null}
+              options={customerGroupOptions}
+              onChange={(event) =>
+                updateValue('customerGroupId', String(event.target.value ?? ''))
+              }
+              isClearable
+              isDisabled={fieldsDisabled}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="customerNumber"
+              title="Customer number"
+              value={props.customer.customerNumber ?? ''}
+              isReadOnly
+              hint="Customer numbers cannot be changed after they are assigned."
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="key"
+              title="Customer key"
+              value={props.customer.key ?? ''}
+              isReadOnly
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+        </Grid>
+      </CollapsiblePanel>
       {saveError ? (
         <ContentNotification type="error">
           <Text.Body>{getErrorMessage(saveError)}</Text.Body>
@@ -999,6 +1085,56 @@ const CustomerProfile = (props: {
           }
         />
       </Spacings.Inline>
+      <CollapsiblePanel
+        header="Customer identifiers and status"
+        isDefaultClosed={false}
+      >
+        <KeyValueGrid
+          items={[
+            { label: 'Customer ID', value: props.customer.id },
+            { label: 'Customer key', value: props.customer.key ?? '—' },
+            {
+              label: 'Customer number',
+              value: props.customer.customerNumber ?? '—',
+            },
+            {
+              label: 'Email status',
+              value: props.customer.isEmailVerified ? 'Verified' : 'Unverified',
+            },
+            {
+              label: 'Authentication mode',
+              value: props.customer.authenticationMode ?? 'Password',
+            },
+            {
+              label: 'Stores',
+              value:
+                props.customer.stores?.map((store) => store.key).join(', ') ||
+                'All project stores',
+            },
+            {
+              label: 'Default shipping',
+              value: defaultShippingAddress
+                ? formatAddress(defaultShippingAddress)
+                : '—',
+            },
+            {
+              label: 'Default billing',
+              value: defaultBillingAddress
+                ? formatAddress(defaultBillingAddress)
+                : '—',
+            },
+            { label: 'Created', value: formatDate(props.customer.createdAt) },
+            {
+              label: 'Last modified',
+              value: formatDate(props.customer.lastModifiedAt),
+            },
+            { label: 'Resource version', value: props.customer.version },
+          ]}
+        />
+      </CollapsiblePanel>
+      <CollapsiblePanel header="Saved addresses" isDefaultClosed={false}>
+        <CustomerAddresses customer={props.customer} onSaved={props.onSaved} />
+      </CollapsiblePanel>
     </Spacings.Stack>
   );
 };
@@ -1130,6 +1266,124 @@ const CartTable = ({
     />
   </PageState>
 );
+
+const CustomerCarts = (props: {
+  customer: Customer;
+  rows: Cart[];
+  onRowClick: (id: string) => void;
+  onCreated: (id: string) => Promise<unknown>;
+}) => {
+  const project = useApplicationContext((context) => context.project);
+  const dispatch = useAsyncDispatch();
+  const showNotification = useShowNotification();
+  const canManage = useIsAuthorized({
+    demandedPermissions: [PERMISSIONS.ManageCarts],
+  });
+  const availableCurrencies = useMemo(() => {
+    const currencies = new Set(project?.currencies ?? []);
+    props.rows.forEach((cart) => currencies.add(cart.totalPrice.currencyCode));
+    if (currencies.size === 0) currencies.add('USD');
+    return [...currencies].sort();
+  }, [project?.currencies, props.rows]);
+  const suggestedCurrency =
+    props.rows.find((cart) => cart.cartState === 'Active')?.totalPrice
+      .currencyCode ??
+    props.rows[0]?.totalPrice.currencyCode ??
+    availableCurrencies[0];
+  const [currency, setCurrency] = useState(suggestedCurrency);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<unknown>();
+
+  useEffect(() => {
+    if (!availableCurrencies.includes(currency)) setCurrency(suggestedCurrency);
+  }, [availableCurrencies, currency, suggestedCurrency]);
+
+  const addresses = props.customer.addresses ?? [];
+  const preferredCountry =
+    addresses.find(
+      (address) => address.id === props.customer.defaultShippingAddressId
+    )?.country ??
+    addresses.find(
+      (address) => address.id === props.customer.defaultBillingAddressId
+    )?.country ??
+    addresses.find((address) => address.country)?.country;
+  const country =
+    preferredCountry &&
+    (!project?.countries?.length ||
+      project.countries.includes(preferredCountry))
+      ? preferredCountry
+      : undefined;
+
+  const createCart = async () => {
+    if (!canManage || !project?.key || !currency) return;
+    setCreating(true);
+    setCreateError(undefined);
+    try {
+      const cart = (await dispatch(
+        actions.post({
+          mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+          uri: `/${project.key}/carts`,
+          payload: {
+            currency,
+            country,
+            customerId: props.customer.id,
+            customerEmail: props.customer.email,
+          },
+        })
+      )) as Pick<Cart, 'id'>;
+      showNotification({
+        domain: NOTIFICATION_DOMAINS.SIDE,
+        kind: NOTIFICATION_KINDS_SIDE.success,
+        text: 'Customer cart created.',
+      });
+      await props.onCreated(cart.id);
+    } catch (error) {
+      setCreateError(error);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <Spacings.Stack scale="l">
+      {!canManage ? (
+        <ContentNotification type="warning">
+          <Text.Body>
+            You can view carts, but your CSA permissions do not allow cart
+            creation.
+          </Text.Body>
+        </ContentNotification>
+      ) : null}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Spacings.Inline alignItems="flex-end">
+          <SelectField
+            name="new-cart-currency"
+            title="Currency"
+            value={currency}
+            options={availableCurrencies.map((value) => ({
+              value,
+              label: value,
+            }))}
+            onChange={(event) => setCurrency(String(event.target.value))}
+            isDisabled={!canManage || creating}
+            horizontalConstraint={4}
+          />
+          <PrimaryButton
+            label={creating ? 'Creating…' : 'Create cart'}
+            onClick={() => void createCart()}
+            isDisabled={!canManage || creating || !project?.key || !currency}
+          />
+        </Spacings.Inline>
+      </div>
+      {createError ? (
+        <ContentNotification type="error">
+          <Text.Body>{getErrorMessage(createError)}</Text.Body>
+        </ContentNotification>
+      ) : null}
+      <CartTable rows={props.rows} onRowClick={props.onRowClick} />
+    </Spacings.Stack>
+  );
+};
 
 Customers.displayName = 'Customers';
 export default Customers;

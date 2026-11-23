@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Switch, useHistory, useParams, useRouteMatch } from 'react-router-dom';
 import {
   SuspendedRoute,
@@ -33,7 +33,13 @@ import Text from '@commercetools-uikit/text';
 import TextField from '@commercetools-uikit/text-field';
 import { ORDER_DETAIL_QUERY, ORDERS_QUERY } from '../graphql';
 import { PERMISSIONS } from '../constants';
-import type { Order, QueryPage } from '../types';
+import type { Order, Payment, QueryPage } from '../types';
+import {
+  paymentMethodLabel,
+  paymentProviderLabel,
+  paymentsForOrder,
+  paymentStatusLabel,
+} from '../order-payments';
 import {
   exactSearchPredicate,
   formatAddress,
@@ -474,36 +480,236 @@ const OrderStateEditor = (props: {
 
 const ShippingTab = ({ order }: { order: Order }) => {
   const deliveries = order.shippingInfo?.deliveries ?? [];
+  const parcels = deliveries.flatMap((delivery) =>
+    delivery.parcels.map((parcel) => ({
+      ...parcel,
+      deliveryId: delivery.id,
+    }))
+  );
+  const deliveryQuantity = (delivery: (typeof deliveries)[number]) => {
+    const deliveryItems = delivery.items ?? [];
+    if (deliveryItems.length > 0) {
+      return deliveryItems.reduce((total, item) => total + item.quantity, 0);
+    }
+    return delivery.parcels.reduce(
+      (total, parcel) =>
+        total +
+        (parcel.items ?? []).reduce(
+          (parcelTotal, item) => parcelTotal + item.quantity,
+          0
+        ),
+      0
+    );
+  };
+  const shippedQuantity = deliveries.reduce(
+    (total, delivery) => total + deliveryQuantity(delivery),
+    0
+  );
+  const shippingMethod =
+    order.shippingInfo?.shippingMethodName ??
+    order.shippingInfo?.shippingMethod?.name ??
+    '—';
+  const carriers = Array.from(
+    new Set(
+      parcels
+        .map((parcel) => parcel.trackingData?.carrier)
+        .filter((carrier): carrier is string => Boolean(carrier))
+    )
+  );
+  const shippingTax = order.taxedShippingPrice
+    ? {
+        ...order.taxedShippingPrice.totalGross,
+        centAmount:
+          order.taxedShippingPrice.totalGross.centAmount -
+          order.taxedShippingPrice.totalNet.centAmount,
+      }
+    : null;
+  const taxRate = order.shippingInfo?.taxRate;
+  const taxRateLabel =
+    taxRate?.amount == null
+      ? taxRate?.name ?? '—'
+      : `${new Intl.NumberFormat(undefined, {
+          maximumFractionDigits: 3,
+        }).format(taxRate.amount * 100)}%${
+          taxRate.name ? ` (${taxRate.name})` : ''
+        }`;
+  const shippingAddress = order.shippingAddress;
+
   return (
-    <Spacings.Stack scale="l">
-      <KeyValueGrid
-        items={[
-          {
-            label: 'Shipping method',
-            value: order.shippingInfo?.shippingMethodName ?? '—',
-          },
-          { label: 'Shipment state', value: order.shipmentState ?? '—' },
-        ]}
-      />
-      <PageState isEmpty={deliveries.length === 0} emptyTitle="No deliveries">
-        <DataTable
-          columns={[
-            { key: 'id', label: 'Delivery' },
-            { key: 'createdAt', label: 'Created' },
-            { key: 'parcels', label: 'Tracking' },
+    <Spacings.Stack scale="xl">
+      <Grid
+        gridGap="16px"
+        gridTemplateColumns="repeat(auto-fit, minmax(320px, 1fr))"
+      >
+        <Grid.Item>
+          <CollapsiblePanel header="Shipment status" isDefaultClosed={false}>
+            <KeyValueGrid
+              items={[
+                { label: 'Order placed', value: formatDate(order.createdAt) },
+                { label: 'Payment', value: order.paymentState ?? '—' },
+                { label: 'Shipment', value: order.shipmentState ?? '—' },
+                {
+                  label: 'Last updated',
+                  value: formatDate(order.lastModifiedAt),
+                },
+              ]}
+            />
+          </CollapsiblePanel>
+        </Grid.Item>
+        <Grid.Item>
+          <CollapsiblePanel header="Shipping summary" isDefaultClosed={false}>
+            <KeyValueGrid
+              items={[
+                { label: 'Method', value: shippingMethod },
+                {
+                  label: 'Method state',
+                  value: order.shippingInfo?.shippingMethodState ?? '—',
+                },
+                {
+                  label: 'Shipping cost',
+                  value: formatMoney(order.shippingInfo?.price),
+                },
+                { label: 'Shipping tax', value: formatMoney(shippingTax) },
+                { label: 'Tax rate', value: taxRateLabel },
+                {
+                  label: 'Tax included',
+                  value:
+                    taxRate?.includedInPrice == null
+                      ? '—'
+                      : taxRate.includedInPrice
+                      ? 'Yes'
+                      : 'No',
+                },
+                {
+                  label: 'Carrier',
+                  value: carriers.length > 0 ? carriers.join(', ') : '—',
+                },
+                {
+                  label: 'Shipped quantity',
+                  value: deliveries.length > 0 ? String(shippedQuantity) : '—',
+                },
+                { label: 'Deliveries', value: String(deliveries.length) },
+                { label: 'Parcels', value: String(parcels.length) },
+              ]}
+            />
+          </CollapsiblePanel>
+        </Grid.Item>
+      </Grid>
+
+      <CollapsiblePanel header="Shipping address" isDefaultClosed={false}>
+        <KeyValueGrid
+          items={[
+            {
+              label: 'Recipient',
+              value:
+                [shippingAddress?.firstName, shippingAddress?.lastName]
+                  .filter(Boolean)
+                  .join(' ') || '—',
+            },
+            { label: 'Company', value: shippingAddress?.company ?? '—' },
+            {
+              label: 'Street',
+              value:
+                [shippingAddress?.streetNumber, shippingAddress?.streetName]
+                  .filter(Boolean)
+                  .join(' ') || '—',
+            },
+            {
+              label: 'Additional street',
+              value: shippingAddress?.additionalStreetInfo ?? '—',
+            },
+            {
+              label: 'Apartment / building',
+              value:
+                [shippingAddress?.apartment, shippingAddress?.building]
+                  .filter(Boolean)
+                  .join(', ') || '—',
+            },
+            { label: 'City', value: shippingAddress?.city ?? '—' },
+            { label: 'State', value: shippingAddress?.state ?? '—' },
+            {
+              label: 'Postal code',
+              value: shippingAddress?.postalCode ?? '—',
+            },
+            { label: 'Country', value: shippingAddress?.country ?? '—' },
+            { label: 'Email', value: shippingAddress?.email ?? '—' },
+            {
+              label: 'Phone',
+              value: shippingAddress?.phone ?? shippingAddress?.mobile ?? '—',
+            },
           ]}
-          rows={deliveries}
-          itemRenderer={(item, column) =>
-            column.key === 'createdAt'
-              ? formatDate(item.createdAt)
-              : column.key === 'parcels'
-              ? item.parcels
-                  .map((parcel) => parcel.trackingData?.trackingId ?? parcel.id)
-                  .join(', ')
-              : item.id
-          }
         />
-      </PageState>
+      </CollapsiblePanel>
+
+      <CollapsiblePanel header="Deliveries" isDefaultClosed={false}>
+        <PageState
+          isEmpty={deliveries.length === 0}
+          emptyTitle="No deliveries yet"
+          emptyBody="Shipping details are available above. Delivery records will appear after a delivery is created for this order."
+        >
+          <DataTable
+            columns={[
+              { key: 'id', label: 'Delivery' },
+              { key: 'createdAt', label: 'Created' },
+              { key: 'items', label: 'Quantity' },
+              { key: 'address', label: 'Delivery address' },
+              { key: 'parcels', label: 'Parcels' },
+            ]}
+            rows={deliveries}
+            itemRenderer={(item, column) =>
+              column.key === 'createdAt'
+                ? formatDate(item.createdAt)
+                : column.key === 'items'
+                ? String(deliveryQuantity(item))
+                : column.key === 'address'
+                ? formatAddress(item.address ?? order.shippingAddress)
+                : column.key === 'parcels'
+                ? String(item.parcels.length)
+                : item.id
+            }
+          />
+        </PageState>
+      </CollapsiblePanel>
+
+      <CollapsiblePanel header="Parcel tracking" isDefaultClosed={false}>
+        <PageState
+          isEmpty={parcels.length === 0}
+          emptyTitle="No parcel tracking yet"
+          emptyBody="Tracking information will appear when parcels are added to a delivery."
+        >
+          <DataTable
+            columns={[
+              { key: 'trackingId', label: 'Tracking ID' },
+              { key: 'carrier', label: 'Carrier' },
+              { key: 'provider', label: 'Provider' },
+              { key: 'createdAt', label: 'Created' },
+              { key: 'items', label: 'Quantity' },
+              { key: 'deliveryId', label: 'Delivery' },
+              { key: 'isReturn', label: 'Return parcel' },
+            ]}
+            rows={parcels}
+            itemRenderer={(item, column) => {
+              if (column.key === 'trackingId')
+                return item.trackingData?.trackingId ?? item.id;
+              if (column.key === 'carrier')
+                return item.trackingData?.carrier ?? '—';
+              if (column.key === 'provider')
+                return item.trackingData?.provider ?? '—';
+              if (column.key === 'createdAt') return formatDate(item.createdAt);
+              if (column.key === 'items')
+                return String(
+                  (item.items ?? []).reduce(
+                    (total, parcelItem) => total + parcelItem.quantity,
+                    0
+                  )
+                );
+              if (column.key === 'isReturn')
+                return item.trackingData?.isReturn ? 'Yes' : 'No';
+              return item.deliveryId;
+            }}
+          />
+        </PageState>
+      </CollapsiblePanel>
     </Spacings.Stack>
   );
 };
@@ -514,31 +720,111 @@ const ReturnsTab = (props: {
 }) => {
   const { order } = props;
   const returns = order.returnInfo ?? [];
-  const rows = returns.map((returnInfo, index) => ({
-    ...returnInfo,
-    id: returnInfo.returnTrackingId ?? `return-${index}`,
-  }));
+  const lineItemsById = new Map(
+    (order.lineItems ?? []).map((lineItem) => [lineItem.id, lineItem])
+  );
+  const returnItems = returns.flatMap((returnInfo) => returnInfo.items);
+  const returnedQuantity = returnItems
+    .filter((item) => item.shipmentState === 'Returned')
+    .reduce((total, item) => total + item.quantity, 0);
+  const advisedQuantity = returnItems
+    .filter((item) => item.shipmentState === 'Advised')
+    .reduce((total, item) => total + item.quantity, 0);
+
   return (
     <Spacings.Stack scale="xl">
       <ReturnCreator {...props} />
-      <PageState isEmpty={returns.length === 0} emptyTitle="No returns">
-        <DataTable<(typeof rows)[number]>
-          columns={[
-            { key: 'returnTrackingId', label: 'Tracking ID' },
-            { key: 'returnDate', label: 'Return date' },
-            { key: 'items', label: 'Items' },
-          ]}
-          rows={rows}
-          itemRenderer={(item, column) =>
-            column.key === 'returnDate'
-              ? formatDate(item.returnDate)
-              : column.key === 'items'
-              ? String(
-                  item.items.reduce((total, row) => total + row.quantity, 0)
-                )
-              : item.returnTrackingId ?? '—'
-          }
-        />
+      <PageState isEmpty={returns.length === 0} emptyTitle="No returns yet">
+        <Spacings.Stack scale="l">
+          <KeyValueGrid
+            items={[
+              { label: 'Return requests', value: String(returns.length) },
+              { label: 'Returned quantity', value: String(returnedQuantity) },
+              { label: 'Advised quantity', value: String(advisedQuantity) },
+              {
+                label: 'Total return quantity',
+                value: String(
+                  returnItems.reduce(
+                    (total, returnItem) => total + returnItem.quantity,
+                    0
+                  )
+                ),
+              },
+            ]}
+          />
+          {returns.map((returnInfo, returnIndex) => {
+            const rows = returnInfo.items.map((returnItem, itemIndex) => ({
+              ...returnItem,
+              id: `${returnIndex}-${returnItem.id}-${itemIndex}`,
+              lineItemId: returnItem.id,
+              lineItem: lineItemsById.get(returnItem.id),
+            }));
+            const totalQuantity = returnInfo.items.reduce(
+              (total, returnItem) => total + returnItem.quantity,
+              0
+            );
+
+            return (
+              <CollapsiblePanel
+                key={`return-${returnIndex}-${
+                  returnInfo.returnTrackingId ?? 'untracked'
+                }`}
+                header={`Return request #${returnIndex + 1}`}
+              >
+                <Spacings.Stack scale="l">
+                  <KeyValueGrid
+                    items={[
+                      {
+                        label: 'Tracking ID',
+                        value: returnInfo.returnTrackingId ?? '—',
+                      },
+                      {
+                        label: 'Return date',
+                        value: formatDate(returnInfo.returnDate),
+                      },
+                      {
+                        label: 'Items',
+                        value: String(returnInfo.items.length),
+                      },
+                      {
+                        label: 'Total quantity',
+                        value: String(totalQuantity),
+                      },
+                    ]}
+                  />
+                  <DataTable<(typeof rows)[number]>
+                    columns={[
+                      { key: 'item', label: 'Item' },
+                      { key: 'sku', label: 'SKU' },
+                      { key: 'quantity', label: 'Quantity' },
+                      { key: 'shipmentState', label: 'Shipment state' },
+                      { key: 'paymentState', label: 'Payment state' },
+                      { key: 'comment', label: 'Comment' },
+                    ]}
+                    rows={rows}
+                    itemRenderer={(item, column) => {
+                      if (column.key === 'item')
+                        return (
+                          item.lineItem?.name ??
+                          item.lineItem?.nameAllLocales?.[0]?.value ??
+                          item.lineItemId
+                        );
+                      if (column.key === 'sku')
+                        return item.lineItem?.variant?.sku ?? '—';
+                      if (column.key === 'quantity')
+                        return String(item.quantity);
+                      if (column.key === 'shipmentState')
+                        return item.shipmentState ?? '—';
+                      if (column.key === 'paymentState')
+                        return item.paymentState ?? '—';
+                      return item.comment ?? '—';
+                    }}
+                  />
+                </Spacings.Stack>
+              </CollapsiblePanel>
+            );
+          })}
+        </Spacings.Stack>
       </PageState>
     </Spacings.Stack>
   );
@@ -557,19 +843,43 @@ const ReturnCreator = (props: {
   const lineItems = props.order.lineItems ?? [];
   const [lineItemId, setLineItemId] = useState(lineItems[0]?.id ?? '');
   const [quantity, setQuantity] = useState('1');
+  const [shipmentState, setShipmentState] = useState('Returned');
   const [trackingId, setTrackingId] = useState('');
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>();
-  const selectedItem = lineItems.find((item) => item.id === lineItemId);
+  const returnedQuantities = new Map<string, number>();
+  for (const returnInfo of props.order.returnInfo ?? []) {
+    for (const returnItem of returnInfo.items) {
+      returnedQuantities.set(
+        returnItem.id,
+        (returnedQuantities.get(returnItem.id) ?? 0) + returnItem.quantity
+      );
+    }
+  }
+  const eligibleLineItems = lineItems
+    .map((item) => ({
+      ...item,
+      remainingQuantity: item.quantity - (returnedQuantities.get(item.id) ?? 0),
+    }))
+    .filter((item) => item.remainingQuantity > 0);
+  const activeLineItemId = eligibleLineItems.some(
+    (item) => item.id === lineItemId
+  )
+    ? lineItemId
+    : eligibleLineItems[0]?.id ?? '';
+  const selectedItem = eligibleLineItems.find(
+    (item) => item.id === activeLineItemId
+  );
   const parsedQuantity = Number(quantity);
   const invalidQuantity =
     !Number.isInteger(parsedQuantity) ||
     parsedQuantity < 1 ||
-    parsedQuantity > (selectedItem?.quantity ?? 0);
+    parsedQuantity > (selectedItem?.remainingQuantity ?? 0);
 
   const createReturn = async () => {
-    if (!projectKey || !canManage || !lineItemId || invalidQuantity) return;
+    if (!projectKey || !canManage || !activeLineItemId || invalidQuantity)
+      return;
     setSaving(true);
     setError(undefined);
     try {
@@ -586,9 +896,9 @@ const ReturnCreator = (props: {
                 returnDate: new Date().toISOString(),
                 items: [
                   {
-                    lineItemId,
+                    lineItemId: activeLineItemId,
                     quantity: parsedQuantity,
-                    shipmentState: 'Returned',
+                    shipmentState,
                     comment: comment.trim() || undefined,
                   },
                 ],
@@ -598,6 +908,8 @@ const ReturnCreator = (props: {
         })
       );
       await props.onSaved();
+      setLineItemId('');
+      setQuantity('1');
       setTrackingId('');
       setComment('');
       showNotification({
@@ -613,20 +925,35 @@ const ReturnCreator = (props: {
   };
 
   return (
-    <CollapsiblePanel header="Create return" isDefaultClosed>
+    <CollapsiblePanel header="Create order return" isDefaultClosed>
       <Spacings.Stack scale="l">
+        {eligibleLineItems.length === 0 ? (
+          <ContentNotification type="info">
+            <Text.Body>
+              Every line item on this order has already been included in a
+              return request.
+            </Text.Body>
+          </ContentNotification>
+        ) : null}
         <Grid gridGap="24px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
           <Grid.Item>
             <SelectField
               name="return-line-item"
               title="Line item"
-              value={lineItemId || null}
-              options={lineItems.map((item) => ({
+              value={activeLineItemId || null}
+              options={eligibleLineItems.map((item) => ({
                 value: item.id,
-                label: item.name ?? item.nameAllLocales?.[0]?.value ?? item.id,
+                label: `${
+                  item.name ?? item.nameAllLocales?.[0]?.value ?? item.id
+                } (${item.remainingQuantity} remaining)`,
               }))}
-              onChange={(event) => setLineItemId(String(event.target.value))}
-              isDisabled={!canManage || saving}
+              onChange={(event) => {
+                setLineItemId(String(event.target.value));
+                setQuantity('1');
+              }}
+              isDisabled={
+                !canManage || saving || eligibleLineItems.length === 0
+              }
               horizontalConstraint="scale"
             />
           </Grid.Item>
@@ -636,13 +963,31 @@ const ReturnCreator = (props: {
               title="Quantity"
               value={quantity}
               onChange={(event) => setQuantity(event.target.value)}
-              isDisabled={!canManage || saving}
+              isDisabled={
+                !canManage || saving || eligibleLineItems.length === 0
+              }
               errors={{ invalidQuantity }}
               touched={quantity.length > 0}
               renderError={(key) =>
                 key === 'invalidQuantity'
-                  ? `Enter 1 to ${selectedItem?.quantity ?? 0}.`
+                  ? `Enter 1 to ${selectedItem?.remainingQuantity ?? 0}.`
                   : null
+              }
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <SelectField
+              name="return-shipment-state"
+              title="Shipment state"
+              value={shipmentState}
+              options={[
+                { value: 'Returned', label: 'Returned' },
+                { value: 'Advised', label: 'Advised' },
+              ]}
+              onChange={(event) => setShipmentState(String(event.target.value))}
+              isDisabled={
+                !canManage || saving || eligibleLineItems.length === 0
               }
               horizontalConstraint="scale"
             />
@@ -674,9 +1019,15 @@ const ReturnCreator = (props: {
           </ContentNotification>
         ) : null}
         <TabularDetailPage.FormPrimaryButton
-          label={saving ? 'Adding…' : 'Add return'}
+          label={saving ? 'Creating…' : 'Create return'}
           onClick={() => void createReturn()}
-          isDisabled={!canManage || saving || !lineItemId || invalidQuantity}
+          isDisabled={
+            !canManage ||
+            saving ||
+            !activeLineItemId ||
+            invalidQuantity ||
+            eligibleLineItems.length === 0
+          }
         />
       </Spacings.Stack>
     </CollapsiblePanel>
@@ -684,36 +1035,178 @@ const ReturnCreator = (props: {
 };
 
 const PaymentsTab = ({ order }: { order: Order }) => {
-  const payments = order.paymentInfo?.payments ?? [];
+  const payments = useMemo(() => paymentsForOrder(order), [order]);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(
+    payments[0]?.id ?? null
+  );
+  const selectedPayment =
+    payments.find((payment) => payment.id === selectedPaymentId) ?? null;
+  const transactionCount = payments.reduce(
+    (total, payment) => total + payment.transactions.length,
+    0
+  );
+  const plannedAmount = payments.reduce(
+    (total, payment) => total + payment.amountPlanned.centAmount,
+    0
+  );
+  const plannedMoney = payments[0]
+    ? { ...payments[0].amountPlanned, centAmount: plannedAmount }
+    : order.totalPrice;
+
+  useEffect(() => {
+    if (payments.length === 0) {
+      setSelectedPaymentId(null);
+      return;
+    }
+    if (!payments.some((payment) => payment.id === selectedPaymentId)) {
+      setSelectedPaymentId(payments[0].id);
+    }
+  }, [payments, selectedPaymentId]);
+
   return (
-    <PageState isEmpty={payments.length === 0} emptyTitle="No payments">
-      <DataTable
-        columns={[
-          { key: 'id', label: 'Payment ID' },
-          { key: 'amountPlanned', label: 'Amount planned' },
-          { key: 'method', label: 'Method' },
-          { key: 'transactions', label: 'Transactions' },
-        ]}
-        rows={payments}
-        itemRenderer={(item, column) =>
-          column.key === 'amountPlanned'
-            ? formatMoney(item.amountPlanned)
-            : column.key === 'method'
-            ? typeof item.paymentMethodInfo?.name === 'string'
-              ? item.paymentMethodInfo.name
-              : item.paymentMethodInfo?.name
-              ? Object.values(item.paymentMethodInfo.name)[0] ?? '—'
-              : item.paymentMethodInfo?.method ?? '—'
-            : column.key === 'transactions'
-            ? item.transactions
-                .map(
-                  (transaction) => `${transaction.type}: ${transaction.state}`
-                )
-                .join(', ') || '—'
-            : item.id
-        }
-      />
-    </PageState>
+    <Spacings.Stack scale="xl">
+      <CollapsiblePanel header="Payment summary" isDefaultClosed={false}>
+        <Grid gridGap="24px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
+          <Grid.Item>
+            <KeyValueGrid
+              items={[
+                { label: 'Payment state', value: order.paymentState ?? '—' },
+                { label: 'Payment records', value: String(payments.length) },
+                { label: 'Transactions', value: String(transactionCount) },
+              ]}
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <KeyValueGrid
+              items={[
+                { label: 'Order total', value: formatMoney(order.totalPrice) },
+                {
+                  label: 'Amount planned',
+                  value: payments.length > 0 ? formatMoney(plannedMoney) : '—',
+                },
+                {
+                  label: 'Last modified',
+                  value: formatDate(order.lastModifiedAt),
+                },
+              ]}
+            />
+          </Grid.Item>
+        </Grid>
+      </CollapsiblePanel>
+
+      <CollapsiblePanel header="Payment transactions" isDefaultClosed={false}>
+        <PageState
+          isEmpty={payments.length === 0}
+          emptyTitle="No payments"
+          emptyBody="There are no payment records associated with this order."
+        >
+          <DataTable<Payment>
+            columns={[
+              { key: 'id', label: 'Payment ID' },
+              { key: 'interfaceId', label: 'Interface ID' },
+              { key: 'amountPlanned', label: 'Amount planned' },
+              { key: 'paymentMethodInfo', label: 'Payment method info' },
+              { key: 'createdAt', label: 'Date' },
+              { key: 'lastModifiedAt', label: 'Modified' },
+            ]}
+            rows={payments}
+            onRowClick={(payment) => setSelectedPaymentId(payment.id)}
+            itemRenderer={(item, column) => {
+              if (column.key === 'amountPlanned')
+                return formatMoney(item.amountPlanned);
+              if (column.key === 'paymentMethodInfo')
+                return `${paymentMethodLabel(item)} · ${paymentProviderLabel(
+                  item
+                )}`;
+              if (column.key === 'createdAt') return formatDate(item.createdAt);
+              if (column.key === 'lastModifiedAt')
+                return formatDate(item.lastModifiedAt ?? item.createdAt);
+              if (column.key === 'interfaceId') return item.interfaceId ?? '—';
+              return item.id;
+            }}
+          />
+        </PageState>
+      </CollapsiblePanel>
+
+      {selectedPayment ? (
+        <CollapsiblePanel
+          header={`Payment ID: ${selectedPayment.id}`}
+          isDefaultClosed={false}
+        >
+          <Spacings.Stack scale="xl">
+            <Grid
+              gridGap="24px"
+              gridTemplateColumns="repeat(2, minmax(0, 1fr))"
+            >
+              <Grid.Item>
+                <KeyValueGrid
+                  items={[
+                    {
+                      label: 'Payment method name',
+                      value: paymentMethodLabel(selectedPayment),
+                    },
+                    {
+                      label: 'PSP provider',
+                      value: paymentProviderLabel(selectedPayment),
+                    },
+                    {
+                      label: 'Interface ID',
+                      value: selectedPayment.interfaceId ?? '—',
+                    },
+                  ]}
+                />
+              </Grid.Item>
+              <Grid.Item>
+                <KeyValueGrid
+                  items={[
+                    {
+                      label: 'Amount planned',
+                      value: formatMoney(selectedPayment.amountPlanned),
+                    },
+                    {
+                      label: 'PSP payment status',
+                      value: paymentStatusLabel(selectedPayment, order),
+                    },
+                    {
+                      label: 'Created',
+                      value: formatDate(selectedPayment.createdAt),
+                    },
+                  ]}
+                />
+              </Grid.Item>
+            </Grid>
+
+            <Text.Subheadline as="h4">Transactions breakdown</Text.Subheadline>
+            <PageState
+              isEmpty={selectedPayment.transactions.length === 0}
+              emptyTitle="No payment transactions"
+            >
+              <DataTable<(typeof selectedPayment.transactions)[number]>
+                columns={[
+                  { key: 'timestamp', label: 'Date' },
+                  { key: 'type', label: 'Transaction type' },
+                  { key: 'state', label: 'Status' },
+                  { key: 'amount', label: 'Amount' },
+                  { key: 'interactionId', label: 'Interaction ID' },
+                  { key: 'id', label: 'Transaction ID' },
+                ]}
+                rows={selectedPayment.transactions}
+                itemRenderer={(item, column) => {
+                  if (column.key === 'timestamp')
+                    return formatDate(item.timestamp);
+                  if (column.key === 'amount') return formatMoney(item.amount);
+                  if (column.key === 'interactionId')
+                    return item.interactionId ?? '—';
+                  if (column.key === 'type') return item.type;
+                  if (column.key === 'state') return item.state;
+                  return item.id;
+                }}
+              />
+            </PageState>
+          </Spacings.Stack>
+        </CollapsiblePanel>
+      ) : null}
+    </Spacings.Stack>
   );
 };
 

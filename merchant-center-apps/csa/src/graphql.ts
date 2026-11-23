@@ -205,11 +205,16 @@ export const CUSTOMER_DETAIL_QUERY = gql`
       key
       customerNumber
       email
+      title
+      salutation
       firstName
+      middleName
       lastName
       companyName
+      vatId
       dateOfBirth
       locale
+      authenticationMode
       isEmailVerified
       createdAt
       lastModifiedAt
@@ -234,6 +239,10 @@ export const CUSTOMER_DETAIL_QUERY = gql`
         email
         phone
       }
+      defaultShippingAddressId
+      defaultBillingAddressId
+      shippingAddressIds
+      billingAddressIds
       custom {
         type {
           key
@@ -347,18 +356,35 @@ export const CART_DETAIL_QUERY = gql`
         currencyCode
         fractionDigits
       }
+      taxedShippingPrice {
+        totalNet {
+          centAmount
+          currencyCode
+          fractionDigits
+        }
+        totalGross {
+          centAmount
+          currencyCode
+          fractionDigits
+        }
+      }
       shippingAddress {
         firstName
         lastName
         company
         streetName
         streetNumber
+        apartment
+        building
+        additionalStreetInfo
+        additionalAddressInfo
         city
         state
         postalCode
         country
         email
         phone
+        mobile
       }
       billingAddress {
         firstName
@@ -408,6 +434,32 @@ export const CART_DETAIL_QUERY = gql`
           value
         }
       }
+    }
+  }
+`;
+
+export const CART_CUSTOMER_ADDRESSES_QUERY = gql`
+  query CsaCartCustomerAddresses($id: String!) {
+    customer(id: $id) {
+      id
+      addresses {
+        id
+        firstName
+        lastName
+        company
+        streetName
+        streetNumber
+        city
+        state
+        postalCode
+        country
+        email
+        phone
+      }
+      defaultShippingAddressId
+      defaultBillingAddressId
+      shippingAddressIds
+      billingAddressIds
     }
   }
 `;
@@ -462,18 +514,35 @@ export const ORDER_DETAIL_QUERY = gql`
         currencyCode
         fractionDigits
       }
+      taxedShippingPrice {
+        totalNet {
+          centAmount
+          currencyCode
+          fractionDigits
+        }
+        totalGross {
+          centAmount
+          currencyCode
+          fractionDigits
+        }
+      }
       shippingAddress {
         firstName
         lastName
         company
         streetName
         streetNumber
+        apartment
+        building
+        additionalStreetInfo
+        additionalAddressInfo
         city
         state
         postalCode
         country
         email
         phone
+        mobile
       }
       billingAddress {
         firstName
@@ -514,15 +583,66 @@ export const ORDER_DETAIL_QUERY = gql`
       }
       shippingInfo {
         shippingMethodName
+        shippingMethod {
+          id
+          name
+        }
+        shippingMethodState
+        price {
+          centAmount
+          currencyCode
+          fractionDigits
+        }
+        taxRate {
+          name
+          amount
+          includedInPrice
+          country
+          state
+        }
         deliveries {
           id
           createdAt
+          items {
+            id
+            quantity
+          }
+          address {
+            firstName
+            lastName
+            company
+            streetName
+            streetNumber
+            apartment
+            building
+            additionalStreetInfo
+            additionalAddressInfo
+            city
+            state
+            postalCode
+            country
+            email
+            phone
+            mobile
+          }
           parcels {
             id
+            createdAt
+            items {
+              id
+              quantity
+            }
+            measurements {
+              heightInMillimeter
+              lengthInMillimeter
+              widthInMillimeter
+              weightInGram
+            }
             trackingData {
               trackingId
               carrier
               provider
+              providerTransaction
               isReturn
             }
           }
@@ -542,20 +662,29 @@ export const ORDER_DETAIL_QUERY = gql`
       paymentInfo {
         payments {
           id
+          interfaceId
+          createdAt
+          lastModifiedAt
           amountPlanned {
             centAmount
             currencyCode
             fractionDigits
           }
           paymentMethodInfo {
+            paymentInterface
             method
             name(locale: "en")
+          }
+          paymentStatus {
+            interfaceCode
+            interfaceText
           }
           transactions {
             id
             timestamp
             type
             state
+            interactionId
             amount {
               centAmount
               currencyCode
