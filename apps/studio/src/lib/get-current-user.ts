@@ -22,6 +22,7 @@ export type CurrentUser = {
   projects?: Array<{ clientId?: string; displayName?: string; projectKey: string; role: string; shellMode?: 'b2c' | 'b2b' }>;
   requiresProjectSelection?: boolean;
   role: 'agent' | 'admin' | 'superadmin';
+  isOrgAdmin?: boolean;
   tenantId: string;
   uiTheme?: string;
   organization?: {

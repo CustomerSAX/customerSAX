@@ -74,6 +74,7 @@ export const ADMIN_CLIENT_QUERY = gql`
       firstName
       lastName
       role
+      isOrgAdmin
       active
       clientProjects {
         projectKey
@@ -258,7 +259,10 @@ export const ADMIN_TEST_SMTP_PROFILE = gql`
 export const ADMIN_CREATE_CLIENT_USER = gql`
   mutation AdminCreateClientUser($clientId: ID!, $input: AdminCreateUserInput!, $grantedBy: String!) {
     adminCreateClientUser(clientId: $clientId, input: $input, grantedBy: $grantedBy) {
+      id
       email
+      role
+      active
     }
   }
 `;
@@ -266,7 +270,10 @@ export const ADMIN_CREATE_CLIENT_USER = gql`
 export const ADMIN_ASSIGN_CLIENT_USER = gql`
   mutation AdminAssignClientUser($clientId: ID!, $input: AdminAssignUserInput!, $grantedBy: String!) {
     adminAssignClientUser(clientId: $clientId, input: $input, grantedBy: $grantedBy) {
+      id
       email
+      role
+      active
     }
   }
 `;
@@ -274,7 +281,10 @@ export const ADMIN_ASSIGN_CLIENT_USER = gql`
 export const ADMIN_UPDATE_CLIENT_USER = gql`
   mutation AdminUpdateClientUser($clientId: ID!, $input: AdminUpdateClientUserInput!, $grantedBy: String!) {
     adminUpdateClientUser(clientId: $clientId, input: $input, grantedBy: $grantedBy) {
+      id
       email
+      role
+      active
     }
   }
 `;

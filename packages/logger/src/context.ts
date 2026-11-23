@@ -22,6 +22,7 @@ export interface RequestContext {
   userRole?: string;
   /** Present for identity resolution; never auto-logged (PII). */
   userEmail?: string;
+  userIsOrgAdmin?: boolean;
   method?: string;
   path?: string;
 }

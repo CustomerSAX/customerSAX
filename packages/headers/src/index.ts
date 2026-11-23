@@ -25,6 +25,7 @@ export const CSA_HEADERS = {
   userRole: "x-csa-user-role",
   userEmail: "x-csa-user-email",
   requestId: "x-request-id",
+  userIsOrgAdmin: "x-csa-user-is-org-admin",
 } as const;
 
 /** A logical field name in the header contract (e.g. `"projectKey"`). */
@@ -44,6 +45,7 @@ export interface CsaContext {
   userRole?: string;
   userEmail?: string;
   requestId?: string;
+  userIsOrgAdmin?: string;
 }
 
 /**
@@ -87,6 +89,7 @@ export function readCsaContext(req: { headers: ReadableHeaders }): CsaContext {
     userRole: readHeader(headers, CSA_HEADERS.userRole),
     userEmail: readHeader(headers, CSA_HEADERS.userEmail),
     requestId: readHeader(headers, CSA_HEADERS.requestId),
+    userIsOrgAdmin: readHeader(headers, CSA_HEADERS.userIsOrgAdmin),
   };
 }
 
@@ -117,5 +120,6 @@ export function applyCsaHeaders<T extends WritableHeaders>(target: T, ctx: CsaCo
   if (ctx.userRole !== undefined) writeHeader(target, CSA_HEADERS.userRole, ctx.userRole);
   if (ctx.userEmail !== undefined) writeHeader(target, CSA_HEADERS.userEmail, ctx.userEmail);
   if (ctx.requestId !== undefined) writeHeader(target, CSA_HEADERS.requestId, ctx.requestId);
+  if (ctx.userIsOrgAdmin !== undefined) writeHeader(target, CSA_HEADERS.userIsOrgAdmin, ctx.userIsOrgAdmin);
   return target;
 }

@@ -96,6 +96,7 @@ export function buildGateway(logger: Logger): ApolloGateway | undefined {
               clientId: gatewayContext.clientId,
               userRole: gatewayContext.userRole,
               userEmail: gatewayContext.userEmail,
+              userIsOrgAdmin: gatewayContext.userIsOrgAdmin ? "true" : "false"
             });
           }
         }

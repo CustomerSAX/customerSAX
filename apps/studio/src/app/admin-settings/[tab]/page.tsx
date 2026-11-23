@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/get-current-user";
 import { AdminSettingsView, type AdminSettingsTab } from "@/features/admin-settings/AdminSettingsView";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +26,12 @@ export default async function AdminSettingsTabPage({
   const resolvedParams = await params;
   const tabKey = resolvedParams?.tab?.toLowerCase() ?? "";
   const tab = TAB_MAP[tabKey] ?? "organization";
+
+  const user = await getCurrentUser();
+  const isOrgAdmin = Boolean(user?.isOrgAdmin) || user?.role === "superadmin";
+  if (tab === "organization" && !isOrgAdmin) {
+    redirect("/admin-settings/projects");
+  }
 
   return <AdminSettingsView section={tab} />;
 }

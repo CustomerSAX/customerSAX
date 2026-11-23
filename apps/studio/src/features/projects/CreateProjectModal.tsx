@@ -9,20 +9,23 @@ import {
   ADMIN_UPDATE_AI_SETTINGS
 } from "@/features/superadmin/api/queries";
 import { useCurrentUser } from "@/lib/use-current-user";
+import { notify } from "@/features/notifications/notification-store";
 
 interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (projectKey: string) => void;
+  clientId?: string;
 }
 
 export function CreateProjectModal({
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  clientId: propClientId
 }: CreateProjectModalProps) {
   const { user } = useCurrentUser();
-  const clientId = user?.activeClientId || user?.organization?.id;
+  const clientId = propClientId || user?.activeClientId || user?.organization?.id;
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
@@ -74,6 +77,37 @@ export function CreateProjectModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const resetForm = () => {
+    setCurrentStep(1);
+    setProjectKey("");
+    setDisplayName("");
+    setShellMode("b2c");
+    setPlatform("commercetools");
+    setCtApiUrl("https://api.us-central1.gcp.commercetools.com");
+    setCtAuthUrl("https://auth.us-central1.gcp.commercetools.com");
+    setCtClientId("");
+    setCtClientSecret("");
+    setScopes("");
+    setShopifyStoreDomain("");
+    setShopifyAdminAccessToken("");
+    setShopifyApiVersion("2024-01");
+    setBigcommerceStoreHash("");
+    setBigcommerceClientId("");
+    setBigcommerceAccessToken("");
+    setTestResult(null);
+    setAiEnabled(false);
+    setAiProvider("openai");
+    setAiModel("gpt-4o-mini");
+    setAiApiKey("");
+    setErrorMsg(null);
+  };
+
+  const handleModalClose = () => {
+    if (isSubmitting) return;
+    resetForm();
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   const handleTestConnection = async () => {
@@ -116,6 +150,7 @@ export function CreateProjectModal({
   };
 
   const handleCreate = async () => {
+    if (isSubmitting) return;
     if (!clientId) {
       setErrorMsg("Missing organization identifier. Please re-authenticate.");
       return;
@@ -201,6 +236,15 @@ export function CreateProjectModal({
         // ignore
       }
 
+      const createdDisplayName = displayName.trim() || cleanProjKey;
+      resetForm();
+      notify({
+        variant: "success",
+        title: "Project created",
+        description: `Project "${createdDisplayName}" created successfully.`
+      });
+      onClose();
+
       if (onSuccess) {
         onSuccess(cleanProjKey);
       } else {
@@ -214,8 +258,8 @@ export function CreateProjectModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg">
-      <ModalHeader title="Create Commerce Project" onClose={onClose} />
+    <Modal isOpen={isOpen} onClose={handleModalClose} size="lg">
+      <ModalHeader title="Create Commerce Project" onClose={handleModalClose} />
       <ModalBody>
         {/* Stepper Bar */}
         <div className="mb-6 grid grid-cols-5 gap-2 border-b border-m-border pb-3">
@@ -686,7 +730,7 @@ export function CreateProjectModal({
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onClose} disabled={isSubmitting}>
+            <Button variant="ghost" size="sm" onClick={handleModalClose} disabled={isSubmitting}>
               Cancel
             </Button>
 

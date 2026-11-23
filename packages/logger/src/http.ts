@@ -92,6 +92,7 @@ export function apolloContext(req: { headers: IncomingMessage["headers"] }): Req
     clientId: csa.clientId,
     userRole: csa.userRole,
     userEmail: csa.userEmail,
+    userIsOrgAdmin: csa.userIsOrgAdmin === "true" || csa.userIsOrgAdmin === "1",
     method: "POST",
     path: "/graphql",
   };
