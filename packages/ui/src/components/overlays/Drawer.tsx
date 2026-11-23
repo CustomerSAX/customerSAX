@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useId, useEffect } from 'react';
+import React, { createContext, useContext, useId, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../../utils';
 import { Icon } from '../../icons/Icon';
 import { useDialogAccessibility } from '../../hooks/useDialogAccessibility';
@@ -42,6 +43,11 @@ export function Drawer({
   const titleId = `${generatedId}-title`;
   const descriptionId = `${generatedId}-description`;
   const dialogRef = useDialogAccessibility<HTMLDivElement>({ isOpen, onClose, closeOnEsc });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -54,12 +60,12 @@ export function Drawer({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
       ref={dialogRef}
-      className="fixed inset-0 z-[var(--m-z-drawer)] overflow-hidden"
+      className="fixed inset-0 z-[var(--m-z-drawer,450)] overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-label={ariaLabel}
@@ -92,7 +98,8 @@ export function Drawer({
           </DrawerContext.Provider>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

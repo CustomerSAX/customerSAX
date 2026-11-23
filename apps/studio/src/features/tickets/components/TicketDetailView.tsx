@@ -470,7 +470,7 @@ export function TicketDetailView({ id }: TicketDetailViewProps) {
                     onChange={(e) => setWorklogInput(e.target.value)}
                     placeholder="Add internal progress note or action taken..."
                   />
-                  <div className="flex justify-end">
+                  <div className="flex justify-end pr-28 sm:pr-36">
                     <PrimaryButton icon="plus" onClick={handleAddWorklog}>
                       Add Note
                     </PrimaryButton>
