@@ -257,6 +257,13 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
   const [returnComment, setReturnComment] = useState("");
   const [returnDrawerError, setReturnDrawerError] = useState("");
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
+  const [hasUserClosedPaymentDetail, setHasUserClosedPaymentDetail] = useState(false);
+
+  useEffect(() => {
+    if (!selectedPaymentId && !hasUserClosedPaymentDetail && order?.payments && order.payments.length > 0) {
+      setSelectedPaymentId(order.payments[0].id);
+    }
+  }, [order?.payments, selectedPaymentId, hasUserClosedPaymentDetail]);
   const [paymentActionFeedback, setPaymentActionFeedback] = useState("");
   const [showCommentForm, setShowCommentForm] = useState(false);
   const [commentInput, setCommentInput] = useState("");
@@ -657,7 +664,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
             label="Payment Status"
             value={order.paymentState}
             tone={statusTone(order.paymentState)}
-            sub="Credit Card"
+            sub={order.payments[0]?.method || "Credit Card"}
           />
         </SummaryGrid>
       </div>
@@ -725,7 +732,11 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
       {activeTab === "Payments" && (
         <OrderPaymentsTab
           order={order} fmtDate={fmtDate}
-          selectedPaymentId={selectedPaymentId} setSelectedPaymentId={setSelectedPaymentId}
+          selectedPaymentId={selectedPaymentId}
+          setSelectedPaymentId={(v) => {
+            if (v === null) setHasUserClosedPaymentDetail(true);
+            setSelectedPaymentId(v);
+          }}
           selectedPayment={selectedPayment} paymentActionFeedback={paymentActionFeedback}
           handleGetLatestPspStatus={handleGetLatestPspStatus} handleSendPaymentLink={handleSendPaymentLink}
           handleOpenRefundDrawer={() => handleOpenRefundDrawer()}
