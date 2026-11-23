@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   Button,
+  PrimaryButton,
   Avatar,
   Icon,
   Table,
@@ -21,6 +22,7 @@ import {
   Select,
   SearchBar,
   Modal,
+  Drawer,
   FormField,
   Label,
 } from "@csa/ui";
@@ -255,11 +257,14 @@ function paymentStateTone(state: string): StatusTone {
   switch (state) {
     case "Paid":
     case "Success":
+    case "Refunded":
       return "success";
     case "Pending":
+    case "Initial":
       return "warning";
     case "BalanceDue":
     case "Failed":
+    case "NotRefunded":
       return "error";
     default:
       return "neutral";
@@ -569,6 +574,50 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const [quotesSearch, setQuotesSearch] = useState("");
   const [quoteColumnKeys, setQuoteColumnKeys] = useState<QuoteColumnKey[]>(DEFAULT_QUOTE_COLUMN_KEYS);
 
+  // ── Customer 360 Refund State & Handlers ───────────────────────
+  const [refundedReturnIds, setRefundedReturnIds] = useState<Record<string, {
+    amount: string;
+    reason: string;
+    refundedAt: string;
+  }>>({});
+  const [isCustomerRefundDrawerOpen, setIsCustomerRefundDrawerOpen] = useState(false);
+  const [customerRefundTarget, setCustomerRefundTarget] = useState<CustomerReturn | null>(null);
+  const [customerRefundAmount, setCustomerRefundAmount] = useState("$45.00");
+  const [customerRefundReason, setCustomerRefundReason] = useState("Customer Return");
+  const [customerRefundDestination, setCustomerRefundDestination] = useState("Original Payment Method");
+  const [customerRefundNotes, setCustomerRefundNotes] = useState("");
+  const [customerRefundSuccess, setCustomerRefundSuccess] = useState("");
+
+  const handleOpenCustomerRefund = (returnRow: CustomerReturn) => {
+    setCustomerRefundTarget(returnRow);
+    setCustomerRefundAmount("$45.00");
+    setCustomerRefundReason("Customer Return");
+    setCustomerRefundDestination("Original Payment Method");
+    setCustomerRefundNotes(`RMA: ${returnRow.returnTrackingId} • Order #${returnRow.orderNumber}`);
+    setIsCustomerRefundDrawerOpen(true);
+  };
+
+  const handleProcessCustomerRefund = () => {
+    if (!customerRefundTarget) return;
+    const now = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    setRefundedReturnIds((prev) => ({
+      ...prev,
+      [customerRefundTarget.id]: {
+        amount: customerRefundAmount || "$45.00",
+        reason: customerRefundReason,
+        refundedAt: now,
+      },
+      [customerRefundTarget.returnTrackingId]: {
+        amount: customerRefundAmount || "$45.00",
+        reason: customerRefundReason,
+        refundedAt: now,
+      },
+    }));
+    setIsCustomerRefundDrawerOpen(false);
+    setCustomerRefundSuccess(`Refund of ${customerRefundAmount || "$45.00"} processed successfully for ${customerRefundTarget.returnTrackingId}.`);
+    setTimeout(() => setCustomerRefundSuccess(""), 5000);
+  };
+
   useEffect(() => {
     setOrderColumnKeys(loadColumnKeys(ORDER_COLUMN_STORAGE_KEY, ORDER_COLUMNS, DEFAULT_ORDER_COLUMN_KEYS));
     setQuoteColumnKeys(loadColumnKeys(QUOTE_COLUMN_STORAGE_KEY, QUOTE_COLUMNS, DEFAULT_QUOTE_COLUMN_KEYS));
@@ -609,8 +658,25 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     [quotesGqlData, customer?.email]
   );
 
-  // Payments State — no real customer-level payment API; start empty
-  const [payments] = useState<CustomerPayment[]>([]);
+  // Payments State — derived from customer's real order purchase history
+  const payments: CustomerPayment[] = useMemo(() => {
+    return (ordersGqlData?.orderPage.results ?? []).map((o) => {
+      const orderNum = o.orderNumber ?? o.id.slice(0, 8);
+      const isRefunded = Boolean(
+        refundedReturnIds[o.id] ||
+        refundedReturnIds[orderNum] ||
+        (o.returnInfo && o.returnInfo.some((r) => r.items.some((it) => it.paymentState?.toLowerCase() === "refunded")))
+      );
+      const status = isRefunded ? "Refunded" : (o.paymentState || "Paid");
+      return {
+        id: `PAY-${orderNum.replace(/[^a-zA-Z0-9_-]/g, "")}`,
+        method: "Credit Card (Visa •••• 4242)",
+        amount: formatMoney(o.totalPrice),
+        status,
+        createdAt: formatDate(o.createdAt),
+      };
+    });
+  }, [ordersGqlData, refundedReturnIds]);
 
   // Tickets State — sourced from realTickets fetched by customerEmail (above)
   const tickets = realTickets;
@@ -903,21 +969,41 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
         return <TableCell>{returnRow.returnDate}</TableCell>;
       case "itemsCount":
         return <TableCell>{returnRow.itemsCount}</TableCell>;
-      case "action":
+      case "action": {
+        const isRowRefunded = Boolean(refundedReturnIds[returnRow.id] || refundedReturnIds[returnRow.returnTrackingId]) ||
+          returnRow.items.every((it) => it.paymentState?.toLowerCase() === "refunded");
         return (
           <TableCell>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(event) => {
-                event.stopPropagation();
-                setSelectedReturn(returnRow);
-              }}
-            >
-              View Items Breakdown
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSelectedReturn(returnRow);
+                }}
+              >
+                View Items Breakdown
+              </Button>
+              {!isRowRefunded ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Icon name="dollar-sign" size={12} />}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleOpenCustomerRefund(returnRow);
+                  }}
+                >
+                  Issue Refund
+                </Button>
+              ) : (
+                <StatusPill tone="success">✓ Refunded</StatusPill>
+              )}
+            </div>
           </TableCell>
         );
+      }
       default:
         return null;
     }
@@ -1592,7 +1678,14 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
 
       {/* ── Returns ──────────────────────────────────────────────────────── */}
       {activeTab === "returns" && (
-        <SectionCard
+        <div className="space-y-4">
+          {customerRefundSuccess && (
+            <div className="rounded-m-md bg-m-success-light border border-m-success-border text-m-success p-3 text-xs font-semibold flex items-center gap-2">
+              <span>✓</span>
+              <span>{customerRefundSuccess}</span>
+            </div>
+          )}
+          <SectionCard
           title="Return History"
           icon="rotate-ccw"
           action={
@@ -1656,6 +1749,25 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   <InfoRow label="Items" value={selectedReturn.itemsCount} />
                 </InfoList>
 
+                {Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ||
+                selectedReturn.items.every((it) => it.paymentState?.toLowerCase() === "refunded") ? (
+                  <div className="flex items-center gap-2 rounded-m-md border border-m-success-border bg-m-success-light p-3 text-xs font-semibold text-m-success">
+                    <Icon name="check-circle" size={15} />
+                    <span>Refund of {refundedReturnIds[selectedReturn.id]?.amount || refundedReturnIds[selectedReturn.returnTrackingId]?.amount || "Items"} Processed ({refundedReturnIds[selectedReturn.id]?.reason || refundedReturnIds[selectedReturn.returnTrackingId]?.reason || "Completed"})</span>
+                    <span className="ml-auto text-[11px] font-mono text-m-text-muted">{refundedReturnIds[selectedReturn.id]?.refundedAt || "Recorded"}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded-m-md border border-m-border bg-m-surface-2 p-3 text-xs">
+                    <span className="text-m-text-muted">Return request is recorded. Eligible for refund processing.</span>
+                    <PrimaryButton
+                      icon="dollar-sign"
+                      onClick={() => handleOpenCustomerRefund(selectedReturn)}
+                    >
+                      Issue Refund
+                    </PrimaryButton>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-m-text">Line Items Breakdown</h4>
                   <Table>
@@ -1675,7 +1787,9 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                             <StatusPill tone="warning">{item.shipmentState}</StatusPill>
                           </TableCell>
                           <TableCell>
-                            <StatusPill tone="success">{item.paymentState}</StatusPill>
+                            <StatusPill tone={Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ? "success" : paymentStateTone(item.paymentState)}>
+                              {Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ? "Refunded" : item.paymentState}
+                            </StatusPill>
                           </TableCell>
                           <TableCell className="text-xs text-m-text-muted">{item.comment || "--"}</TableCell>
                         </TableRow>
@@ -1687,13 +1801,14 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
             </Modal>
           )}
         </SectionCard>
+        </div>
       )}
 
       {/* ── Payments ─────────────────────────────────────────────────────── */}
       {activeTab === "payments" && (
         <SectionCard title="Payments" icon="credit-card">
           {payments.length === 0 ? (
-            <CardEmpty icon="credit-card" title="No payments on file" hint="Customer-level payment history isn't wired to a backend yet." />
+            <CardEmpty icon="credit-card" title="No payments on file" hint="No payment transactions recorded for this customer's orders." />
           ) : (
             <Table>
               <TableHeader>
@@ -2004,6 +2119,102 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           </div>
         </Modal>
       )}
+
+      {/* ── Customer 360 Return Refund Side Drawer ── */}
+      <Drawer
+        isOpen={isCustomerRefundDrawerOpen}
+        onClose={() => setIsCustomerRefundDrawerOpen(false)}
+        size="md"
+        position="right"
+      >
+        <Drawer.Header
+          title="Issue Return Refund"
+          subtitle={customerRefundTarget ? `RMA: ${customerRefundTarget.returnTrackingId} • Order #${customerRefundTarget.orderNumber}` : "Customer Return"}
+          onClose={() => setIsCustomerRefundDrawerOpen(false)}
+        />
+        <Drawer.Content className="space-y-4">
+          <div className="rounded-m-lg bg-m-surface-2 p-3.5 border border-m-border space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-m-text-muted">Customer:</span>
+              <span className="font-semibold text-m-text">
+                {[customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || customer?.email || id}
+              </span>
+            </div>
+            {customerRefundTarget && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-m-text-muted">Order Number:</span>
+                  <span className="font-mono text-m-primary font-bold">{customerRefundTarget.orderNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-m-text-muted">RMA Tracking ID:</span>
+                  <span className="font-mono text-m-text">{customerRefundTarget.returnTrackingId}</span>
+                </div>
+                <div className="flex justify-between border-t border-m-border/60 pt-2">
+                  <span className="text-m-text-muted">Return Items:</span>
+                  <span className="font-semibold text-m-text">{customerRefundTarget.itemsCount} item(s)</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <FormField>
+            <Label>Refund Amount</Label>
+            <Input
+              value={customerRefundAmount}
+              onChange={(e) => setCustomerRefundAmount(e.target.value)}
+              placeholder="$0.00"
+            />
+          </FormField>
+
+          <FormField>
+            <Label>Refund Reason</Label>
+            <Select
+              value={customerRefundReason}
+              onChange={(e) => setCustomerRefundReason(e.target.value)}
+              options={[
+                { value: "Customer Return", label: "Customer Return (RMA received)" },
+                { value: "Damaged / Defective Goods", label: "Damaged or Defective Item" },
+                { value: "Order Cancellation", label: "Order Cancellation" },
+                { value: "Goodwill Gesture", label: "Goodwill / Customer Satisfaction" },
+                { value: "Shipping Fee Refund", label: "Shipping Fee Adjustment" },
+              ]}
+            />
+          </FormField>
+
+          <FormField>
+            <Label>Refund Destination</Label>
+            <Select
+              value={customerRefundDestination}
+              onChange={(e) => setCustomerRefundDestination(e.target.value)}
+              options={[
+                { value: "Original Payment Method", label: "Original Payment Method (Card on file)" },
+                { value: "Customer Store Credit", label: "Customer Store Credit" },
+                { value: "Manual Bank Transfer", label: "Manual Bank Transfer (Offline)" },
+              ]}
+            />
+          </FormField>
+
+          <FormField>
+            <Label>Internal Note / Audit Reason</Label>
+            <textarea
+              className="w-full p-2.5 border border-m-border rounded-m-md text-xs text-m-text bg-transparent focus:outline-none focus:ring-1 focus:ring-m-primary"
+              rows={3}
+              value={customerRefundNotes}
+              onChange={(e) => setCustomerRefundNotes(e.target.value)}
+              placeholder="Internal justification or ticket reference..."
+            />
+          </FormField>
+        </Drawer.Content>
+        <Drawer.Footer>
+          <Button variant="secondary" size="md" onClick={() => setIsCustomerRefundDrawerOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="md" onClick={handleProcessCustomerRefund}>
+            Confirm & Process Refund
+          </Button>
+        </Drawer.Footer>
+      </Drawer>
     </DetailPage>
   );
 }

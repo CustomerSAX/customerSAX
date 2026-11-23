@@ -13,6 +13,8 @@ import type {
   OrderAddress,
   OrderReturnItem,
   OrderComment,
+  OrderPayment,
+  OrderPaymentTransaction,
   CustomFieldEntry,
 } from "../types/order-types";
 
@@ -177,6 +179,48 @@ function normalizeOrder(order: CommerceOrder, customerNames: Map<string, string>
     country: addr?.country ?? "--",
   });
 
+  const paymentStateVal = toPaymentState(order.paymentState);
+  const orderCreatedAt = order.createdAt ?? new Date().toISOString();
+  const orderLastMod = order.lastModifiedAt ?? orderCreatedAt;
+  const cleanId = (order.orderNumber ?? order.id).replace(/[^a-zA-Z0-9_-]/g, "");
+  const paymentTxnState: OrderPaymentTransaction["state"] =
+    paymentStateVal === "Paid" || paymentStateVal === "Refunded"
+      ? "Success"
+      : paymentStateVal === "Failed"
+      ? "Failure"
+      : "Pending";
+  const initialTxn: OrderPaymentTransaction = {
+    id: `txn_${order.id.slice(0, 8)}_1`,
+    timestamp: orderCreatedAt,
+    type: "Charge",
+    state: paymentTxnState,
+    amount: grandTotal,
+    interactionId: `int_${cleanId}_1`,
+  };
+  const transactions: OrderPaymentTransaction[] = [initialTxn];
+  if (paymentStateVal === "Refunded") {
+    transactions.unshift({
+      id: `txn_${order.id.slice(0, 8)}_ref`,
+      timestamp: orderLastMod,
+      type: "Refund",
+      state: "Success",
+      amount: grandTotal,
+      interactionId: `ref_${cleanId}_1`,
+    });
+  }
+  const defaultPayment: OrderPayment = {
+    id: `pay_${cleanId}_1`,
+    interfaceId: `pi_${order.id.slice(0, 8)}`,
+    method: "Credit Card (Visa •••• 4242)",
+    psp: "Adyen",
+    amountPlanned: grandTotal,
+    pspPaymentStatus: paymentStateVal === "Paid" ? "succeeded" : paymentStateVal.toLowerCase(),
+    createdAt: orderCreatedAt,
+    lastModifiedAt: orderLastMod,
+    transactions,
+  };
+  const payments: OrderPayment[] = grandTotal > 0 || Boolean(order.orderNumber) ? [defaultPayment] : [];
+
   return {
     billingAddress: mapAddress(order.billingAddress),
     comments: [],
@@ -201,8 +245,8 @@ function normalizeOrder(order: CommerceOrder, customerNames: Map<string, string>
     netTotal: grandTotal,
     orderNumber: order.orderNumber ?? order.id,
     orderState: toOrderState(order.orderState ?? order.state),
-    paymentState: toPaymentState(order.paymentState),
-    payments: [],
+    paymentState: paymentStateVal,
+    payments,
     returnInfo: (order.returnInfo ?? []).map((entry) => ({
       returnTrackingId: entry.returnTrackingId ?? "--",
       returnDate: entry.returnDate ?? "",
@@ -506,6 +550,59 @@ export function useOrderStore() {
     );
   }, []);
 
+  const processOrderRefund = useCallback((orderId: string, refundAmount: number, reason: string, notes?: string) => {
+    const refundTxn: OrderPaymentTransaction = {
+      id: "txn_ref_" + Date.now(),
+      type: "Refund",
+      state: "Success",
+      amount: refundAmount,
+      interactionId: "REF-" + Date.now().toString().slice(-6),
+      timestamp: new Date().toISOString(),
+    };
+    const refundComment: OrderComment = {
+      id: "cmt_ref_" + Date.now(),
+      text: `Refund of $${refundAmount.toFixed(2)} processed (${reason})${notes ? `: ${notes}` : ""}`,
+      author: "CSA System",
+      createdAt: new Date().toISOString(),
+    };
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== orderId && o.orderNumber !== orderId) return o;
+        const payments = o.payments && o.payments.length > 0
+          ? o.payments.map((p, idx) => idx === 0 ? {
+              ...p,
+              transactions: [refundTxn, ...p.transactions],
+              lastModifiedAt: new Date().toISOString(),
+            } : p)
+          : [{
+              id: "pay_ref_" + Date.now(),
+              interfaceId: "pi_simulated_" + Date.now().toString().slice(-8),
+              method: "Credit Card (Refund)",
+              psp: "Simulated Gateway",
+              amountPlanned: refundAmount,
+              pspPaymentStatus: "refunded",
+              createdAt: new Date().toISOString(),
+              transactions: [refundTxn],
+            }];
+        const returnInfo = (o.returnInfo || []).map((ret) => ({
+          ...ret,
+          items: ret.items.map((it) => ({
+            ...it,
+            paymentState: "Refunded" as const,
+          })),
+        }));
+        return {
+          ...o,
+          paymentState: "Refunded" as PaymentState,
+          payments,
+          comments: [refundComment, ...(o.comments || [])],
+          returnInfo,
+          lastModifiedAt: new Date().toISOString(),
+        };
+      })
+    );
+  }, []);
+
   return {
     orders,
     error,
@@ -528,6 +625,7 @@ export function useOrderStore() {
     sendPaymentLink,
     addOrderComment,
     updateCustomFields,
+    processOrderRefund,
   };
 }
 

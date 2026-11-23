@@ -52,6 +52,7 @@ export function OrderReturnsTab(props: OrderReturnsTabProps) {
     returnSelectedItems, setReturnSelectedItems, returnQuantities, setReturnQuantities,
     returnShipmentState, setReturnShipmentState, returnDateInput, setReturnDateInput,
     returnComment, setReturnComment, returnDrawerError, returnTrackingIdPreview, handleSubmitReturn,
+    handleOpenRefundDrawer,
   } = props;
 
   return (
@@ -69,9 +70,25 @@ export function OrderReturnsTab(props: OrderReturnsTabProps) {
                 title={`Return Request #${idx + 1}`}
                 icon="rotate-ccw"
                 action={
-                  <span className="text-[11px] font-mono text-m-text-muted">
-                    {ret.returnTrackingId} • {fmtDate(ret.returnDate)}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-mono text-m-text-muted">
+                      {ret.returnTrackingId} • {fmtDate(ret.returnDate)}
+                    </span>
+                    {ret.items.every((it) => it.paymentState?.toLowerCase() === "refunded") ? (
+                      <StatusPill tone="success">✓ Refunded</StatusPill>
+                    ) : (
+                      handleOpenRefundDrawer && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<Icon name="dollar-sign" size={12} />}
+                          onClick={() => handleOpenRefundDrawer(ret)}
+                        >
+                          Issue Refund
+                        </Button>
+                      )
+                    )}
+                  </div>
                 }
                 bodyClassName="p-0"
               >
