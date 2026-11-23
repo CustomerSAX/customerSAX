@@ -339,6 +339,16 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
       - name: Install pnpm
         run: npm install -g pnpm
 
@@ -368,6 +378,17 @@ jobs:
             PROD_FLAG=""
             PREFIX="csa-dev"
             STUDIO_URL="${{ vars.STUDIO_URL_DEV || 'https://studio.customersax.com' }}"
+          fi
+
+          # Knowledge Base API routes execute in the Studio Vercel runtime and
+          # persist through @csa/mongodb. Reuse the same environment-scoped URI
+          # as the Cloud Run services without copying the credential to GitHub.
+          MONGO_URI="$(gcloud secrets versions access latest \
+            --secret="${PREFIX}-ticketing-mongo-uri" \
+            --project="${{ env.PROJECT_ID }}")"
+          if [ -z "${MONGO_URI}" ]; then
+            echo "MongoDB URI secret is empty; refusing to deploy Studio without Knowledge Base persistence."
+            exit 1
           fi
           
           RUN_HOST_SUFFIX="v3egj3ywmq-uc.a.run.app"
@@ -401,6 +422,7 @@ jobs:
             --env APP_BASE_URL="$STUDIO_URL" \
             --env AUTH0_BASE_URL="$STUDIO_URL" \
             --env SEED_SECRET="${{ secrets.SEED_SECRET }}" \
+            --env MONGO_URI="$MONGO_URI" \
             --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
