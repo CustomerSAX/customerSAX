@@ -194,6 +194,9 @@ const Carts = () => {
 
   return (
     <Switch>
+      <SuspendedRoute exact path={`${match.path}/new`}>
+        <CartCreate onClose={() => history.push(match.url)} />
+      </SuspendedRoute>
       <SuspendedRoute path={`${match.path}/:id`}>
         <CartDetail onClose={() => history.push(match.url)} />
       </SuspendedRoute>
@@ -234,7 +237,16 @@ const CartList = (props: { baseUrl: string }) => {
   });
   const rows = data?.carts.results ?? [];
   return (
-    <ListPage title="Carts" subtitle="Active and historical B2C shopping carts">
+    <ListPage
+      title="Carts"
+      subtitle="Active and historical B2C shopping carts"
+      controls={
+        <PrimaryButton
+          label="Create cart"
+          onClick={() => history.push(`${props.baseUrl}/new`)}
+        />
+      }
+    >
       <Spacings.Stack scale="l">
         <TextField
           name="cart-search"
@@ -287,6 +299,171 @@ const CartList = (props: { baseUrl: string }) => {
         </PageState>
       </Spacings.Stack>
     </ListPage>
+  );
+};
+
+const CartCreate = (props: { onClose: () => void }) => {
+  const project = useApplicationContext((context) => context.project);
+  const history = useHistory();
+  const match = useRouteMatch();
+  const dispatch = useAsyncDispatch();
+  const showNotification = useShowNotification();
+  const canManage = useIsAuthorized({
+    demandedPermissions: [PERMISSIONS.ManageCarts],
+  });
+  const availableCurrencies = useMemo(
+    () =>
+      project?.currencies?.length ? [...project.currencies].sort() : ['USD'],
+    [project?.currencies]
+  );
+  const [customerReference, setCustomerReference] = useState('');
+  const [currency, setCurrency] = useState(availableCurrencies[0]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>();
+
+  useEffect(() => {
+    if (!availableCurrencies.includes(currency))
+      setCurrency(availableCurrencies[0]);
+  }, [availableCurrencies, currency]);
+
+  const save = async () => {
+    const customerWhere = exactSearchPredicate(customerReference, [
+      'email',
+      'id',
+    ]);
+    if (!project?.key || !canManage || !currency || !customerWhere) return;
+
+    setSaving(true);
+    setError(undefined);
+    try {
+      const query = new URLSearchParams({
+        limit: '2',
+        where: customerWhere,
+      });
+      const customerPage = (await dispatch(
+        actions.get({
+          mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+          uri: `/${project.key}/customers?${query.toString()}`,
+        })
+      )) as QueryPage<Customer>;
+      const customer = customerPage.results[0];
+      if (!customer) {
+        throw new Error(
+          'No customer was found with that email address or customer ID.'
+        );
+      }
+
+      const preferredCountry =
+        customer.addresses?.find(
+          (address) => address.id === customer.defaultShippingAddressId
+        )?.country ??
+        customer.addresses?.find(
+          (address) => address.id === customer.defaultBillingAddressId
+        )?.country ??
+        customer.addresses?.find((address) => address.country)?.country;
+      const country =
+        preferredCountry &&
+        (!project.countries?.length ||
+          project.countries.includes(preferredCountry))
+          ? preferredCountry
+          : undefined;
+      const cart = (await dispatch(
+        actions.post({
+          mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+          uri: `/${project.key}/carts`,
+          payload: {
+            currency,
+            country,
+            customerId: customer.id,
+            customerEmail: customer.email,
+          },
+        })
+      )) as Pick<Cart, 'id'>;
+
+      showNotification({
+        domain: NOTIFICATION_DOMAINS.SIDE,
+        kind: NOTIFICATION_KINDS_SIDE.success,
+        text: 'Customer cart created.',
+      });
+      history.replace(`${match.url.replace(/\/new$/, '')}/${cart.id}/general`);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <TabularDetailPage
+      title="Create B2C cart"
+      subtitle="Create a cart for an existing customer"
+      previousPathLabel="Go to View carts"
+      onPreviousPathClick={props.onClose}
+      tabControls={<TabHeader to={match.url} label="Cart" />}
+      hideControls
+    >
+      <Spacings.Stack scale="l">
+        {!canManage ? (
+          <ContentNotification type="warning">
+            <Text.Body>
+              Manage-cart permission is required to create a cart.
+            </Text.Body>
+          </ContentNotification>
+        ) : null}
+        <Grid gridGap="24px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
+          <Grid.Item>
+            <TextField
+              name="customer-reference"
+              title="Customer email or ID"
+              value={customerReference}
+              onChange={(event) => setCustomerReference(event.target.value)}
+              placeholder="customer@example.com or customer ID"
+              isRequired
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <SelectField
+              name="currency"
+              title="Currency"
+              value={currency}
+              options={availableCurrencies.map((value) => ({
+                value,
+                label: value,
+              }))}
+              onChange={(event) => setCurrency(String(event.target.value))}
+              isRequired
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+        </Grid>
+        {error ? (
+          <ContentNotification type="error">
+            <Text.Body>{getErrorMessage(error)}</Text.Body>
+          </ContentNotification>
+        ) : null}
+        <Spacings.Inline scale="m">
+          <TabularDetailPage.FormSecondaryButton
+            label="Cancel"
+            onClick={props.onClose}
+            isDisabled={saving}
+          />
+          <TabularDetailPage.FormPrimaryButton
+            label={saving ? 'Creating…' : 'Create cart'}
+            onClick={() => void save()}
+            isDisabled={
+              !canManage ||
+              saving ||
+              !project?.key ||
+              !currency ||
+              !customerReference.trim()
+            }
+          />
+        </Spacings.Inline>
+      </Spacings.Stack>
+    </TabularDetailPage>
   );
 };
 

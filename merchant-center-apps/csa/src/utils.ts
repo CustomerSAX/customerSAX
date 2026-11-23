@@ -21,6 +21,7 @@ export const formatMoney = (money?: Money | null) => {
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency: money.currencyCode,
+    currencyDisplay: 'code',
   }).format(money.centAmount / 10 ** money.fractionDigits);
 };
 

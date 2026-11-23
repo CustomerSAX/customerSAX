@@ -1,9 +1,25 @@
 import {
   exactSearchPredicate,
+  formatMoney,
   idInPredicate,
   parseCsvPreview,
   rowsToCsv,
 } from './utils';
+
+describe('money formatting', () => {
+  it.each(['AUD', 'USD', 'EUR'])(
+    'shows the ISO currency code for %s',
+    (code) => {
+      expect(
+        formatMoney({
+          centAmount: 5700,
+          currencyCode: code,
+          fractionDigits: 2,
+        })
+      ).toContain(code);
+    }
+  );
+});
 
 describe('CSV utilities', () => {
   it('escapes commas, quotes, and newlines during export', () => {

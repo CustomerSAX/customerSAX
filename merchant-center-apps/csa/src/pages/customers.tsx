@@ -27,6 +27,7 @@ import { useIsAuthorized } from '@commercetools-frontend/permissions';
 import { actions, useAsyncDispatch } from '@commercetools-frontend/sdk';
 import CollapsiblePanel from '@commercetools-uikit/collapsible-panel';
 import DataTable from '@commercetools-uikit/data-table';
+import FlatButton from '@commercetools-uikit/flat-button';
 import Grid from '@commercetools-uikit/grid';
 import {
   useDataTableSortingState,
@@ -56,7 +57,12 @@ import {
   getErrorMessage,
   idInPredicate,
 } from '../utils';
-import { KeyValueGrid, ListPage, PageState } from '../components/common';
+import {
+  BackLink,
+  KeyValueGrid,
+  ListPage,
+  PageState,
+} from '../components/common';
 import {
   CustomerAddresses,
   CustomerCustomAttributes,
@@ -84,6 +90,27 @@ type CustomerDetailData = {
   customerGroups: QueryPage<CustomerGroup>;
   orders: QueryPage<Order>;
   carts: QueryPage<Cart>;
+};
+
+type CustomerTicket = {
+  id: string;
+  ticketNumber: string;
+  subject: string;
+  status: string;
+  priority: string;
+  category?: string | null;
+  assignee?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerId?: string | null;
+  lastModifiedAt?: string | null;
+};
+
+type CustomerTicketPage = {
+  results: CustomerTicket[];
+  total: number;
+  count: number;
+  offset: number;
 };
 
 const Customers = () => {
@@ -610,7 +637,11 @@ const CustomerDetail = (props: { onClose: () => void }) => {
               />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/returns`}>
-              <CustomerReturns rows={data?.orders.results ?? []} />
+              <CustomerReturns
+                rows={data?.orders.results ?? []}
+                baseUrl={`${base}/returns`}
+                applicationBase={applicationBase}
+              />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/payments`}>
               <CustomerPayments
@@ -625,7 +656,10 @@ const CustomerDetail = (props: { onClose: () => void }) => {
               />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/tickets`}>
-              <CustomerTickets />
+              <CustomerTickets
+                customer={customer}
+                applicationBase={applicationBase}
+              />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/password`}>
               <CustomerPassword customer={customer} />
@@ -1141,62 +1175,371 @@ const CustomerProfile = (props: {
 
 type CustomerReturnRow = {
   id: string;
+  orderId: string;
+  returnIndex: number;
   order: string;
   tracking: string;
+  itemCount: number;
   quantity: number;
   returnDate?: string | null;
   shipmentState: string;
   paymentState: string;
+  items: NonNullable<Order['returnInfo']>[number]['items'];
+  lineItems: NonNullable<Order['lineItems']>;
 };
 
-const CustomerReturns = ({ rows }: { rows: Order[] }) => {
-  const returns: CustomerReturnRow[] = rows.flatMap((order) =>
-    (order.returnInfo ?? []).flatMap((returnInfo, returnIndex) =>
-      returnInfo.items.map((item) => ({
-        id: `${order.id}-${returnIndex}-${item.id}`,
-        order: order.orderNumber ?? order.id,
-        tracking: returnInfo.returnTrackingId ?? '—',
-        quantity: item.quantity,
-        returnDate: returnInfo.returnDate,
-        shipmentState: item.shipmentState,
-        paymentState: item.paymentState,
-      }))
-    )
+const returnStateSummary = (states: string[]) =>
+  Array.from(new Set(states.filter(Boolean))).join(', ') || '—';
+
+const CustomerReturns = ({
+  rows,
+  baseUrl,
+  applicationBase,
+}: {
+  rows: Order[];
+  baseUrl: string;
+  applicationBase: string;
+}) => {
+  const history = useHistory();
+  const [search, setSearch] = useState('');
+  const detailMatch = useRouteMatch<{
+    orderId: string;
+    returnIndex: string;
+  }>({
+    path: `${baseUrl}/:orderId/:returnIndex`,
+    exact: true,
+  });
+  const returns = useMemo<CustomerReturnRow[]>(
+    () =>
+      rows.flatMap((order) =>
+        (order.returnInfo ?? []).map((returnInfo, returnIndex) => ({
+          id: `${order.id}-${returnIndex}`,
+          orderId: order.id,
+          returnIndex,
+          order: order.orderNumber ?? order.id,
+          tracking: returnInfo.returnTrackingId ?? '—',
+          itemCount: returnInfo.items.length,
+          quantity: returnInfo.items.reduce(
+            (total, item) => total + item.quantity,
+            0
+          ),
+          returnDate: returnInfo.returnDate,
+          shipmentState: returnStateSummary(
+            returnInfo.items.map((item) => item.shipmentState)
+          ),
+          paymentState: returnStateSummary(
+            returnInfo.items.map((item) => item.paymentState)
+          ),
+          items: returnInfo.items,
+          lineItems: order.lineItems ?? [],
+        }))
+      ),
+    [rows]
+  );
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredReturns = useMemo(
+    () =>
+      normalizedSearch
+        ? returns.filter((returnRow) =>
+            [
+              returnRow.order,
+              returnRow.tracking,
+              returnRow.shipmentState,
+              returnRow.paymentState,
+              ...returnRow.items.map((item) => item.comment ?? ''),
+              ...returnRow.lineItems.flatMap((lineItem) => [
+                lineItem.name ?? lineItem.nameAllLocales?.[0]?.value ?? '',
+                lineItem.variant?.sku ?? '',
+              ]),
+            ].some((value) => value.toLowerCase().includes(normalizedSearch))
+          )
+        : returns,
+    [normalizedSearch, returns]
+  );
+  const selectedReturn = detailMatch
+    ? returns.find(
+        (returnRow) =>
+          returnRow.orderId === detailMatch.params.orderId &&
+          returnRow.returnIndex === Number(detailMatch.params.returnIndex)
+      ) ?? null
+    : null;
+  const returnPath = (returnRow: CustomerReturnRow) =>
+    `${baseUrl}/${encodeURIComponent(returnRow.orderId)}/${
+      returnRow.returnIndex
+    }`;
+
+  if (detailMatch) {
+    return (
+      <Spacings.Stack scale="xl">
+        <BackLink to={baseUrl} label="Back to customer returns" />
+        <PageState
+          isEmpty={!selectedReturn}
+          emptyTitle="Return not found"
+          emptyBody="This return is not available for the selected customer."
+        >
+          {selectedReturn ? (
+            <CustomerReturnDetail
+              returnRow={selectedReturn}
+              onOpenOrderReturns={() =>
+                history.push(
+                  `${applicationBase}/orders/${selectedReturn.orderId}/returns`
+                )
+              }
+              onOpenOrderPayments={() =>
+                history.push(
+                  `${applicationBase}/orders/${selectedReturn.orderId}/payments`
+                )
+              }
+            />
+          ) : null}
+        </PageState>
+      </Spacings.Stack>
+    );
+  }
+
+  return (
+    <Spacings.Stack scale="l">
+      <TextField
+        name="customer-return-search"
+        title="Search returns"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Order number, tracking ID, product, SKU, or status"
+        horizontalConstraint={12}
+      />
+      <PageState
+        isEmpty={filteredReturns.length === 0}
+        emptyTitle={
+          normalizedSearch
+            ? 'No returns match your search'
+            : 'No returns for this customer'
+        }
+      >
+        <DataTable<CustomerReturnRow>
+          columns={[
+            { key: 'order', label: 'Order' },
+            { key: 'tracking', label: 'Return tracking' },
+            { key: 'returnDate', label: 'Return date' },
+            { key: 'itemCount', label: 'Items' },
+            { key: 'quantity', label: 'Quantity' },
+            { key: 'shipmentState', label: 'Shipment state' },
+            { key: 'paymentState', label: 'Payment state' },
+            { key: 'action', label: 'Action' },
+          ]}
+          rows={filteredReturns}
+          onRowClick={(returnRow) => history.push(returnPath(returnRow))}
+          itemRenderer={(item, column) => {
+            if (column.key === 'returnDate') return formatDate(item.returnDate);
+            if (column.key === 'action')
+              return (
+                <FlatButton
+                  label="View items breakdown"
+                  onClick={() => history.push(returnPath(item))}
+                />
+              );
+            return String(item[column.key as keyof CustomerReturnRow] ?? '—');
+          }}
+        />
+      </PageState>
+    </Spacings.Stack>
+  );
+};
+
+const CustomerReturnDetail = ({
+  returnRow,
+  onOpenOrderReturns,
+  onOpenOrderPayments,
+}: {
+  returnRow: CustomerReturnRow;
+  onOpenOrderReturns: () => void;
+  onOpenOrderPayments: () => void;
+}) => {
+  const itemRows = returnRow.items.map((item, itemIndex) => ({
+    ...item,
+    id: `${returnRow.id}-${item.id}-${itemIndex}`,
+    returnItemId: item.id,
+    lineItem: returnRow.lineItems.find((lineItem) => lineItem.id === item.id),
+  }));
+  const allRefunded = returnRow.items.every(
+    (item) => item.paymentState.toLowerCase() === 'refunded'
   );
 
   return (
+    <Spacings.Stack scale="xl">
+      <CollapsiblePanel
+        header={`Return details: ${returnRow.tracking}`}
+        isDefaultClosed={false}
+      >
+        <Spacings.Stack scale="l">
+          <KeyValueGrid
+            items={[
+              { label: 'Order number', value: returnRow.order },
+              { label: 'Return tracking ID', value: returnRow.tracking },
+              { label: 'Return date', value: formatDate(returnRow.returnDate) },
+              { label: 'Items', value: String(returnRow.itemCount) },
+              { label: 'Total quantity', value: String(returnRow.quantity) },
+              { label: 'Shipment state', value: returnRow.shipmentState },
+              { label: 'Payment state', value: returnRow.paymentState },
+            ]}
+          />
+          <Spacings.Inline scale="m">
+            <PrimaryButton
+              label="Open order returns"
+              onClick={onOpenOrderReturns}
+            />
+            <TabularDetailPage.FormSecondaryButton
+              label="Review order payments"
+              onClick={onOpenOrderPayments}
+            />
+          </Spacings.Inline>
+        </Spacings.Stack>
+      </CollapsiblePanel>
+
+      <ContentNotification type={allRefunded ? 'success' : 'info'}>
+        <Text.Body>
+          <strong>
+            {allRefunded
+              ? 'Refund recorded for every returned item.'
+              : 'Return request recorded; one or more items are not yet marked as refunded.'}
+          </strong>
+        </Text.Body>
+        <Text.Body>
+          Review the linked payment transactions before confirming any refund
+          with the customer.
+        </Text.Body>
+      </ContentNotification>
+
+      <CollapsiblePanel header="Line items breakdown" isDefaultClosed={false}>
+        <DataTable<(typeof itemRows)[number]>
+          columns={[
+            { key: 'product', label: 'Product' },
+            { key: 'sku', label: 'SKU' },
+            { key: 'quantity', label: 'Quantity' },
+            { key: 'shipmentState', label: 'Shipment state' },
+            { key: 'paymentState', label: 'Payment state' },
+            { key: 'comment', label: 'Comment' },
+          ]}
+          rows={itemRows}
+          itemRenderer={(item, column) => {
+            if (column.key === 'product')
+              return (
+                item.lineItem?.name ??
+                item.lineItem?.nameAllLocales?.[0]?.value ??
+                item.returnItemId
+              );
+            if (column.key === 'sku') return item.lineItem?.variant?.sku ?? '—';
+            if (column.key === 'quantity') return String(item.quantity);
+            if (column.key === 'comment') return item.comment ?? '—';
+            if (column.key === 'shipmentState') return item.shipmentState;
+            return item.paymentState;
+          }}
+        />
+      </CollapsiblePanel>
+    </Spacings.Stack>
+  );
+};
+
+const CustomerTickets = (props: {
+  customer: Customer;
+  applicationBase: string;
+}) => {
+  const dispatch = useAsyncDispatch();
+  const history = useHistory();
+  const { projectKey, ticketApiUrl } = useApplicationContext<
+    { projectKey?: string; ticketApiUrl: string },
+    { csaTicketApiUrl?: string }
+  >((context) => ({
+    projectKey: context.project?.key,
+    ticketApiUrl: context.environment.csaTicketApiUrl?.trim() ?? '',
+  }));
+  const [state, setState] = useState<{
+    data?: CustomerTicketPage;
+    loading: boolean;
+    error?: unknown;
+  }>({ loading: false });
+
+  useEffect(() => {
+    if (!ticketApiUrl || !projectKey || !props.customer.email) {
+      setState({ loading: false });
+      return;
+    }
+
+    let isCurrentRequest = true;
+    setState((current) => ({ ...current, loading: true, error: undefined }));
+    dispatch(
+      actions.forwardTo.post({
+        uri: ticketApiUrl,
+        audiencePolicy: 'forward-url-origin',
+        includeUserPermissions: true,
+        payload: {
+          customerEmail: props.customer.email,
+          limit: 100,
+          offset: 0,
+          sortKey: 'lastModifiedAt',
+          sortOrder: 'desc',
+        },
+      })
+    ).then(
+      (response) => {
+        if (!isCurrentRequest) return;
+        setState({ data: response as CustomerTicketPage, loading: false });
+      },
+      (requestError: unknown) => {
+        if (!isCurrentRequest) return;
+        setState({ loading: false, error: requestError });
+      }
+    );
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [dispatch, projectKey, props.customer.email, ticketApiUrl]);
+
+  const rows = state.data?.results ?? [];
+  const configurationError = !ticketApiUrl
+    ? new Error(
+        'Ticket integration is not configured. Set CSA_MC_TICKET_API_URL and redeploy this application.'
+      )
+    : !projectKey
+    ? new Error('Select a commercetools project to load tickets.')
+    : undefined;
+
+  return (
     <PageState
-      isEmpty={returns.length === 0}
-      emptyTitle="No returns for this customer"
+      loading={state.loading}
+      error={configurationError ?? state.error}
+      isEmpty={!state.loading && !state.error && rows.length === 0}
+      emptyTitle="No tickets for this customer"
+      emptyBody="No tickets match this customer's email address."
     >
-      <DataTable<CustomerReturnRow>
+      <DataTable<CustomerTicket>
         columns={[
-          { key: 'order', label: 'Order' },
-          { key: 'tracking', label: 'Return tracking' },
-          { key: 'quantity', label: 'Quantity' },
-          { key: 'shipmentState', label: 'Shipment state' },
-          { key: 'paymentState', label: 'Payment state' },
-          { key: 'returnDate', label: 'Return date' },
+          { key: 'ticketNumber', label: 'Ticket' },
+          { key: 'subject', label: 'Subject' },
+          { key: 'status', label: 'Status' },
+          { key: 'priority', label: 'Priority' },
+          { key: 'category', label: 'Category' },
+          { key: 'assignee', label: 'Assignee' },
+          { key: 'lastModifiedAt', label: 'Modified' },
         ]}
-        rows={returns}
-        itemRenderer={(item, column) =>
-          column.key === 'returnDate'
-            ? formatDate(item.returnDate)
-            : String(item[column.key as keyof CustomerReturnRow] ?? '—')
+        rows={rows}
+        itemRenderer={(item, column) => {
+          if (column.key === 'lastModifiedAt')
+            return formatDate(item.lastModifiedAt);
+          return String(item[column.key as keyof CustomerTicket] ?? '—');
+        }}
+        onRowClick={(ticket) =>
+          history.push(
+            `${props.applicationBase}/tickets/${encodeURIComponent(
+              ticket.id
+            )}/general`,
+            { ticket }
+          )
         }
       />
     </PageState>
   );
 };
-
-const CustomerTickets = () => (
-  <ContentNotification type="info">
-    <Text.Body>
-      Ticket data is unavailable until the standalone CSA ticket adapter is
-      configured. No ticket data is inferred from commercetools customers.
-    </Text.Body>
-  </ContentNotification>
-);
 
 const OrderTable = ({
   rows,
