@@ -23,5 +23,8 @@ CLAUDE.local.md
 # Graphify's generated knowledge-graph output — regenerable, keep the repo diff-clean
 graphify-out/
 
+# Legacy Merchant Center app kept locally as a migration reference
+merchant-center-apps/rc-csa/
+
 .vercel
 .env*

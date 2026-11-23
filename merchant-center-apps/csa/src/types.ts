@@ -72,6 +72,7 @@ export type Cart = {
     totalPrice: Money;
     variant?: { sku?: string | null } | null;
   }>;
+  discountCodes?: DiscountCodeInfo[];
   custom?: { customFieldsRaw?: RawCustomField[] | null } | null;
 };
 
@@ -100,7 +101,10 @@ export type ReturnInfo = {
 export type Payment = {
   id: string;
   amountPlanned: Money;
-  paymentMethodInfo?: { method?: string | null; name?: string | null } | null;
+  paymentMethodInfo?: {
+    method?: string | null;
+    name?: string | Record<string, string> | null;
+  } | null;
   transactions: Array<{
     id: string;
     timestamp?: string | null;
@@ -108,6 +112,42 @@ export type Payment = {
     state: string;
     amount: Money;
   }>;
+};
+
+export type DiscountCode = {
+  id: string;
+  code: string;
+  name?: Record<string, string>;
+};
+
+export type DiscountCodeInfo = {
+  state: string;
+  discountCode: {
+    id: string;
+    code?: string;
+    nameAllLocales?: Array<{ locale: string; value: string }>;
+    obj?: DiscountCode;
+  };
+};
+
+export type ShoppingList = {
+  id: string;
+  key?: string;
+  name: Record<string, string>;
+  description?: Record<string, string>;
+  lineItems?: Array<{
+    id: string;
+    productId: string;
+    variantId: number;
+    quantity: number;
+  }>;
+  textLineItems?: Array<{
+    id: string;
+    name: Record<string, string>;
+    quantity: number;
+  }>;
+  createdAt: string;
+  lastModifiedAt: string;
 };
 
 export type Order = {
@@ -167,4 +207,42 @@ export type QueryPage<T> = {
   count: number;
   offset: number;
   results: T[];
+};
+
+export type LocalizedValue = { locale: string; value: string };
+
+export type ProductVariant = {
+  id: number;
+  sku?: string | null;
+  key?: string | null;
+  images?: Array<{ url: string; label?: string | null }>;
+  prices?: Array<{ value: Money }>;
+  availability?: {
+    noChannel?: {
+      isOnStock?: boolean | null;
+      availableQuantity?: number | null;
+    } | null;
+  } | null;
+  attributesRaw?: RawCustomField[];
+};
+
+export type Product = {
+  id: string;
+  version: number;
+  key?: string | null;
+  createdAt: string;
+  lastModifiedAt: string;
+  priceMode?: string | null;
+  productType: { id: string; name: string };
+  taxCategory?: { id: string; name: string } | null;
+  masterData: {
+    published: boolean;
+    current: {
+      nameAllLocales: LocalizedValue[];
+      descriptionAllLocales?: LocalizedValue[];
+      categories?: Array<{ id: string; name?: string | null }>;
+      masterVariant?: ProductVariant;
+      allVariants: ProductVariant[];
+    };
+  };
 };

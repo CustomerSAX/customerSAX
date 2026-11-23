@@ -37,13 +37,26 @@ const config = {
     },
     {
       name: PERMISSION_GROUPS.carts,
-      view: ['view_orders'],
+      // Cart agents need catalogue access to search for variants when adding
+      // line items. Keep this in the Carts permission group so the workflow
+      // does not depend on a second CSA permission-group assignment.
+      view: ['view_orders', 'view_products'],
       manage: ['manage_orders'],
     },
     {
       name: PERMISSION_GROUPS.orders,
       view: ['view_orders', 'view_payments'],
       manage: ['manage_orders'],
+    },
+    {
+      name: PERMISSION_GROUPS.products,
+      view: ['view_products'],
+      manage: [],
+    },
+    {
+      name: PERMISSION_GROUPS.shoppingLists,
+      view: ['view_shopping_lists'],
+      manage: ['manage_shopping_lists'],
     },
     {
       name: PERMISSION_GROUPS.importExport,
@@ -94,6 +107,12 @@ const config = {
       permissions: [PERMISSIONS.ViewOrders],
     },
     {
+      uriPath: 'products',
+      defaultLabel: 'Products',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.ViewProducts],
+    },
+    {
       uriPath: 'tickets',
       defaultLabel: 'Tickets',
       labelAllLocales: [],
@@ -116,6 +135,12 @@ const config = {
       defaultLabel: 'Custom Attributes',
       labelAllLocales: [],
       permissions: [PERMISSIONS.ViewCustomAttributes],
+    },
+    {
+      uriPath: 'knowledge-base',
+      defaultLabel: 'Knowledge Base',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.View],
     },
   ],
 };

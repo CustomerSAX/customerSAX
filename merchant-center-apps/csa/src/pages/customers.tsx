@@ -34,6 +34,7 @@ import {
 } from '@commercetools-uikit/hooks';
 import { Pagination } from '@commercetools-uikit/pagination';
 import { ContentNotification } from '@commercetools-uikit/notifications';
+import PrimaryButton from '@commercetools-uikit/primary-button';
 import SelectField from '@commercetools-uikit/select-field';
 import Spacings from '@commercetools-uikit/spacings';
 import Text from '@commercetools-uikit/text';
@@ -49,7 +50,6 @@ import {
 import type { Cart, Customer, CustomerGroup, Order, QueryPage } from '../types';
 import {
   displayName,
-  formatAddress,
   formatDate,
   formatMoney,
   getErrorMessage,
@@ -61,6 +61,14 @@ import {
   ListPage,
   PageState,
 } from '../components/common';
+import {
+  CustomerAddresses,
+  CustomerPassword,
+  CustomerPayments,
+  CustomerPromotions,
+  CustomerWishlists,
+  PasswordInput,
+} from './customer-b2c-tabs';
 
 type CustomersData = { customers: QueryPage<Customer> };
 type CustomerSearchResponse = {
@@ -87,6 +95,9 @@ const Customers = () => {
 
   return (
     <Switch>
+      <SuspendedRoute exact path={`${match.path}/new`}>
+        <CustomerCreate onClose={() => history.push(match.url)} />
+      </SuspendedRoute>
       <SuspendedRoute path={`${match.path}/:id`}>
         <CustomerDetail onClose={() => history.push(match.url)} />
       </SuspendedRoute>
@@ -232,6 +243,12 @@ const CustomerList = (props: { baseUrl: string }) => {
     <ListPage
       title="Customers"
       subtitle="Registered B2C customers in the selected commercetools project"
+      controls={
+        <PrimaryButton
+          label="Add customer"
+          onClick={() => history.push(`${props.baseUrl}/new`)}
+        />
+      }
     >
       <Spacings.Stack scale="l">
         <TextField
@@ -296,6 +313,205 @@ const CustomerList = (props: { baseUrl: string }) => {
   );
 };
 
+type CustomerDraft = {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  firstName: string;
+  lastName: string;
+  companyName: string;
+};
+
+const CustomerCreate = (props: { onClose: () => void }) => {
+  const projectKey = useApplicationContext((context) => context.project?.key);
+  const history = useHistory();
+  const match = useRouteMatch();
+  const dispatch = useAsyncDispatch();
+  const showNotification = useShowNotification();
+  const canManage = useIsAuthorized({
+    demandedPermissions: [PERMISSIONS.ManageCustomers],
+  });
+  const [draft, setDraft] = useState<CustomerDraft>({
+    email: '',
+    password: '',
+    confirmPassword: '',
+    firstName: '',
+    lastName: '',
+    companyName: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const passwordTooShort =
+    draft.password.length > 0 && draft.password.length < 8;
+  const passwordMismatch =
+    draft.confirmPassword.length > 0 &&
+    draft.password !== draft.confirmPassword;
+  const emailInvalid =
+    draft.email.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email);
+
+  const update = (name: keyof CustomerDraft, value: string) =>
+    setDraft((current) => ({ ...current, [name]: value }));
+
+  const save = async () => {
+    if (
+      !projectKey ||
+      !canManage ||
+      !draft.email ||
+      !draft.password ||
+      passwordTooShort ||
+      passwordMismatch ||
+      emailInvalid
+    )
+      return;
+    setSaving(true);
+    setError(undefined);
+    try {
+      const created = (await dispatch(
+        actions.post({
+          mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+          uri: `/${projectKey}/customers`,
+          payload: {
+            email: draft.email.trim(),
+            password: draft.password,
+            firstName: draft.firstName.trim() || undefined,
+            lastName: draft.lastName.trim() || undefined,
+            companyName: draft.companyName.trim() || undefined,
+          },
+        })
+      )) as Customer;
+      showNotification({
+        domain: NOTIFICATION_DOMAINS.SIDE,
+        kind: NOTIFICATION_KINDS_SIDE.success,
+        text: 'B2C customer created.',
+      });
+      history.replace(
+        `${match.url.replace(/\/new$/, '')}/${created.id}/summary`
+      );
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <TabularDetailPage
+      title="Add B2C customer"
+      subtitle="Create a customer account in the selected commercetools project"
+      previousPathLabel="Go to View Customers"
+      onPreviousPathClick={props.onClose}
+      tabControls={<TabHeader to={match.url} label="Customer" />}
+      hideControls
+    >
+      <Spacings.Stack scale="l">
+        {!canManage ? (
+          <ContentNotification type="warning">
+            <Text.Body>
+              Manage-customer permission is required to create a customer.
+            </Text.Body>
+          </ContentNotification>
+        ) : null}
+        <Grid gridGap="24px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
+          <Grid.Item>
+            <TextField
+              name="firstName"
+              title="First name"
+              value={draft.firstName}
+              onChange={(event) => update('firstName', event.target.value)}
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="lastName"
+              title="Last name"
+              value={draft.lastName}
+              onChange={(event) => update('lastName', event.target.value)}
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="email"
+              title="Email"
+              value={draft.email}
+              onChange={(event) => update('email', event.target.value)}
+              isRequired
+              isDisabled={!canManage || saving}
+              errors={{ invalidEmail: emailInvalid }}
+              touched={draft.email.length > 0}
+              renderError={(key) =>
+                key === 'invalidEmail' ? 'Enter a valid email address.' : null
+              }
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="companyName"
+              title="Company name"
+              value={draft.companyName}
+              onChange={(event) => update('companyName', event.target.value)}
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <PasswordInput
+              name="password"
+              title="Password"
+              value={draft.password}
+              onChange={(value) => update('password', value)}
+              isDisabled={!canManage || saving}
+              error={
+                passwordTooShort ? 'Use at least 8 characters.' : undefined
+              }
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <PasswordInput
+              name="confirmPassword"
+              title="Confirm password"
+              value={draft.confirmPassword}
+              onChange={(value) => update('confirmPassword', value)}
+              isDisabled={!canManage || saving}
+              error={passwordMismatch ? 'Passwords must match.' : undefined}
+            />
+          </Grid.Item>
+        </Grid>
+        {error ? (
+          <ContentNotification type="error">
+            <Text.Body>{getErrorMessage(error)}</Text.Body>
+          </ContentNotification>
+        ) : null}
+        <Spacings.Inline scale="m">
+          <TabularDetailPage.FormSecondaryButton
+            label="Cancel"
+            onClick={props.onClose}
+            isDisabled={saving}
+          />
+          <TabularDetailPage.FormPrimaryButton
+            label={saving ? 'Creating…' : 'Create customer'}
+            onClick={() => void save()}
+            isDisabled={
+              !canManage ||
+              saving ||
+              !draft.email ||
+              !draft.password ||
+              !draft.confirmPassword ||
+              passwordTooShort ||
+              passwordMismatch ||
+              emailInvalid
+            }
+          />
+        </Spacings.Inline>
+      </Spacings.Stack>
+    </TabularDetailPage>
+  );
+};
+
 const CustomerDetail = (props: { onClose: () => void }) => {
   const { id } = useParams<{ id: string }>();
   const match = useRouteMatch();
@@ -336,8 +552,12 @@ const CustomerDetail = (props: { onClose: () => void }) => {
           <TabHeader to={`${base}/carts`} label="Carts" />
           <TabHeader to={`${base}/orders`} label="Orders" />
           <TabHeader to={`${base}/returns`} label="Returns" />
+          <TabHeader to={`${base}/payments`} label="Payments" />
           <TabHeader to={`${base}/addresses`} label="Addresses" />
           <TabHeader to={`${base}/tickets`} label="Tickets" />
+          <TabHeader to={`${base}/password`} label="Password" />
+          <TabHeader to={`${base}/wishlists`} label="Wishlists" />
+          <TabHeader to={`${base}/promotions`} label="Promotions" />
           <TabHeader
             to={`${base}/custom-attributes`}
             label="Custom Attributes"
@@ -390,11 +610,26 @@ const CustomerDetail = (props: { onClose: () => void }) => {
             <SuspendedRoute path={`${base}/returns`}>
               <CustomerReturns rows={data?.orders.results ?? []} />
             </SuspendedRoute>
+            <SuspendedRoute path={`${base}/payments`}>
+              <CustomerPayments customerId={customer.id} />
+            </SuspendedRoute>
             <SuspendedRoute path={`${base}/addresses`}>
-              <AddressTable addresses={customer.addresses ?? []} />
+              <CustomerAddresses
+                customer={customer}
+                onSaved={() => refetch()}
+              />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/tickets`}>
               <CustomerTickets />
+            </SuspendedRoute>
+            <SuspendedRoute path={`${base}/password`}>
+              <CustomerPassword customer={customer} />
+            </SuspendedRoute>
+            <SuspendedRoute path={`${base}/wishlists`}>
+              <CustomerWishlists customerId={customer.id} />
+            </SuspendedRoute>
+            <SuspendedRoute path={`${base}/promotions`}>
+              <CustomerPromotions customerId={customer.id} />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/custom-attributes`}>
               <CustomFieldsTable fields={customer.custom?.customFieldsRaw} />
@@ -826,34 +1061,6 @@ const CustomerTickets = () => (
     </Text.Body>
   </ContentNotification>
 );
-
-const AddressTable = ({
-  addresses,
-}: {
-  addresses: NonNullable<Customer['addresses']>;
-}) => {
-  const rows = addresses.map((address, index) => ({
-    ...address,
-    id: address.id ?? `address-${index}`,
-  }));
-  return (
-    <PageState isEmpty={addresses.length === 0} emptyTitle="No addresses">
-      <DataTable<(typeof rows)[number]>
-        columns={[
-          { key: 'address', label: 'Address' },
-          { key: 'email', label: 'Email' },
-          { key: 'phone', label: 'Phone' },
-        ]}
-        rows={rows}
-        itemRenderer={(item, column) =>
-          column.key === 'address'
-            ? formatAddress(item)
-            : String(item[column.key as 'email' | 'phone'] ?? '—')
-        }
-      />
-    </PageState>
-  );
-};
 
 const OrderTable = ({
   rows,

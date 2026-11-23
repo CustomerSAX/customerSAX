@@ -11,12 +11,12 @@ This application is deliberately isolated from the CustomerSAX workspace:
 
 ## Application identity
 
-| Setting | Value |
-| --- | --- |
-| Name and menu label | `CSA` |
-| Entry-point URI path | `csa` |
-| Development project | `spotlightstores-demo` |
-| Cloud identifier | `gcp-us` |
+| Setting              | Value                  |
+| -------------------- | ---------------------- |
+| Name and menu label  | `CSA`                  |
+| Entry-point URI path | `csa`                  |
+| Development project  | `spotlightstores-demo` |
+| Cloud identifier     | `gcp-us`               |
 
 ## Local development
 
@@ -67,7 +67,10 @@ The Application ID is only available after the application is registered in Merc
 6. Copy the generated Application ID into `CSA_MC_APPLICATION_ID`, rebuild, and redeploy.
 7. Move the application to **Ready**, install it for the intended projects, and assign CSA permissions to Merchant Center teams.
 
-The configured scopes are narrowly grouped around customers, carts/orders, payments, import/export, and Types. Do not replace them with `manage_project`.
+The configured scopes are narrowly grouped around customers, carts/orders,
+payments, products, import/export, and Types. The **Carts** permission group
+also includes `view_products`, because adding a cart line item requires
+catalogue search access. Do not replace these scopes with `manage_project`.
 
 ## Deployment
 
@@ -79,11 +82,11 @@ The default CSP is inferred from the `gcp-us` cloud identifier and production UR
 
 Import this repository into Vercel and configure the project as follows:
 
-| Setting | Value |
-| --- | --- |
-| Root Directory | `merchant-center-apps/csa` |
-| Framework Preset | `Other` |
-| Node.js | `26.x` |
+| Setting          | Value                      |
+| ---------------- | -------------------------- |
+| Root Directory   | `merchant-center-apps/csa` |
+| Framework Preset | `Other`                    |
+| Node.js          | `26.x`                     |
 
 The committed `vercel.json` installs dependencies, builds the static app into
 `public/`, enables the JSX transform, and rewrites all Merchant Center deep
@@ -122,13 +125,40 @@ When introduced, the backend must:
 ## Available routes
 
 - `/dashboard`
-- `/customers` and `/customers/:id`
+- `/customers`, `/customers/new`, and `/customers/:id`
 - `/carts` and `/carts/:id`
 - `/orders` and `/orders/:id`
 - `/returns`
+- `/products` and `/products/:id`
 - `/tickets`
 - `/import`
 - `/export`
 - `/custom-attributes`
+- `/knowledge-base`
 
 The root `/:projectKey/csa` route redirects to the dashboard. Submenu visibility and direct-route access are both permission protected.
+
+## B2C feature set
+
+The modern `csa` application carries forward the B2C-capable parts of the
+legacy `rc-csa` experience without importing its obsolete runtime, embedded
+credentials, or B2B-only integrations.
+
+- Customer list, prefix search, creation, and editable 360-degree profile.
+- Customer summary, carts, orders, returns, payments, addresses, tickets,
+  password reset, wishlists, promotions, and custom attributes.
+- Cart detail, line-item quantity changes, discount-code management, and order
+  placement.
+- Order detail, order/payment/shipment state changes, return creation,
+  delivery/payment views, comments view, and custom attributes.
+- Product catalogue browsing with searchable page results, full product
+  details, variants, prices, inventory, and attributes.
+- A B2C support knowledge base with FAQs and troubleshooting guidance.
+- Click-through navigation from customer rows to customer 360, and from cart
+  and order rows to their full detail screens.
+
+Companies, business units, associates, quotes, budgets, approval rules, and
+other B2B resources are intentionally excluded. Legacy ATG, AI-agent, ticket,
+and promotion microservices are also not copied into the browser application;
+those capabilities require independently authenticated backends. Native
+commercetools B2C resources continue to work without such a backend.

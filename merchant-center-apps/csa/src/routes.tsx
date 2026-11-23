@@ -11,7 +11,9 @@ const Customers = lazy(() => import('./pages/customers'));
 const Carts = lazy(() => import('./pages/carts'));
 const Orders = lazy(() => import('./pages/orders'));
 const Returns = lazy(() => import('./pages/returns'));
+const Products = lazy(() => import('./pages/products'));
 const Tickets = lazy(() => import('./pages/tickets'));
+const KnowledgeBase = lazy(() => import('./pages/knowledge-base'));
 const CustomAttributes = lazy(() => import('./pages/custom-attributes'));
 const ImportPage = lazy(() =>
   import('./pages/data-management').then((module) => ({
@@ -64,6 +66,11 @@ const ApplicationRoutes = () => {
             <Returns />
           </Authorized>
         </SuspendedRoute>
+        <SuspendedRoute path={`${match.path}/products`}>
+          <Authorized permission={PERMISSIONS.ViewProducts}>
+            <Products />
+          </Authorized>
+        </SuspendedRoute>
         <SuspendedRoute path={`${match.path}/tickets`}>
           <Authorized permission={PERMISSIONS.View}>
             <Tickets />
@@ -82,6 +89,11 @@ const ApplicationRoutes = () => {
         <SuspendedRoute path={`${match.path}/custom-attributes`}>
           <Authorized permission={PERMISSIONS.ViewCustomAttributes}>
             <CustomAttributes />
+          </Authorized>
+        </SuspendedRoute>
+        <SuspendedRoute path={`${match.path}/knowledge-base`}>
+          <Authorized permission={PERMISSIONS.View}>
+            <KnowledgeBase />
           </Authorized>
         </SuspendedRoute>
         <Route>
