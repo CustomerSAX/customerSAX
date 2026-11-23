@@ -4,11 +4,20 @@ import {
   SuspendedRoute,
   useMcQuery,
 } from '@commercetools-frontend/application-shell';
+import { useShowNotification } from '@commercetools-frontend/actions-global';
+import { useApplicationContext } from '@commercetools-frontend/application-shell-connectors';
 import {
   TabHeader,
   TabularDetailPage,
 } from '@commercetools-frontend/application-components';
-import { GRAPHQL_TARGETS } from '@commercetools-frontend/constants';
+import {
+  GRAPHQL_TARGETS,
+  MC_API_PROXY_TARGETS,
+  NOTIFICATION_DOMAINS,
+  NOTIFICATION_KINDS_SIDE,
+} from '@commercetools-frontend/constants';
+import { useIsAuthorized } from '@commercetools-frontend/permissions';
+import { actions, useAsyncDispatch } from '@commercetools-frontend/sdk';
 import CollapsiblePanel from '@commercetools-uikit/collapsible-panel';
 import DataTable from '@commercetools-uikit/data-table';
 import Grid from '@commercetools-uikit/grid';
@@ -18,16 +27,19 @@ import {
 } from '@commercetools-uikit/hooks';
 import { ContentNotification } from '@commercetools-uikit/notifications';
 import { Pagination } from '@commercetools-uikit/pagination';
+import SelectField from '@commercetools-uikit/select-field';
 import Spacings from '@commercetools-uikit/spacings';
 import Text from '@commercetools-uikit/text';
 import TextField from '@commercetools-uikit/text-field';
 import { ORDER_DETAIL_QUERY, ORDERS_QUERY } from '../graphql';
+import { PERMISSIONS } from '../constants';
 import type { Order, QueryPage } from '../types';
 import {
   exactSearchPredicate,
   formatAddress,
   formatDate,
   formatMoney,
+  getErrorMessage,
 } from '../utils';
 import {
   CustomFieldsTable,
@@ -141,7 +153,7 @@ const OrderList = (props: { baseUrl: string }) => {
 const OrderDetail = (props: { onClose: () => void }) => {
   const { id } = useParams<{ id: string }>();
   const match = useRouteMatch();
-  const { data, loading, error } = useMcQuery<OrderDetailData>(
+  const { data, loading, error, refetch } = useMcQuery<OrderDetailData>(
     ORDER_DETAIL_QUERY,
     {
       variables: { id },
@@ -187,7 +199,7 @@ const OrderDetail = (props: { onClose: () => void }) => {
               <ShippingTab order={order} />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/returns`}>
-              <ReturnsTab order={order} />
+              <ReturnsTab order={order} onSaved={() => refetch()} />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/payments`}>
               <PaymentsTab order={order} />
@@ -205,7 +217,7 @@ const OrderDetail = (props: { onClose: () => void }) => {
               <CustomFieldsTable fields={order.custom?.customFieldsRaw} />
             </SuspendedRoute>
             <SuspendedRoute>
-              <OrderGeneral order={order} />
+              <OrderGeneral order={order} onSaved={() => refetch()} />
             </SuspendedRoute>
           </Switch>
         ) : null}
@@ -214,20 +226,34 @@ const OrderDetail = (props: { onClose: () => void }) => {
   );
 };
 
-const OrderGeneral = ({ order }: { order: Order }) => (
+const OrderGeneral = (props: {
+  order: Order;
+  onSaved: () => Promise<unknown>;
+}) => (
   <Spacings.Stack scale="xl">
+    <OrderStateEditor {...props} />
     <CollapsiblePanel header="Order summary" isDefaultClosed={false}>
       <Grid gridGap="24px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
         <Grid.Item>
           <KeyValueGrid
             items={[
-              { label: 'Order', value: order.orderNumber ?? order.id },
-              { label: 'Order state', value: order.orderState },
-              { label: 'Payment state', value: order.paymentState ?? '—' },
-              { label: 'Shipment state', value: order.shipmentState ?? '—' },
+              {
+                label: 'Order',
+                value: props.order.orderNumber ?? props.order.id,
+              },
+              { label: 'Order state', value: props.order.orderState },
+              {
+                label: 'Payment state',
+                value: props.order.paymentState ?? '—',
+              },
+              {
+                label: 'Shipment state',
+                value: props.order.shipmentState ?? '—',
+              },
               {
                 label: 'Customer',
-                value: order.customerEmail ?? order.customerId ?? '—',
+                value:
+                  props.order.customerEmail ?? props.order.customerId ?? '—',
               },
             ]}
           />
@@ -235,9 +261,15 @@ const OrderGeneral = ({ order }: { order: Order }) => (
         <Grid.Item>
           <KeyValueGrid
             items={[
-              { label: 'Order total', value: formatMoney(order.totalPrice) },
-              { label: 'Created', value: formatDate(order.createdAt) },
-              { label: 'Modified', value: formatDate(order.lastModifiedAt) },
+              {
+                label: 'Order total',
+                value: formatMoney(props.order.totalPrice),
+              },
+              { label: 'Created', value: formatDate(props.order.createdAt) },
+              {
+                label: 'Modified',
+                value: formatDate(props.order.lastModifiedAt),
+              },
             ]}
           />
         </Grid.Item>
@@ -245,7 +277,7 @@ const OrderGeneral = ({ order }: { order: Order }) => (
     </CollapsiblePanel>
     <CollapsiblePanel header="Order items" isDefaultClosed={false}>
       <PageState
-        isEmpty={(order.lineItems ?? []).length === 0}
+        isEmpty={(props.order.lineItems ?? []).length === 0}
         emptyTitle="No line items"
       >
         <DataTable
@@ -256,7 +288,7 @@ const OrderGeneral = ({ order }: { order: Order }) => (
             { key: 'quantity', label: 'Qty' },
             { key: 'totalPrice', label: 'Total price' },
           ]}
-          rows={order.lineItems ?? []}
+          rows={props.order.lineItems ?? []}
           itemRenderer={(item, column) =>
             column.key === 'name'
               ? item.name ??
@@ -286,7 +318,7 @@ const OrderGeneral = ({ order }: { order: Order }) => (
           <Text.Subheadline as="h4">Shipping address</Text.Subheadline>
           <Text.Body>
             <span style={{ whiteSpace: 'pre-line' }}>
-              {formatAddress(order.shippingAddress)}
+              {formatAddress(props.order.shippingAddress)}
             </span>
           </Text.Body>
         </Grid.Item>
@@ -294,7 +326,7 @@ const OrderGeneral = ({ order }: { order: Order }) => (
           <Text.Subheadline as="h4">Billing address</Text.Subheadline>
           <Text.Body>
             <span style={{ whiteSpace: 'pre-line' }}>
-              {formatAddress(order.billingAddress)}
+              {formatAddress(props.order.billingAddress)}
             </span>
           </Text.Body>
         </Grid.Item>
@@ -302,6 +334,143 @@ const OrderGeneral = ({ order }: { order: Order }) => (
     </CollapsiblePanel>
   </Spacings.Stack>
 );
+
+const orderStateOptions = ['Open', 'Confirmed', 'Complete', 'Cancelled'].map(
+  (value) => ({ value, label: value })
+);
+const paymentStateOptions = [
+  'BalanceDue',
+  'Pending',
+  'Failed',
+  'Paid',
+  'CreditOwed',
+].map((value) => ({ value, label: value }));
+const shipmentStateOptions = [
+  'Pending',
+  'Ready',
+  'Shipped',
+  'Delayed',
+  'Partial',
+  'Backorder',
+].map((value) => ({ value, label: value }));
+
+const OrderStateEditor = (props: {
+  order: Order;
+  onSaved: () => Promise<unknown>;
+}) => {
+  const projectKey = useApplicationContext((context) => context.project?.key);
+  const dispatch = useAsyncDispatch();
+  const showNotification = useShowNotification();
+  const canManage = useIsAuthorized({
+    demandedPermissions: [PERMISSIONS.ManageOrders],
+  });
+  const [orderState, setOrderState] = useState(props.order.orderState);
+  const [paymentState, setPaymentState] = useState(
+    props.order.paymentState ?? ''
+  );
+  const [shipmentState, setShipmentState] = useState(
+    props.order.shipmentState ?? ''
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>();
+
+  const save = async () => {
+    if (!projectKey || !canManage) return;
+    const updateActions: Array<Record<string, string>> = [];
+    if (orderState !== props.order.orderState)
+      updateActions.push({ action: 'changeOrderState', orderState });
+    if (paymentState !== (props.order.paymentState ?? ''))
+      updateActions.push({ action: 'changePaymentState', paymentState });
+    if (shipmentState !== (props.order.shipmentState ?? ''))
+      updateActions.push({ action: 'changeShipmentState', shipmentState });
+    if (updateActions.length === 0) return;
+    setSaving(true);
+    setError(undefined);
+    try {
+      await dispatch(
+        actions.post({
+          mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+          uri: `/${projectKey}/orders/${props.order.id}`,
+          payload: { version: props.order.version, actions: updateActions },
+        })
+      );
+      await props.onSaved();
+      showNotification({
+        domain: NOTIFICATION_DOMAINS.SIDE,
+        kind: NOTIFICATION_KINDS_SIDE.success,
+        text: 'Order states updated.',
+      });
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hasChanges =
+    orderState !== props.order.orderState ||
+    paymentState !== (props.order.paymentState ?? '') ||
+    shipmentState !== (props.order.shipmentState ?? '');
+
+  return (
+    <CollapsiblePanel header="Order operations" isDefaultClosed={false}>
+      <Spacings.Stack scale="l">
+        {!canManage ? (
+          <ContentNotification type="warning">
+            <Text.Body>
+              You can view this order, but your CSA role cannot update it.
+            </Text.Body>
+          </ContentNotification>
+        ) : null}
+        <Grid gridGap="24px" gridTemplateColumns="repeat(3, minmax(0, 1fr))">
+          <Grid.Item>
+            <SelectField
+              name="orderState"
+              title="Order state"
+              value={orderState}
+              options={orderStateOptions}
+              onChange={(event) => setOrderState(String(event.target.value))}
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <SelectField
+              name="paymentState"
+              title="Payment state"
+              value={paymentState || null}
+              options={paymentStateOptions}
+              onChange={(event) => setPaymentState(String(event.target.value))}
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <SelectField
+              name="shipmentState"
+              title="Shipment state"
+              value={shipmentState || null}
+              options={shipmentStateOptions}
+              onChange={(event) => setShipmentState(String(event.target.value))}
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+        </Grid>
+        {error ? (
+          <ContentNotification type="error">
+            <Text.Body>{getErrorMessage(error)}</Text.Body>
+          </ContentNotification>
+        ) : null}
+        <TabularDetailPage.FormPrimaryButton
+          label={saving ? 'Saving…' : 'Save states'}
+          onClick={() => void save()}
+          isDisabled={!canManage || saving || !hasChanges}
+        />
+      </Spacings.Stack>
+    </CollapsiblePanel>
+  );
+};
 
 const ShippingTab = ({ order }: { order: Order }) => {
   const deliveries = order.shippingInfo?.deliveries ?? [];
@@ -339,30 +508,178 @@ const ShippingTab = ({ order }: { order: Order }) => {
   );
 };
 
-const ReturnsTab = ({ order }: { order: Order }) => {
+const ReturnsTab = (props: {
+  order: Order;
+  onSaved: () => Promise<unknown>;
+}) => {
+  const { order } = props;
   const returns = order.returnInfo ?? [];
   const rows = returns.map((returnInfo, index) => ({
     ...returnInfo,
     id: returnInfo.returnTrackingId ?? `return-${index}`,
   }));
   return (
-    <PageState isEmpty={returns.length === 0} emptyTitle="No returns">
-      <DataTable<(typeof rows)[number]>
-        columns={[
-          { key: 'returnTrackingId', label: 'Tracking ID' },
-          { key: 'returnDate', label: 'Return date' },
-          { key: 'items', label: 'Items' },
-        ]}
-        rows={rows}
-        itemRenderer={(item, column) =>
-          column.key === 'returnDate'
-            ? formatDate(item.returnDate)
-            : column.key === 'items'
-            ? String(item.items.reduce((total, row) => total + row.quantity, 0))
-            : item.returnTrackingId ?? '—'
-        }
-      />
-    </PageState>
+    <Spacings.Stack scale="xl">
+      <ReturnCreator {...props} />
+      <PageState isEmpty={returns.length === 0} emptyTitle="No returns">
+        <DataTable<(typeof rows)[number]>
+          columns={[
+            { key: 'returnTrackingId', label: 'Tracking ID' },
+            { key: 'returnDate', label: 'Return date' },
+            { key: 'items', label: 'Items' },
+          ]}
+          rows={rows}
+          itemRenderer={(item, column) =>
+            column.key === 'returnDate'
+              ? formatDate(item.returnDate)
+              : column.key === 'items'
+              ? String(
+                  item.items.reduce((total, row) => total + row.quantity, 0)
+                )
+              : item.returnTrackingId ?? '—'
+          }
+        />
+      </PageState>
+    </Spacings.Stack>
+  );
+};
+
+const ReturnCreator = (props: {
+  order: Order;
+  onSaved: () => Promise<unknown>;
+}) => {
+  const projectKey = useApplicationContext((context) => context.project?.key);
+  const dispatch = useAsyncDispatch();
+  const showNotification = useShowNotification();
+  const canManage = useIsAuthorized({
+    demandedPermissions: [PERMISSIONS.ManageOrders],
+  });
+  const lineItems = props.order.lineItems ?? [];
+  const [lineItemId, setLineItemId] = useState(lineItems[0]?.id ?? '');
+  const [quantity, setQuantity] = useState('1');
+  const [trackingId, setTrackingId] = useState('');
+  const [comment, setComment] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const selectedItem = lineItems.find((item) => item.id === lineItemId);
+  const parsedQuantity = Number(quantity);
+  const invalidQuantity =
+    !Number.isInteger(parsedQuantity) ||
+    parsedQuantity < 1 ||
+    parsedQuantity > (selectedItem?.quantity ?? 0);
+
+  const createReturn = async () => {
+    if (!projectKey || !canManage || !lineItemId || invalidQuantity) return;
+    setSaving(true);
+    setError(undefined);
+    try {
+      await dispatch(
+        actions.post({
+          mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+          uri: `/${projectKey}/orders/${props.order.id}`,
+          payload: {
+            version: props.order.version,
+            actions: [
+              {
+                action: 'addReturnInfo',
+                returnTrackingId: trackingId.trim() || undefined,
+                returnDate: new Date().toISOString(),
+                items: [
+                  {
+                    lineItemId,
+                    quantity: parsedQuantity,
+                    shipmentState: 'Returned',
+                    comment: comment.trim() || undefined,
+                  },
+                ],
+              },
+            ],
+          },
+        })
+      );
+      await props.onSaved();
+      setTrackingId('');
+      setComment('');
+      showNotification({
+        domain: NOTIFICATION_DOMAINS.SIDE,
+        kind: NOTIFICATION_KINDS_SIDE.success,
+        text: 'Return added to order.',
+      });
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <CollapsiblePanel header="Create return" isDefaultClosed>
+      <Spacings.Stack scale="l">
+        <Grid gridGap="24px" gridTemplateColumns="repeat(2, minmax(0, 1fr))">
+          <Grid.Item>
+            <SelectField
+              name="return-line-item"
+              title="Line item"
+              value={lineItemId || null}
+              options={lineItems.map((item) => ({
+                value: item.id,
+                label: item.name ?? item.nameAllLocales?.[0]?.value ?? item.id,
+              }))}
+              onChange={(event) => setLineItemId(String(event.target.value))}
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="return-quantity"
+              title="Quantity"
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              isDisabled={!canManage || saving}
+              errors={{ invalidQuantity }}
+              touched={quantity.length > 0}
+              renderError={(key) =>
+                key === 'invalidQuantity'
+                  ? `Enter 1 to ${selectedItem?.quantity ?? 0}.`
+                  : null
+              }
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="return-tracking"
+              title="Return tracking ID"
+              value={trackingId}
+              onChange={(event) => setTrackingId(event.target.value)}
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+          <Grid.Item>
+            <TextField
+              name="return-comment"
+              title="Comment"
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              isDisabled={!canManage || saving}
+              horizontalConstraint="scale"
+            />
+          </Grid.Item>
+        </Grid>
+        {error ? (
+          <ContentNotification type="error">
+            <Text.Body>{getErrorMessage(error)}</Text.Body>
+          </ContentNotification>
+        ) : null}
+        <TabularDetailPage.FormPrimaryButton
+          label={saving ? 'Adding…' : 'Add return'}
+          onClick={() => void createReturn()}
+          isDisabled={!canManage || saving || !lineItemId || invalidQuantity}
+        />
+      </Spacings.Stack>
+    </CollapsiblePanel>
   );
 };
 
@@ -382,9 +699,11 @@ const PaymentsTab = ({ order }: { order: Order }) => {
           column.key === 'amountPlanned'
             ? formatMoney(item.amountPlanned)
             : column.key === 'method'
-            ? item.paymentMethodInfo?.name ??
-              item.paymentMethodInfo?.method ??
-              '—'
+            ? typeof item.paymentMethodInfo?.name === 'string'
+              ? item.paymentMethodInfo.name
+              : item.paymentMethodInfo?.name
+              ? Object.values(item.paymentMethodInfo.name)[0] ?? '—'
+              : item.paymentMethodInfo?.method ?? '—'
             : column.key === 'transactions'
             ? item.transactions
                 .map(

@@ -30,6 +30,141 @@ export const DASHBOARD_QUERY = gql`
   }
 `;
 
+export const PRODUCTS_QUERY = gql`
+  query CsaProducts($limit: Int!, $offset: Int!, $sort: [String!]) {
+    products(limit: $limit, offset: $offset, sort: $sort) {
+      total
+      count
+      offset
+      results {
+        id
+        version
+        key
+        createdAt
+        lastModifiedAt
+        productType {
+          id
+          name
+        }
+        masterData {
+          published
+          current {
+            nameAllLocales {
+              locale
+              value
+            }
+            descriptionAllLocales {
+              locale
+              value
+            }
+            masterVariant {
+              id
+              sku
+              prices {
+                value {
+                  centAmount
+                  currencyCode
+                  fractionDigits
+                }
+              }
+            }
+            allVariants {
+              id
+              sku
+              key
+              images {
+                url
+                label
+              }
+              prices {
+                value {
+                  centAmount
+                  currencyCode
+                  fractionDigits
+                }
+              }
+              availability {
+                noChannel {
+                  isOnStock
+                  availableQuantity
+                }
+              }
+              attributesRaw {
+                name
+                value
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const PRODUCT_DETAIL_QUERY = gql`
+  query CsaProductDetail($id: String!) {
+    product(id: $id) {
+      id
+      version
+      key
+      createdAt
+      lastModifiedAt
+      priceMode
+      productType {
+        id
+        name
+      }
+      taxCategory {
+        id
+        name
+      }
+      masterData {
+        published
+        current {
+          nameAllLocales {
+            locale
+            value
+          }
+          descriptionAllLocales {
+            locale
+            value
+          }
+          categories {
+            id
+            name(locale: "en")
+          }
+          allVariants {
+            id
+            sku
+            key
+            images {
+              url
+              label
+            }
+            prices {
+              value {
+                centAmount
+                currencyCode
+                fractionDigits
+              }
+            }
+            availability {
+              noChannel {
+                isOnStock
+                availableQuantity
+              }
+            }
+            attributesRaw {
+              name
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const CUSTOMERS_QUERY = gql`
   query CsaCustomers(
     $limit: Int!
@@ -254,6 +389,17 @@ export const CART_DETAIL_QUERY = gql`
           centAmount
           currencyCode
           fractionDigits
+        }
+      }
+      discountCodes {
+        state
+        discountCode {
+          id
+          code
+          nameAllLocales {
+            locale
+            value
+          }
         }
       }
       custom {
