@@ -824,32 +824,33 @@ export function SubscriptionManagementView({
   };
 
   const renderActions = (subscription: CustomerSubscription) => (
-    <div className="flex min-w-[290px] items-center gap-0.5 whitespace-nowrap">
-      <Button variant="ghost" size="sm" onClick={() => openView(subscription)}>
+    <div className="flex min-w-[290px] items-center gap-1.5 whitespace-nowrap">
+      <Button variant="secondary" size="sm" onClick={() => openView(subscription)}>
         {t("actions.view")}
       </Button>
-      <Button variant="ghost" size="sm" onClick={() => openEdit(subscription)}>
+      <Button variant="secondary" size="sm" onClick={() => openEdit(subscription)}>
         {t("actions.edit")}
       </Button>
       {subscription.status === "Active" && (
         <>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={() => void changeStatus(subscription.id, "On Hold", "Put on hold by agent")}
           >
             {t("actions.hold")}
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={() => void skipNextCycle(subscription.id)}
           >
             {t("actions.skip")}
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
+            className="text-m-error hover:border-m-error hover:bg-m-error-light"
             onClick={() => void cancelSubscription(subscription)}
           >
             {t("actions.cancel")}
@@ -858,7 +859,7 @@ export function SubscriptionManagementView({
       )}
       {(subscription.status === "Paused" || subscription.status === "On Hold") && (
         <Button
-          variant="ghost"
+          variant="secondary"
           size="sm"
           onClick={() => void changeStatus(subscription.id, "Active", "Resumed by agent")}
         >
@@ -866,7 +867,12 @@ export function SubscriptionManagementView({
         </Button>
       )}
       {subscription.status === "Draft" && (
-        <Button variant="ghost" size="sm" onClick={() => void deleteDraft(subscription.id)}>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="text-m-error hover:border-m-error hover:bg-m-error-light"
+          onClick={() => void deleteDraft(subscription.id)}
+        >
           {t("actions.deleteDraft")}
         </Button>
       )}
@@ -993,11 +999,23 @@ export function SubscriptionManagementView({
             <TableBody>
               {filteredSubscriptions.map((subscription) => {
                 return (
-                  <TableRow key={subscription.id}>
+                  <TableRow
+                    key={subscription.id}
+                    clickable
+                    onClick={() => openView(subscription)}
+                  >
                     <TableCell>
-                      <div className="font-mono text-xs font-bold text-m-primary">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openView(subscription);
+                        }}
+                        className="font-mono text-xs font-bold text-m-primary hover:underline hover:text-m-primary-600 text-left transition-colors cursor-pointer"
+                        title={t("actions.view")}
+                      >
                         {subscription.subscriptionNumber}
-                      </div>
+                      </button>
                       <div className="text-[11px] text-m-text-muted">
                         {t("updated", {
                           date: formatDateTime(subscription.updatedAt, locale)
@@ -1061,7 +1079,7 @@ export function SubscriptionManagementView({
                         {t(`status.${subscription.status}`)}
                       </StatusPill>
                     </TableCell>
-                    <TableCell className="w-[310px] whitespace-nowrap">
+                    <TableCell className="w-[310px] whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       {renderActions(subscription)}
                     </TableCell>
                   </TableRow>

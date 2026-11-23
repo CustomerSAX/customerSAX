@@ -976,7 +976,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           <TableCell>
             <div className="flex items-center gap-2">
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 onClick={(event) => {
                   event.stopPropagation();
@@ -1297,20 +1297,25 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <Button variant="ghost" size="sm" onClick={() => handleOpenEditAddress(addr)}>
+                              <Button variant="secondary" size="sm" onClick={() => handleOpenEditAddress(addr)}>
                                 Edit
                               </Button>
                               {!addr.isDefaultShipping && (
-                                <Button variant="ghost" size="sm" onClick={() => handleSetDefaultShipping(addr.id)}>
+                                <Button variant="secondary" size="sm" onClick={() => handleSetDefaultShipping(addr.id)}>
                                   Set Def Ship
                                 </Button>
                               )}
                               {!addr.isDefaultBilling && (
-                                <Button variant="ghost" size="sm" onClick={() => handleSetDefaultBilling(addr.id)}>
+                                <Button variant="secondary" size="sm" onClick={() => handleSetDefaultBilling(addr.id)}>
                                   Set Def Bill
                                 </Button>
                               )}
-                              <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmAddrId(addr.id)}>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="text-m-error hover:border-m-error hover:bg-m-error-light"
+                                onClick={() => setDeleteConfirmAddrId(addr.id)}
+                              >
                                 Delete
                               </Button>
                             </div>
@@ -1686,121 +1691,121 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
             </div>
           )}
           <SectionCard
-          title="Return History"
-          icon="rotate-ccw"
-          action={
-            <ColumnManager
-              columns={RETURN_COLUMNS}
-              defaultVisibleKeys={DEFAULT_RETURN_COLUMN_KEYS}
-              title="Return columns"
-              visibleKeys={returnColumnKeys}
-              onChange={handleReturnColumnChange}
-            />
-          }
-          bodyClassName="p-0"
-        >
-          <div className="border-b border-m-border/70 p-3">
-            <SearchBar
-              value={returnsSearch}
-              onChange={(val) => setReturnsSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
-              onClear={() => setReturnsSearch("")}
-              placeholder="Filter returns by Order No, Tracking ID..."
-            />
-          </div>
-          {filteredReturns.length === 0 ? (
-            <CardEmpty icon="rotate-ccw" title="No returns found" hint="No return activity is recorded for this customer's orders." />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {visibleReturnColumns.map((column) => (
-                    <TableHead key={column.key}>{column.label}</TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredReturns.map((row) => (
-                  <TableRow key={row.id} clickable onClick={() => setSelectedReturn(row)}>
+            title="Return History"
+            icon="rotate-ccw"
+            action={
+              <ColumnManager
+                columns={RETURN_COLUMNS}
+                defaultVisibleKeys={DEFAULT_RETURN_COLUMN_KEYS}
+                title="Return columns"
+                visibleKeys={returnColumnKeys}
+                onChange={handleReturnColumnChange}
+              />
+            }
+            bodyClassName="p-0"
+          >
+            <div className="border-b border-m-border/70 p-3">
+              <SearchBar
+                value={returnsSearch}
+                onChange={(val) => setReturnsSearch(typeof val === "string" ? val : (val as React.ChangeEvent<HTMLInputElement>).target.value)}
+                onClear={() => setReturnsSearch("")}
+                placeholder="Filter returns by Order No, Tracking ID..."
+              />
+            </div>
+            {filteredReturns.length === 0 ? (
+              <CardEmpty icon="rotate-ccw" title="No returns found" hint="No return activity is recorded for this customer's orders." />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
                     {visibleReturnColumns.map((column) => (
-                      <Fragment key={column.key}>{renderReturnCell(row, column.key)}</Fragment>
+                      <TableHead key={column.key}>{column.label}</TableHead>
                     ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-
-          {/* Return Details Modal */}
-          {selectedReturn && (
-            <Modal isOpen={Boolean(selectedReturn)} onClose={() => setSelectedReturn(null)}>
-              <div className="space-y-4 p-6">
-                <div className="flex items-center justify-between border-b border-m-border pb-3">
-                  <h3 className="text-base font-bold text-m-text">
-                    Return Details: {selectedReturn.returnTrackingId}
-                  </h3>
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedReturn(null)}>
-                    ✕
-                  </Button>
-                </div>
-
-                <InfoList columns={2}>
-                  <InfoRow label="Order Number" value={selectedReturn.orderNumber} />
-                  <InfoRow label="Return Date" value={selectedReturn.returnDate} />
-                  <InfoRow label="Items" value={selectedReturn.itemsCount} />
-                </InfoList>
-
-                {Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ||
-                selectedReturn.items.every((it) => it.paymentState?.toLowerCase() === "refunded") ? (
-                  <div className="flex items-center gap-2 rounded-m-md border border-m-success-border bg-m-success-light p-3 text-xs font-semibold text-m-success">
-                    <Icon name="check-circle" size={15} />
-                    <span>Refund of {refundedReturnIds[selectedReturn.id]?.amount || refundedReturnIds[selectedReturn.returnTrackingId]?.amount || "Items"} Processed ({refundedReturnIds[selectedReturn.id]?.reason || refundedReturnIds[selectedReturn.returnTrackingId]?.reason || "Completed"})</span>
-                    <span className="ml-auto text-[11px] font-mono text-m-text-muted">{refundedReturnIds[selectedReturn.id]?.refundedAt || "Recorded"}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between rounded-m-md border border-m-border bg-m-surface-2 p-3 text-xs">
-                    <span className="text-m-text-muted">Return request is recorded. Eligible for refund processing.</span>
-                    <PrimaryButton
-                      icon="dollar-sign"
-                      onClick={() => handleOpenCustomerRefund(selectedReturn)}
-                    >
-                      Issue Refund
-                    </PrimaryButton>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-m-text">Line Items Breakdown</h4>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Qty</TableHead>
-                        <TableHead>Shipment State</TableHead>
-                        <TableHead>Payment State</TableHead>
-                        <TableHead>Comment</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedReturn.items.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-bold">{item.quantity}</TableCell>
-                          <TableCell>
-                            <StatusPill tone="warning">{item.shipmentState}</StatusPill>
-                          </TableCell>
-                          <TableCell>
-                            <StatusPill tone={Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ? "success" : paymentStateTone(item.paymentState)}>
-                              {Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ? "Refunded" : item.paymentState}
-                            </StatusPill>
-                          </TableCell>
-                          <TableCell className="text-xs text-m-text-muted">{item.comment || "--"}</TableCell>
-                        </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredReturns.map((row) => (
+                    <TableRow key={row.id} clickable onClick={() => setSelectedReturn(row)}>
+                      {visibleReturnColumns.map((column) => (
+                        <Fragment key={column.key}>{renderReturnCell(row, column.key)}</Fragment>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+
+            {/* Return Details Modal */}
+            {selectedReturn && (
+              <Modal isOpen={Boolean(selectedReturn)} onClose={() => setSelectedReturn(null)}>
+                <div className="space-y-4 p-6">
+                  <div className="flex items-center justify-between border-b border-m-border pb-3">
+                    <h3 className="text-base font-bold text-m-text">
+                      Return Details: {selectedReturn.returnTrackingId}
+                    </h3>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedReturn(null)}>
+                      ✕
+                    </Button>
+                  </div>
+
+                  <InfoList columns={2}>
+                    <InfoRow label="Order Number" value={selectedReturn.orderNumber} />
+                    <InfoRow label="Return Date" value={selectedReturn.returnDate} />
+                    <InfoRow label="Items" value={selectedReturn.itemsCount} />
+                  </InfoList>
+
+                  {Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ||
+                    selectedReturn.items.every((it) => it.paymentState?.toLowerCase() === "refunded") ? (
+                    <div className="flex items-center gap-2 rounded-m-md border border-m-success-border bg-m-success-light p-3 text-xs font-semibold text-m-success">
+                      <Icon name="check-circle" size={15} />
+                      <span>Refund of {refundedReturnIds[selectedReturn.id]?.amount || refundedReturnIds[selectedReturn.returnTrackingId]?.amount || "Items"} Processed ({refundedReturnIds[selectedReturn.id]?.reason || refundedReturnIds[selectedReturn.returnTrackingId]?.reason || "Completed"})</span>
+                      <span className="ml-auto text-[11px] font-mono text-m-text-muted">{refundedReturnIds[selectedReturn.id]?.refundedAt || "Recorded"}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between rounded-m-md border border-m-border bg-m-surface-2 p-3 text-xs">
+                      <span className="text-m-text-muted">Return request is recorded. Eligible for refund processing.</span>
+                      <PrimaryButton
+                        icon="dollar-sign"
+                        onClick={() => handleOpenCustomerRefund(selectedReturn)}
+                      >
+                        Issue Refund
+                      </PrimaryButton>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-m-text">Line Items Breakdown</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Qty</TableHead>
+                          <TableHead>Shipment State</TableHead>
+                          <TableHead>Payment State</TableHead>
+                          <TableHead>Comment</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedReturn.items.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-bold">{item.quantity}</TableCell>
+                            <TableCell>
+                              <StatusPill tone="warning">{item.shipmentState}</StatusPill>
+                            </TableCell>
+                            <TableCell>
+                              <StatusPill tone={Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ? "success" : paymentStateTone(item.paymentState)}>
+                                {Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ? "Refunded" : item.paymentState}
+                              </StatusPill>
+                            </TableCell>
+                            <TableCell className="text-xs text-m-text-muted">{item.comment || "--"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
-              </div>
-            </Modal>
-          )}
-        </SectionCard>
+              </Modal>
+            )}
+          </SectionCard>
         </div>
       )}
 

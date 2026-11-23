@@ -571,9 +571,8 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
       <EntityHeader
         title={order?.orderNumber ? `Order #${order.orderNumber}` : "Order Detail"}
         status={<StatusPill tone={statusTone(order.orderState)}>{order.orderState}</StatusPill>}
-        meta={`Placed ${order.createdAt ? fmtDate(order.createdAt) : "—"} • ${
-          order.store && order.store !== "--" ? order.store : "—"
-        }${order.companyName ? ` • ${order.companyName}` : ""}`}
+        meta={`Placed ${order.createdAt ? fmtDate(order.createdAt) : "—"} • ${order.store && order.store !== "--" ? order.store : "—"
+          }${order.companyName ? ` • ${order.companyName}` : ""}`}
         actions={
           <>
             <MoreActionsMenu
@@ -607,11 +606,10 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
 
       {(loading || error) && (
         <div
-          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${
-            error
+          className={`rounded-m-lg border px-3.5 py-2.5 text-[12.5px] font-semibold ${error
               ? "border-m-error-border bg-m-error-light text-m-error"
               : "border-m-border bg-m-surface-2 text-m-text-muted"
-          }`}
+            }`}
         >
           {error
             ? "Unable to load this order from the BFF. Showing available local order state."
