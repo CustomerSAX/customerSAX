@@ -187,8 +187,8 @@ function normalizeOrder(order: CommerceOrder, customerNames: Map<string, string>
     paymentStateVal === "Paid" || paymentStateVal === "Refunded"
       ? "Success"
       : paymentStateVal === "Failed"
-      ? "Failure"
-      : "Pending";
+        ? "Failure"
+        : "Pending";
   const initialTxn: OrderPaymentTransaction = {
     id: `txn_${order.id.slice(0, 8)}_1`,
     timestamp: orderCreatedAt,
@@ -570,20 +570,20 @@ export function useOrderStore() {
         if (o.id !== orderId && o.orderNumber !== orderId) return o;
         const payments = o.payments && o.payments.length > 0
           ? o.payments.map((p, idx) => idx === 0 ? {
-              ...p,
-              transactions: [refundTxn, ...p.transactions],
-              lastModifiedAt: new Date().toISOString(),
-            } : p)
+            ...p,
+            transactions: [refundTxn, ...p.transactions],
+            lastModifiedAt: new Date().toISOString(),
+          } : p)
           : [{
-              id: "pay_ref_" + Date.now(),
-              interfaceId: "pi_simulated_" + Date.now().toString().slice(-8),
-              method: "Credit Card (Refund)",
-              psp: "Simulated Gateway",
-              amountPlanned: refundAmount,
-              pspPaymentStatus: "refunded",
-              createdAt: new Date().toISOString(),
-              transactions: [refundTxn],
-            }];
+            id: "pay_ref_" + Date.now(),
+            interfaceId: "pi_simulated_" + Date.now().toString().slice(-8),
+            method: "Credit Card (Refund)",
+            psp: "Simulated Gateway",
+            amountPlanned: refundAmount,
+            pspPaymentStatus: "refunded",
+            createdAt: new Date().toISOString(),
+            transactions: [refundTxn],
+          }];
         const returnInfo = (o.returnInfo || []).map((ret) => ({
           ...ret,
           items: ret.items.map((it) => ({
