@@ -23,6 +23,8 @@
     "@apollo/client": "3.14.1",
     "@babel/core": "^7.29.0",
     "@babel/runtime-corejs3": "^7.29.0",
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
     "@commercetools-frontend/actions-global": "^27.17.1",
     "@commercetools-frontend/application-components": "^27.17.1",
     "@commercetools-frontend/application-config": "^27.17.1",
