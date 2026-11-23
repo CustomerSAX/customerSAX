@@ -24,6 +24,7 @@
   "devDependencies": {
     "@csa/config-typescript": "workspace:*",
     "@types/node": "^20.14.11",
+    "mongodb": "^7.1.1",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"
   }
