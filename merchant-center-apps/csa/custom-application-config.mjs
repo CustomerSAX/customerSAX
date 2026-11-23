@@ -1,0 +1,123 @@
+import {
+  PERMISSION_GROUPS,
+  PERMISSIONS,
+  entryPointUriPath,
+} from './src/constants';
+
+const applicationId = process.env.CSA_MC_APPLICATION_ID || 'TODO';
+const applicationUrl =
+  process.env.CSA_MC_APPLICATION_URL ||
+  'https://replace-before-deployment.example.com';
+
+/** @type {import('@commercetools-frontend/application-config').ConfigOptionsForCustomApplication} */
+const config = {
+  name: 'CSA',
+  description: 'Customer Service Accelerator for B2C operations',
+  entryPointUriPath,
+  cloudIdentifier: 'gcp-us',
+  env: {
+    development: {
+      initialProjectKey:
+        process.env.CTP_INITIAL_PROJECT_KEY || 'spotlightstores-demo',
+    },
+    production: {
+      applicationId,
+      url: applicationUrl,
+    },
+  },
+  oAuthScopes: {
+    view: ['view_customers', 'view_orders'],
+    manage: [],
+  },
+  additionalOAuthScopes: [
+    {
+      name: PERMISSION_GROUPS.customers,
+      view: ['view_customers'],
+      manage: ['manage_customers'],
+    },
+    {
+      name: PERMISSION_GROUPS.carts,
+      view: ['view_orders'],
+      manage: ['manage_orders'],
+    },
+    {
+      name: PERMISSION_GROUPS.orders,
+      view: ['view_orders', 'view_payments'],
+      manage: ['manage_orders'],
+    },
+    {
+      name: PERMISSION_GROUPS.importExport,
+      view: ['view_customers', 'view_orders'],
+      manage: ['manage_customers', 'manage_orders'],
+    },
+    {
+      name: PERMISSION_GROUPS.customAttributes,
+      view: ['view_types'],
+      manage: ['manage_types'],
+    },
+  ],
+  icon: '${path:@commercetools-frontend/assets/application-icons/headphones.svg}',
+  mainMenuLink: {
+    defaultLabel: 'CSA',
+    labelAllLocales: [],
+    permissions: [PERMISSIONS.View],
+  },
+  submenuLinks: [
+    {
+      uriPath: 'dashboard',
+      defaultLabel: 'Dashboard',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.View],
+    },
+    {
+      uriPath: 'customers',
+      defaultLabel: 'Customers',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.ViewCustomers],
+    },
+    {
+      uriPath: 'carts',
+      defaultLabel: 'Carts',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.ViewCarts],
+    },
+    {
+      uriPath: 'orders',
+      defaultLabel: 'Orders',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.ViewOrders],
+    },
+    {
+      uriPath: 'returns',
+      defaultLabel: 'Returns',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.ViewOrders],
+    },
+    {
+      uriPath: 'tickets',
+      defaultLabel: 'Tickets',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.View],
+    },
+    {
+      uriPath: 'import',
+      defaultLabel: 'Import',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.ViewImportExport],
+    },
+    {
+      uriPath: 'export',
+      defaultLabel: 'Export',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.ViewImportExport],
+    },
+    {
+      uriPath: 'custom-attributes',
+      defaultLabel: 'Custom Attributes',
+      labelAllLocales: [],
+      permissions: [PERMISSIONS.ViewCustomAttributes],
+    },
+  ],
+};
+
+export default config;
