@@ -16,6 +16,8 @@ This folder has its own `package.json`, `tsconfig.json`, and `Dockerfile`. It do
 - `BFF_PORT`
 - `BFF_COMMERCE_PLATFORM`
 - `FEDERATED_SERVICES`
+- `MC_TICKETS_AUDIENCE` (public BFF origin used to verify Merchant Center exchange tokens)
+- `MONGO_URI` (resolves a verified commercetools project key to its CSA tenant)
 
 See `.env.example` in this folder.
 
@@ -33,3 +35,10 @@ BFF_COMMERCE_PLATFORM=commercetools
 
 The BFF will compose only the selected commerce service, while keeping any non-commerce federated services in the same object.
 `BFF_COMMERCE_PLATFORM=salesforce` is accepted as an alias for `sfcc`.
+
+`POST /merchant-center/tickets` is the authenticated adapter for the CSA
+Merchant Center Custom Application. It validates the short-lived exchange JWT,
+derives the tenant from the verified project key, and queries the existing
+ticketing subgraph. Set `MONGO_ADMIN_DB` and `MONGO_PROJECTS_COLLECTION` only
+when the project registry does not use their defaults (`csa-admin` and
+`csa_projects`).

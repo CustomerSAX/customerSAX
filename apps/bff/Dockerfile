@@ -1,4 +1,4 @@
-FROM node:20-slim AS build
+FROM node:26-slim AS build
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
@@ -8,6 +8,7 @@ COPY packages/cache/package.json packages/cache/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/headers/package.json packages/headers/package.json
 COPY packages/logger/package.json packages/logger/package.json
+COPY packages/mongodb/package.json packages/mongodb/package.json
 COPY configs/typescript/package.json configs/typescript/package.json
 RUN pnpm install --frozen-lockfile
 COPY configs/typescript configs/typescript
@@ -15,10 +16,11 @@ COPY packages/cache packages/cache
 COPY packages/config packages/config
 COPY packages/headers packages/headers
 COPY packages/logger packages/logger
+COPY packages/mongodb packages/mongodb
 COPY apps/bff apps/bff
 RUN pnpm --filter @csa/bff... --if-present build
 
-FROM node:20-slim
+FROM node:26-slim
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
@@ -29,6 +31,7 @@ COPY --from=build /app/packages/cache /app/packages/cache
 COPY --from=build /app/packages/config /app/packages/config
 COPY --from=build /app/packages/headers /app/packages/headers
 COPY --from=build /app/packages/logger /app/packages/logger
+COPY --from=build /app/packages/mongodb /app/packages/mongodb
 COPY --from=build /app/apps/bff/node_modules /app/apps/bff/node_modules
 COPY --from=build /app/apps/bff/package.json /app/apps/bff/package.json
 COPY --from=build /app/apps/bff/src /app/apps/bff/src

@@ -16,10 +16,12 @@
   "dependencies": {
     "@apollo/gateway": "^2.10.0",
     "@apollo/server": "^4.11.0",
+    "@commercetools-backend/express": "27.17.1",
     "@csa/cache": "workspace:*",
     "@csa/config": "workspace:*",
     "@csa/headers": "workspace:*",
     "@csa/logger": "workspace:*",
+    "@csa/mongodb": "workspace:*",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "cors": "^2.8.5",

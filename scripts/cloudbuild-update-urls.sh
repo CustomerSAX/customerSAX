@@ -68,7 +68,11 @@ CRM_URL=$(get_url "CRM_URL")
 echo ""
 echo "🚀 Updating ${NAME_PREFIX}-bff with all downstream URLs..."
 
-BFF_ENV="NODE_ENV=production~SERVICE_NAME=bff~ENVIRONMENT=${ENVIRONMENT}"
+BFF_ENV="NODE_ENV=production~SERVICE_NAME=bff~ENVIRONMENT=${ENVIRONMENT}~MONGO_ADMIN_DB=csa-admin~MONGO_PROJECTS_COLLECTION=csa_projects"
+
+if [ -n "${BFF_URL}" ]; then
+  BFF_ENV="${BFF_ENV}~MC_TICKETS_AUDIENCE=${BFF_URL}"
+fi
 
 # Build FEDERATED_SERVICES JSON in pure bash. The cloud-sdk builder image no
 # longer ships python3 on PATH ("python3: command not found", exit 127).

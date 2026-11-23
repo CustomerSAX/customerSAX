@@ -53,6 +53,7 @@ Set these build-time environment variables:
 CTP_INITIAL_PROJECT_KEY=spotlightstores-demo
 CSA_MC_APPLICATION_ID=<registered-custom-application-id>
 CSA_MC_APPLICATION_URL=https://<standalone-csa-host>
+CSA_MC_TICKET_API_URL=https://<public-csa-bff>/merchant-center/tickets
 ```
 
 The Application ID is only available after the application is registered in Merchant Center. The placeholder configuration must not be used for a production build.
@@ -99,10 +100,11 @@ Variables** for Production (and Preview when preview deployments need to run):
 CTP_INITIAL_PROJECT_KEY=<real-project-key>
 CSA_MC_APPLICATION_ID=<registered-custom-application-id>
 CSA_MC_APPLICATION_URL=https://<stable-vercel-production-domain>
+CSA_MC_TICKET_API_URL=https://<public-csa-bff>/merchant-center/tickets
 ```
 
 Use the stable production domain, not a deployment-specific preview URL. After
-changing `CSA_MC_APPLICATION_ID` or `CSA_MC_APPLICATION_URL`, redeploy so that
+changing any `CSA_MC_*` build variable, redeploy so that
 the build-time values are included in the generated application.
 
 For the initial bootstrap, deploy once to reserve the stable Vercel domain,
@@ -110,17 +112,21 @@ register that domain as the Custom Application URL in Merchant Center, copy the
 generated Application ID into Vercel, and redeploy. Do not promote the Merchant
 Center registration to **Ready** until the second deployment succeeds.
 
-## Optional backend integrations
+## Ticket integration
 
-Tickets and bulk import execution require a dedicated standalone backend because they are not native commercetools project resources. The UI currently shows an explicit unavailable state and performs CSV validation/preview without making unsafe browser-side bulk mutations.
+Tickets are loaded from the existing CSA ticketing service (MongoDB by
+default) through `POST /merchant-center/tickets` on the BFF. The browser uses
+Merchant Center `/proxy/forward-to`; the BFF validates the short-lived exchange
+JWT, `ViewCsa` permission, and project key before resolving the owning CSA
+tenant. No MongoDB or commercetools credentials are exposed to the browser.
 
-When introduced, the backend must:
+Set `CSA_MC_TICKET_API_URL` to the complete public adapter URL and set the
+BFF's `MC_TICKETS_AUDIENCE` to that URL's origin. The BFF also needs
+`MONGO_URI`, and its `FEDERATED_SERVICES` configuration must include the
+ticketing subgraph.
 
-- be called through Merchant Center `/proxy/forward-to`;
-- validate the short-lived Merchant Center exchange JWT and audience;
-- authorize the project key and forwarded CSA permissions;
-- never accept commercetools client secrets from the browser;
-- process imports in bounded chunks with optimistic concurrency and row-level results.
+Bulk import execution still requires a dedicated bounded backend workflow; the
+current UI only validates and previews CSV data.
 
 ## Available routes
 
