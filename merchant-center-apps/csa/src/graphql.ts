@@ -266,12 +266,32 @@ export const CUSTOMER_DETAIL_QUERY = gql`
       total
       results {
         id
+        version
         orderNumber
         customerEmail
         orderState
         paymentState
         shipmentState
         createdAt
+        lastModifiedAt
+        lineItems {
+          id
+          productId
+          name(locale: "en")
+          nameAllLocales {
+            locale
+            value
+          }
+          quantity
+          totalPrice {
+            centAmount
+            currencyCode
+            fractionDigits
+          }
+          variant {
+            sku
+          }
+        }
         returnInfo {
           returnTrackingId
           returnDate
@@ -280,6 +300,7 @@ export const CUSTOMER_DETAIL_QUERY = gql`
             quantity
             shipmentState
             paymentState
+            comment
           }
         }
         totalPrice {

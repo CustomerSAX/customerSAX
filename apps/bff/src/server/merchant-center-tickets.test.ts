@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   hasCsaTicketPermission,
+  sanitizeTicketDetailPayload,
   sanitizeTicketQueryPayload
 } from "./merchant-center-tickets.js";
 
@@ -37,6 +38,25 @@ describe("sanitizeTicketQueryPayload", () => {
       sortKey: "lastModifiedAt",
       sortOrder: "desc"
     });
+  });
+});
+
+describe("sanitizeTicketDetailPayload", () => {
+  it("returns a trimmed ticket identifier", () => {
+    expect(sanitizeTicketDetailPayload({ ticketId: "  native:ticket-123  " })).toBe(
+      "native:ticket-123"
+    );
+  });
+
+  it("rejects missing and non-string identifiers", () => {
+    expect(sanitizeTicketDetailPayload({})).toBeUndefined();
+    expect(sanitizeTicketDetailPayload({ ticketId: 123 })).toBeUndefined();
+  });
+
+  it("accepts an identifier from a forwarded payload envelope", () => {
+    expect(
+      sanitizeTicketDetailPayload({ payload: { ticketId: "ticket-123" } })
+    ).toBe("ticket-123");
   });
 });
 

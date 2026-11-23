@@ -40,7 +40,10 @@ type TicketPage = {
 };
 
 type GraphqlResponse = {
-  data?: { ticketPage?: TicketPage };
+  data?: {
+    ticketPage?: TicketPage;
+    ticket?: Record<string, unknown> | null;
+  };
   errors?: Array<{ message?: string }>;
 };
 
@@ -109,6 +112,58 @@ const TICKET_PAGE_QUERY = `
   }
 `;
 
+const TICKET_DETAIL_QUERY = `
+  query MerchantCenterTicketDetail($id: ID!) {
+    ticket(id: $id) {
+      id
+      ticketNumber
+      projectKey
+      customerName
+      customerEmail
+      customerId
+      source
+      status
+      priority
+      category
+      subject
+      assignee
+      createdAt
+      lastModifiedAt
+      resolutionDate
+      contactType
+      orderNumber
+      createdBy
+      message
+      solution
+      timeSpentOnTicket
+      comments {
+        id
+        comment
+        createdAt
+        status
+        author
+      }
+      attachments {
+        name
+        url
+        size
+      }
+      history {
+        id
+        ticketNumber
+        operationDate
+        reason
+        solution
+        status
+        priority
+        assignedTo
+        worklog
+        timeSpent
+      }
+    }
+  }
+`;
+
 function stringValue(value: unknown, maxLength = 200): string | undefined {
   if (typeof value !== "string") return undefined;
   const clean = value.trim();
@@ -142,6 +197,16 @@ export function sanitizeTicketQueryPayload(payload: unknown): TicketQueryVariabl
         : "lastModifiedAt",
     sortOrder: input.sortOrder === "asc" ? "asc" : "desc"
   };
+}
+
+export function sanitizeTicketDetailPayload(payload: unknown) {
+  const input =
+    payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const nested =
+    input.payload && typeof input.payload === "object"
+      ? (input.payload as Record<string, unknown>)
+      : {};
+  return stringValue(input.ticketId, 300) ?? stringValue(nested.ticketId, 300);
 }
 
 /** The exchange token contains the installed Custom Application permissions. */
@@ -184,6 +249,38 @@ async function loadTicketPage(options: {
     throw new Error(detail || `Ticket service returned HTTP ${response.status}`);
   }
   return body.data.ticketPage;
+}
+
+async function loadTicketDetail(options: {
+  graphqlUrl: string;
+  clientId: string;
+  projectKey: string;
+  ticketId: string;
+}): Promise<Record<string, unknown> | null> {
+  const response = await fetch(options.graphqlUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-csa-client-id": options.clientId,
+      "x-csa-project-key": options.projectKey,
+      "x-csa-user-role": "agent"
+    },
+    body: JSON.stringify({
+      operationName: "MerchantCenterTicketDetail",
+      query: TICKET_DETAIL_QUERY,
+      variables: { id: options.ticketId }
+    })
+  });
+
+  const body = (await response.json().catch(() => ({}))) as GraphqlResponse;
+  if (!response.ok || body.errors?.length || body.data?.ticket === undefined) {
+    const detail = body.errors
+      ?.map((error) => error.message)
+      .filter(Boolean)
+      .join("; ");
+    throw new Error(detail || `Ticket service returned HTTP ${response.status}`);
+  }
+  return body.data.ticket;
 }
 
 export function mountMerchantCenterTickets(
@@ -239,6 +336,22 @@ export function mountMerchantCenterTickets(
           response.status(404).json({
             message: `No CSA tenant is configured for project ${session.projectKey}.`
           });
+          return;
+        }
+
+        const ticketId = sanitizeTicketDetailPayload(merchantCenterRequest.body);
+        if (ticketId) {
+          const ticket = await loadTicketDetail({
+            graphqlUrl: options.graphqlUrl,
+            clientId: project.clientId,
+            projectKey: session.projectKey,
+            ticketId
+          });
+          if (!ticket) {
+            response.status(404).json({ message: "Ticket not found." });
+            return;
+          }
+          response.json(ticket);
           return;
         }
 
