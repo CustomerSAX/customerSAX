@@ -25,6 +25,7 @@ const connector = {
   description: "Customer support",
   category: "customer-support",
   authenticationType: "SECRET_TEXT",
+  availability: "available",
   actions: [
     { id: "get_tickets", name: "Get Tickets", readOnly: true },
     { id: "custom_api_call", name: "Custom API Call", readOnly: false }
@@ -176,6 +177,30 @@ it("requires an approved release before storing credentials", async () => {
   expect(response.status).toBe(409);
   expect(await response.text()).toContain("Approve a Freshdesk connector release");
   expect(mocks.fetch).toHaveBeenCalledTimes(1);
+});
+
+it("rejects preview catalog entries before making a Hub management request", async () => {
+  mocks.catalog.mockResolvedValue([
+    {
+      ...connector,
+      id: "contentful",
+      name: "Contentful",
+      availability: "preview"
+    }
+  ]);
+  const response = await connect(
+    {
+      ...scope,
+      account: "space-a",
+      credential: "private-api-key",
+      resource: "master",
+      actions: ["get_tickets"]
+    },
+    "contentful"
+  );
+  expect(response.status).toBe(409);
+  expect(await response.text()).toContain("catalog preview");
+  expect(mocks.fetch).not.toHaveBeenCalled();
 });
 
 it("rejects unknown actions, bespoke connectors and stale project scope", async () => {

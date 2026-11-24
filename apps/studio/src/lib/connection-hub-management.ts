@@ -196,6 +196,11 @@ async function connect(connectorId: string, input: unknown) {
   );
   if (!connector)
     throw new HubManagementError(404, "This connector is no longer in the catalog.");
+  if (connector.availability === "preview")
+    throw new HubManagementError(
+      409,
+      `${connector.name} is a catalog preview and cannot be connected yet.`
+    );
   const available = new Set(connector.actions.map((action) => action.id));
   if (!input.actions.every((action) => available.has(action)))
     throw new HubManagementError(400, "Select only actions offered by this connector.");
