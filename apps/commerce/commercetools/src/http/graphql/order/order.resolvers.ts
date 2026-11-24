@@ -108,7 +108,15 @@ export const resolvers = {
                 id
                 amountPlanned { centAmount currencyCode fractionDigits }
                 paymentMethodInfo { method name(locale: "en-US") }
-                transactions { id timestamp type state amount { centAmount currencyCode fractionDigits } }
+                transactions {
+                  id
+                  timestamp
+                  type
+                  state
+                  interactionId
+                  interfaceId
+                  amount { centAmount currencyCode fractionDigits }
+                }
               }
             }
           }
@@ -192,6 +200,30 @@ export const resolvers = {
       throw err;
     }
   },
+  updatePayment: async (_parent: unknown, args: { actions: unknown[]; id: string }) => {
+    const payment = await getPaymentVersion(args.id);
+    const actions = (args.actions ?? []).flatMap((action) =>
+      action && typeof action === "object" ? Object.keys(action) : []
+    );
+
+    try {
+      const result = await commercetoolsGraphql(
+        `#graphql
+          mutation UpdatePayment($id: String!, $version: Long!, $actions: [PaymentUpdateAction!]!) {
+            updatePayment(id: $id, version: $version, actions: $actions) {
+              id version
+            }
+          }
+        `,
+        { actions: args.actions, id: args.id, version: payment.version }
+      );
+      log.info("ct:updatePayment", { id: args.id, actions, ok: true });
+      return result;
+    } catch (err) {
+      log.info("ct:updatePayment", { id: args.id, actions, ok: false });
+      throw err;
+    }
+  },
   replicateOrder: (_parent: unknown, args: { id: string }) =>
     commercetoolsGraphql(
       `#graphql
@@ -207,6 +239,21 @@ export const resolvers = {
       { reference: { id: args.id, typeId: "order" } }
     )
 };
+
+async function getPaymentVersion(id: string) {
+  const data = await commercetoolsGraphql<{
+    payment?: { id: string; version: number } | null;
+  }>(
+    `#graphql
+      query PaymentVersion($id: String!) {
+        payment(id: $id) { id version }
+      }
+    `,
+    { id }
+  );
+  if (!data.payment) throw new Error(`Payment '${id}' was not found.`);
+  return data.payment;
+}
 
 async function queryOrders(where: string | undefined, args: PagingArgs) {
   const { limit, offset } = paging(args);

@@ -63,6 +63,7 @@ export const resolvers = {
     updateCustomerContactNumber: customerResolvers.updateCustomerContactNumber,
     updateCustomerProfile: customerResolvers.updateCustomerProfile,
     updateOrder: orderResolvers.updateOrder,
+    updatePayment: orderResolvers.updatePayment,
     updateReviewedOrder: (
       _parent: unknown,
       args: Parameters<typeof updateReviewedOrder>[0]

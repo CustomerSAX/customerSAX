@@ -756,8 +756,10 @@ const ReturnsTab = (props: {
             const rows = returnInfo.items.map((returnItem, itemIndex) => ({
               ...returnItem,
               id: `${returnIndex}-${returnItem.id}-${itemIndex}`,
-              lineItemId: returnItem.id,
-              lineItem: lineItemsById.get(returnItem.id),
+              lineItemId: returnItem.lineItemId ?? returnItem.id,
+              lineItem: lineItemsById.get(
+                returnItem.lineItemId ?? returnItem.id
+              ),
             }));
             const totalQuantity = returnInfo.items.reduce(
               (total, returnItem) => total + returnItem.quantity,
@@ -852,8 +854,9 @@ const ReturnCreator = (props: {
   for (const returnInfo of props.order.returnInfo ?? []) {
     for (const returnItem of returnInfo.items) {
       returnedQuantities.set(
-        returnItem.id,
-        (returnedQuantities.get(returnItem.id) ?? 0) + returnItem.quantity
+        returnItem.lineItemId ?? returnItem.id,
+        (returnedQuantities.get(returnItem.lineItemId ?? returnItem.id) ?? 0) +
+          returnItem.quantity
       );
     }
   }

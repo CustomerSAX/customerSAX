@@ -54,6 +54,7 @@ CTP_INITIAL_PROJECT_KEY=spotlightstores-demo
 CSA_MC_APPLICATION_ID=<registered-custom-application-id>
 CSA_MC_APPLICATION_URL=https://<standalone-csa-host>
 CSA_MC_TICKET_API_URL=https://<public-csa-bff>/merchant-center/tickets
+CSA_MC_REFUND_API_URL=https://<public-csa-bff>/merchant-center/refunds
 ```
 
 The Application ID is only available after the application is registered in Merchant Center. The placeholder configuration must not be used for a production build.
@@ -101,6 +102,7 @@ CTP_INITIAL_PROJECT_KEY=<real-project-key>
 CSA_MC_APPLICATION_ID=<registered-custom-application-id>
 CSA_MC_APPLICATION_URL=https://<stable-vercel-production-domain>
 CSA_MC_TICKET_API_URL=https://<public-csa-bff>/merchant-center/tickets
+CSA_MC_REFUND_API_URL=https://<public-csa-bff>/merchant-center/refunds
 ```
 
 Use the stable production domain, not a deployment-specific preview URL. After
@@ -127,6 +129,21 @@ ticketing subgraph.
 
 Bulk import execution still requires a dedicated bounded backend workflow; the
 current UI only validates and previews CSV data.
+
+## Refund integration
+
+The Customer 360 **Returns** tab sends refunds through
+`POST /merchant-center/refunds` on the BFF using Merchant Center
+`/proxy/forward-to`. The BFF checks the installed application's
+`ManageCsaOrders` permission, resolves the tenant
+from the verified project key, verifies the returned items and refundable
+amount, and records the Payment and Order updates in commercetools.
+
+Set `CSA_MC_REFUND_API_URL` to the complete public adapter URL. Configure the
+BFF with `MC_REFUNDS_AUDIENCE` set to that URL's origin. The tenant's
+commercetools API client needs `manage_orders` and `manage_payments`. Reinstall
+or update the Custom Application permissions after adding the `manage_payments`
+scope to the **Orders** permission group.
 
 ## Available routes
 

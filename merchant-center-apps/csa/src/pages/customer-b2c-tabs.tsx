@@ -14,6 +14,7 @@ import CollapsiblePanel from '@commercetools-uikit/collapsible-panel';
 import DataTable from '@commercetools-uikit/data-table';
 import Grid from '@commercetools-uikit/grid';
 import { ContentNotification } from '@commercetools-uikit/notifications';
+import { Pagination } from '@commercetools-uikit/pagination';
 import PrimaryButton from '@commercetools-uikit/primary-button';
 import SelectField from '@commercetools-uikit/select-field';
 import Spacings from '@commercetools-uikit/spacings';
@@ -1049,12 +1050,20 @@ type CartDiscount = {
 
 type PromotionReference = { typeId: 'cart-discount'; id: string };
 
-type PromotionDiscountCode = {
-  id: string;
-  code: string;
-  isActive: boolean;
-  cartDiscounts: Array<{ id: string; obj?: CartDiscount }>;
+type PromotionAssignmentType = {
+  key: string;
+  resourceTypeIds: string[];
+  fieldDefinitions: Array<{
+    name: string;
+    type: {
+      name: string;
+      elementType?: { name: string; referenceTypeId?: string };
+    };
+  }>;
 };
+
+const PROMOTIONS_TYPE_KEY = 'promotionsList';
+const PROMOTIONS_FIELD_NAME = 'promotions';
 
 const promotionReferenceIds = (value: unknown): string[] => {
   if (typeof value === 'string') {
@@ -1091,18 +1100,14 @@ const promotionValueLabel = (promotion: CartDiscount) => {
   return promotion.value.type === 'giftLineItem' ? 'Gift item' : '—';
 };
 
-const promotionTargetLabel = (target?: CartDiscount['target']) => {
-  if (!target) return 'Cart';
-  const labels: Record<string, string> = {
-    lineItems: 'Line items',
-    customLineItems: 'Custom line items',
-    shipping: 'Shipping',
-    totalPrice: 'Total price',
-    multiBuyLineItems: 'Multi-buy line items',
-    multiBuyCustomLineItems: 'Multi-buy custom line items',
-    pattern: 'Pattern',
+const promotionTypeLabel = (promotion: CartDiscount) => {
+  const labels: Record<CartDiscount['value']['type'], string> = {
+    relative: 'Relative',
+    absolute: 'Absolute',
+    fixed: 'Fixed price',
+    giftLineItem: 'Gift item',
   };
-  return labels[target.type] ?? target.type;
+  return labels[promotion.value.type];
 };
 
 export const CustomerPromotions = ({
@@ -1128,28 +1133,28 @@ export const CustomerPromotions = ({
   const promotionsUri = projectKey
     ? `/${projectKey}/cart-discounts?limit=500&sort=createdAt%20desc`
     : undefined;
-  const activeDiscountCodesWhere = encodeURIComponent('isActive=true');
-  const discountCodesUri = projectKey
-    ? `/${projectKey}/discount-codes?where=${activeDiscountCodesWhere}&limit=500&expand=cartDiscounts[*]`
+  const promotionTypeWhere = encodeURIComponent(`key="${PROMOTIONS_TYPE_KEY}"`);
+  const promotionTypesUri = projectKey
+    ? `/${projectKey}/types?where=${promotionTypeWhere}&limit=1`
     : undefined;
   const orders = usePlatformGet<RestPage<PromotionUsageResource>>(ordersUri);
   const carts = usePlatformGet<RestPage<PromotionUsageResource>>(cartsUri);
   const promotions = usePlatformGet<RestPage<CartDiscount>>(promotionsUri);
-  const discountCodes =
-    usePlatformGet<RestPage<PromotionDiscountCode>>(discountCodesUri);
+  const promotionTypes =
+    usePlatformGet<RestPage<PromotionAssignmentType>>(promotionTypesUri);
   const promotionField = customer.custom?.customFieldsRaw?.find(
-    (field) => field.name === 'promotions'
+    (field) => field.name === PROMOTIONS_FIELD_NAME
   );
   const customerPromotionIds = useMemo(
     () => promotionReferenceIds(promotionField?.value),
     [promotionField?.value]
   );
   const [assignedIds, setAssignedIds] = useState(customerPromotionIds);
-  const [couponCode, setCouponCode] = useState('');
-  const [couponFeedback, setCouponFeedback] = useState<{
-    type: 'success' | 'error' | 'info';
-    message: string;
-  }>();
+  const [selectedPromotionIds, setSelectedPromotionIds] = useState<string[]>(
+    []
+  );
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
   const [saving, setSaving] = useState(false);
   const [mutationError, setMutationError] = useState<unknown>();
 
@@ -1166,24 +1171,104 @@ export const CustomerPromotions = ({
         requiresDiscountCode: false,
       }
   );
+  const assignmentType = promotionTypes.data?.results[0];
+  const currentTypeKey = customer.custom?.type?.key;
+  const promotionFieldDefinition = assignmentType?.fieldDefinitions.find(
+    (field) => field.name === PROMOTIONS_FIELD_NAME
+  );
+  const isAssignmentTypeValid = Boolean(
+    assignmentType?.resourceTypeIds.includes('customer') &&
+      promotionFieldDefinition?.type.name === 'Set' &&
+      promotionFieldDefinition.type.elementType?.name === 'Reference' &&
+      promotionFieldDefinition.type.elementType.referenceTypeId ===
+        'cart-discount'
+  );
+  const assignmentBlockingReason =
+    assignmentType && !isAssignmentTypeValid
+      ? `The “${PROMOTIONS_TYPE_KEY}” Custom Type must define “${PROMOTIONS_FIELD_NAME}” as a set of Cart Discount references.`
+      : currentTypeKey && currentTypeKey !== PROMOTIONS_TYPE_KEY
+      ? `This customer already uses the “${currentTypeKey}” Custom Type. A customer can use only one Custom Type at a time.`
+      : undefined;
+  const assignmentSetupNotice = !assignmentType
+    ? `The “${PROMOTIONS_TYPE_KEY}” Customer Custom Type will be created automatically when you submit the first promotion.`
+    : undefined;
+  const promotionOptions = allPromotions
+    .filter(
+      (promotion) => promotion.isActive && !assignedIds.includes(promotion.id)
+    )
+    .map((promotion) => ({
+      value: promotion.id,
+      label: `${
+        promotion.key ?? localizedValue(promotion.name)
+      } — ${localizedValue(promotion.name)}`,
+    }));
+  const pagedAssignedPromotions = assignedPromotions.slice(
+    (page - 1) * perPage,
+    page * perPage
+  );
+
+  useEffect(() => {
+    const lastPage = Math.max(
+      1,
+      Math.ceil(assignedPromotions.length / perPage)
+    );
+    if (page > lastPage) setPage(lastPage);
+  }, [assignedPromotions.length, page, perPage]);
 
   const saveAssignments = async (nextIds: string[], successMessage: string) => {
-    if (!projectKey || !canManage) return false;
+    if (!projectKey || !canManage || assignmentBlockingReason) return false;
     const references: PromotionReference[] = nextIds.map((id) => ({
       typeId: 'cart-discount',
       id,
     }));
-    const action = customer.custom
-      ? { action: 'setCustomField', name: 'promotions', value: references }
-      : {
-          action: 'setCustomType',
-          type: { typeId: 'type', key: 'promotionsList' },
-          fields: { promotions: references },
-        };
+    const action =
+      currentTypeKey === PROMOTIONS_TYPE_KEY
+        ? {
+            action: 'setCustomField',
+            name: PROMOTIONS_FIELD_NAME,
+            value: references,
+          }
+        : {
+            action: 'setCustomType',
+            type: { typeId: 'type', key: PROMOTIONS_TYPE_KEY },
+            fields: { [PROMOTIONS_FIELD_NAME]: references },
+          };
 
     setSaving(true);
     setMutationError(undefined);
     try {
+      if (!assignmentType) {
+        await dispatch(
+          actions.post({
+            mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
+            uri: `/${projectKey}/types`,
+            payload: {
+              key: PROMOTIONS_TYPE_KEY,
+              name: { en: 'Promotions List' },
+              description: {
+                en: 'Cart Discounts assigned to a customer by customer service.',
+              },
+              resourceTypeIds: ['customer'],
+              fieldDefinitions: [
+                {
+                  name: PROMOTIONS_FIELD_NAME,
+                  label: { en: 'Promotions' },
+                  type: {
+                    name: 'Set',
+                    elementType: {
+                      name: 'Reference',
+                      referenceTypeId: 'cart-discount',
+                    },
+                  },
+                  required: false,
+                  inputHint: 'SingleLine',
+                },
+              ],
+            },
+          })
+        );
+        promotionTypes.refetch();
+      }
       await dispatch(
         actions.post({
           mcApiProxyTarget: MC_API_PROXY_TARGETS.COMMERCETOOLS_PLATFORM,
@@ -1207,66 +1292,18 @@ export const CustomerPromotions = ({
     }
   };
 
-  const validateAndAssignCoupon = async () => {
-    const normalizedCode = couponCode.trim().toLocaleLowerCase();
-    if (!normalizedCode) {
-      setCouponFeedback({
-        type: 'error',
-        message: 'Enter a coupon code or promotion key.',
-      });
-      return;
-    }
-
-    const matchingDiscountCode = discountCodes.data?.results.find(
-      (discountCode) => discountCode.code.toLocaleLowerCase() === normalizedCode
+  const assignSelectedPromotions = async () => {
+    if (selectedPromotionIds.length === 0) return;
+    const nextIds = [...assignedIds, ...selectedPromotionIds].filter(
+      (id, index, ids) => ids.indexOf(id) === index
     );
-    const matchingPromotion = allPromotions.find(
-      (promotion) =>
-        promotion.isActive &&
-        (promotion.key?.toLocaleLowerCase() === normalizedCode ||
-          localizedValue(promotion.name).toLocaleLowerCase() === normalizedCode)
-    );
-    const matchingPromotionIds = [
-      ...(matchingDiscountCode?.cartDiscounts.map(
-        (promotion) => promotion.id
-      ) ?? []),
-      ...(matchingPromotion ? [matchingPromotion.id] : []),
-    ].filter((id, index, ids) => ids.indexOf(id) === index);
-
-    if (matchingPromotionIds.length === 0) {
-      setCouponFeedback({
-        type: 'error',
-        message: 'Invalid or expired coupon code for this customer.',
-      });
-      return;
-    }
-
-    const newPromotionIds = matchingPromotionIds.filter(
-      (id) => !assignedIds.includes(id)
-    );
-    if (newPromotionIds.length === 0) {
-      setCouponFeedback({
-        type: 'info',
-        message: 'This promotion is already assigned to the customer.',
-      });
-      return;
-    }
-
     const saved = await saveAssignments(
-      [...assignedIds, ...newPromotionIds],
-      'Promotion assigned to customer.'
+      nextIds,
+      selectedPromotionIds.length === 1
+        ? 'Promotion assigned to customer.'
+        : `${selectedPromotionIds.length} promotions assigned to customer.`
     );
-    if (saved) {
-      const names = newPromotionIds.map((id) => {
-        const promotion = allPromotions.find((item) => item.id === id);
-        return promotion ? localizedValue(promotion.name) : id;
-      });
-      setCouponCode('');
-      setCouponFeedback({
-        type: 'success',
-        message: `Coupon validated. Assigned ${names.join(', ')}.`,
-      });
-    }
+    if (saved) setSelectedPromotionIds([]);
   };
 
   const usageRows = useMemo(
@@ -1297,76 +1334,108 @@ export const CustomerPromotions = ({
 
   return (
     <Spacings.Stack scale="xl">
-      <CollapsiblePanel header="Promotion management" isDefaultClosed={false}>
-        <PageState
-          loading={promotions.loading || discountCodes.loading}
-          error={promotions.error ?? discountCodes.error}
-        >
-          <Spacings.Stack scale="l">
-            <Spacings.Inline scale="m" alignItems="flex-end">
-              <TextField
-                name="customer-promotion-code"
-                title="Coupon code or promotion key"
-                value={couponCode}
-                onChange={(event) => {
-                  setCouponCode(event.target.value);
-                  setCouponFeedback(undefined);
-                }}
-                placeholder="For example, SUMMER15"
-                isDisabled={!canManage || saving}
-                horizontalConstraint={8}
-              />
-              <PrimaryButton
-                label={saving ? 'Applying…' : 'Validate & apply'}
-                onClick={() => void validateAndAssignCoupon()}
-                isDisabled={!canManage || saving || !couponCode.trim()}
-              />
-            </Spacings.Inline>
-            {couponFeedback ? (
-              <ContentNotification type={couponFeedback.type}>
-                <Text.Body>{couponFeedback.message}</Text.Body>
-              </ContentNotification>
-            ) : null}
-            {mutationError ? (
-              <ContentNotification type="error">
-                <Text.Body>{getErrorMessage(mutationError)}</Text.Body>
-              </ContentNotification>
-            ) : null}
-            <PageState
-              isEmpty={assignedPromotions.length === 0}
-              emptyTitle="No promotions assigned to this customer"
-              emptyBody="Validate a coupon code or promotion key above to assign one."
-            >
+      <PageState
+        loading={promotions.loading || promotionTypes.loading}
+        error={promotions.error ?? promotionTypes.error}
+      >
+        <Spacings.Stack scale="l">
+          <SelectField
+            name="customer-promotions"
+            title="Promotion"
+            description="Assign promotions to customers"
+            value={selectedPromotionIds}
+            options={promotionOptions}
+            onChange={(event) => {
+              setSelectedPromotionIds(
+                Array.isArray(event.target.value)
+                  ? event.target.value.map(String)
+                  : []
+              );
+              setMutationError(undefined);
+            }}
+            placeholder="Select…"
+            isMulti
+            isSearchable
+            isClearable
+            isRequired
+            isDisabled={
+              !canManage || saving || Boolean(assignmentBlockingReason)
+            }
+            horizontalConstraint={8}
+          />
+
+          <Spacings.Inline scale="m">
+            <TabularDetailPage.FormSecondaryButton
+              label="Reset"
+              onClick={() => {
+                setSelectedPromotionIds([]);
+                setMutationError(undefined);
+              }}
+              isDisabled={saving || selectedPromotionIds.length === 0}
+            />
+            <TabularDetailPage.FormPrimaryButton
+              label={saving ? 'Submitting…' : 'Submit'}
+              onClick={() => void assignSelectedPromotions()}
+              isDisabled={
+                !canManage ||
+                saving ||
+                selectedPromotionIds.length === 0 ||
+                Boolean(assignmentBlockingReason)
+              }
+            />
+          </Spacings.Inline>
+
+          {assignmentSetupNotice ? (
+            <ContentNotification type="info">
+              <Text.Body>{assignmentSetupNotice}</Text.Body>
+            </ContentNotification>
+          ) : null}
+          {assignmentBlockingReason ? (
+            <ContentNotification type="warning">
+              <Text.Body>{assignmentBlockingReason}</Text.Body>
+            </ContentNotification>
+          ) : null}
+          {mutationError ? (
+            <ContentNotification type="error">
+              <Text.Body>{getErrorMessage(mutationError)}</Text.Body>
+            </ContentNotification>
+          ) : null}
+
+          <PageState
+            isEmpty={assignedPromotions.length === 0}
+            emptyTitle="No promotions assigned to this customer"
+            emptyBody="Select one or more promotions above, then submit to assign them."
+          >
+            <Spacings.Stack scale="l">
               <DataTable<CartDiscount>
                 columns={[
-                  { key: 'name', label: 'Promotion' },
                   { key: 'key', label: 'Key' },
+                  { key: 'name', label: 'Name' },
                   { key: 'value', label: 'Discount' },
-                  { key: 'target', label: 'Target' },
-                  { key: 'requiresDiscountCode', label: 'Code required' },
-                  { key: 'isActive', label: 'Status' },
-                  { key: 'validity', label: 'Validity' },
+                  { key: 'type', label: 'Type' },
+                  { key: 'isActive', label: 'Active' },
+                  {
+                    key: 'requiresDiscountCode',
+                    label: 'Discount Code Required',
+                  },
+                  { key: 'validFrom', label: 'Valid From' },
+                  { key: 'validUntil', label: 'Valid Until' },
                   { key: 'remove', label: '' },
                 ]}
-                rows={assignedPromotions}
+                rows={pagedAssignedPromotions}
                 itemRenderer={(item, column) => {
-                  if (column.key === 'name') return localizedValue(item.name);
                   if (column.key === 'key') return item.key ?? '—';
+                  if (column.key === 'name') return localizedValue(item.name);
                   if (column.key === 'value') return promotionValueLabel(item);
-                  if (column.key === 'target')
-                    return promotionTargetLabel(item.target);
+                  if (column.key === 'type') return promotionTypeLabel(item);
+                  if (column.key === 'isActive')
+                    return item.isActive ? 'Yes' : 'No';
                   if (column.key === 'requiresDiscountCode')
                     return item.requiresDiscountCode ? 'Yes' : 'No';
-                  if (column.key === 'isActive')
-                    return item.isActive ? 'Active' : 'Inactive';
-                  if (column.key === 'validity') {
-                    if (!item.validFrom && !item.validUntil) return 'Always';
-                    return `${
-                      item.validFrom ? formatDate(item.validFrom) : 'Any time'
-                    } – ${
-                      item.validUntil ? formatDate(item.validUntil) : 'No end'
-                    }`;
-                  }
+                  if (column.key === 'validFrom')
+                    return item.validFrom ? formatDate(item.validFrom) : '—';
+                  if (column.key === 'validUntil')
+                    return item.validUntil ? formatDate(item.validUntil) : '—';
                   return (
                     <TabularDetailPage.FormSecondaryButton
                       label="Remove"
@@ -1376,15 +1445,29 @@ export const CustomerPromotions = ({
                           'Promotion removed from customer.'
                         )
                       }
-                      isDisabled={!canManage || saving}
+                      isDisabled={
+                        !canManage ||
+                        saving ||
+                        Boolean(assignmentBlockingReason)
+                      }
                     />
                   );
                 }}
               />
-            </PageState>
-          </Spacings.Stack>
-        </PageState>
-      </CollapsiblePanel>
+              <Pagination
+                page={page}
+                onPageChange={setPage}
+                perPage={perPage}
+                onPerPageChange={(nextPerPage) => {
+                  setPerPage(nextPerPage);
+                  setPage(1);
+                }}
+                totalItems={assignedPromotions.length}
+              />
+            </Spacings.Stack>
+          </PageState>
+        </Spacings.Stack>
+      </PageState>
 
       <CollapsiblePanel header="Promotion usage" isDefaultClosed={false}>
         <PageState

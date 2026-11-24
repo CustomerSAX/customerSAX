@@ -9,7 +9,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   Button,
-  PrimaryButton,
   Avatar,
   Icon,
   Table,
@@ -594,6 +593,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     setCustomerRefundReason("Customer Return");
     setCustomerRefundDestination("Original Payment Method");
     setCustomerRefundNotes(`RMA: ${returnRow.returnTrackingId} • Order #${returnRow.orderNumber}`);
+    setSelectedReturn(null);
     setIsCustomerRefundDrawerOpen(true);
   };
 
@@ -1762,14 +1762,17 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                       <span className="ml-auto text-[11px] font-mono text-m-text-muted">{refundedReturnIds[selectedReturn.id]?.refundedAt || "Recorded"}</span>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between rounded-m-md border border-m-border bg-m-surface-2 p-3 text-xs">
+                    <div className="flex flex-col gap-3 rounded-m-md border border-m-border bg-m-surface-2 p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
                       <span className="text-m-text-muted">Return request is recorded. Eligible for refund processing.</span>
-                      <PrimaryButton
-                        icon="dollar-sign"
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="shrink-0 whitespace-nowrap"
+                        leftIcon={<Icon name="dollar-sign" size={16} />}
                         onClick={() => handleOpenCustomerRefund(selectedReturn)}
                       >
                         Issue Refund
-                      </PrimaryButton>
+                      </Button>
                     </div>
                   )}
 

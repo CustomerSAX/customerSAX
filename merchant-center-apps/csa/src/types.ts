@@ -122,6 +122,7 @@ export type ReturnInfo = {
   returnDate?: string | null;
   items: Array<{
     id: string;
+    lineItemId?: string | null;
     quantity: number;
     shipmentState: string;
     paymentState: string;

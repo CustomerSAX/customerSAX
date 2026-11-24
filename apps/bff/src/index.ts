@@ -9,6 +9,7 @@ import { apolloContext, apolloLoggingPlugin, createLogger } from "@csa/logger";
 import { buildGateway, type GatewayContext } from "./server/federation.js";
 import { localSchema } from "./server/local-schema.js";
 import { mountMerchantCenterTickets } from "./server/merchant-center-tickets.js";
+import { mountMerchantCenterRefunds } from "./server/merchant-center-refunds.js";
 
 const log = createLogger("bff");
 // Cloud Run sets PORT=8080. BFF_PORT is a legacy fallback kept for local dev.
@@ -45,6 +46,10 @@ app.get("/healthz", (_req, res) => res.json({ status: "ok" }));
 // project key, and then uses the existing ticketing subgraph/Mongo repository.
 mountMerchantCenterTickets(app, {
   audience: process.env.MC_TICKETS_AUDIENCE,
+  graphqlUrl: `http://127.0.0.1:${port}/graphql`
+});
+mountMerchantCenterRefunds(app, {
+  audience: process.env.MC_REFUNDS_AUDIENCE ?? process.env.MC_TICKETS_AUDIENCE,
   graphqlUrl: `http://127.0.0.1:${port}/graphql`
 });
 

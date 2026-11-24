@@ -17,6 +17,7 @@ This folder has its own `package.json`, `tsconfig.json`, and `Dockerfile`. It do
 - `BFF_COMMERCE_PLATFORM`
 - `FEDERATED_SERVICES`
 - `MC_TICKETS_AUDIENCE` (public BFF origin used to verify Merchant Center exchange tokens)
+- `MC_REFUNDS_AUDIENCE` (public BFF origin; falls back to `MC_TICKETS_AUDIENCE`)
 - `MONGO_URI` (resolves a verified commercetools project key to its CSA tenant)
 
 See `.env.example` in this folder.
@@ -42,3 +43,12 @@ derives the tenant from the verified project key, and queries the existing
 ticketing subgraph. Set `MONGO_ADMIN_DB` and `MONGO_PROJECTS_COLLECTION` only
 when the project registry does not use their defaults (`csa-admin` and
 `csa_projects`).
+
+`POST /merchant-center/refunds` is the authenticated return-refund adapter. It
+verifies the Merchant Center exchange JWT and `ManageCsaOrders` permission,
+validates the selected return items and amount against commercetools, creates
+a unique idempotent refund record, adds a successful Refund transaction when a
+commercetools Payment is linked, and marks the return items refunded. The
+registered commercetools tenant credentials need `manage_orders` and
+`manage_payments` scopes. An external payment-service adapter can be added
+behind this endpoint without changing the Merchant Center workflow.
