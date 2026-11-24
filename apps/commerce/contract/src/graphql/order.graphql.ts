@@ -15,6 +15,7 @@ export const orderTypeDefs = gql`
   type Order @key(fields: "id") {
     id: ID!
     orderNumber: String
+    purchaseOrderNumber: String
     customerId: String
     customerEmail: String
     state: String

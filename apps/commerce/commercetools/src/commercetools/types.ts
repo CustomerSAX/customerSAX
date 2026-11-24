@@ -118,6 +118,7 @@ export type CtOrder = {
   lastModifiedAt?: string;
   lineItems?: CtLineItem[];
   orderNumber?: string;
+  purchaseOrderNumber?: string;
   orderState?: string;
   paymentState?: string;
   shipmentState?: string;

@@ -123,6 +123,7 @@ export function mapOrder(order: CtOrder | null | undefined): Order | null {
     lastModifiedAt: order.lastModifiedAt,
     lineItems: (order.lineItems ?? []).map(mapLineItem),
     orderNumber: order.orderNumber,
+    purchaseOrderNumber: order.purchaseOrderNumber,
     orderState: order.orderState,
     paymentState: order.paymentState,
     shipmentState: order.shipmentState,

@@ -83,16 +83,22 @@ export interface CustomerOrder {
 
 export interface ReturnItem {
   id: string;
+  lineItemId?: string;
+  name?: string;
+  sku?: string;
   quantity: number;
   shipmentState: string;
   paymentState: string;
   createdAt: string;
   lastModifiedAt?: string;
   comment?: string;
+  replacementOrderId?: string;
+  replacementOrderNumber?: string;
 }
 
 export interface CustomerReturn {
   id: string;
+  orderId: string;
   orderNumber: string;
   returnTrackingId: string;
   returnDate: string;

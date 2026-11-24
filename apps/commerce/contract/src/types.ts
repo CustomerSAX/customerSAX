@@ -171,6 +171,7 @@ export type Order = {
   lineItems: CommerceLineItem[];
   lastModifiedAt?: string;
   orderNumber?: string;
+  purchaseOrderNumber?: string;
   orderState?: string;
   paymentState?: string;
   shipmentState?: string;
