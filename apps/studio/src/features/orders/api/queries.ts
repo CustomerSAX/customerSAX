@@ -13,6 +13,7 @@ export const CUSTOMER_ORDERS_QUERY = gql`
       results {
         id
         orderNumber
+        purchaseOrderNumber
         customerId
         customerEmail
         orderState
@@ -26,6 +27,7 @@ export const CUSTOMER_ORDERS_QUERY = gql`
         }
         lineItems {
           id
+          sku
           name
           quantity
           totalPrice {

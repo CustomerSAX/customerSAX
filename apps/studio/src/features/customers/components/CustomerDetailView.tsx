@@ -122,6 +122,28 @@ const UPDATE_CUSTOMER_ADDRESS = gql`mutation UpdateCustomerAddress($id: ID!, $ad
 const REMOVE_CUSTOMER_ADDRESS = gql`mutation RemoveCustomerAddress($id: ID!, $addressId: ID!) { removeCustomerAddress(id: $id, addressId: $addressId) }`;
 const SET_DEFAULT_CUSTOMER_ADDRESS = gql`mutation SetDefaultCustomerAddress($id: ID!, $addressId: ID!, $kind: String!) { setDefaultCustomerAddress(id: $id, addressId: $addressId, kind: $kind) }`;
 const CREATE_CUSTOMER_CART = gql`mutation CreateCustomerCart($currency: String!, $customerId: ID, $customerEmail: String) { createB2bCart(currency: $currency, customerId: $customerId, customerEmail: $customerEmail) { id } }`;
+const CREATE_REPLACEMENT_ORDER = gql`
+  mutation CreateStudioReplacementOrder($input: Json!) {
+    createReplacementOrder(input: $input)
+  }
+`;
+
+type ReplacementOrderResult = {
+  status: "created" | "existing";
+  replacementOrderId: string;
+  replacementOrderNumber?: string | null;
+  replacementSku: string;
+  quantity: number;
+};
+
+const replacementReference = (orderId: string, returnItemId: string) =>
+  `CSA-RPL:${orderId}:${returnItemId}`;
+
+const isReturnItemReplaceable = (item: CustomerReturn["items"][number]) =>
+  item.shipmentState.toLowerCase() === "returned" &&
+  item.paymentState.toLowerCase() !== "refunded" &&
+  !item.replacementOrderId &&
+  Boolean(item.sku);
 
 type OrderColumnKey =
   | "orderNumber"
@@ -325,18 +347,22 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   type GqlOrderRow = {
     id: string;
     orderNumber?: string | null;
+    purchaseOrderNumber?: string | null;
     orderState?: string | null;
     paymentState?: string | null;
     createdAt?: string | null;
     totalPrice?: GqlMoney | null;
-    lineItems?: Array<{ id: string }> | null;
+    lineItems?: Array<{ id: string; sku?: string | null; name?: string | null; quantity: number }> | null;
     returnInfo?: GqlReturnInfo[] | null;
   };
-  const { data: ordersGqlData, loading: ordersLoading } = useQuery<{
+  const { data: ordersGqlData, loading: ordersLoading, refetch: refetchOrders } = useQuery<{
     orderPage: { total: number; results: GqlOrderRow[] };
   }>(CUSTOMER_ORDERS_QUERY, {
     variables: { customerId: id, customerEmail: customer?.email || undefined, limit: 100 },
   });
+  const [createReplacementOrderMutation] = useMutation<{
+    createReplacementOrder: ReplacementOrderResult;
+  }>(CREATE_REPLACEMENT_ORDER);
 
   // ── Real carts from BFF (filtered by customerId) ──────────────────────────
   type GqlCartLineItem = { id: string; name?: string | null; quantity: number };
@@ -447,18 +473,35 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       for (const ri of o.returnInfo) {
         results.push({
           id: ri.returnTrackingId ?? `${o.id}-${results.length}`,
+          orderId: o.id,
           orderNumber: o.orderNumber ?? o.id,
           returnTrackingId: ri.returnTrackingId ?? "--",
           returnDate: formatDate(ri.returnDate),
           itemsCount: ri.items?.length ?? 0,
-          items: (ri.items ?? []).map((item) => ({
-            id: item.id,
-            quantity: item.quantity,
-            shipmentState: item.shipmentState,
-            paymentState: item.paymentState,
-            createdAt: "--",
-            comment: item.comment ?? undefined,
-          })),
+          items: (ri.items ?? []).map((item) => {
+            const lineItem = o.lineItems?.find(
+              (candidate) => candidate.id === (item.lineItemId ?? item.id)
+            );
+            const replacement = ordersGqlData?.orderPage.results.find(
+              (candidate) =>
+                candidate.purchaseOrderNumber ===
+                replacementReference(o.id, item.id)
+            );
+            return {
+              id: item.id,
+              lineItemId: item.lineItemId ?? undefined,
+              name: lineItem?.name ?? undefined,
+              sku: lineItem?.sku ?? undefined,
+              quantity: item.quantity,
+              shipmentState: item.shipmentState,
+              paymentState: item.paymentState,
+              createdAt: "--",
+              comment: item.comment ?? undefined,
+              replacementOrderId: replacement?.id,
+              replacementOrderNumber:
+                replacement?.orderNumber ?? replacement?.id,
+            };
+          }),
         });
       }
     }
@@ -569,6 +612,11 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const returns = realReturns;
   const [returnsSearch, setReturnsSearch] = useState("");
   const [selectedReturn, setSelectedReturn] = useState<CustomerReturn | null>(null);
+  const selectedReturnReplacement = selectedReturn?.items.find(
+    (item) => item.replacementOrderId
+  );
+  const selectedReturnCanReplace =
+    selectedReturn?.items.some(isReturnItemReplaceable) ?? false;
   const [returnColumnKeys, setReturnColumnKeys] = useState<ReturnColumnKey[]>(DEFAULT_RETURN_COLUMN_KEYS);
   const [quotesSearch, setQuotesSearch] = useState("");
   const [quoteColumnKeys, setQuoteColumnKeys] = useState<QuoteColumnKey[]>(DEFAULT_QUOTE_COLUMN_KEYS);
@@ -586,6 +634,30 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
   const [customerRefundDestination, setCustomerRefundDestination] = useState("Original Payment Method");
   const [customerRefundNotes, setCustomerRefundNotes] = useState("");
   const [customerRefundSuccess, setCustomerRefundSuccess] = useState("");
+
+  // ── Customer 360 Replacement State & Handlers ──────────────────
+  const [isReplacementDrawerOpen, setIsReplacementDrawerOpen] = useState(false);
+  const [replacementTarget, setReplacementTarget] = useState<CustomerReturn | null>(null);
+  const [replacementItemId, setReplacementItemId] = useState("");
+  const [replacementSku, setReplacementSku] = useState("");
+  const [replacementQuantity, setReplacementQuantity] = useState("1");
+  const [replacementReason, setReplacementReason] = useState("Customer Return");
+  const [replacementSubmitting, setReplacementSubmitting] = useState(false);
+  const [replacementError, setReplacementError] = useState("");
+  const [replacementSuccess, setReplacementSuccess] = useState("");
+  const replacementEligibleItems = replacementTarget?.items.filter(
+    isReturnItemReplaceable
+  ) ?? [];
+  const selectedReplacementItem = replacementEligibleItems.find(
+    (item) => item.id === replacementItemId
+  );
+  const parsedReplacementQuantity = Number(replacementQuantity);
+  const replacementFormInvalid =
+    !selectedReplacementItem ||
+    !replacementSku.trim() ||
+    !Number.isSafeInteger(parsedReplacementQuantity) ||
+    parsedReplacementQuantity < 1 ||
+    parsedReplacementQuantity > (selectedReplacementItem?.quantity ?? 0);
 
   const handleOpenCustomerRefund = (returnRow: CustomerReturn) => {
     setCustomerRefundTarget(returnRow);
@@ -616,6 +688,67 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
     setIsCustomerRefundDrawerOpen(false);
     setCustomerRefundSuccess(`Refund of ${customerRefundAmount || "$45.00"} processed successfully for ${customerRefundTarget.returnTrackingId}.`);
     setTimeout(() => setCustomerRefundSuccess(""), 5000);
+  };
+
+  const selectReplacementItem = (returnItemId: string, target = replacementTarget) => {
+    const item = target?.items.find((candidate) => candidate.id === returnItemId);
+    setReplacementItemId(returnItemId);
+    setReplacementSku(item?.sku ?? "");
+    setReplacementQuantity("1");
+  };
+
+  const handleOpenReplacement = (returnRow: CustomerReturn) => {
+    const firstItem = returnRow.items.find(isReturnItemReplaceable);
+    if (!firstItem) return;
+    setReplacementTarget(returnRow);
+    selectReplacementItem(firstItem.id, returnRow);
+    setReplacementReason("Customer Return");
+    setReplacementError("");
+    setSelectedReturn(null);
+    setIsReplacementDrawerOpen(true);
+  };
+
+  const handleCreateReplacement = async () => {
+    if (
+      !replacementTarget ||
+      !selectedReplacementItem ||
+      replacementFormInvalid
+    )
+      return;
+
+    setReplacementSubmitting(true);
+    setReplacementError("");
+    try {
+      const response = await createReplacementOrderMutation({
+        variables: {
+          input: {
+            orderId: replacementTarget.orderId,
+            returnItemId: selectedReplacementItem.id,
+            replacementSku: replacementSku.trim(),
+            quantity: parsedReplacementQuantity,
+            reason: replacementReason,
+          },
+        },
+      });
+      const result = response.data?.createReplacementOrder;
+      if (!result) throw new Error("The replacement service returned no order.");
+      await refetchOrders();
+      setIsReplacementDrawerOpen(false);
+      setReplacementSuccess(
+        result.status === "existing"
+          ? `Replacement order ${result.replacementOrderNumber ?? result.replacementOrderId} already exists.`
+          : `Replacement order ${result.replacementOrderNumber ?? result.replacementOrderId} was created successfully.`
+      );
+      setTimeout(() => setReplacementSuccess(""), 5000);
+    } catch (caught) {
+      setReplacementError(
+        caught instanceof Error
+          ? caught.message
+          : "The replacement order could not be created."
+      );
+    } finally {
+      setReplacementSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -972,6 +1105,8 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
       case "action": {
         const isRowRefunded = Boolean(refundedReturnIds[returnRow.id] || refundedReturnIds[returnRow.returnTrackingId]) ||
           returnRow.items.every((it) => it.paymentState?.toLowerCase() === "refunded");
+        const replacement = returnRow.items.find((item) => item.replacementOrderId);
+        const canReplace = returnRow.items.some(isReturnItemReplaceable);
         return (
           <TableCell>
             <div className="flex items-center gap-2">
@@ -985,7 +1120,7 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
               >
                 View Items Breakdown
               </Button>
-              {!isRowRefunded ? (
+              {!isRowRefunded && !replacement ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -998,7 +1133,25 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                   Issue Refund
                 </Button>
               ) : (
-                <StatusPill tone="success">✓ Refunded</StatusPill>
+                isRowRefunded ? <StatusPill tone="success">✓ Refunded</StatusPill> : null
+              )}
+              {canReplace && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Icon name="repeat" size={12} />}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleOpenReplacement(returnRow);
+                  }}
+                >
+                  Replace Item
+                </Button>
+              )}
+              {replacement && (
+                <StatusPill tone="success">
+                  Replacement {replacement.replacementOrderNumber ?? "created"}
+                </StatusPill>
               )}
             </div>
           </TableCell>
@@ -1690,6 +1843,12 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
               <span>{customerRefundSuccess}</span>
             </div>
           )}
+          {replacementSuccess && (
+            <div className="rounded-m-md bg-m-success-light border border-m-success-border text-m-success p-3 text-xs font-semibold flex items-center gap-2">
+              <span>✓</span>
+              <span>{replacementSuccess}</span>
+            </div>
+          )}
           <SectionCard
             title="Return History"
             icon="rotate-ccw"
@@ -1754,7 +1913,32 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                     <InfoRow label="Items" value={selectedReturn.itemsCount} />
                   </InfoList>
 
-                  {Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ||
+                  {selectedReturnReplacement ? (
+                    <div className="flex items-center gap-2 rounded-m-md border border-m-success-border bg-m-success-light p-3 text-xs font-semibold text-m-success">
+                      <Icon name="check-circle" size={15} />
+                      <span>
+                        Replacement order {selectedReturnReplacement.replacementOrderNumber ?? selectedReturnReplacement.replacementOrderId} created
+                      </span>
+                      <div className="ml-auto flex items-center gap-2">
+                        <Link
+                          className="text-m-primary hover:underline"
+                          href={`/orders/${selectedReturnReplacement.replacementOrderId}`}
+                        >
+                          Open order
+                        </Link>
+                        {selectedReturnCanReplace && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            leftIcon={<Icon name="repeat" size={14} />}
+                            onClick={() => handleOpenReplacement(selectedReturn)}
+                          >
+                            Replace Another Item
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ||
                     selectedReturn.items.every((it) => it.paymentState?.toLowerCase() === "refunded") ? (
                     <div className="flex items-center gap-2 rounded-m-md border border-m-success-border bg-m-success-light p-3 text-xs font-semibold text-m-success">
                       <Icon name="check-circle" size={15} />
@@ -1763,16 +1947,29 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-3 rounded-m-md border border-m-border bg-m-surface-2 p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
-                      <span className="text-m-text-muted">Return request is recorded. Eligible for refund processing.</span>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        className="shrink-0 whitespace-nowrap"
-                        leftIcon={<Icon name="dollar-sign" size={16} />}
-                        onClick={() => handleOpenCustomerRefund(selectedReturn)}
-                      >
-                        Issue Refund
-                      </Button>
+                      <span className="text-m-text-muted">Return request is recorded. Choose a resolution.</span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="whitespace-nowrap"
+                          leftIcon={<Icon name="dollar-sign" size={16} />}
+                          onClick={() => handleOpenCustomerRefund(selectedReturn)}
+                        >
+                          Issue Refund
+                        </Button>
+                        {selectedReturnCanReplace && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="whitespace-nowrap"
+                            leftIcon={<Icon name="repeat" size={16} />}
+                            onClick={() => handleOpenReplacement(selectedReturn)}
+                          >
+                            Replace Item
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -1781,15 +1978,21 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead>Item</TableHead>
                           <TableHead>Qty</TableHead>
                           <TableHead>Shipment State</TableHead>
                           <TableHead>Payment State</TableHead>
+                          <TableHead>Replacement</TableHead>
                           <TableHead>Comment</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {selectedReturn.items.map((item) => (
                           <TableRow key={item.id}>
+                            <TableCell>
+                              <div className="font-semibold">{item.name ?? "Returned item"}</div>
+                              <div className="font-mono text-[11px] text-m-text-muted">{item.sku ?? "--"}</div>
+                            </TableCell>
                             <TableCell className="font-bold">{item.quantity}</TableCell>
                             <TableCell>
                               <StatusPill tone="warning">{item.shipmentState}</StatusPill>
@@ -1798,6 +2001,16 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
                               <StatusPill tone={Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ? "success" : paymentStateTone(item.paymentState)}>
                                 {Boolean(refundedReturnIds[selectedReturn.id] || refundedReturnIds[selectedReturn.returnTrackingId]) ? "Refunded" : item.paymentState}
                               </StatusPill>
+                            </TableCell>
+                            <TableCell>
+                              {item.replacementOrderId ? (
+                                <Link
+                                  className="font-semibold text-m-primary hover:underline"
+                                  href={`/orders/${item.replacementOrderId}`}
+                                >
+                                  {item.replacementOrderNumber ?? "Open order"}
+                                </Link>
+                              ) : "--"}
                             </TableCell>
                             <TableCell className="text-xs text-m-text-muted">{item.comment || "--"}</TableCell>
                           </TableRow>
@@ -2220,6 +2433,134 @@ export function CustomerDetailView({ id }: CustomerDetailViewProps) {
           </Button>
           <Button variant="primary" size="md" onClick={handleProcessCustomerRefund}>
             Confirm & Process Refund
+          </Button>
+        </Drawer.Footer>
+      </Drawer>
+
+      {/* ── Customer 360 Replacement Order Side Drawer ── */}
+      <Drawer
+        isOpen={isReplacementDrawerOpen}
+        onClose={() => !replacementSubmitting && setIsReplacementDrawerOpen(false)}
+        size="md"
+        position="right"
+      >
+        <Drawer.Header
+          title="Create Replacement Order"
+          subtitle={replacementTarget ? `RMA: ${replacementTarget.returnTrackingId} • Original order #${replacementTarget.orderNumber}` : "Customer Return"}
+          onClose={() => !replacementSubmitting && setIsReplacementDrawerOpen(false)}
+        />
+        <Drawer.Content className="space-y-4">
+          <div className="rounded-m-lg bg-m-surface-2 p-3.5 border border-m-border space-y-2 text-xs">
+            <div className="flex justify-between gap-4">
+              <span className="text-m-text-muted">Customer:</span>
+              <span className="font-semibold text-right text-m-text">
+                {[customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || customer?.email || id}
+              </span>
+            </div>
+            {replacementTarget && (
+              <>
+                <div className="flex justify-between gap-4">
+                  <span className="text-m-text-muted">Original order:</span>
+                  <span className="font-mono font-bold text-m-primary">{replacementTarget.orderNumber}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-m-text-muted">RMA tracking ID:</span>
+                  <span className="font-mono text-m-text">{replacementTarget.returnTrackingId}</span>
+                </div>
+                <div className="flex justify-between gap-4 border-t border-m-border/60 pt-2">
+                  <span className="text-m-text-muted">Original product:</span>
+                  <span className="font-semibold text-right text-m-text">{selectedReplacementItem?.name ?? "--"}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-m-text-muted">Returned quantity:</span>
+                  <span className="font-semibold text-m-text">{selectedReplacementItem?.quantity ?? "--"}</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <FormField>
+            <Label>Returned Item</Label>
+            <Select
+              value={replacementItemId}
+              onChange={(event) => selectReplacementItem(event.target.value)}
+              options={replacementEligibleItems.map((item) => ({
+                value: item.id,
+                label: `${item.name ?? "Returned item"} · ${item.sku ?? "No SKU"} · Qty ${item.quantity}`,
+              }))}
+              disabled={replacementSubmitting || replacementEligibleItems.length <= 1}
+            />
+          </FormField>
+
+          <FormField>
+            <Label>Replacement SKU</Label>
+            <Input
+              value={replacementSku}
+              onChange={(event) => setReplacementSku(event.target.value)}
+              placeholder="Enter a valid product SKU"
+              disabled={replacementSubmitting}
+            />
+          </FormField>
+
+          <FormField>
+            <Label>Replacement Quantity</Label>
+            <Input
+              type="number"
+              min="1"
+              max={selectedReplacementItem?.quantity ?? 1}
+              step="1"
+              value={replacementQuantity}
+              onChange={(event) => setReplacementQuantity(event.target.value)}
+              disabled={replacementSubmitting}
+            />
+            {selectedReplacementItem && replacementFormInvalid && (
+              <p className="mt-1 text-xs text-m-error">
+                Enter a whole number from 1 to {selectedReplacementItem.quantity} and a valid SKU.
+              </p>
+            )}
+          </FormField>
+
+          <FormField>
+            <Label>Replacement Reason</Label>
+            <Select
+              value={replacementReason}
+              onChange={(event) => setReplacementReason(event.target.value)}
+              options={[
+                { value: "Customer Return", label: "Customer Return" },
+                { value: "Wrong Item", label: "Wrong Item Received" },
+                { value: "Wrong Size", label: "Wrong Size or Variant" },
+                { value: "Damaged / Defective Goods", label: "Damaged or Defective Item" },
+              ]}
+              disabled={replacementSubmitting}
+            />
+          </FormField>
+
+          <div className="rounded-m-md border border-m-info-border bg-m-info-light p-3 text-xs text-m-text">
+            The replacement will be created as a separate zero-value order using the original shipping address. The original order remains unchanged.
+          </div>
+
+          {replacementError && (
+            <div className="rounded-m-md border border-m-error-border bg-m-error-light p-3 text-xs font-semibold text-m-error">
+              {replacementError}
+            </div>
+          )}
+        </Drawer.Content>
+        <Drawer.Footer>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => setIsReplacementDrawerOpen(false)}
+            disabled={replacementSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => void handleCreateReplacement()}
+            disabled={replacementSubmitting || replacementFormInvalid}
+          >
+            {replacementSubmitting ? "Creating…" : "Confirm & Create Replacement"}
           </Button>
         </Drawer.Footer>
       </Drawer>

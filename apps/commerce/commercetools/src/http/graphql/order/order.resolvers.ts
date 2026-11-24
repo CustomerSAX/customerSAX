@@ -17,6 +17,7 @@ const log = createLogger("commercetools").child({ module: "order.resolvers" });
 const orderFields = `#graphql
   id
   orderNumber
+  purchaseOrderNumber
   customerId
   customerEmail
   orderState
