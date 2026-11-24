@@ -162,11 +162,14 @@ it("returns a legitimate empty catalog as success", async () => {
 });
 it("appends preview connectors without replacing live catalog entries", async () => {
   vi.stubEnv("CONNECTION_HUB_PREVIEW_CATALOG", "true");
-  mocks.fetch.mockResolvedValue(page([node("shopify")]));
+  mocks.fetch.mockResolvedValue(
+    page([node("shopify"), node("commercetools"), node("algolia"), node("zendesk")])
+  );
   const connectors = await connectionHubCatalog.list();
-  expect(connectors.filter((item) => item.id === "shopify")).toEqual([
-    expect.objectContaining({ name: "shopify", availability: "available" })
-  ]);
+  for (const id of ["shopify", "commercetools", "algolia", "zendesk"])
+    expect(connectors.filter((item) => item.id === id)).toEqual([
+      expect.objectContaining({ name: id, availability: "available" })
+    ]);
   expect(connectors).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ id: "sap-commerce-cloud", availability: "preview" }),

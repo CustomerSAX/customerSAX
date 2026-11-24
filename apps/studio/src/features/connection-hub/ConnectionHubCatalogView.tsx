@@ -13,7 +13,7 @@ import type { HubCatalogConnector } from "@/lib/connection-hub-catalog";
 import { ZendeskPluginDialog } from "@/features/csa-assistant/components/ZendeskPluginDialog";
 import { RemoveConnectorDialog, type RemovalTarget } from "./RemoveConnectorDialog";
 import { ConnectConnectorDialog, type ConnectionTarget } from "./ConnectConnectorDialog";
-import { PreviewConnectorDialog } from "./PreviewConnectorDialog";
+import { PreviewConnectorDialog, type PreviewConnection } from "./PreviewConnectorDialog";
 
 import {
   AlgoliaPluginDialog,
@@ -30,6 +30,9 @@ export function ConnectionHubCatalogView() {
   const [removal, setRemoval] = useState<RemovalTarget | null>(null);
   const [connection, setConnection] = useState<ConnectionTarget | null>(null);
   const [preview, setPreview] = useState<HubCatalogConnector | null>(null);
+  const [previewConnections, setPreviewConnections] = useState<
+    Record<string, PreviewConnection | null>
+  >({});
   const [notice, setNotice] = useState<{
     clientId: string;
     projectKey: string;
@@ -294,7 +297,12 @@ export function ConnectionHubCatalogView() {
                 <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                   {visible.map((item) => {
                     const isPreview = item.availability === "preview";
-                    const isActivePreview = isPreview && item.id === "commercetools";
+                    const previewConnectionState = isPreview
+                      ? previewConnection(item, previewConnections)
+                      : null;
+                    const previewActions = previewConnectionState?.actions ?? [];
+                    const previewEnabled = new Set(previewActions);
+                    const isActivePreview = isPreview && previewActions.length > 0;
                     const bindings = (projectStatus.data ?? []).filter(
                       (binding) => binding.connectorId === item.id
                     );
@@ -384,7 +392,9 @@ export function ConnectionHubCatalogView() {
                           <div className="flex flex-wrap items-center gap-3">
                             {isPreview && (
                               <Button variant="outline" onClick={() => setPreview(item)}>
-                                View setup
+                                {isActivePreview
+                                  ? `Manage ${item.name}`
+                                  : `Connect ${item.name}`}
                               </Button>
                             )}
                             {!isPreview && item.id === "algolia" && (
@@ -468,14 +478,15 @@ export function ConnectionHubCatalogView() {
                                   {action.readOnly && <span>Read only</span>}
                                   <Badge
                                     variant={
-                                      isActivePreview ||
+                                      (isActivePreview &&
+                                        previewEnabled.has(action.id)) ||
                                       (!isPreview && known && enabled.has(action.id))
                                         ? "success"
                                         : "neutral"
                                     }
                                     size="sm"
                                   >
-                                    {isActivePreview
+                                    {isActivePreview && previewEnabled.has(action.id)
                                       ? "Active"
                                       : isPreview
                                         ? "Preview"
@@ -552,11 +563,42 @@ export function ConnectionHubCatalogView() {
             }}
           />
         )}
-      {preview && (
+      {preview?.availability === "preview" && (
         <PreviewConnectorDialog
           key={preview.id}
           connector={preview}
+          projectKey={user?.activeProjectKey || "selected project"}
+          connection={previewConnection(preview, previewConnections)}
           onClose={() => setPreview(null)}
+          onSave={(updatedConnection) => {
+            const wasConnected = previewConnection(preview, previewConnections) !== null;
+            setPreviewConnections((current) => ({
+              ...current,
+              [preview.id]: updatedConnection
+            }));
+            if (user?.activeClientId && user.activeProjectKey)
+              setNotice({
+                clientId: user.activeClientId,
+                projectKey: user.activeProjectKey,
+                text: wasConnected
+                  ? `${preview.name} connection updated for project ${user.activeProjectKey}.`
+                  : `${preview.name} connected to project ${user.activeProjectKey}.`
+              });
+            setPreview(null);
+          }}
+          onDisconnect={() => {
+            setPreviewConnections((current) => ({
+              ...current,
+              [preview.id]: null
+            }));
+            if (user?.activeClientId && user.activeProjectKey)
+              setNotice({
+                clientId: user.activeClientId,
+                projectKey: user.activeProjectKey,
+                text: `${preview.name} disconnected from project ${user.activeProjectKey}.`
+              });
+            setPreview(null);
+          }}
         />
       )}
     </section>
@@ -582,6 +624,22 @@ function authenticationLabel(type: string) {
       BASIC_AUTH: "Basic auth"
     }[type.toUpperCase()] ?? type.replace(/_/g, " ")
   );
+}
+
+function previewConnection(
+  connector: HubCatalogConnector,
+  connections: Record<string, PreviewConnection | null>
+) {
+  if (connector.availability !== "preview") return null;
+  if (Object.prototype.hasOwnProperty.call(connections, connector.id))
+    return connections[connector.id] ?? null;
+  return connector.id === "commercetools"
+    ? {
+        account: "demo-commerce-project",
+        resource: "europe-west1.gcp",
+        actions: connector.actions.map((action) => action.id)
+      }
+    : null;
 }
 
 function connectors(value: unknown): value is HubCatalogConnector[] {

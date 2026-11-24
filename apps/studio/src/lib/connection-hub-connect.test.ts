@@ -203,6 +203,25 @@ it("rejects preview catalog entries before making a Hub management request", asy
   expect(mocks.fetch).not.toHaveBeenCalled();
 });
 
+it.each(["algolia", "zendesk"])(
+  "keeps the real %s connector off the generic management route",
+  async (connectorId) => {
+    const response = await connect(
+      {
+        ...scope,
+        account: "acme",
+        credential: "secret",
+        resource: "",
+        actions: ["get_tickets"]
+      },
+      connectorId
+    );
+    expect(response.status).toBe(400);
+    expect(mocks.catalog).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  }
+);
+
 it("rejects unknown actions, bespoke connectors and stale project scope", async () => {
   expect(
     (
@@ -213,20 +232,6 @@ it("rejects unknown actions, bespoke connectors and stale project scope", async 
         resource: "",
         actions: ["not_in_catalog"]
       })
-    ).status
-  ).toBe(400);
-  expect(
-    (
-      await connect(
-        {
-          ...scope,
-          account: "acme",
-          credential: "secret",
-          resource: "",
-          actions: ["get_tickets"]
-        },
-        "zendesk"
-      )
     ).status
   ).toBe(400);
   expect(
