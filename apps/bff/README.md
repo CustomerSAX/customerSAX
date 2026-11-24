@@ -18,6 +18,7 @@ This folder has its own `package.json`, `tsconfig.json`, and `Dockerfile`. It do
 - `FEDERATED_SERVICES`
 - `MC_TICKETS_AUDIENCE` (public BFF origin used to verify Merchant Center exchange tokens)
 - `MC_REFUNDS_AUDIENCE` (public BFF origin; falls back to `MC_TICKETS_AUDIENCE`)
+- `MC_REPLACEMENTS_AUDIENCE` (public BFF origin; falls back to `MC_REFUNDS_AUDIENCE`)
 - `MONGO_URI` (resolves a verified commercetools project key to its CSA tenant)
 
 See `.env.example` in this folder.

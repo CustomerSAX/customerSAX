@@ -268,6 +268,7 @@ export const CUSTOMER_DETAIL_QUERY = gql`
         id
         version
         orderNumber
+        purchaseOrderNumber
         customerEmail
         orderState
         paymentState

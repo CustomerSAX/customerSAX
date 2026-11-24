@@ -10,6 +10,7 @@ import { buildGateway, type GatewayContext } from "./server/federation.js";
 import { localSchema } from "./server/local-schema.js";
 import { mountMerchantCenterTickets } from "./server/merchant-center-tickets.js";
 import { mountMerchantCenterRefunds } from "./server/merchant-center-refunds.js";
+import { mountMerchantCenterReplacements } from "./server/merchant-center-replacements.js";
 
 const log = createLogger("bff");
 // Cloud Run sets PORT=8080. BFF_PORT is a legacy fallback kept for local dev.
@@ -50,6 +51,13 @@ mountMerchantCenterTickets(app, {
 });
 mountMerchantCenterRefunds(app, {
   audience: process.env.MC_REFUNDS_AUDIENCE ?? process.env.MC_TICKETS_AUDIENCE,
+  graphqlUrl: `http://127.0.0.1:${port}/graphql`
+});
+mountMerchantCenterReplacements(app, {
+  audience:
+    process.env.MC_REPLACEMENTS_AUDIENCE ??
+    process.env.MC_REFUNDS_AUDIENCE ??
+    process.env.MC_TICKETS_AUDIENCE,
   graphqlUrl: `http://127.0.0.1:${port}/graphql`
 });
 

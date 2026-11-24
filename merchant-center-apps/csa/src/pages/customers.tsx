@@ -58,6 +58,11 @@ import {
   type RefundApiResponse,
 } from '../refunds';
 import {
+  parseReplacementQuantity,
+  replacementReference,
+  type ReplacementApiResponse,
+} from '../replacements';
+import {
   displayName,
   formatAddress,
   formatDate,
@@ -1196,6 +1201,15 @@ type CustomerReturnRow = {
   orderTotal: Order['totalPrice'];
   items: NonNullable<Order['returnInfo']>[number]['items'];
   lineItems: NonNullable<Order['lineItems']>;
+  replacements: Record<
+    string,
+    {
+      orderId: string;
+      orderNumber: string;
+      sku: string;
+      quantity: number;
+    }
+  >;
 };
 
 const returnStateSummary = (states: string[]) =>
@@ -1245,6 +1259,28 @@ const CustomerReturns = ({
           orderTotal: order.totalPrice,
           items: returnInfo.items,
           lineItems: order.lineItems ?? [],
+          replacements: Object.fromEntries(
+            returnInfo.items.flatMap((returnItem) => {
+              const replacement = rows.find(
+                (candidate) =>
+                  candidate.purchaseOrderNumber ===
+                  replacementReference(order.id, returnItem.id)
+              );
+              if (!replacement) return [];
+              const replacementLine = replacement.lineItems?.[0];
+              return [
+                [
+                  returnItem.id,
+                  {
+                    orderId: replacement.id,
+                    orderNumber: replacement.orderNumber ?? replacement.id,
+                    sku: replacementLine?.variant?.sku ?? '—',
+                    quantity: replacementLine?.quantity ?? 0,
+                  },
+                ],
+              ];
+            })
+          ),
         }))
       ),
     [rows]
@@ -1375,12 +1411,13 @@ const CustomerReturnDetail = ({
   const canManage = useIsAuthorized({
     demandedPermissions: [PERMISSIONS.ManageOrders],
   });
-  const { projectKey, refundApiUrl } = useApplicationContext<
-    { projectKey?: string; refundApiUrl: string },
-    { csaRefundApiUrl?: string }
+  const { projectKey, refundApiUrl, replacementApiUrl } = useApplicationContext<
+    { projectKey?: string; refundApiUrl: string; replacementApiUrl: string },
+    { csaRefundApiUrl?: string; csaReplacementApiUrl?: string }
   >((context) => ({
     projectKey: context.project?.key,
     refundApiUrl: context.environment.csaRefundApiUrl?.trim() ?? '',
+    replacementApiUrl: context.environment.csaReplacementApiUrl?.trim() ?? '',
   }));
   const itemRows = returnRow.items.map((item, itemIndex) => ({
     ...item,
@@ -1393,10 +1430,27 @@ const CustomerReturnDetail = ({
   const allRefunded = returnRow.items.every(
     (item) => item.paymentState.toLowerCase() === 'refunded'
   );
+  const allResolved = returnRow.items.every(
+    (item) =>
+      item.paymentState.toLowerCase() === 'refunded' ||
+      Boolean(returnRow.replacements[item.id])
+  );
   const refundableItems = returnRow.items.filter(
     (item) =>
       item.shipmentState.toLowerCase() === 'returned' &&
-      item.paymentState.toLowerCase() !== 'refunded'
+      item.paymentState.toLowerCase() !== 'refunded' &&
+      !returnRow.replacements[item.id]
+  );
+  const replaceableItems = returnRow.items.filter(
+    (item) =>
+      item.shipmentState.toLowerCase() === 'returned' &&
+      item.paymentState.toLowerCase() !== 'refunded' &&
+      !returnRow.replacements[item.id] &&
+      Boolean(
+        returnRow.lineItems.find(
+          (lineItem) => lineItem.id === (item.lineItemId ?? item.id)
+        )?.variant?.sku
+      )
   );
   const suggestedCentAmount = calculateReturnRefundCentAmount(
     returnRow.lineItems,
@@ -1412,6 +1466,33 @@ const CustomerReturnDetail = ({
   const [idempotencyKey, setIdempotencyKey] = useState('');
   const [refunding, setRefunding] = useState(false);
   const [refundError, setRefundError] = useState<unknown>();
+  const [replacementDrawerOpen, setReplacementDrawerOpen] = useState(false);
+  const [replacementItemId, setReplacementItemId] = useState('');
+  const [replacementSku, setReplacementSku] = useState('');
+  const [replacementQuantity, setReplacementQuantity] = useState('1');
+  const [replacementReason, setReplacementReason] = useState('Customer Return');
+  const [replacing, setReplacing] = useState(false);
+  const [replacementError, setReplacementError] = useState<unknown>();
+  const selectedReplacementItem = replaceableItems.find(
+    (item) => item.id === replacementItemId
+  );
+  const selectedReplacementLine = selectedReplacementItem
+    ? returnRow.lineItems.find(
+        (lineItem) =>
+          lineItem.id ===
+          (selectedReplacementItem.lineItemId ?? selectedReplacementItem.id)
+      )
+    : undefined;
+  const parsedReplacementQuantity = selectedReplacementItem
+    ? parseReplacementQuantity(
+        replacementQuantity,
+        selectedReplacementItem.quantity
+      )
+    : undefined;
+  const invalidReplacement =
+    !selectedReplacementItem ||
+    !replacementSku.trim() ||
+    !parsedReplacementQuantity;
   const parsedRefundAmount = parseRefundAmount(refundAmount, fractionDigits);
   const invalidRefundAmount =
     !parsedRefundAmount || parsedRefundAmount > suggestedCentAmount;
@@ -1426,6 +1507,18 @@ const CustomerReturnDetail = ({
     : suggestedCentAmount <= 0
     ? 'The refundable amount could not be calculated from the returned line items.'
     : undefined;
+  const replacementConfigurationError = !replacementApiUrl
+    ? 'Replacement integration is not configured. Set CSA_MC_REPLACEMENT_API_URL and redeploy the Custom Application.'
+    : !projectKey
+    ? 'Select a commercetools project before creating a replacement.'
+    : !canManage
+    ? 'The Manage Orders permission is required to create a replacement.'
+    : undefined;
+  const replacementUnavailableReason =
+    replacementConfigurationError ??
+    (replaceableItems.length === 0
+      ? 'No returned items are eligible for replacement.'
+      : undefined);
 
   const openRefundDrawer = () => {
     const returnItemIds = refundableItems.map((item) => item.id);
@@ -1491,6 +1584,78 @@ const CustomerReturnDetail = ({
     }
   };
 
+  const selectReplacementItem = (returnItemId: string) => {
+    const returnItem = replaceableItems.find(
+      (item) => item.id === returnItemId
+    );
+    const lineItem = returnItem
+      ? returnRow.lineItems.find(
+          (item) => item.id === (returnItem.lineItemId ?? returnItem.id)
+        )
+      : undefined;
+    setReplacementItemId(returnItemId);
+    setReplacementSku(lineItem?.variant?.sku ?? '');
+    setReplacementQuantity('1');
+  };
+
+  const openReplacementDrawer = () => {
+    const firstItem = replaceableItems[0];
+    if (!firstItem) return;
+    selectReplacementItem(firstItem.id);
+    setReplacementReason('Customer Return');
+    setReplacementError(undefined);
+    setReplacementDrawerOpen(true);
+  };
+
+  const processReplacement = async () => {
+    if (
+      !replacementApiUrl ||
+      !projectKey ||
+      !canManage ||
+      !selectedReplacementItem ||
+      !parsedReplacementQuantity ||
+      !replacementSku.trim()
+    )
+      return;
+
+    setReplacing(true);
+    setReplacementError(undefined);
+    try {
+      const result = (await dispatch(
+        actions.forwardTo.post({
+          uri: replacementApiUrl,
+          audiencePolicy: 'forward-url-origin',
+          includeUserPermissions: true,
+          payload: {
+            orderId: returnRow.orderId,
+            returnItemId: selectedReplacementItem.id,
+            replacementSku: replacementSku.trim(),
+            quantity: parsedReplacementQuantity,
+            reason: replacementReason,
+          },
+        })
+      )) as ReplacementApiResponse;
+      await onSaved();
+      setReplacementDrawerOpen(false);
+      showNotification({
+        domain: NOTIFICATION_DOMAINS.SIDE,
+        kind: NOTIFICATION_KINDS_SIDE.success,
+        text:
+          result.status === 'existing'
+            ? `Replacement order ${
+                result.replacementOrderNumber ?? result.replacementOrderId
+              } already exists.`
+            : `Replacement order ${
+                result.replacementOrderNumber ?? result.replacementOrderId
+              } was created successfully.`,
+      });
+    } catch (caught) {
+      setReplacementError(caught);
+    } finally {
+      setReplacing(false);
+    }
+  };
+
   return (
     <Spacings.Stack scale="xl">
       <CollapsiblePanel
@@ -1525,27 +1690,41 @@ const CustomerReturnDetail = ({
                 !canManage || allRefunded || Boolean(refundUnavailableReason)
               }
             />
+            <PrimaryButton
+              label="Replace item"
+              onClick={openReplacementDrawer}
+              isDisabled={Boolean(replacementUnavailableReason)}
+            />
           </Spacings.Inline>
         </Spacings.Stack>
       </CollapsiblePanel>
 
-      <ContentNotification type={allRefunded ? 'success' : 'info'}>
+      <ContentNotification type={allResolved ? 'success' : 'info'}>
         <Text.Body>
           <strong>
             {allRefunded
               ? 'Refund recorded for every returned item.'
+              : allResolved
+              ? 'Replacement order created for every non-refunded returned item.'
               : 'Return request recorded; one or more items are not yet marked as refunded.'}
           </strong>
         </Text.Body>
         <Text.Body>
-          Review the linked payment transactions before confirming any refund
-          with the customer.
+          {allResolved && !allRefunded
+            ? 'The linked replacement order is ready for fulfilment processing.'
+            : 'Review the linked payment transactions before confirming any refund with the customer.'}
         </Text.Body>
       </ContentNotification>
 
       {!allRefunded && refundUnavailableReason ? (
         <ContentNotification type="warning">
           <Text.Body>{refundUnavailableReason}</Text.Body>
+        </ContentNotification>
+      ) : null}
+
+      {replacementConfigurationError && returnRow.items.length > 0 ? (
+        <ContentNotification type="warning">
+          <Text.Body>{replacementConfigurationError}</Text.Body>
         </ContentNotification>
       ) : null}
 
@@ -1557,6 +1736,7 @@ const CustomerReturnDetail = ({
             { key: 'quantity', label: 'Quantity' },
             { key: 'shipmentState', label: 'Shipment state' },
             { key: 'paymentState', label: 'Payment state' },
+            { key: 'replacement', label: 'Replacement order' },
             { key: 'comment', label: 'Comment' },
           ]}
           rows={itemRows}
@@ -1571,6 +1751,10 @@ const CustomerReturnDetail = ({
             if (column.key === 'quantity') return String(item.quantity);
             if (column.key === 'comment') return item.comment ?? '—';
             if (column.key === 'shipmentState') return item.shipmentState;
+            if (column.key === 'replacement')
+              return (
+                returnRow.replacements[item.returnItemId]?.orderNumber ?? '—'
+              );
             return item.paymentState;
           }}
         />
@@ -1664,6 +1848,126 @@ const CustomerReturnDetail = ({
           {refundError ? (
             <ContentNotification type="error">
               <Text.Body>{getErrorMessage(refundError)}</Text.Body>
+            </ContentNotification>
+          ) : null}
+        </Spacings.Stack>
+      </Drawer>
+
+      <Drawer
+        isOpen={replacementDrawerOpen}
+        onClose={() => !replacing && setReplacementDrawerOpen(false)}
+        title="Create replacement order"
+        subtitle={`RMA: ${returnRow.tracking} · Original order #${returnRow.order}`}
+        size={30}
+        labelPrimaryButton={
+          replacing ? 'Creating…' : 'Confirm & create replacement'
+        }
+        labelSecondaryButton="Cancel"
+        onPrimaryButtonClick={() => void processReplacement()}
+        onSecondaryButtonClick={() => setReplacementDrawerOpen(false)}
+        isPrimaryButtonDisabled={replacing || invalidReplacement || !canManage}
+        isSecondaryButtonDisabled={replacing}
+      >
+        <Spacings.Stack scale="l">
+          <KeyValueGrid
+            items={[
+              { label: 'Original order', value: returnRow.order },
+              { label: 'RMA tracking ID', value: returnRow.tracking },
+              {
+                label: 'Original product',
+                value:
+                  selectedReplacementLine?.name ??
+                  selectedReplacementLine?.nameAllLocales?.[0]?.value ??
+                  '—',
+              },
+              {
+                label: 'Returned quantity',
+                value: String(selectedReplacementItem?.quantity ?? '—'),
+              },
+            ]}
+          />
+          <SelectField
+            name="replacement-return-item"
+            title="Returned item"
+            value={replacementItemId}
+            onChange={(event) =>
+              selectReplacementItem(String(event.target.value))
+            }
+            options={replaceableItems.map((item) => {
+              const lineItem = returnRow.lineItems.find(
+                (candidate) => candidate.id === (item.lineItemId ?? item.id)
+              );
+              const name =
+                lineItem?.name ??
+                lineItem?.nameAllLocales?.[0]?.value ??
+                item.id;
+              return {
+                value: item.id,
+                label: `${name} · ${lineItem?.variant?.sku ?? 'No SKU'} · Qty ${
+                  item.quantity
+                }`,
+              };
+            })}
+            isDisabled={replacing || replaceableItems.length <= 1}
+            horizontalConstraint={8}
+          />
+          <TextField
+            name="replacement-sku"
+            title="Replacement SKU"
+            value={replacementSku}
+            onChange={(event) => setReplacementSku(event.target.value)}
+            isDisabled={replacing}
+            horizontalConstraint={8}
+          />
+          <TextField
+            name="replacement-quantity"
+            title="Replacement quantity"
+            value={replacementQuantity}
+            onChange={(event) => setReplacementQuantity(event.target.value)}
+            errors={
+              selectedReplacementItem && !parsedReplacementQuantity
+                ? { invalid: true }
+                : undefined
+            }
+            renderError={(key) =>
+              key === 'invalid'
+                ? `Enter a whole number from 1 to ${
+                    selectedReplacementItem?.quantity ?? 1
+                  }.`
+                : null
+            }
+            isDisabled={replacing}
+            horizontalConstraint={8}
+          />
+          <SelectField
+            name="replacement-reason"
+            title="Replacement reason"
+            value={replacementReason}
+            onChange={(event) =>
+              setReplacementReason(String(event.target.value))
+            }
+            options={[
+              { value: 'Customer Return', label: 'Customer return' },
+              { value: 'Wrong Item', label: 'Wrong item received' },
+              { value: 'Wrong Size', label: 'Wrong size or variant' },
+              {
+                value: 'Damaged / Defective Goods',
+                label: 'Damaged or defective item',
+              },
+            ]}
+            isDisabled={replacing}
+            horizontalConstraint={8}
+          />
+          <ContentNotification type="info">
+            <Text.Body>
+              The replacement will be created as a separate zero-value order
+              using the original shipping address. The original order remains
+              unchanged.
+            </Text.Body>
+          </ContentNotification>
+          {replacementError ? (
+            <ContentNotification type="error">
+              <Text.Body>{getErrorMessage(replacementError)}</Text.Body>
             </ContentNotification>
           ) : null}
         </Spacings.Stack>
