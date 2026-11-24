@@ -50,6 +50,7 @@ export const resolvers = {
     createCustomer: customerResolvers.createCustomer,
     createEmployee: customerResolvers.createEmployee,
     createQuoteRequest: quoteResolvers.createQuoteRequest,
+    createReplacementOrder: orderResolvers.createReplacementOrder,
     placeOrderFromCart: cartResolvers.placeOrderFromCart,
     removeCartLineItem: cartResolvers.removeCartLineItem,
     removeCustomerAddress: customerResolvers.removeCustomerAddress,

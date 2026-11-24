@@ -205,6 +205,7 @@ export type Order = {
   id: string;
   version: number;
   orderNumber?: string | null;
+  purchaseOrderNumber?: string | null;
   customerId?: string | null;
   customerEmail?: string | null;
   orderState: string;

@@ -5,6 +5,7 @@ import { mapOrder } from "./order.mapper.js";
 import type { CtOrder } from "../../../commercetools/types.js";
 import { compactWhere, escapeWhere, page, paging, sort, type PagingArgs } from "../shared/paging.js";
 import type { OrderSearchArgs } from "./order.types.js";
+import { createReplacementOrder } from "./order-replacement.js";
 
 const log = createLogger("commercetools").child({ module: "order.resolvers" });
 
@@ -46,6 +47,8 @@ const orderFields = `#graphql
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const resolvers = {
+  createReplacementOrder: (_parent: unknown, args: { input: Parameters<typeof createReplacementOrder>[0] }) =>
+    createReplacementOrder(args.input),
   order: async (_parent: unknown, args: { id?: string; orderNumber?: string }) => {
     if (args.orderNumber) {
       const order = await getOrderByNumber(args.orderNumber);

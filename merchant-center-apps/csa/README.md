@@ -55,6 +55,7 @@ CSA_MC_APPLICATION_ID=<registered-custom-application-id>
 CSA_MC_APPLICATION_URL=https://<standalone-csa-host>
 CSA_MC_TICKET_API_URL=https://<public-csa-bff>/merchant-center/tickets
 CSA_MC_REFUND_API_URL=https://<public-csa-bff>/merchant-center/refunds
+CSA_MC_REPLACEMENT_API_URL=https://<public-csa-bff>/merchant-center/replacements
 ```
 
 The Application ID is only available after the application is registered in Merchant Center. The placeholder configuration must not be used for a production build.
@@ -103,6 +104,7 @@ CSA_MC_APPLICATION_ID=<registered-custom-application-id>
 CSA_MC_APPLICATION_URL=https://<stable-vercel-production-domain>
 CSA_MC_TICKET_API_URL=https://<public-csa-bff>/merchant-center/tickets
 CSA_MC_REFUND_API_URL=https://<public-csa-bff>/merchant-center/refunds
+CSA_MC_REPLACEMENT_API_URL=https://<public-csa-bff>/merchant-center/replacements
 ```
 
 Use the stable production domain, not a deployment-specific preview URL. After
@@ -144,6 +146,20 @@ BFF with `MC_REFUNDS_AUDIENCE` set to that URL's origin. The tenant's
 commercetools API client needs `manage_orders` and `manage_payments`. Reinstall
 or update the Custom Application permissions after adding the `manage_payments`
 scope to the **Orders** permission group.
+
+## Replacement integration
+
+The Customer 360 **Returns** tab can create a separate zero-value replacement
+order for an eligible returned line item through
+`POST /merchant-center/replacements`. The original order is not edited. The
+replacement order copies its customer and delivery addresses, uses the selected
+SKU and quantity, and stores a deterministic `purchaseOrderNumber` reference so
+retries return the existing replacement instead of creating a duplicate.
+
+Set `CSA_MC_REPLACEMENT_API_URL` to the complete public adapter URL and set the
+BFF `MC_REPLACEMENTS_AUDIENCE` to that URL's origin. The tenant commercetools
+API client needs `manage_orders`; no payment-provider credentials are required
+because the replacement order total is zero.
 
 ## Available routes
 

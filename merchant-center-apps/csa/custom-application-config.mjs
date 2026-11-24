@@ -28,6 +28,7 @@ const config = {
   additionalEnv: {
     csaTicketApiUrl: process.env.CSA_MC_TICKET_API_URL || '',
     csaRefundApiUrl: process.env.CSA_MC_REFUND_API_URL || '',
+    csaReplacementApiUrl: process.env.CSA_MC_REPLACEMENT_API_URL || '',
   },
   oAuthScopes: {
     view: ['view_customers', 'view_orders'],
