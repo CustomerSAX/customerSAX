@@ -14,6 +14,7 @@ import {
 import { useShowNotification } from '@commercetools-frontend/actions-global';
 import { useApplicationContext } from '@commercetools-frontend/application-shell-connectors';
 import {
+  Drawer,
   TabHeader,
   TabularDetailPage,
 } from '@commercetools-frontend/application-components';
@@ -49,6 +50,13 @@ import {
   type CustomerProfileValues,
 } from '../customer-profile';
 import type { Cart, Customer, CustomerGroup, Order, QueryPage } from '../types';
+import {
+  calculateReturnRefundCentAmount,
+  createRefundIdempotencyKey,
+  formatRefundInput,
+  parseRefundAmount,
+  type RefundApiResponse,
+} from '../refunds';
 import {
   displayName,
   formatAddress,
@@ -641,6 +649,7 @@ const CustomerDetail = (props: { onClose: () => void }) => {
                 rows={data?.orders.results ?? []}
                 baseUrl={`${base}/returns`}
                 applicationBase={applicationBase}
+                onSaved={() => refetch()}
               />
             </SuspendedRoute>
             <SuspendedRoute path={`${base}/payments`}>
@@ -1184,6 +1193,7 @@ type CustomerReturnRow = {
   returnDate?: string | null;
   shipmentState: string;
   paymentState: string;
+  orderTotal: Order['totalPrice'];
   items: NonNullable<Order['returnInfo']>[number]['items'];
   lineItems: NonNullable<Order['lineItems']>;
 };
@@ -1195,10 +1205,12 @@ const CustomerReturns = ({
   rows,
   baseUrl,
   applicationBase,
+  onSaved,
 }: {
   rows: Order[];
   baseUrl: string;
   applicationBase: string;
+  onSaved: () => Promise<unknown>;
 }) => {
   const history = useHistory();
   const [search, setSearch] = useState('');
@@ -1230,6 +1242,7 @@ const CustomerReturns = ({
           paymentState: returnStateSummary(
             returnInfo.items.map((item) => item.paymentState)
           ),
+          orderTotal: order.totalPrice,
           items: returnInfo.items,
           lineItems: order.lineItems ?? [],
         }))
@@ -1290,6 +1303,7 @@ const CustomerReturns = ({
                   `${applicationBase}/orders/${selectedReturn.orderId}/payments`
                 )
               }
+              onSaved={onSaved}
             />
           ) : null}
         </PageState>
@@ -1349,20 +1363,133 @@ const CustomerReturnDetail = ({
   returnRow,
   onOpenOrderReturns,
   onOpenOrderPayments,
+  onSaved,
 }: {
   returnRow: CustomerReturnRow;
   onOpenOrderReturns: () => void;
   onOpenOrderPayments: () => void;
+  onSaved: () => Promise<unknown>;
 }) => {
+  const dispatch = useAsyncDispatch();
+  const showNotification = useShowNotification();
+  const canManage = useIsAuthorized({
+    demandedPermissions: [PERMISSIONS.ManageOrders],
+  });
+  const { projectKey, refundApiUrl } = useApplicationContext<
+    { projectKey?: string; refundApiUrl: string },
+    { csaRefundApiUrl?: string }
+  >((context) => ({
+    projectKey: context.project?.key,
+    refundApiUrl: context.environment.csaRefundApiUrl?.trim() ?? '',
+  }));
   const itemRows = returnRow.items.map((item, itemIndex) => ({
     ...item,
     id: `${returnRow.id}-${item.id}-${itemIndex}`,
     returnItemId: item.id,
-    lineItem: returnRow.lineItems.find((lineItem) => lineItem.id === item.id),
+    lineItem: returnRow.lineItems.find(
+      (lineItem) => lineItem.id === (item.lineItemId ?? item.id)
+    ),
   }));
   const allRefunded = returnRow.items.every(
     (item) => item.paymentState.toLowerCase() === 'refunded'
   );
+  const refundableItems = returnRow.items.filter(
+    (item) =>
+      item.shipmentState.toLowerCase() === 'returned' &&
+      item.paymentState.toLowerCase() !== 'refunded'
+  );
+  const suggestedCentAmount = calculateReturnRefundCentAmount(
+    returnRow.lineItems,
+    refundableItems
+  );
+  const fractionDigits = returnRow.orderTotal.fractionDigits ?? 2;
+  const [refundDrawerOpen, setRefundDrawerOpen] = useState(false);
+  const [refundAmount, setRefundAmount] = useState(
+    formatRefundInput(suggestedCentAmount, fractionDigits)
+  );
+  const [refundReason, setRefundReason] = useState('Customer Return');
+  const [refundNote, setRefundNote] = useState('');
+  const [idempotencyKey, setIdempotencyKey] = useState('');
+  const [refunding, setRefunding] = useState(false);
+  const [refundError, setRefundError] = useState<unknown>();
+  const parsedRefundAmount = parseRefundAmount(refundAmount, fractionDigits);
+  const invalidRefundAmount =
+    !parsedRefundAmount || parsedRefundAmount > suggestedCentAmount;
+  const refundUnavailableReason = !refundApiUrl
+    ? 'Refund integration is not configured. Set CSA_MC_REFUND_API_URL and redeploy the Custom Application.'
+    : !projectKey
+    ? 'Select a commercetools project before issuing a refund.'
+    : !canManage
+    ? 'The Manage Orders permission is required to issue a refund.'
+    : refundableItems.length === 0
+    ? 'No returned items are eligible for a refund.'
+    : suggestedCentAmount <= 0
+    ? 'The refundable amount could not be calculated from the returned line items.'
+    : undefined;
+
+  const openRefundDrawer = () => {
+    const returnItemIds = refundableItems.map((item) => item.id);
+    setRefundAmount(formatRefundInput(suggestedCentAmount, fractionDigits));
+    setRefundReason('Customer Return');
+    setRefundNote(`RMA: ${returnRow.tracking} · Order #${returnRow.order}`);
+    setIdempotencyKey(
+      createRefundIdempotencyKey(returnRow.orderId, returnItemIds)
+    );
+    setRefundError(undefined);
+    setRefundDrawerOpen(true);
+  };
+
+  const processRefund = async () => {
+    if (
+      !refundApiUrl ||
+      !projectKey ||
+      !canManage ||
+      invalidRefundAmount ||
+      !idempotencyKey
+    )
+      return;
+
+    setRefunding(true);
+    setRefundError(undefined);
+    try {
+      const result = (await dispatch(
+        actions.forwardTo.post({
+          uri: refundApiUrl,
+          audiencePolicy: 'forward-url-origin',
+          includeUserPermissions: true,
+          payload: {
+            orderId: returnRow.orderId,
+            returnItemIds: refundableItems.map((item) => item.id),
+            amount: {
+              centAmount: parsedRefundAmount,
+              currencyCode: returnRow.orderTotal.currencyCode,
+              fractionDigits,
+            },
+            reason: refundReason,
+            note: refundNote.trim() || undefined,
+            idempotencyKey,
+          },
+        })
+      )) as RefundApiResponse;
+      await onSaved();
+      setRefundDrawerOpen(false);
+      showNotification({
+        domain: NOTIFICATION_DOMAINS.SIDE,
+        kind:
+          result.transactionState === 'Success'
+            ? NOTIFICATION_KINDS_SIDE.success
+            : NOTIFICATION_KINDS_SIDE.info,
+        text:
+          result.transactionState === 'Success'
+            ? `Refund ${result.providerRefundId} was recorded successfully.`
+            : `Refund ${result.providerRefundId} is ${result.status}. The returned items will remain unrefunded until the provider confirms it.`,
+      });
+    } catch (caught) {
+      setRefundError(caught);
+    } finally {
+      setRefunding(false);
+    }
+  };
 
   return (
     <Spacings.Stack scale="xl">
@@ -1391,6 +1518,13 @@ const CustomerReturnDetail = ({
               label="Review order payments"
               onClick={onOpenOrderPayments}
             />
+            <PrimaryButton
+              label="Issue refund"
+              onClick={openRefundDrawer}
+              isDisabled={
+                !canManage || allRefunded || Boolean(refundUnavailableReason)
+              }
+            />
           </Spacings.Inline>
         </Spacings.Stack>
       </CollapsiblePanel>
@@ -1408,6 +1542,12 @@ const CustomerReturnDetail = ({
           with the customer.
         </Text.Body>
       </ContentNotification>
+
+      {!allRefunded && refundUnavailableReason ? (
+        <ContentNotification type="warning">
+          <Text.Body>{refundUnavailableReason}</Text.Body>
+        </ContentNotification>
+      ) : null}
 
       <CollapsiblePanel header="Line items breakdown" isDefaultClosed={false}>
         <DataTable<(typeof itemRows)[number]>
@@ -1435,6 +1575,99 @@ const CustomerReturnDetail = ({
           }}
         />
       </CollapsiblePanel>
+
+      <Drawer
+        isOpen={refundDrawerOpen}
+        onClose={() => !refunding && setRefundDrawerOpen(false)}
+        title="Issue return refund"
+        subtitle={`RMA: ${returnRow.tracking} · Order #${returnRow.order}`}
+        size={30}
+        labelPrimaryButton={
+          refunding ? 'Processing…' : 'Confirm & process refund'
+        }
+        labelSecondaryButton="Cancel"
+        onPrimaryButtonClick={() => void processRefund()}
+        onSecondaryButtonClick={() => setRefundDrawerOpen(false)}
+        isPrimaryButtonDisabled={refunding || invalidRefundAmount || !canManage}
+        isSecondaryButtonDisabled={refunding}
+      >
+        <Spacings.Stack scale="l">
+          <KeyValueGrid
+            items={[
+              { label: 'Order number', value: returnRow.order },
+              { label: 'RMA tracking ID', value: returnRow.tracking },
+              { label: 'Return items', value: String(refundableItems.length) },
+              {
+                label: 'Calculated refundable amount',
+                value: formatMoney({
+                  ...returnRow.orderTotal,
+                  centAmount: suggestedCentAmount,
+                }),
+              },
+            ]}
+          />
+          <TextField
+            name="refund-amount"
+            title={`Refund amount (${returnRow.orderTotal.currencyCode})`}
+            value={refundAmount}
+            onChange={(event) => setRefundAmount(event.target.value)}
+            errors={
+              invalidRefundAmount
+                ? {
+                    invalid: true,
+                  }
+                : undefined
+            }
+            renderError={(key) =>
+              key === 'invalid'
+                ? 'Enter a positive amount no greater than the calculated refundable amount.'
+                : null
+            }
+            isDisabled={refunding}
+            horizontalConstraint={8}
+          />
+          <SelectField
+            name="refund-reason"
+            title="Refund reason"
+            value={refundReason}
+            onChange={(event) => setRefundReason(String(event.target.value))}
+            options={[
+              {
+                value: 'Customer Return',
+                label: 'Customer return (RMA received)',
+              },
+              {
+                value: 'Damaged / Defective Goods',
+                label: 'Damaged or defective item',
+              },
+              { value: 'Order Cancellation', label: 'Order cancellation' },
+              {
+                value: 'Goodwill Gesture',
+                label: 'Goodwill / customer satisfaction',
+              },
+              {
+                value: 'Shipping Fee Refund',
+                label: 'Shipping fee adjustment',
+              },
+            ]}
+            isDisabled={refunding}
+            horizontalConstraint={8}
+          />
+          <TextField
+            name="refund-note"
+            title="Internal note / audit reason"
+            value={refundNote}
+            onChange={(event) => setRefundNote(event.target.value)}
+            isDisabled={refunding}
+            horizontalConstraint={8}
+          />
+          {refundError ? (
+            <ContentNotification type="error">
+              <Text.Body>{getErrorMessage(refundError)}</Text.Body>
+            </ContentNotification>
+          ) : null}
+        </Spacings.Stack>
+      </Drawer>
     </Spacings.Stack>
   );
 };

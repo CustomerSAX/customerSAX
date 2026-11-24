@@ -297,6 +297,9 @@ export const CUSTOMER_DETAIL_QUERY = gql`
           returnDate
           items {
             id
+            ... on LineItemReturnItem {
+              lineItemId
+            }
             quantity
             shipmentState
             paymentState
@@ -674,6 +677,9 @@ export const ORDER_DETAIL_QUERY = gql`
         returnDate
         items {
           id
+          ... on LineItemReturnItem {
+            lineItemId
+          }
           quantity
           shipmentState
           paymentState
@@ -758,6 +764,9 @@ export const RETURNS_QUERY = gql`
           returnDate
           items {
             id
+            ... on LineItemReturnItem {
+              lineItemId
+            }
             quantity
             shipmentState
             paymentState

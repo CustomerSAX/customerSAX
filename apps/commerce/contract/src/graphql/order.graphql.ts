@@ -93,6 +93,7 @@ export const orderTypeDefs = gql`
   extend type Mutation {
     updateReviewedOrder(id: ID!, customerId: ID!, expectedVersion: Int!, action: Json!): Json!
     updateOrder(id: ID!, actions: Json!): Json!
+    updatePayment(id: ID!, actions: Json!): Json!
     replicateOrder(id: ID!): Json!
   }
 `;

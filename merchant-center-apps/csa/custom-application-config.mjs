@@ -27,6 +27,7 @@ const config = {
   },
   additionalEnv: {
     csaTicketApiUrl: process.env.CSA_MC_TICKET_API_URL || '',
+    csaRefundApiUrl: process.env.CSA_MC_REFUND_API_URL || '',
   },
   oAuthScopes: {
     view: ['view_customers', 'view_orders'],
@@ -42,7 +43,9 @@ const config = {
         'view_discount_codes',
         'view_types',
       ],
-      manage: ['manage_customers'],
+      // Promotion assignment stores Cart Discount references in a customer
+      // Custom Type and can provision that Type when a Project is first used.
+      manage: ['manage_customers', 'manage_types'],
     },
     {
       name: PERMISSION_GROUPS.carts,
@@ -55,7 +58,7 @@ const config = {
     {
       name: PERMISSION_GROUPS.orders,
       view: ['view_orders', 'view_payments'],
-      manage: ['manage_orders'],
+      manage: ['manage_orders', 'manage_payments'],
     },
     {
       name: PERMISSION_GROUPS.products,

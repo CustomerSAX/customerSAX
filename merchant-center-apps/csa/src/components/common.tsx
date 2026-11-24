@@ -33,10 +33,12 @@ export const PageState = (props: {
   if (props.isEmpty) {
     return (
       <ContentNotification type="info">
-        <Text.Body>
-          <strong>{props.emptyTitle ?? 'No results'}</strong>
-        </Text.Body>
-        {props.emptyBody ? <Text.Body>{props.emptyBody}</Text.Body> : null}
+        <Spacings.Stack scale="xs">
+          <Text.Body>
+            <strong>{props.emptyTitle ?? 'No results'}</strong>
+          </Text.Body>
+          {props.emptyBody ? <Text.Body>{props.emptyBody}</Text.Body> : null}
+        </Spacings.Stack>
       </ContentNotification>
     );
   }
