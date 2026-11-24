@@ -25,6 +25,7 @@ const connector = {
   description: "Customer support",
   category: "customer-support",
   authenticationType: "SECRET_TEXT",
+  availability: "available",
   actions: [
     { id: "get_tickets", name: "Get Tickets", readOnly: true },
     { id: "custom_api_call", name: "Custom API Call", readOnly: false }
@@ -178,6 +179,49 @@ it("requires an approved release before storing credentials", async () => {
   expect(mocks.fetch).toHaveBeenCalledTimes(1);
 });
 
+it("rejects preview catalog entries before making a Hub management request", async () => {
+  mocks.catalog.mockResolvedValue([
+    {
+      ...connector,
+      id: "contentful",
+      name: "Contentful",
+      availability: "preview"
+    }
+  ]);
+  const response = await connect(
+    {
+      ...scope,
+      account: "space-a",
+      credential: "private-api-key",
+      resource: "master",
+      actions: ["get_tickets"]
+    },
+    "contentful"
+  );
+  expect(response.status).toBe(409);
+  expect(await response.text()).toContain("catalog preview");
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
+
+it.each(["algolia", "zendesk"])(
+  "keeps the real %s connector off the generic management route",
+  async (connectorId) => {
+    const response = await connect(
+      {
+        ...scope,
+        account: "acme",
+        credential: "secret",
+        resource: "",
+        actions: ["get_tickets"]
+      },
+      connectorId
+    );
+    expect(response.status).toBe(400);
+    expect(mocks.catalog).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  }
+);
+
 it("rejects unknown actions, bespoke connectors and stale project scope", async () => {
   expect(
     (
@@ -188,20 +232,6 @@ it("rejects unknown actions, bespoke connectors and stale project scope", async 
         resource: "",
         actions: ["not_in_catalog"]
       })
-    ).status
-  ).toBe(400);
-  expect(
-    (
-      await connect(
-        {
-          ...scope,
-          account: "acme",
-          credential: "secret",
-          resource: "",
-          actions: ["get_tickets"]
-        },
-        "zendesk"
-      )
     ).status
   ).toBe(400);
   expect(

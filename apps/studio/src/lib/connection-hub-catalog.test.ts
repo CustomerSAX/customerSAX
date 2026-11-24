@@ -52,6 +52,7 @@ beforeEach(() => {
   vi.stubEnv("CONNECTION_HUB_PROD_URL", "https://hub.example.test");
   vi.stubEnv("CONNECTION_HUB_PROD_API_KEY", "synthetic-hub-api-key");
   vi.stubEnv("CONNECTION_HUB_CATALOG_REQUIRE_GOOGLE_AUTH", "false");
+  vi.stubEnv("CONNECTION_HUB_PREVIEW_CATALOG", "false");
   mocks.token.mockResolvedValue("session");
   mocks.session.mockResolvedValue({
     user: { role: "admin", activeClientId: "client-a" }
@@ -148,7 +149,8 @@ it.each([
   ["CONNECTION_HUB_PROD_URL", "http://127.0.0.1:3100"],
   ["CONNECTION_HUB_PROD_URL", "https://hub.example.test/path"],
   ["CONNECTION_HUB_PROD_URL", "https://user:pass@hub.example.test"],
-  ["CONNECTION_HUB_CATALOG_REQUIRE_GOOGLE_AUTH", "yes"]
+  ["CONNECTION_HUB_CATALOG_REQUIRE_GOOGLE_AUTH", "yes"],
+  ["CONNECTION_HUB_PREVIEW_CATALOG", "yes"]
 ])("fails closed without falling back to local credentials: %s", async (name, value) => {
   vi.stubEnv(name, value);
   expect((await GET(request())).status).toBe(503);
@@ -157,6 +159,72 @@ it.each([
 it("returns a legitimate empty catalog as success", async () => {
   mocks.fetch.mockResolvedValue(page([]));
   expect(await connectionHubCatalog.list()).toEqual([]);
+});
+it("appends preview connectors without replacing live catalog entries", async () => {
+  vi.stubEnv("CONNECTION_HUB_PREVIEW_CATALOG", "true");
+  mocks.fetch.mockResolvedValue(
+    page([node("shopify"), node("commercetools"), node("algolia"), node("zendesk")])
+  );
+  const connectors = await connectionHubCatalog.list();
+  for (const id of ["shopify", "commercetools", "algolia", "zendesk"])
+    expect(connectors.filter((item) => item.id === id)).toEqual([
+      expect.objectContaining({ name: id, availability: "available" })
+    ]);
+  expect(connectors).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ id: "sap-commerce-cloud", availability: "preview" }),
+      expect.objectContaining({ id: "sap-s4hana", availability: "preview" }),
+      expect.objectContaining({ id: "contentful", availability: "preview" }),
+      expect.objectContaining({ id: "amplience", availability: "preview" }),
+      expect.objectContaining({ id: "bloomreach-discovery", availability: "preview" }),
+      expect.objectContaining({ id: "bloomreach-engagement", availability: "preview" })
+    ])
+  );
+});
+it("enables the preview catalog by default for Studio", async () => {
+  vi.stubEnv("CONNECTION_HUB_PREVIEW_CATALOG", "");
+  mocks.fetch.mockResolvedValue(page([node("algolia")]));
+  expect(await connectionHubCatalog.list()).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ id: "algolia", availability: "available" }),
+      expect.objectContaining({ id: "contentful", availability: "preview" })
+    ])
+  );
+});
+it("uses vendor-aligned authentication methods and credible action inventories", async () => {
+  vi.stubEnv("CONNECTION_HUB_PREVIEW_CATALOG", "true");
+  mocks.fetch.mockResolvedValue(page([]));
+  const connectors = new Map(
+    (await connectionHubCatalog.list()).map((connector) => [connector.id, connector])
+  );
+  expect(connectors.get("commercetools")).toMatchObject({
+    authenticationType: "OAUTH2",
+    actions: expect.arrayContaining([
+      expect.objectContaining({ id: "products-search" }),
+      expect.objectContaining({ id: "orders-create" })
+    ])
+  });
+  expect(connectors.get("shopify")?.actions).toHaveLength(13);
+  expect(connectors.get("bigcommerce")).toMatchObject({
+    authenticationType: "ACCESS_TOKEN"
+  });
+  expect(connectors.get("sap-commerce-cloud")?.actions).toHaveLength(14);
+  expect(connectors.get("sap-s4hana")?.actions).toHaveLength(12);
+  expect(connectors.get("microsoft-dynamics-365")?.actions).toHaveLength(12);
+  expect(connectors.get("oracle-netsuite")?.actions).toHaveLength(13);
+  expect(connectors.get("contentful")).toMatchObject({
+    authenticationType: "ACCESS_TOKEN"
+  });
+  expect(connectors.get("amplience")).toMatchObject({ authenticationType: "OAUTH2" });
+  expect(connectors.get("adobe-experience-manager")).toMatchObject({
+    authenticationType: "OAUTH2"
+  });
+  expect(connectors.get("bloomreach-discovery")).toMatchObject({
+    authenticationType: "API_KEY"
+  });
+  expect(connectors.get("bloomreach-engagement")).toMatchObject({
+    authenticationType: "BASIC_AUTH"
+  });
 });
 it("reports upstream errors in place without leaking its response or request credentials", async () => {
   mocks.fetch.mockResolvedValue(
