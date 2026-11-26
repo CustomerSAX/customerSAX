@@ -168,6 +168,12 @@ export const ADMIN_SET_CLIENT_STATUS = gql`
   }
 `;
 
+export const ADMIN_DELETE_CLIENT = gql`
+  mutation AdminDeleteClient($id: ID!) {
+    adminDeleteClient(id: $id)
+  }
+`;
+
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------

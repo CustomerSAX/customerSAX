@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@apollo/client";
-import { Badge, Button, Icon, Input } from "@csa/ui";
+import { useQuery, useMutation } from "@apollo/client";
+import { Badge, Button, Icon, Input, Modal, ModalHeader, ModalBody, ModalFooter } from "@csa/ui";
 import { AppShell } from "@/components/shell/AppShell";
 import { useCurrentUser } from "@/lib/use-current-user";
-import { ADMIN_CLIENT_QUERY } from "@/features/superadmin/api/queries";
+import { ADMIN_CLIENT_QUERY, ADMIN_DELETE_PROJECT } from "@/features/superadmin/api/queries";
 import { CreateProjectModal } from "./CreateProjectModal";
 import { ProjectConfigureModal } from "./ProjectConfigureModal";
 import Link from "next/link";
@@ -22,13 +22,37 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [configuringProject, setConfiguringProject] = useState<any | null>(null);
+  const [deletingProject, setDeletingProject] = useState<any | null>(null);
+  const [deleteConfirmKey, setDeleteConfirmKey] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+  const [deleteProjectMutation, { loading: isDeleting }] = useMutation(ADMIN_DELETE_PROJECT);
 
   const { data, loading, error, refetch } = useQuery(ADMIN_CLIENT_QUERY, {
     variables: { id: clientId },
     skip: !clientId || !isAllowed,
     fetchPolicy: "cache-first"
   });
+
+  const handleDeleteProject = async () => {
+    if (!deletingProject) return;
+    setDeleteError(null);
+    try {
+      await deleteProjectMutation({
+        variables: { id: deletingProject.id }
+      });
+      const wasActive = user?.activeProjectKey === deletingProject.projectKey;
+      setDeletingProject(null);
+      setDeleteConfirmKey("");
+      await refetch();
+      if (wasActive) {
+        window.location.reload();
+      }
+    } catch (err: any) {
+      setDeleteError(err.message || "Failed to delete project");
+    }
+  };
 
   const client = data?.adminClient;
   const projects: any[] = data?.adminProjectsByClient || [];
@@ -270,6 +294,23 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
                       Switch To
                     </Button>
                   )}
+
+                  {isOrgAdmin && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setDeletingProject(proj);
+                        setDeleteConfirmKey("");
+                        setDeleteError(null);
+                      }}
+                      className="flex items-center gap-1.5 text-m-error hover:bg-m-error/10 hover:text-m-error"
+                      title="Delete Project"
+                    >
+                      <Icon name="trash-2" size="xs" />
+                      <span>Delete</span>
+                    </Button>
+                  )}
                 </div>
               </div>
             );
@@ -301,6 +342,90 @@ export function ProjectsListView({ embedded }: { embedded?: boolean } = {}) {
           refetch();
         }}
       />
+
+      {deletingProject && (
+        <Modal
+          isOpen={Boolean(deletingProject)}
+          onClose={() => {
+            if (!isDeleting) {
+              setDeletingProject(null);
+              setDeleteConfirmKey("");
+              setDeleteError(null);
+            }
+          }}
+          size="sm"
+        >
+          <ModalHeader
+            title="Delete Project"
+            subtitle="Permanently delete project and platform configuration"
+            onClose={() => {
+              if (!isDeleting) {
+                setDeletingProject(null);
+                setDeleteConfirmKey("");
+                setDeleteError(null);
+              }
+            }}
+          />
+          <ModalBody>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                <p className="font-semibold">Warning: This will permanently delete the project:</p>
+                <p className="mt-1 font-mono font-bold text-sm text-m-text">
+                  {deletingProject.displayName || deletingProject.projectKey} ({deletingProject.projectKey})
+                </p>
+                <p className="mt-2 text-[11px] text-m-text-muted">
+                  All commerce credentials, platform configuration, ticketing connections, and associated settings will be permanently removed. This action cannot be undone.
+                </p>
+              </div>
+
+              {deleteError && (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                  {deleteError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-m-text mb-1">
+                  Type <span className="font-mono font-bold text-red-600">{deletingProject.projectKey}</span> to confirm:
+                </label>
+                <Input
+                  value={deleteConfirmKey}
+                  onChange={(e) => setDeleteConfirmKey(e.target.value)}
+                  placeholder={deletingProject.projectKey}
+                  disabled={isDeleting}
+                  autoFocus
+                />
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDeletingProject(null);
+                  setDeleteConfirmKey("");
+                  setDeleteError(null);
+                }}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={isDeleting || deleteConfirmKey !== deletingProject.projectKey}
+                loading={isDeleting}
+                onClick={handleDeleteProject}
+                leftIcon={<Icon name="trash-2" size="xs" />}
+              >
+                Delete Project
+              </Button>
+            </div>
+          </ModalFooter>
+        </Modal>
+      )}
     </>
   );
 

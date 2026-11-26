@@ -34,8 +34,10 @@ describe("Admin Authorization & Permission Rules", () => {
     it("classifies project creation and organization management under orgAdminOnlyFields", () => {
       expect(orgAdminOnlyFields.has("adminCreateProject")).toBe(true);
       expect(orgAdminOnlyFields.has("adminDeleteProject")).toBe(true);
+      expect(orgAdminOnlyFields.has("adminDeleteClient")).toBe(true);
       expect(orgAdminOnlyFields.has("adminUpdateClient")).toBe(true);
       expect(orgAdminOnlyFields.has("adminUpdateClientContact")).toBe(true);
+      expect(clientScopedAdminFields.has("adminDeleteClient")).toBe(true);
       expect(clientScopedAdminFields.has("adminUpdateProject")).toBe(true);
       expect(clientScopedAdminFields.has("adminCreateClientUser")).toBe(true);
     });
@@ -64,6 +66,10 @@ describe("Admin Authorization & Permission Rules", () => {
       ).not.toThrow();
 
       expect(() =>
+        authorize("adminDeleteClient", { id: "client-1" }, orgAdminContext)
+      ).not.toThrow();
+
+      expect(() =>
         authorize("adminUpdateClientContact", { clientId: "client-1" }, orgAdminContext)
       ).not.toThrow();
     });
@@ -71,6 +77,10 @@ describe("Admin Authorization & Permission Rules", () => {
     it("prevents Org Admin from accessing another organization", () => {
       expect(() =>
         authorize("adminUpdateClient", { id: "client-2" }, orgAdminContext)
+      ).toThrow("Cannot access another organisation");
+
+      expect(() =>
+        authorize("adminDeleteClient", { id: "client-2" }, orgAdminContext)
       ).toThrow("Cannot access another organisation");
 
       expect(() =>
@@ -86,9 +96,13 @@ describe("Admin Authorization & Permission Rules", () => {
       ).toThrow("Organization Administrator access is required");
     });
 
-    it("strictly blocks regular Admin from deleting projects", () => {
+    it("strictly blocks regular Admin from deleting projects and organizations", () => {
       expect(() =>
         authorize("adminDeleteProject", { clientId: "client-1" }, regularAdminContext)
+      ).toThrow("Organization Administrator access is required");
+
+      expect(() =>
+        authorize("adminDeleteClient", { id: "client-1" }, regularAdminContext)
       ).toThrow("Organization Administrator access is required");
     });
 
@@ -141,10 +155,6 @@ describe("Admin Authorization & Permission Rules", () => {
     it("strictly blocks regular Admin from superadmin-only operations (default-deny)", () => {
       expect(() =>
         authorize("adminCreateClient", { name: "New Client" }, regularAdminContext)
-      ).toThrow("Superadmin access is required");
-
-      expect(() =>
-        authorize("adminDeleteClient", { id: "client-1" }, regularAdminContext)
       ).toThrow("Superadmin access is required");
 
       expect(() =>

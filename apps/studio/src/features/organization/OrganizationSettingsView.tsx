@@ -8,11 +8,19 @@ import {
   Card,
   Icon,
   Input,
-  Select
+  Select,
+  Modal,
+  ModalHeader,
+  ModalBody,
+  ModalFooter
 } from "@csa/ui";
 import { AppShell } from "@/components/shell/AppShell";
 import { useCurrentUser } from "@/lib/use-current-user";
-import { ADMIN_CLIENT_QUERY, ADMIN_UPDATE_CLIENT } from "@/features/superadmin/api/queries";
+import {
+  ADMIN_CLIENT_QUERY,
+  ADMIN_UPDATE_CLIENT,
+  ADMIN_DELETE_CLIENT
+} from "@/features/superadmin/api/queries";
 
 export function OrganizationSettingsView({ embedded }: { embedded?: boolean } = {}) {
   const { user } = useCurrentUser();
@@ -31,7 +39,24 @@ export function OrganizationSettingsView({ embedded }: { embedded?: boolean } = 
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const [updateClient, { loading: saving }] = useMutation(ADMIN_UPDATE_CLIENT);
+  const [deleteClientMutation, { loading: isDeleting }] = useMutation(ADMIN_DELETE_CLIENT);
+
+  const handleDeleteOrg = async () => {
+    if (!clientId) return;
+    setDeleteError(null);
+    try {
+      await deleteClientMutation({ variables: { id: clientId } });
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+      window.location.href = "/login";
+    } catch (err: any) {
+      setDeleteError(err.message || "Failed to delete organization");
+    }
+  };
 
   useEffect(() => {
     if (data?.adminClient) {
@@ -210,7 +235,118 @@ export function OrganizationSettingsView({ embedded }: { embedded?: boolean } = 
                 </div>
               </form>
             </Card>
+
+            {/* Danger Zone */}
+            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-6 shadow-m-card">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+                    <Icon name="alert-triangle" size="sm" />
+                    <span>Danger Zone: Delete Organization</span>
+                  </h3>
+                  <p className="mt-1 text-xs text-m-text-muted max-w-xl">
+                    Permanently delete this organization ({client?.name}), along with all commerce projects, credentials, connectors, knowledge base, and member access. This action cannot be undone.
+                  </p>
+                </div>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    setIsDeleteOpen(true);
+                    setDeleteConfirmName("");
+                    setDeleteError(null);
+                  }}
+                  leftIcon={<Icon name="trash-2" size="xs" />}
+                >
+                  Delete Organization
+                </Button>
+              </div>
+            </div>
           </div>
+        )}
+
+        {isDeleteOpen && (
+          <Modal
+            isOpen={isDeleteOpen}
+            onClose={() => {
+              if (!isDeleting) {
+                setIsDeleteOpen(false);
+                setDeleteConfirmName("");
+                setDeleteError(null);
+              }
+            }}
+            size="sm"
+          >
+            <ModalHeader
+              title="Delete Organization"
+              subtitle="Irreversible organization removal"
+              onClose={() => {
+                if (!isDeleting) {
+                  setIsDeleteOpen(false);
+                  setDeleteConfirmName("");
+                  setDeleteError(null);
+                }
+              }}
+            />
+            <ModalBody>
+              <div className="space-y-4">
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                  <p className="font-semibold">Warning: This will permanently delete:</p>
+                  <p className="mt-1 font-bold text-sm text-m-text">
+                    {client?.name || "This organization"} ({client?.slug})
+                  </p>
+                  <p className="mt-2 text-[11px] text-m-text-muted">
+                    All {projects.length} project(s), credentials, team member access, and settings belonging to this organization will be permanently deleted.
+                  </p>
+                </div>
+
+                {deleteError && (
+                  <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                    {deleteError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-m-text mb-1">
+                    Type <span className="font-bold text-red-600">{client?.name}</span> to confirm:
+                  </label>
+                  <Input
+                    value={deleteConfirmName}
+                    onChange={(e) => setDeleteConfirmName(e.target.value)}
+                    placeholder={client?.name}
+                    disabled={isDeleting}
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setIsDeleteOpen(false);
+                    setDeleteConfirmName("");
+                    setDeleteError(null);
+                  }}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={isDeleting || deleteConfirmName !== client?.name}
+                  loading={isDeleting}
+                  onClick={handleDeleteOrg}
+                  leftIcon={<Icon name="trash-2" size="xs" />}
+                >
+                  Delete Organization
+                </Button>
+              </div>
+            </ModalFooter>
+          </Modal>
         )}
       </div>
     );
