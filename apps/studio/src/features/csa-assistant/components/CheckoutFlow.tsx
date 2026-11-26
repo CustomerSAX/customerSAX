@@ -161,13 +161,17 @@ export function CheckoutFlow({ onViewOrder }: { onViewOrder?: (orderNumber: stri
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [co.isOpen]);
 
-  // Bring the panel into view when it opens — it sits at the end of the chat,
-  // which may be off-screen when Checkout was clicked on an earlier cart card.
+  // Bring the panel into view when it opens — scroll only within the messages container
   const rootRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!co.isOpen) return;
-    const raf = requestAnimationFrame(() => rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
-    return () => cancelAnimationFrame(raf);
+    if (!co.isOpen || !rootRef.current) return;
+    const scrollContainer = rootRef.current.closest<HTMLElement>('.overflow-y-auto');
+    if (scrollContainer) {
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   }, [co.isOpen, co.cartId]);
 
   if (!co.isOpen) return null;

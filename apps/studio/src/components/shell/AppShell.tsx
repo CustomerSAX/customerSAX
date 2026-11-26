@@ -576,6 +576,15 @@ const fallbackUser: CurrentUser = {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const appPathname = projectPath(pathname || "/").pathname;
+  const isCsaAssistant = appPathname === "/csa-assistant" || appPathname.startsWith("/csa-assistant/");
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+    const shell = document.querySelector<HTMLElement>(".csa-app-shell");
+    if (shell) shell.scrollTop = 0;
+  }, [pathname]);
   const router = useRouter();
   const locale = useLocale();
   const currentLocale = isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
@@ -1204,7 +1213,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       style={{ background: "var(--color-bg)", color: "var(--color-ink)" }}
     >
       {/* ── CSA Sidebar ──────────────────────────── */}
-      <div id="studio-navigation" className={`${isNavigationOpen ? "block" : "hidden"} md:block csa-navigation`}>
+      <div id="studio-navigation" className={`${isNavigationOpen ? "block" : "hidden"} md:block csa-navigation h-full shrink-0 flex flex-col`}>
         <Sidebar
           brand={sidebarBrand}
           groups={groups}
@@ -1236,7 +1245,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* ── Main area ────────────────────────────── */}
       <div
-        className="csa-app-body flex min-w-0 flex-1 flex-col overflow-hidden"
+        className="csa-app-body flex min-w-0 flex-1 flex-col overflow-hidden h-full"
         style={{ background: "var(--color-bg)" }}
       >
         {/* ── Yellow TopBar ─────────────────────── */}
@@ -1716,15 +1725,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {/* ── Page content ─────────────────────── */}
         <main
-          className={`csa-page-content min-w-0 min-h-0 flex-1 flex flex-col ${appPathname === "/csa-assistant" ? "overflow-hidden" : "overflow-auto"
+          className={`csa-page-content min-w-0 min-h-0 flex-1 flex flex-col ${isCsaAssistant ? "overflow-hidden" : "overflow-auto"
             }`}
           style={{
-            padding: appPathname === "/csa-assistant" ? 0 : "var(--studio-page-padding, 28px 32px)",
+            padding: isCsaAssistant ? 0 : "var(--studio-page-padding, 28px 32px)",
             paddingBottom:
               appPathname === "/tickets" || appPathname.startsWith("/tickets/")
                 ? "96px"
                 : undefined,
-            background: "var(--color-bg)"
+            background: "var(--color-bg)",
+            height: isCsaAssistant ? "100%" : undefined,
           }}
         >
           {currentUser.role === "admin" &&

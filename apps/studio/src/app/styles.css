@@ -89,7 +89,14 @@
 
   html, body {
     max-width: 100vw;
+  }
 
+  @media (min-width: 768px) {
+    html:has(.csa-app-shell),
+    body:has(.csa-app-shell) {
+      height: 100%;
+      overflow: hidden;
+    }
   }
 
   body {
@@ -517,14 +524,17 @@
   .csa-calendar-range { white-space: normal; }
 }
 
-@media (max-width: 1279px) {
-  .csa-assistant-workspace {
-    grid-template-columns: minmax(0, 1fr) !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
-  .csa-assistant-workspace > div { min-width: 0; height: 40rem; }
-  .csa-page-content:has(.csa-assistant-workspace) { overflow-y: auto; }
+/* CSA Assistant workspace container: always contained within viewport height */
+.csa-page-content:has(.csa-assistant-workspace) {
+  overflow: hidden !important;
+  height: 100% !important;
+  padding: 0 !important;
+}
+
+.csa-assistant-workspace {
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 /* Respond to the space beside the sidebar, not just the window width. */

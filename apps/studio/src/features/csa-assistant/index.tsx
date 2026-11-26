@@ -38,6 +38,13 @@ const CT_BUSINESS_TYPE: BusinessType | undefined =
 const VIP_THRESHOLD = process.env.NEXT_PUBLIC_CSA_VIP_THRESHOLD || undefined;
 
 export function CsaAssistant() {
+  // Ensure window scroll is always 0 when loading CSA Assistant
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, []);
+
   // ConversationStore bindings
   const activeTicketId   = useConversationStore((s) => s.activeTicketId);
   const customer         = useConversationStore((s) => s.customer);
@@ -284,23 +291,23 @@ export function CsaAssistant() {
         style={{
           display: "grid",
           gridTemplateColumns: rightPanelOpen
-            ? "300px minmax(0,1fr) 450px"
-            : "300px minmax(0,1fr)",
+            ? "clamp(220px, 18vw, 300px) minmax(0, 1fr) clamp(340px, 28vw, 450px)"
+            : "clamp(220px, 18vw, 300px) minmax(0, 1fr)",
           gap: 0,
           height: "100%",
-          minHeight: 540,
+          minHeight: 0,
           overflow: "hidden",
           transition: "grid-template-columns 0.2s ease",
         }}
       >
         {/* Left pane — conversation list (self-contained, reads its own data) */}
-        <div style={{ borderRight: "1px solid var(--color-border)", overflow: "hidden" }}>
+        <div style={{ borderRight: "1px solid var(--color-border)", overflow: "hidden", minHeight: 0, height: "100%" }}>
           <ConversationList />
         </div>
 
         {/* Center pane — streaming chat (CheckoutFlow is rendered inside ChatStream,
             between the messages area and the input bar, so it sits in-chat) */}
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: "100%", overflow: 'hidden' }}>
           <ChatStream
             chat={chat}
             sessionCustomerName={sessionCustomerName}
@@ -309,7 +316,7 @@ export function CsaAssistant() {
 
         {/* Right pane — context + AI analysis (only when a ticket is selected) */}
         {rightPanelOpen && (
-          <div style={{ borderLeft: "1px solid var(--color-border)", overflow: "hidden" }}>
+          <div style={{ borderLeft: "1px solid var(--color-border)", overflow: "hidden", minHeight: 0, height: "100%" }}>
             <ContextPanel
               onSendMessage={handleSendMessage}
               isLoading={chat.isLoading}
