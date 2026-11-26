@@ -63,7 +63,7 @@ export function ActionApproval({ args, onApprove, onDecline, isPending, resoluti
   const open = resolution === null;
 
   useEffect(() => {
-    if (open && autoFocus) approveRef.current?.focus();
+    if (open && autoFocus) approveRef.current?.focus({ preventScroll: true });
   }, [open, autoFocus]);
 
   const missing = fields.some((f) => f.required && !values[f.key]?.trim());
