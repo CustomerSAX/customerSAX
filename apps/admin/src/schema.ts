@@ -820,7 +820,7 @@ export const resolvers = {
       const client = await requireClient(args.id);
       const id = client._id.toHexString();
       try {
-        const clientProjects = await projectsRepo.findProjectsByClient(id);
+        const clientProjects = await projectsRepo.listProjectsByClient(id);
         for (const p of clientProjects) {
           await cacheDel(ctProjectConfig(id, p.projectKey));
         }
