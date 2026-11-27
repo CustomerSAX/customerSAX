@@ -178,8 +178,7 @@ export function ConnectionHubCatalogView() {
         <>
           <p className="text-xs text-m-text-muted">
             Remove any enabled connector from this project using its card. Enabled badges
-            show configured actions, not credential health. Native capabilities are listed
-            in the Native Connectors tab.
+            show configured actions. Verify credential health separately.
           </p>
           {notice?.clientId === user?.activeClientId &&
             notice?.projectKey === user?.activeProjectKey && (

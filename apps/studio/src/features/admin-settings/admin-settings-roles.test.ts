@@ -1,21 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { getVisibleAdminTabs } from "./admin-settings-tabs";
 
 describe("Customer Success Studio — Regular Admin Settings Scoping", () => {
-  const ALL_ADMIN_TABS = [
-    { id: "organization", label: "Organization" },
-    { id: "projects", label: "Projects" },
-    { id: "connection-hub", label: "Connection Hub" },
-    { id: "connectors", label: "Native Connectors" },
-    { id: "knowledge-base", label: "Knowledge Base" },
-    { id: "users", label: "Users" },
-    { id: "roles", label: "Roles" }
-  ];
-
-  const getVisibleAdminTabs = (user: { role: string; isOrgAdmin?: boolean }) => {
-    const isOrgAdmin = Boolean(user.isOrgAdmin) || user.role === "superadmin";
-    return ALL_ADMIN_TABS.filter((tab) => isOrgAdmin || tab.id !== "organization");
-  };
-
   const getSidebarAdminHref = (user: { role: string; isOrgAdmin?: boolean }) => {
     const isOrgAdmin = Boolean(user.isOrgAdmin) || user.role === "superadmin";
     return isOrgAdmin ? "/admin-settings/organization" : "/admin-settings/projects";
@@ -31,12 +17,11 @@ describe("Customer Success Studio — Regular Admin Settings Scoping", () => {
 
   describe("1. Organization Tab Visibility & Route Redirection", () => {
     it("completely hides the Organization tab for regular Admin users", () => {
-      const regularAdminTabs = getVisibleAdminTabs({ role: "admin", isOrgAdmin: false });
+      const regularAdminTabs = getVisibleAdminTabs(false);
       expect(regularAdminTabs.some((t) => t.id === "organization")).toBe(false);
       expect(regularAdminTabs.map((t) => t.id)).toEqual([
         "projects",
         "connection-hub",
-        "connectors",
         "knowledge-base",
         "users",
         "roles"
@@ -44,12 +29,9 @@ describe("Customer Success Studio — Regular Admin Settings Scoping", () => {
     });
 
     it("retains the Organization tab for Organization Admins and Superadmins", () => {
-      const orgAdminTabs = getVisibleAdminTabs({ role: "admin", isOrgAdmin: true });
+      const orgAdminTabs = getVisibleAdminTabs(true);
       expect(orgAdminTabs.some((t) => t.id === "organization")).toBe(true);
-      expect(orgAdminTabs).toHaveLength(7);
-
-      const superadminTabs = getVisibleAdminTabs({ role: "superadmin" });
-      expect(superadminTabs.some((t) => t.id === "organization")).toBe(true);
+      expect(orgAdminTabs).toHaveLength(6);
     });
 
     it("routes regular Admin directly to /admin-settings/projects from the sidebar", () => {
@@ -250,18 +232,11 @@ describe("Customer Success Studio — Regular Admin Settings Scoping", () => {
   });
 
   describe("4. Preserved Admin Settings Sections", () => {
-    it("preserves Connection Hub, Native Connectors, Knowledge Base, Users, and Roles for regular Admins", () => {
-      const regularAdminTabs = getVisibleAdminTabs({ role: "admin", isOrgAdmin: false });
-      const preservedTabs = [
-        "connection-hub",
-        "connectors",
-        "knowledge-base",
-        "users",
-        "roles"
-      ];
-
-      for (const tab of preservedTabs) {
-        expect(regularAdminTabs.some((t) => t.id === tab)).toBe(true);
+    it("hides Native Connectors and keeps Connection Hub visible for all admin scopes", () => {
+      for (const isOrgAdmin of [false, true]) {
+        const visibleTabIds = getVisibleAdminTabs(isOrgAdmin).map((tab) => tab.id);
+        expect(visibleTabIds).not.toContain("connectors");
+        expect(visibleTabIds).toContain("connection-hub");
       }
     });
   });

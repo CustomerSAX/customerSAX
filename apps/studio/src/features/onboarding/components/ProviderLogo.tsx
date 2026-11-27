@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 interface LogoProps {
@@ -270,26 +271,38 @@ export function SalesforceLogo({ className = "h-5 w-5" }: LogoProps) {
   );
 }
 
+function OfficialLogoAsset({
+  src,
+  name,
+  className = "h-5 w-5"
+}: LogoProps & { src: string; name: string }) {
+  return (
+    <Image
+      src={src}
+      alt={name}
+      width={24}
+      height={24}
+      className={className}
+      unoptimized
+    />
+  );
+}
+
+/** Official Zoho logo from the vendor-maintained Simple Icons brand source. */
+export function ZohoLogo({ className = "h-5 w-5" }: LogoProps) {
+  return (
+    <OfficialLogoAsset
+      src="/connector-logos/zoho.svg"
+      name="Zoho CRM"
+      className={className}
+    />
+  );
+}
+
 /**
  * Official HubSpot logo
  * Source: Simple Icons (official brand assets)
  */
-/** Plain "Z" monogram in Zoho red — not the official Zoho artwork. */
-export function ZohoLogo({ className = "h-5 w-5" }: LogoProps) {
-  return (
-    <svg
-      role="img"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-label="Zoho CRM"
-    >
-      <rect x="1" y="1" width="22" height="22" rx="5" fill="#E42527" />
-      <path d="M7 7.5h10v2.2l-6.8 6.6H17v2.2H7v-2.2l6.8-6.6H7z" fill="#fff" />
-    </svg>
-  );
-}
-
 export function HubSpotLogo({ className = "h-5 w-5" }: LogoProps) {
   return (
     <svg
@@ -305,37 +318,40 @@ export function HubSpotLogo({ className = "h-5 w-5" }: LogoProps) {
   );
 }
 
-/** Compact branded monograms for catalog previews; these are not official artwork. */
-function BrandedMonogram({
-  label,
-  name,
-  background,
-  className = "h-5 w-5"
-}: LogoProps & { label: string; name: string; background: string }) {
-  return (
-    <svg
-      role="img"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-label={name}
-    >
-      <rect width="24" height="24" rx="5" fill={background} />
-      <text
-        x="12"
-        y="12.6"
-        fill="#fff"
-        fontFamily="Arial, sans-serif"
-        fontSize={label.length > 3 ? 6.2 : label.length > 2 ? 7.4 : 9}
-        fontWeight="700"
-        textAnchor="middle"
-        dominantBaseline="middle"
-      >
-        {label}
-      </text>
-    </svg>
-  );
-}
+const officialAssetLogos: Record<string, { src: string; name: string }> = {
+  "sap-commerce-cloud": { src: "/connector-logos/sap.svg", name: "SAP" },
+  "sap-s4hana": { src: "/connector-logos/sap.svg", name: "SAP" },
+  "microsoft-dynamics-365": {
+    src: "/connector-logos/microsoft-dynamics-365.svg",
+    name: "Microsoft Dynamics 365"
+  },
+  "oracle-netsuite": { src: "/connector-logos/oracle.svg", name: "Oracle" },
+  contentful: { src: "/connector-logos/contentful.svg", name: "Contentful" },
+  amplience: { src: "/connector-logos/amplience.svg", name: "Amplience" },
+  "adobe-experience-manager": { src: "/connector-logos/adobe.svg", name: "Adobe" },
+  "microsoft-teams": {
+    src: "/connector-logos/microsoft-teams.svg",
+    name: "Microsoft Teams"
+  },
+  teams: { src: "/connector-logos/microsoft-teams.svg", name: "Microsoft Teams" },
+  github: { src: "/connector-logos/github.svg", name: "GitHub" },
+  jira: { src: "/connector-logos/jira.svg", name: "Jira" },
+  confluence: { src: "/connector-logos/confluence.svg", name: "Confluence" },
+  slack: { src: "/connector-logos/slack.svg", name: "Slack" },
+  woocommerce: { src: "/connector-logos/woocommerce.svg", name: "WooCommerce" },
+  "adobe-commerce": { src: "/connector-logos/magento.svg", name: "Adobe Commerce" },
+  magento: { src: "/connector-logos/magento.svg", name: "Magento" },
+  contentstack: { src: "/connector-logos/contentstack.svg", name: "Contentstack" },
+  bloomreach: { src: "/connector-logos/bloomreach.svg", name: "Bloomreach" },
+  "bloomreach-discovery": {
+    src: "/connector-logos/bloomreach.svg",
+    name: "Bloomreach"
+  },
+  "bloomreach-engagement": {
+    src: "/connector-logos/bloomreach.svg",
+    name: "Bloomreach"
+  }
+};
 
 /**
  * Returns the official third-party brand logo component if available,
@@ -345,7 +361,11 @@ export function getProviderLogo(
   providerId: string,
   className?: string
 ): ReactNode | null {
-  switch (providerId?.toLowerCase()) {
+  const normalizedId = providerId?.toLowerCase();
+  const asset = officialAssetLogos[normalizedId];
+  if (asset)
+    return <OfficialLogoAsset src={asset.src} name={asset.name} className={className} />;
+  switch (normalizedId) {
     case "commercetools":
       return <CommercetoolsLogo className={className} />;
     case "shopify":
@@ -367,165 +387,11 @@ export function getProviderLogo(
     case "hubspot":
       return <HubSpotLogo className={className} />;
     case "zoho":
+    case "zoho-crm":
       return <ZohoLogo className={className} />;
-    case "sap-commerce-cloud":
-      return (
-        <BrandedMonogram
-          label="SAP"
-          name="SAP Commerce Cloud"
-          background="#0A6ED1"
-          className={className}
-        />
-      );
-    case "sap-s4hana":
-      return (
-        <BrandedMonogram
-          label="S/4"
-          name="SAP S/4HANA"
-          background="#0875BE"
-          className={className}
-        />
-      );
-    case "microsoft-dynamics-365":
-      return (
-        <BrandedMonogram
-          label="D365"
-          name="Microsoft Dynamics 365"
-          background="#5E5ADB"
-          className={className}
-        />
-      );
-    case "oracle-netsuite":
-      return (
-        <BrandedMonogram
-          label="NS"
-          name="Oracle NetSuite"
-          background="#1B3A57"
-          className={className}
-        />
-      );
-    case "contentful":
-      return (
-        <BrandedMonogram
-          label="CF"
-          name="Contentful"
-          background="#2478CC"
-          className={className}
-        />
-      );
-    case "amplience":
-      return (
-        <BrandedMonogram
-          label="AMP"
-          name="Amplience"
-          background="#E33A4E"
-          className={className}
-        />
-      );
-    case "adobe-experience-manager":
-      return (
-        <BrandedMonogram
-          label="AEM"
-          name="Adobe Experience Manager"
-          background="#E12B2B"
-          className={className}
-        />
-      );
-    case "microsoft-teams":
-    case "teams":
-      return (
-        <BrandedMonogram
-          label="T"
-          name="Microsoft Teams"
-          background="#6264A7"
-          className={className}
-        />
-      );
-    case "github":
-      return (
-        <BrandedMonogram
-          label="GH"
-          name="GitHub"
-          background="#181717"
-          className={className}
-        />
-      );
-    case "jira":
-      return (
-        <BrandedMonogram
-          label="J"
-          name="Jira"
-          background="#1868DB"
-          className={className}
-        />
-      );
-    case "confluence":
-      return (
-        <BrandedMonogram
-          label="C"
-          name="Confluence"
-          background="#1868DB"
-          className={className}
-        />
-      );
-    case "slack":
-      return (
-        <BrandedMonogram
-          label="S"
-          name="Slack"
-          background="#611F69"
-          className={className}
-        />
-      );
-    case "woocommerce":
-      return (
-        <BrandedMonogram
-          label="Woo"
-          name="WooCommerce"
-          background="#96588A"
-          className={className}
-        />
-      );
-    case "adobe-commerce":
-    case "magento":
-      return (
-        <BrandedMonogram
-          label="AC"
-          name="Adobe Commerce"
-          background="#E33B26"
-          className={className}
-        />
-      );
     case "salesforce-commerce-cloud":
     case "sfcc":
-      return (
-        <BrandedMonogram
-          label="SF"
-          name="Salesforce Commerce Cloud"
-          background="#00A1E0"
-          className={className}
-        />
-      );
-    case "contentstack":
-      return (
-        <BrandedMonogram
-          label="CS"
-          name="Contentstack"
-          background="#5B3FD6"
-          className={className}
-        />
-      );
-    case "bloomreach":
-    case "bloomreach-discovery":
-    case "bloomreach-engagement":
-      return (
-        <BrandedMonogram
-          label="BR"
-          name="Bloomreach"
-          background="#00A78E"
-          className={className}
-        />
-      );
+      return <SalesforceLogo className={className} />;
     case "openai":
       return <OpenAiLogo className={className} />;
     case "anthropic":

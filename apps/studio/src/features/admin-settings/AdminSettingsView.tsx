@@ -18,8 +18,8 @@ import { ProjectsListView } from "@/features/projects/ProjectsListView";
 import { ConnectionHubCatalogView } from "@/features/connection-hub/ConnectionHubCatalogView";
 import { StudioConnectorsView } from "@/features/connectors/StudioConnectorsView";
 import { KnowledgeBaseAdmin } from "./KnowledgeBaseAdmin";
+import { getVisibleAdminTabs, type AdminSettingsTab } from "./admin-settings-tabs";
 
-export type AdminSettingsTab = "organization" | "projects" | "connectors" | "connection-hub" | "knowledge-base" | "users" | "roles";
 export type LegacySection = "email" | "ai";
 export type Section = AdminSettingsTab | LegacySection;
 type Permission = {
@@ -314,16 +314,6 @@ const blankPermissions = () =>
     update: false,
     delete: false
   }));
-const ADMIN_TABS: Array<{ id: AdminSettingsTab; label: string; icon: string }> = [
-  { id: "organization", label: "Organization", icon: "building-2" },
-  { id: "projects", label: "Projects", icon: "folder" },
-  { id: "connection-hub", label: "Connection Hub", icon: "link" },
-  { id: "connectors", label: "Native Connectors", icon: "layers" },
-  { id: "knowledge-base", label: "Knowledge Base", icon: "book-open" },
-  { id: "users", label: "Users", icon: "users" },
-  { id: "roles", label: "Roles", icon: "shield" }
-];
-
 export function AdminSettingsView({ section = "organization" }: { section?: Section }) {
   const t = useTranslations("AdminSettings");
   const router = useRouter();
@@ -341,9 +331,7 @@ export function AdminSettingsView({ section = "organization" }: { section?: Sect
 
   const { user, loading: userLoading } = useCurrentUser();
   const isOrgAdmin = Boolean(user?.isOrgAdmin) || user?.role === "superadmin";
-  const visibleTabs = useMemo(() => {
-    return ADMIN_TABS.filter((tab) => isOrgAdmin || tab.id !== "organization");
-  }, [isOrgAdmin]);
+  const visibleTabs = getVisibleAdminTabs(isOrgAdmin);
 
   const [activeSection, setActiveSection] = useState<AdminSettingsTab>(() => {
     const normalized = normalizeSection(section);
