@@ -8,6 +8,38 @@ describe("Onboarding Provider Branding and Logos", () => {
     expect(getProviderLogo("bigcommerce")).not.toBeNull();
   });
 
+  it.each([
+    "commercetools",
+    "shopify",
+    "bigcommerce",
+    "sap-commerce-cloud",
+    "sap-s4hana",
+    "microsoft-dynamics-365",
+    "oracle-netsuite",
+    "contentful",
+    "amplience",
+    "adobe-experience-manager",
+    "bloomreach-discovery",
+    "bloomreach-engagement"
+  ])("resolves an official logo for Connection Hub catalog provider %s", (id) => {
+    expect(getProviderLogo(id)).not.toBeNull();
+  });
+
+  it.each([
+    "microsoft-teams",
+    "github",
+    "jira",
+    "confluence",
+    "slack",
+    "woocommerce",
+    "adobe-commerce",
+    "salesforce-commerce-cloud",
+    "contentstack",
+    "zoho-crm"
+  ])("resolves an official logo for live connector alias %s", (id) => {
+    expect(getProviderLogo(id)).not.toBeNull();
+  });
+
   it("resolves official third-party logo for product search providers", () => {
     expect(getProviderLogo("algolia")).not.toBeNull();
   });

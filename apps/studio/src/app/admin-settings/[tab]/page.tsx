@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/get-current-user";
-import { AdminSettingsView, type AdminSettingsTab } from "@/features/admin-settings/AdminSettingsView";
+import { AdminSettingsView } from "@/features/admin-settings/AdminSettingsView";
+import type { AdminSettingsTab } from "@/features/admin-settings/admin-settings-tabs";
 
 export const dynamic = "force-dynamic";
 

@@ -87,9 +87,9 @@ project's ticketing selection or the existing ticketing binding.
 
 ## Using the same account on the Tickets page
 
-The Native Connectors tab lists built-in capabilities only; external discovery and
-account setup belong to Connection Hub. Existing project ticketing selections are
-preserved by that UI cleanup. For a project already using Zendesk, the adapter
+External connector discovery and account setup are available in Connection Hub.
+Administrators can open the built-in capabilities at `/admin-settings/connectors`
+while the Native Connectors tab is hidden. For a project already using Zendesk, the adapter
 keeps the same list, filters, detail, comments and provider-fields UI. Its `zendesk-read → rc_zendesk_read` binding can reference
 the same encrypted Hub connection and approved release as the assistant search
 binding. Create that binding explicitly through Hub's administrator API; this
