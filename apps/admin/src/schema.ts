@@ -17,7 +17,8 @@ import {
   testSmtpProfile,
   usersRepo,
   getProjectTicketingSla,
-  saveProjectTicketingSla
+  saveProjectTicketingSla,
+  deleteKnowledgeBaseByOrganization
 } from "@csa/mongodb";
 import type { ClientSsoConfigStored, CsaUser, SlaTargetInput } from "@csa/mongodb";
 import { del as cacheDel, ctProjectConfig } from "@csa/cache";
@@ -818,9 +819,22 @@ export const resolvers = {
     adminDeleteClient: async (_p: unknown, args: { id: string }) => {
       const client = await requireClient(args.id);
       const id = client._id.toHexString();
+      try {
+        const clientProjects = await projectsRepo.listProjectsByClient(id);
+        for (const p of clientProjects) {
+          await cacheDel(ctProjectConfig(id, p.projectKey));
+        }
+      } catch {
+        // best effort cache purge
+      }
       await projectsRepo.deleteProjectsByClient(id);
       await smtpRepo.deleteSmtpProfilesByClient(id);
       await usersRepo.deactivateUsersByClient(id);
+      try {
+        await deleteKnowledgeBaseByOrganization(id);
+      } catch {
+        // best effort
+      }
       return clientsRepo.deleteClient(id);
     },
 
@@ -1004,6 +1018,10 @@ export const resolvers = {
     },
 
     adminDeleteProject: async (_p: unknown, args: { id: string }, context: unknown) => {
+      const existing = await findProjectScoped(context, args.id);
+      if (existing) {
+        await cacheDel(ctProjectConfig(existing.clientId, existing.projectKey));
+      }
       return deleteProjectScoped(context, args.id);
     },
 

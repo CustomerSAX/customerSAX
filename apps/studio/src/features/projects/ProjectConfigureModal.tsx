@@ -12,6 +12,7 @@ import {
 } from "@csa/ui";
 import {
   ADMIN_UPDATE_PROJECT,
+  ADMIN_DELETE_PROJECT,
   ADMIN_TEST_PROJECT_CREDENTIALS
 } from "@/features/superadmin/api/queries";
 
@@ -83,8 +84,22 @@ export function ProjectConfigureModal({
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [updateProject] = useMutation(ADMIN_UPDATE_PROJECT);
+  const [deleteProjectMutation, { loading: isDeleting }] = useMutation(ADMIN_DELETE_PROJECT);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    if (!project) return;
+    setDeleteError(null);
+    try {
+      await deleteProjectMutation({ variables: { id: project.id } });
+      onSuccess?.();
+    } catch (err: any) {
+      setDeleteError(err.message || "Failed to delete project");
+    }
+  };
 
   if (!isOpen || !project) return null;
 
@@ -329,22 +344,64 @@ export function ProjectConfigureModal({
               </span>
             )}
           </div>
+          {deleteError && (
+            <div className="rounded border border-red-500/20 bg-red-500/10 p-2 text-xs text-red-600 dark:text-red-400">
+              {deleteError}
+            </div>
+          )}
         </div>
       </ModalBody>
       <ModalFooter>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void handleSave()}
-            disabled={isSaving}
-            loading={isSaving}
-          >
-            Save Configuration
-          </Button>
+        <div className="flex items-center justify-between w-full">
+          <div>
+            {showDeleteConfirm ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-600 font-medium">Permanently delete?</span>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={isDeleting}
+                  disabled={isDeleting}
+                  onClick={handleDelete}
+                  leftIcon={<Icon name="trash-2" size="xs" />}
+                >
+                  Confirm Delete
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={isDeleting}
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-red-600 hover:bg-red-500/10 hover:text-red-600 flex items-center gap-1.5"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Icon name="trash-2" size="xs" />
+                <span>Delete Project</span>
+              </Button>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose} disabled={isSaving || isDeleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void handleSave()}
+              disabled={isSaving || isDeleting}
+              loading={isSaving}
+            >
+              Save Configuration
+            </Button>
+          </div>
         </div>
       </ModalFooter>
     </Modal>

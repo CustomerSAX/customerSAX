@@ -15,10 +15,19 @@ import {
   Badge,
   Button,
   Icon,
+  Input,
   EmptyState,
-  LoadingSpinner
+  LoadingSpinner,
+  Modal,
+  ModalHeader,
+  ModalBody,
+  ModalFooter
 } from "@csa/ui";
-import { ADMIN_CLIENTS_QUERY, ADMIN_SET_CLIENT_STATUS } from "@/features/superadmin/api/queries";
+import {
+  ADMIN_CLIENTS_QUERY,
+  ADMIN_SET_CLIENT_STATUS,
+  ADMIN_DELETE_CLIENT
+} from "@/features/superadmin/api/queries";
 
 interface ClientRow {
   id: string;
@@ -46,8 +55,26 @@ export default function SuperadminClientsPage() {
   });
   const [setClientStatus] = useMutation(ADMIN_SET_CLIENT_STATUS);
 
+  const [deleteClientMutation, { loading: isDeleting }] = useMutation(ADMIN_DELETE_CLIENT);
+
   const [search, setSearch] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingClient, setDeletingClient] = useState<ClientRow | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDeleteClient = async () => {
+    if (!deletingClient) return;
+    setDeleteError(null);
+    try {
+      await deleteClientMutation({ variables: { id: deletingClient.id } });
+      setDeletingClient(null);
+      setDeleteConfirmName("");
+      await refetch();
+    } catch (err: any) {
+      setDeleteError(err.message || "Failed to delete organization");
+    }
+  };
 
   const clients = data?.adminClients ?? [];
 
@@ -264,6 +291,18 @@ export default function SuperadminClientsPage() {
                       >
                         {togglingId === c.id ? "…" : c.status === "active" ? "Block" : "Unblock"}
                       </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => {
+                          setDeletingClient(c);
+                          setDeleteConfirmName("");
+                          setDeleteError(null);
+                        }}
+                        leftIcon={<Icon name="trash-2" size="xs" />}
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -272,6 +311,90 @@ export default function SuperadminClientsPage() {
           </Table>
         )}
       </Card>
+
+      {deletingClient && (
+        <Modal
+          isOpen={Boolean(deletingClient)}
+          onClose={() => {
+            if (!isDeleting) {
+              setDeletingClient(null);
+              setDeleteConfirmName("");
+              setDeleteError(null);
+            }
+          }}
+          size="sm"
+        >
+          <ModalHeader
+            title="Delete Organization"
+            subtitle="Permanently remove organization and all associated data"
+            onClose={() => {
+              if (!isDeleting) {
+                setDeletingClient(null);
+                setDeleteConfirmName("");
+                setDeleteError(null);
+              }
+            }}
+          />
+          <ModalBody>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                <p className="font-semibold">Warning: This will permanently delete:</p>
+                <p className="mt-1 font-bold text-sm text-m-text">
+                  {deletingClient.name} ({deletingClient.slug})
+                </p>
+                <p className="mt-2 text-[11px] text-m-text-muted">
+                  All {deletingClient.projectCount} project(s), connectors, credentials, and access for {deletingClient.userCount} member(s) will be permanently deleted. This action cannot be undone.
+                </p>
+              </div>
+
+              {deleteError && (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                  {deleteError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-m-text mb-1">
+                  Type <span className="font-bold text-red-600">{deletingClient.name}</span> to confirm:
+                </label>
+                <Input
+                  value={deleteConfirmName}
+                  onChange={(e) => setDeleteConfirmName(e.target.value)}
+                  placeholder={deletingClient.name}
+                  disabled={isDeleting}
+                  autoFocus
+                />
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDeletingClient(null);
+                  setDeleteConfirmName("");
+                  setDeleteError(null);
+                }}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={isDeleting || deleteConfirmName !== deletingClient.name}
+                loading={isDeleting}
+                onClick={handleDeleteClient}
+                leftIcon={<Icon name="trash-2" size="xs" />}
+              >
+                Delete Organization
+              </Button>
+            </div>
+          </ModalFooter>
+        </Modal>
+      )}
     </PageShell>
   );
 }

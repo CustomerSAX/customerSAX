@@ -27,6 +27,8 @@ import { useCurrentUser } from "@/lib/use-current-user";
 import {
   ADMIN_CLIENT_QUERY,
   ADMIN_UPDATE_CLIENT,
+  ADMIN_DELETE_CLIENT,
+  ADMIN_DELETE_PROJECT,
   ADMIN_CREATE_CLIENT_USER,
   ADMIN_UPDATE_CLIENT_USER,
   ADMIN_REMOVE_USER_FROM_CLIENT
@@ -77,10 +79,16 @@ export function OrgSettingsPortalView() {
   const [uiTheme, setUiTheme] = useState("csa-custom");
   const [orgSuccessMsg, setOrgSuccessMsg] = useState<string | null>(null);
   const [orgErrorMsg, setOrgErrorMsg] = useState<string | null>(null);
+  const [isDeleteOrgOpen, setIsDeleteOrgOpen] = useState(false);
+  const [deleteOrgConfirmName, setDeleteOrgConfirmName] = useState("");
+  const [deleteOrgError, setDeleteOrgError] = useState<string | null>(null);
 
   // Tab 2: Projects Modals State
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [configuringProject, setConfiguringProject] = useState<ProjectRow | null>(null);
+  const [deletingProject, setDeletingProject] = useState<ProjectRow | null>(null);
+  const [deleteProjectConfirmKey, setDeleteProjectConfirmKey] = useState("");
+  const [deleteProjectError, setDeleteProjectError] = useState<string | null>(null);
 
   // Tab 3: Users Modals State
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
@@ -116,9 +124,40 @@ export function OrgSettingsPortalView() {
 
   // Mutations
   const [updateClient, { loading: savingOrg }] = useMutation(ADMIN_UPDATE_CLIENT);
+  const [deleteClientMutation, { loading: isDeletingOrg }] = useMutation(ADMIN_DELETE_CLIENT);
+  const [deleteProjectMutation, { loading: isDeletingProject }] = useMutation(ADMIN_DELETE_PROJECT);
   const [createClientUser] = useMutation(ADMIN_CREATE_CLIENT_USER);
   const [updateClientUser] = useMutation(ADMIN_UPDATE_CLIENT_USER);
   const [removeUserFromClient] = useMutation(ADMIN_REMOVE_USER_FROM_CLIENT);
+
+  const handleDeleteOrg = async () => {
+    if (!organizationId) return;
+    setDeleteOrgError(null);
+    try {
+      await deleteClientMutation({ variables: { id: organizationId } });
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+      window.location.href = "/login";
+    } catch (err: any) {
+      setDeleteOrgError(err.message || "Failed to delete organization");
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!deletingProject) return;
+    setDeleteProjectError(null);
+    try {
+      await deleteProjectMutation({ variables: { id: deletingProject.id } });
+      const wasActive = user?.activeProjectKey === deletingProject.projectKey;
+      setDeletingProject(null);
+      setDeleteProjectConfirmKey("");
+      await refetch();
+      if (wasActive) {
+        window.location.reload();
+      }
+    } catch (err: any) {
+      setDeleteProjectError(err.message || "Failed to delete project");
+    }
+  };
 
   const client = data?.adminClient;
   const projects: ProjectRow[] = data?.adminProjectsByClient ?? [];
@@ -552,6 +591,33 @@ export function OrgSettingsPortalView() {
               </div>
             </form>
           </Card>
+
+          {/* Danger Zone */}
+          <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-6 shadow-m-card">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-base font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+                  <Icon name="alert-triangle" size="sm" />
+                  <span>Danger Zone: Delete Organization</span>
+                </h3>
+                <p className="mt-1 text-xs text-m-text-muted max-w-xl">
+                  Permanently delete this organization ({client?.name}), along with all commerce projects, credentials, connectors, knowledge base, and member access. This action cannot be undone.
+                </p>
+              </div>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  setIsDeleteOrgOpen(true);
+                  setDeleteOrgConfirmName("");
+                  setDeleteOrgError(null);
+                }}
+                leftIcon={<Icon name="trash-2" size="xs" />}
+              >
+                Delete Organization
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -654,14 +720,29 @@ export function OrgSettingsPortalView() {
                           {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setConfiguringProject(p)}
-                            leftIcon={<Icon name="edit" size="xs" />}
-                          >
-                            Configure
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setConfiguringProject(p)}
+                              leftIcon={<Icon name="edit" size="xs" />}
+                            >
+                              Configure
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setDeletingProject(p);
+                                setDeleteProjectConfirmKey("");
+                                setDeleteProjectError(null);
+                              }}
+                              className="text-m-error hover:bg-m-error/10 hover:text-m-error"
+                              leftIcon={<Icon name="trash-2" size="xs" />}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -1331,6 +1412,180 @@ export function OrgSettingsPortalView() {
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* Project Deletion Confirmation Modal                                 */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {deletingProject && (
+        <Modal
+          isOpen={Boolean(deletingProject)}
+          onClose={() => {
+            if (!isDeletingProject) {
+              setDeletingProject(null);
+              setDeleteProjectConfirmKey("");
+              setDeleteProjectError(null);
+            }
+          }}
+          size="sm"
+        >
+          <ModalHeader
+            title="Delete Project"
+            subtitle="Permanently delete project and platform configuration"
+            onClose={() => {
+              if (!isDeletingProject) {
+                setDeletingProject(null);
+                setDeleteProjectConfirmKey("");
+                setDeleteProjectError(null);
+              }
+            }}
+          />
+          <ModalBody>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                <p className="font-semibold">Warning: This will permanently delete the project:</p>
+                <p className="mt-1 font-mono font-bold text-sm text-m-text">
+                  {deletingProject.displayName || deletingProject.projectKey} ({deletingProject.projectKey})
+                </p>
+                <p className="mt-2 text-[11px] text-m-text-muted">
+                  All commerce credentials, platform configuration, ticketing connections, and associated settings will be permanently removed. This action cannot be undone.
+                </p>
+              </div>
+
+              {deleteProjectError && (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                  {deleteProjectError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-m-text mb-1">
+                  Type <span className="font-mono font-bold text-red-600">{deletingProject.projectKey}</span> to confirm:
+                </label>
+                <Input
+                  value={deleteProjectConfirmKey}
+                  onChange={(e) => setDeleteProjectConfirmKey(e.target.value)}
+                  placeholder={deletingProject.projectKey}
+                  disabled={isDeletingProject}
+                  autoFocus
+                />
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDeletingProject(null);
+                  setDeleteProjectConfirmKey("");
+                  setDeleteProjectError(null);
+                }}
+                disabled={isDeletingProject}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={isDeletingProject || deleteProjectConfirmKey !== deletingProject.projectKey}
+                loading={isDeletingProject}
+                onClick={handleDeleteProject}
+                leftIcon={<Icon name="trash-2" size="xs" />}
+              >
+                Delete Project
+              </Button>
+            </div>
+          </ModalFooter>
+        </Modal>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* Organization Deletion Confirmation Modal                            */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {isDeleteOrgOpen && (
+        <Modal
+          isOpen={isDeleteOrgOpen}
+          onClose={() => {
+            if (!isDeletingOrg) {
+              setIsDeleteOrgOpen(false);
+              setDeleteOrgConfirmName("");
+              setDeleteOrgError(null);
+            }
+          }}
+          size="sm"
+        >
+          <ModalHeader
+            title="Delete Organization"
+            subtitle="Irreversible organization removal"
+            onClose={() => {
+              if (!isDeletingOrg) {
+                setIsDeleteOrgOpen(false);
+                setDeleteOrgConfirmName("");
+                setDeleteOrgError(null);
+              }
+            }}
+          />
+          <ModalBody>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                <p className="font-semibold">Warning: This will permanently delete:</p>
+                <p className="mt-1 font-bold text-sm text-m-text">
+                  {client?.name || "This organization"} ({client?.slug})
+                </p>
+                <p className="mt-2 text-[11px] text-m-text-muted">
+                  All {projects.length} project(s), credentials, team member access, and settings belonging to this organization will be permanently deleted.
+                </p>
+              </div>
+
+              {deleteOrgError && (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                  {deleteOrgError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-m-text mb-1">
+                  Type <span className="font-bold text-red-600">{client?.name}</span> to confirm:
+                </label>
+                <Input
+                  value={deleteOrgConfirmName}
+                  onChange={(e) => setDeleteOrgConfirmName(e.target.value)}
+                  placeholder={client?.name}
+                  disabled={isDeletingOrg}
+                  autoFocus
+                />
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsDeleteOrgOpen(false);
+                  setDeleteOrgConfirmName("");
+                  setDeleteOrgError(null);
+                }}
+                disabled={isDeletingOrg}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={isDeletingOrg || deleteOrgConfirmName !== client?.name}
+                loading={isDeletingOrg}
+                onClick={handleDeleteOrg}
+                leftIcon={<Icon name="trash-2" size="xs" />}
+              >
+                Delete Organization
+              </Button>
+            </div>
+          </ModalFooter>
+        </Modal>
+      )}
     </div>
   );
 }

@@ -34,13 +34,14 @@ export const clientScopedAdminFields = new Set([
   "adminUpdateAiSettings", "adminCreateSmtpProfile", "adminUpdateSmtpProfile",
   "adminDeleteSmtpProfile", "adminSetProjectSmtp", "adminTestSmtpProfile",
   // Client-scoped Organization updates
-  "adminUpdateClient"
+  "adminUpdateClient", "adminDeleteClient"
 ]);
 
 export const orgAdminOnlyFields = new Set([
   "adminCreateProject",
   "adminDeleteProject",
   "adminUpdateClient",
+  "adminDeleteClient",
   "adminUpdateClientContact"
 ]);
 
@@ -62,7 +63,7 @@ export function authorize(field: string, args: Record<string, unknown>, context:
 
   let requestedClientId: string | undefined = typeof args.clientId === "string" ? args.clientId : undefined;
   if (!requestedClientId) {
-    if (typeof args.id === "string" && (field === "adminClient" || field === "adminUpdateClient")) {
+    if (typeof args.id === "string" && (field === "adminClient" || field === "adminUpdateClient" || field === "adminDeleteClient")) {
       requestedClientId = args.id;
     }
   }
